@@ -2,6 +2,7 @@ from flask import (Flask, redirect, render_template, request,
                    session, url_for, jsonify)
 import bcrypt
 import os
+from datetime import datetime
 from database import init_db, get_db, init_app
 import config
 
@@ -157,6 +158,101 @@ def delete_session(sid):
     db.execute("DELETE FROM sessions WHERE id=?", (sid,))
     db.commit()
     return "", 204
+
+
+# ── Schedule logic ────────────────────────────────────────
+
+
+def get_current_session():
+    db = get_db()
+
+    # 1. Check override
+    ov = db.execute("SELECT session_id FROM override WHERE id=1").fetchone()
+    if ov and ov["session_id"]:
+        return _session_to_dict(ov["session_id"], db)
+
+    # 2. Walk back through days (up to 7) to find last scheduled slot
+    now = datetime.now()
+    current_day = now.weekday()      # 0=Mon … 6=Sun
+    current_time = now.strftime("%H:%M")
+
+    for days_back in range(7):
+        check_day = (current_day - days_back) % 7
+        check_time = current_time if days_back == 0 else "23:59"
+        row = db.execute(
+            "SELECT session_id FROM schedule "
+            "WHERE day_of_week=? AND start_time<=? "
+            "ORDER BY start_time DESC LIMIT 1",
+            (check_day, check_time)
+        ).fetchone()
+        if row:
+            return _session_to_dict(row["session_id"], db)
+
+    return None
+
+
+# ── Public session endpoint (polled by TV) ────────────────
+
+@app.route("/api/session")
+def api_current_session():
+    result = get_current_session()
+    if result is None:
+        return jsonify({"name": None}), 200
+    return jsonify(result)
+
+
+# ── Schedule CRUD ─────────────────────────────────────────
+
+@app.route("/api/schedule", methods=["GET"])
+@require_auth
+def get_schedule():
+    db = get_db()
+    rows = db.execute(
+        "SELECT sc.*, s.name as session_name "
+        "FROM schedule sc JOIN sessions s ON s.id=sc.session_id "
+        "ORDER BY sc.day_of_week, sc.start_time"
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/schedule", methods=["POST"])
+@require_auth
+def save_schedule():
+    """Replace entire schedule with submitted slots."""
+    slots = request.get_json()  # [{day_of_week, start_time, session_id}, ...]
+    db = get_db()
+    db.execute("DELETE FROM schedule")
+    for slot in slots:
+        db.execute(
+            "INSERT INTO schedule (day_of_week, start_time, session_id) VALUES (?,?,?)",
+            (slot["day_of_week"], slot["start_time"], slot["session_id"])
+        )
+    db.commit()
+    return jsonify({"ok": True})
+
+
+# ── Override ──────────────────────────────────────────────
+
+@app.route("/api/publish", methods=["POST"])
+@require_auth
+def publish():
+    sid = request.get_json().get("session_id")
+    db = get_db()
+    db.execute(
+        "UPDATE override SET session_id=?, set_at=CURRENT_TIMESTAMP WHERE id=1",
+        (sid,)
+    )
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/publish/clear", methods=["POST"])
+@require_auth
+def clear_override():
+    db = get_db()
+    db.execute("UPDATE override SET session_id=NULL, set_at=NULL WHERE id=1")
+    db.commit()
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":
