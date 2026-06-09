@@ -142,14 +142,66 @@
   </div>
 </div>
 
-<!-- ── SCHEDULE ── (populated in Task 8) -->
+<!-- ── SCHEDULE ── -->
 <div class="panel" id="panel-schedule">
-  <p style="color:#444; font-size:0.85rem;">Loading schedule...</p>
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+    <span style="color:#fff; font-weight:700;">Weekly Schedule</span>
+    <button class="btn btn-green" onclick="saveSchedule()">Save Schedule</button>
+  </div>
+  <div style="overflow-x:auto;">
+    <table id="schedule-table" style="border-collapse:collapse; width:100%; font-size:0.8rem; min-width:700px;">
+      <thead>
+        <tr>
+          <th style="background:#111; color:#3DFF4F; padding:0.5rem 0.8rem; text-align:left; border:1px solid #1a1a1a;">Time</th>
+          <th style="background:#111; color:#3DFF4F; padding:0.5rem 0.8rem; border:1px solid #1a1a1a;">Mon</th>
+          <th style="background:#111; color:#3DFF4F; padding:0.5rem 0.8rem; border:1px solid #1a1a1a;">Tue</th>
+          <th style="background:#111; color:#3DFF4F; padding:0.5rem 0.8rem; border:1px solid #1a1a1a;">Wed</th>
+          <th style="background:#111; color:#3DFF4F; padding:0.5rem 0.8rem; border:1px solid #1a1a1a;">Thu</th>
+          <th style="background:#111; color:#3DFF4F; padding:0.5rem 0.8rem; border:1px solid #1a1a1a;">Fri</th>
+          <th style="background:#111; color:#3DFF4F; padding:0.5rem 0.8rem; border:1px solid #1a1a1a;">Sat</th>
+          <th style="background:#111; color:#3DFF4F; padding:0.5rem 0.8rem; border:1px solid #1a1a1a;">Sun</th>
+          <th style="background:#111; padding:0.5rem; border:1px solid #1a1a1a;"></th>
+        </tr>
+      </thead>
+      <tbody id="schedule-body"></tbody>
+    </table>
+  </div>
+  <button class="add-block-btn" style="margin-top:0.8rem;" onclick="addScheduleRow()">+ Add Time Slot</button>
 </div>
 
-<!-- ── NOW PLAYING ── (populated in Task 8) -->
+<!-- ── NOW PLAYING ── -->
 <div class="panel" id="panel-nowplaying">
-  <p style="color:#444; font-size:0.85rem;">Loading...</p>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; max-width:800px;">
+    <div style="background:#0d1f0d; border:1px solid #2a4a2a; border-radius:10px; padding:1.2rem;">
+      <div style="color:#3DFF4F; font-size:0.7rem; font-weight:800; text-transform:uppercase;
+                  letter-spacing:0.08em; margin-bottom:0.4rem;">On Screen Now</div>
+      <div id="np-name" style="color:#fff; font-size:1.1rem; font-weight:700; margin-bottom:0.3rem;">-</div>
+      <div id="np-meta" style="color:#555; font-size:0.78rem; margin-bottom:1rem;"></div>
+      <a href="/display" target="_blank"
+         style="color:#3DFF4F; font-size:0.78rem; text-decoration:none;">View on TV</a>
+    </div>
+    <div style="background:#111; border:1px solid #222; border-radius:10px; padding:1.2rem;">
+      <div style="color:#666; font-size:0.7rem; font-weight:800; text-transform:uppercase;
+                  letter-spacing:0.08em; margin-bottom:0.4rem;">Up Next</div>
+      <div id="np-next-name" style="color:#aaa; font-size:0.95rem; font-weight:700; margin-bottom:0.3rem;">-</div>
+      <div id="np-next-time" style="color:#444; font-size:0.78rem;"></div>
+    </div>
+    <div style="grid-column:1/-1; background:#111; border:1px solid #1a1a1a;
+                border-radius:10px; padding:1.2rem;">
+      <div style="color:#666; font-size:0.7rem; font-weight:800; text-transform:uppercase;
+                  letter-spacing:0.08em; margin-bottom:0.8rem;">Manual Override</div>
+      <div style="display:flex; gap:0.7rem; align-items:flex-end;">
+        <div style="flex:1;">
+          <label>Choose session</label>
+          <select id="np-override-select" style="width:100%;"></select>
+        </div>
+        <button class="btn btn-green" onclick="publishOverride()">Publish Now</button>
+        <button class="btn btn-dark" onclick="clearOverride()">Clear Override</button>
+      </div>
+      <p style="color:#333; font-size:0.72rem; margin-top:0.6rem;">
+        Override stays active until cleared or the next scheduled slot kicks in.</p>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -325,9 +377,121 @@ async function saveSession(andPublish) {
   switchTab("library");
 }
 
-// ── Schedule + Now Playing stubs (filled in Task 8) ───────
-function loadScheduleTab() { /* Task 8 */ }
-function loadNowPlayingTab() { /* Task 8 */ }
+// ── Schedule tab ──────────────────────────────────────────
+let scheduleRows = [];   // [{time, slots: {0..6: session_id|null}}]
+
+async function loadScheduleTab() {
+  const r = await fetch("/api/schedule");
+  const data = await r.json();
+
+  // Build unique time slots
+  const times = [...new Set(data.map(d => d.start_time))].sort();
+  scheduleRows = times.map(t => {
+    const slots = {};
+    for (let d = 0; d < 7; d++) slots[d] = null;
+    data.filter(d => d.start_time === t).forEach(d => { slots[d.day_of_week] = d.session_id; });
+    return { time: t, slots };
+  });
+  renderScheduleTable();
+}
+
+function renderScheduleTable() {
+  const tbody = document.getElementById("schedule-body");
+  tbody.innerHTML = scheduleRows.map((row, ri) => `
+    <tr>
+      <td style="padding:0.4rem 0.8rem; border:1px solid #1a1a1a; background:#0a0a0a;">
+        <input type="time" value="${esc(row.time)}" style="background:transparent; border:none;
+               color:#3DFF4F; font-size:0.8rem; width:80px;"
+               onchange="scheduleRows[${ri}].time=this.value" />
+      </td>
+      ${[0,1,2,3,4,5,6].map(d => `
+        <td style="padding:0.3rem; border:1px solid #1a1a1a;">
+          <select style="width:100%; font-size:0.75rem; background:#0a0a0a;"
+                  onchange="scheduleRows[${ri}].slots[${d}]=this.value?parseInt(this.value):null">
+            <option value="">-</option>
+            ${allSessions.map(s =>
+              `<option value="${s.id}" ${row.slots[d]===s.id?"selected":""}>${esc(s.name)}</option>`
+            ).join("")}
+          </select>
+        </td>`).join("")}
+      <td style="padding:0.3rem; border:1px solid #1a1a1a; text-align:center;">
+        <button class="btn btn-red" style="padding:0.2rem 0.5rem;"
+                onclick="scheduleRows.splice(${ri},1); renderScheduleTable()">x</button>
+      </td>
+    </tr>`).join("");
+}
+
+function addScheduleRow() {
+  const slots = {};
+  for (let d = 0; d < 7; d++) slots[d] = null;
+  scheduleRows.push({ time: "06:00", slots });
+  renderScheduleTable();
+}
+
+async function saveSchedule() {
+  const payload = [];
+  scheduleRows.forEach(row => {
+    for (let d = 0; d < 7; d++) {
+      if (row.slots[d]) payload.push({
+        day_of_week: d, start_time: row.time, session_id: row.slots[d]
+      });
+    }
+  });
+  await fetch("/api/schedule", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+  alert("Schedule saved!");
+}
+
+// ── Now Playing tab ───────────────────────────────────────
+async function loadNowPlayingTab() {
+  // Populate override dropdown
+  const sel = document.getElementById("np-override-select");
+  sel.innerHTML = allSessions.map(s =>
+    `<option value="${s.id}">${esc(s.name)}</option>`).join("");
+
+  // Current session
+  const r = await fetch("/api/session");
+  const data = await r.json();
+  document.getElementById("np-name").textContent = data.name || "Nothing scheduled";
+  document.getElementById("np-meta").textContent = data.name ? `${data.blocks?.length || 0} blocks` : "";
+
+  // Next slot (simple: scan schedule for next slot after now)
+  const sched = await (await fetch("/api/schedule")).json();
+  const now = new Date();
+  const currentDay = now.getDay() === 0 ? 6 : now.getDay() - 1;
+  const currentTime = now.toTimeString().slice(0, 5);
+
+  const future = sched.filter(s =>
+    s.day_of_week > currentDay ||
+    (s.day_of_week === currentDay && s.start_time > currentTime)
+  ).sort((a, b) => a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time));
+
+  const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  if (future.length) {
+    document.getElementById("np-next-name").textContent = future[0].session_name;
+    document.getElementById("np-next-time").textContent =
+      DAYS[future[0].day_of_week] + " · " + future[0].start_time;
+  } else {
+    document.getElementById("np-next-name").textContent = "No upcoming slots";
+    document.getElementById("np-next-time").textContent = "";
+  }
+}
+
+async function publishOverride() {
+  const sid = parseInt(document.getElementById("np-override-select").value);
+  await fetch("/api/publish", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ session_id: sid })
+  });
+  loadNowPlayingTab();
+}
+
+async function clearOverride() {
+  await fetch("/api/publish/clear", { method: "POST" });
+  loadNowPlayingTab();
+}
 
 function esc(s) {
   return String(s || "")
