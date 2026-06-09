@@ -25,7 +25,13 @@ def test_returns_correct_slot_for_time_of_day(app):
             result = get_current_session()
         assert result["name"] == "Session A"
 
-        # 18:00 Monday → Session B
+        # 17:59 Monday → still Session A (18:00 slot not yet active)
+        with patch("app.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 6, 8, 17, 59)
+            result = get_current_session()
+        assert result["name"] == "Session A"
+
+        # 18:00 Monday → Session B (slot starts exactly now)
         with patch("app.datetime") as mock_dt:
             mock_dt.now.return_value = datetime(2026, 6, 8, 18, 0)
             result = get_current_session()
