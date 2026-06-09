@@ -56,6 +56,109 @@ def display():
     return render_template("display.html")
 
 
+# ── Sessions API ──────────────────────────────────────────
+
+def _session_to_dict(session_id, db):
+    row = db.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
+    if row is None:
+        return None
+    blocks = db.execute(
+        "SELECT * FROM blocks WHERE session_id=? ORDER BY sort_order, id", (session_id,)
+    ).fetchall()
+    result = dict(row)
+    result["blocks"] = []
+    for b in blocks:
+        exercises = db.execute(
+            "SELECT * FROM exercises WHERE block_id=? ORDER BY sort_order, id", (b["id"],)
+        ).fetchall()
+        block = dict(b)
+        block["exercises"] = [dict(e) for e in exercises]
+        result["blocks"].append(block)
+    return result
+
+
+def _save_blocks(session_id, blocks, db):
+    for i, block in enumerate(blocks):
+        cur = db.execute(
+            "INSERT INTO blocks (session_id, label, focus, sort_order) VALUES (?,?,?,?)",
+            (session_id, block["label"], block.get("focus", ""), i)
+        )
+        block_id = cur.lastrowid
+        for j, ex in enumerate(block.get("exercises", [])):
+            db.execute(
+                "INSERT INTO exercises (block_id, code, name, sets_reps, sort_order) "
+                "VALUES (?,?,?,?,?)",
+                (block_id, ex.get("code", ""), ex["name"], ex.get("sets_reps", ""), j)
+            )
+
+
+@app.route("/api/sessions", methods=["GET"])
+@require_auth
+def list_sessions():
+    db = get_db()
+    rows = db.execute("SELECT * FROM sessions ORDER BY name").fetchall()
+    sessions = []
+    for row in rows:
+        s = dict(row)
+        counts = db.execute(
+            "SELECT COUNT(*) as bc, "
+            "(SELECT COUNT(*) FROM exercises e JOIN blocks b ON e.block_id=b.id "
+            " WHERE b.session_id=?) as ec FROM blocks WHERE session_id=?",
+            (row["id"], row["id"])
+        ).fetchone()
+        s["block_count"] = counts["bc"]
+        s["exercise_count"] = counts["ec"]
+        sessions.append(s)
+    return jsonify(sessions)
+
+
+@app.route("/api/sessions", methods=["POST"])
+@require_auth
+def create_session():
+    data = request.get_json()
+    db = get_db()
+    cur = db.execute(
+        "INSERT INTO sessions (name, coach_notes) VALUES (?, ?)",
+        (data["name"], data.get("coach_notes", ""))
+    )
+    session_id = cur.lastrowid
+    _save_blocks(session_id, data.get("blocks", []), db)
+    db.commit()
+    return jsonify(_session_to_dict(session_id, db)), 201
+
+
+@app.route("/api/sessions/<int:sid>", methods=["GET"])
+@require_auth
+def get_session(sid):
+    db = get_db()
+    result = _session_to_dict(sid, db)
+    if result is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(result)
+
+
+@app.route("/api/sessions/<int:sid>", methods=["PUT"])
+@require_auth
+def update_session(sid):
+    data = request.get_json()
+    db = get_db()
+    db.execute("UPDATE sessions SET name=?, coach_notes=? WHERE id=?",
+               (data["name"], data.get("coach_notes", ""), sid))
+    db.execute("DELETE FROM blocks WHERE session_id=?", (sid,))
+    _save_blocks(sid, data.get("blocks", []), db)
+    db.commit()
+    return jsonify(_session_to_dict(sid, db))
+
+
+@app.route("/api/sessions/<int:sid>", methods=["DELETE"])
+@require_auth
+def delete_session(sid):
+    db = get_db()
+    db.execute("DELETE FROM sessions WHERE id=?", (sid,))
+    db.commit()
+    return "", 204
+
+
 if __name__ == "__main__":
     with app.app_context():
         init_db()
