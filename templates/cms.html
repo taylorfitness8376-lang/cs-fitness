@@ -73,6 +73,7 @@
     .block-card-header input { flex: 1; }
     .ex-row { display: grid; grid-template-columns: 52px 1fr 80px 26px;
               gap: 0.4rem; margin-bottom: 0.4rem; align-items: center; }
+    .ex-row.cardio { grid-template-columns: 1fr 100px 26px; }
     .ex-row input { font-size: 0.78rem; }
     .add-exercise-btn { width: 100%; background: none; border: 1px dashed #1a3a1a;
                         border-radius: 4px; color: #3DFF4F55; font-size: 0.75rem;
@@ -85,6 +86,48 @@
     .editor-actions { display: flex; gap: 0.6rem; margin-top: 1rem;
                       grid-column: 1 / -1; align-items: center; }
     .editor-actions .editor-title { color: #fff; font-weight: 700; font-size: 0.9rem; flex: 1; }
+
+    /* ── Quick Entry ── */
+    .qe-toolbar { display:flex; justify-content:space-between; align-items:center;
+                  margin-bottom:1rem; }
+    .qe-footer  { margin-top:0.8rem; }
+
+    .qe-session { margin-bottom:1.2rem; }
+
+    .qe-session-row { display:grid;
+      grid-template-columns:5rem 1fr 8rem 1fr 2rem;
+      gap:0.4rem; align-items:center;
+      background:#0a0a0a; border-top:2px solid #2a2a2a;
+      padding:0.5rem 0.6rem; }
+    .qe-session-label { color:#3DFF4F; font-size:0.7rem; font-weight:800;
+                        text-transform:uppercase; letter-spacing:0.08em; }
+
+    .qe-block { margin-left:1.5rem; }
+    .qe-block-row { display:grid;
+      grid-template-columns:5rem 1fr 2rem;
+      gap:0.4rem; align-items:center;
+      background:#0d0d0d; border-top:1px solid #1a1a1a;
+      padding:0.4rem 0.6rem; }
+    .qe-block-label { color:#666; font-size:0.7rem; font-weight:700;
+                      text-transform:uppercase; letter-spacing:0.06em; }
+
+    .qe-exercise { display:grid;
+      grid-template-columns:3.5rem 1fr 6rem 2rem;
+      gap:0.4rem; align-items:center;
+      margin-left:3rem; padding:0.3rem 0.6rem; }
+    .qe-exercise.cardio { grid-template-columns:1fr 6rem 2rem; }
+
+    .qe-add-ex { display:block; margin-left:3rem; margin-top:0.2rem;
+                 background:none; border:1px dashed #1a3a1a; border-radius:4px;
+                 color:#3DFF4F55; font-size:0.72rem; padding:0.25rem 0.6rem;
+                 cursor:pointer; text-align:left; }
+    .qe-add-ex:hover { color:#3DFF4F; border-color:#3DFF4F44; }
+    .qe-add-block { display:block; margin-left:1.5rem; margin-top:0.3rem;
+                    background:none; border:1px dashed #222; border-radius:4px;
+                    color:#444; font-size:0.75rem; padding:0.3rem 0.6rem;
+                    cursor:pointer; text-align:left; }
+    .qe-add-block:hover { color:#3DFF4F; border-color:#3DFF4F44; }
+    .qe-remove { padding:0.2rem 0.45rem; font-size:0.8rem; line-height:1; }
   </style>
 </head>
 <body>
@@ -104,12 +147,16 @@
   <div class="tab" data-tab="editor">Editor</div>
   <div class="tab" data-tab="schedule">Schedule</div>
   <div class="tab" data-tab="nowplaying">Now Playing</div>
+  <div class="tab" data-tab="quickentry">Quick Entry</div>
 </div>
 
 <!-- ── LIBRARY ── -->
 <div class="panel active" id="panel-library">
   <div class="lib-toolbar">
     <input type="text" id="lib-search" placeholder="Search sessions..." oninput="filterSessions()" />
+    <button class="btn btn-dark" onclick="exportSessions()" title="Download all sessions as a JSON file">↓ Export</button>
+    <button class="btn btn-dark" onclick="document.getElementById('import-file').click()" title="Import sessions from a JSON file">↑ Import</button>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importSessions(this)" />
     <button class="btn btn-green" onclick="openNewSession()">+ New Session</button>
   </div>
   <div class="session-grid" id="session-grid"></div>
@@ -122,6 +169,13 @@
       <div class="form-row">
         <label>Session Name</label>
         <input type="text" id="ed-name" placeholder="e.g. Full Body Strength" />
+      </div>
+      <div class="form-row">
+        <label>Format</label>
+        <select id="ed-format" onchange="sessionFormat=this.value; rerenderBlocks()">
+          <option value="strength">Strength</option>
+          <option value="cardio">Cardio / Class</option>
+        </select>
       </div>
       <div class="form-row">
         <label>Coach's Notes</label>
@@ -204,11 +258,24 @@
   </div>
 </div>
 
+<!-- ── QUICK ENTRY ── -->
+<div class="panel" id="panel-quickentry">
+  <div class="qe-toolbar">
+    <button class="btn btn-dark" onclick="addQESession()">+ Add Session</button>
+    <button class="btn btn-green" id="qe-save-btn" onclick="saveAllQESessions()">Save All</button>
+  </div>
+  <div id="qe-container"></div>
+  <div class="qe-footer">
+    <button class="btn btn-dark" onclick="addQESession()">+ Add Session</button>
+  </div>
+</div>
+
 <script>
 // ── State ──────────────────────────────────────────────────
 let allSessions = [];
 let editingId = null;
 let blockCount = 0;
+let sessionFormat = 'strength';
 
 // ── Tab switching ──────────────────────────────────────────
 function switchTab(name) {
@@ -271,7 +338,9 @@ async function publishSession(id) {
 function openNewSession() {
   editingId = null;
   blockCount = 0;
+  sessionFormat = 'strength';
   document.getElementById("ed-name").value = "";
+  document.getElementById("ed-format").value = "strength";
   document.getElementById("ed-notes").value = "";
   document.getElementById("blocks-container").innerHTML = "";
   document.getElementById("editor-title").textContent = "New Session";
@@ -279,16 +348,23 @@ function openNewSession() {
 }
 
 async function editSession(id) {
-  const r = await fetch("/api/sessions/" + id);
-  const data = await r.json();
-  editingId = id;
-  blockCount = 0;
-  document.getElementById("ed-name").value = data.name;
-  document.getElementById("ed-notes").value = data.coach_notes;
-  document.getElementById("blocks-container").innerHTML = "";
-  document.getElementById("editor-title").textContent = "Editing: " + data.name;
-  (data.blocks || []).forEach(b => addBlock(b));
-  switchTab("editor");
+  try {
+    const r = await fetch("/api/sessions/" + id);
+    if (!r.ok) { alert("Could not load session — try refreshing the page."); return; }
+    const data = await r.json();
+    editingId = id;
+    blockCount = 0;
+    sessionFormat = data.session_type || 'strength';
+    document.getElementById("ed-name").value = data.name;
+    document.getElementById("ed-format").value = sessionFormat;
+    document.getElementById("ed-notes").value = data.coach_notes;
+    document.getElementById("blocks-container").innerHTML = "";
+    document.getElementById("editor-title").textContent = "Editing: " + data.name;
+    (data.blocks || []).forEach(b => addBlock(b));
+    switchTab("editor");
+  } catch(e) {
+    alert("Could not load session — try refreshing the page.");
+  }
 }
 
 const BLOCK_LABELS = ["A","B","C","D","E","F","G","H"];
@@ -317,14 +393,39 @@ function addBlock(data) {
 function addExercise(btn, data) {
   const container = btn.previousElementSibling;
   const div = document.createElement("div");
-  div.className = "ex-row";
-  div.innerHTML = `
+  const isCardio = sessionFormat === 'cardio';
+  div.className = "ex-row" + (isCardio ? " cardio" : "");
+  div.innerHTML = isCardio ? `
+    <input type="text" class="ex-name" placeholder="e.g. Ski Erg" value="${esc(data?.name || "")}" />
+    <input type="text" class="ex-sets" placeholder="200 cal" value="${esc(data?.sets_reps || "")}" />
+    <button class="btn btn-red" style="padding:0.2rem;"
+            onclick="this.closest('.ex-row').remove()">x</button>` : `
     <input type="text" class="ex-code" placeholder="A1" value="${esc(data?.code || "")}" />
     <input type="text" class="ex-name" placeholder="Exercise name" value="${esc(data?.name || "")}" />
     <input type="text" class="ex-sets" placeholder="4x8" value="${esc(data?.sets_reps || "")}" />
     <button class="btn btn-red" style="padding:0.2rem;"
             onclick="this.closest('.ex-row').remove()">x</button>`;
   container.appendChild(div);
+}
+
+function rerenderBlocks() {
+  const blocks = [];
+  document.querySelectorAll("#blocks-container .block-card").forEach((bc, i) => {
+    const label = BLOCK_LABELS[i] || String.fromCharCode(65 + i);
+    const focus = bc.querySelector(".block-focus").value;
+    const exercises = [];
+    bc.querySelectorAll(".ex-row").forEach(er => {
+      exercises.push({
+        code: er.querySelector(".ex-code")?.value || "",
+        name: er.querySelector(".ex-name")?.value || "",
+        sets_reps: er.querySelector(".ex-sets")?.value || ""
+      });
+    });
+    blocks.push({ label, focus, exercises });
+  });
+  blockCount = 0;
+  document.getElementById("blocks-container").innerHTML = "";
+  blocks.forEach(b => addBlock(b));
 }
 
 async function saveSession(andPublish) {
@@ -339,9 +440,9 @@ async function saveSession(andPublish) {
     bc.querySelectorAll(".ex-row").forEach(er => {
       const exName = er.querySelector(".ex-name").value.trim();
       if (exName) exercises.push({
-        code: er.querySelector(".ex-code").value.trim(),
+        code: er.querySelector(".ex-code")?.value.trim() || "",
         name: exName,
-        sets_reps: er.querySelector(".ex-sets").value.trim()
+        sets_reps: er.querySelector(".ex-sets")?.value.trim() || ""
       });
     });
     blocks.push({ label, focus, exercises });
@@ -350,6 +451,7 @@ async function saveSession(andPublish) {
   const payload = {
     name,
     coach_notes: document.getElementById("ed-notes").value.trim(),
+    session_type: sessionFormat,
     blocks
   };
 
@@ -497,6 +599,199 @@ function esc(s) {
   return String(s || "")
     .replace(/&/g,"&amp;").replace(/</g,"&lt;")
     .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// ── Export / Import ───────────────────────────────────────
+async function exportSessions() {
+  const r = await fetch("/api/sessions/export");
+  const data = await r.json();
+  if (!data.length) { alert("No sessions to export."); return; }
+  const date = new Date().toISOString().slice(0, 10);
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `cs-fitness-sessions-${date}.json`;
+  a.click();
+}
+
+async function importSessions(input) {
+  const file = input.files[0]; if (!file) return;
+  const text = await file.text();
+  try {
+    const data = JSON.parse(text);
+    if (!Array.isArray(data)) throw new Error("bad format");
+    const r = await fetch("/api/sessions/import", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+    const result = await r.json();
+    alert(`Imported ${result.added} new session${result.added !== 1 ? "s" : ""}${result.skipped ? ` (${result.skipped} already existed)` : ""}.`);
+    loadSessions();
+  } catch { alert("Import failed — select a valid cs-fitness JSON file."); }
+  input.value = "";
+}
+
+// ── Quick Entry ───────────────────────────────────────────
+function addQESession() {
+  const container = document.getElementById('qe-container');
+  const div = document.createElement('div');
+  div.className = 'qe-session';
+  div.innerHTML = `
+    <div class="qe-session-row">
+      <span class="qe-session-label">Session</span>
+      <input type="text" class="qe-session-name" placeholder="e.g. Monday S&amp;C" />
+      <select class="qe-session-format">
+        <option value="strength">Strength</option>
+        <option value="cardio">Cardio / Class</option>
+      </select>
+      <input type="text" class="qe-session-notes" placeholder="Coach notes..." />
+      <button class="btn btn-red qe-remove"
+              onclick="this.closest('.qe-session').remove()">×</button>
+    </div>
+    <div class="qe-blocks"></div>
+    <button class="qe-add-block" onclick="addQEBlock(this)">+ add block</button>
+  `;
+  container.appendChild(div);
+  div.querySelector('.qe-session-name').focus();
+  addQEBlock(div.querySelector('.qe-add-block'));
+}
+
+function addQEBlock(btn) {
+  const session = btn.closest('.qe-session');
+  const blocksContainer = session.querySelector('.qe-blocks');
+  const idx = blocksContainer.querySelectorAll('.qe-block').length;
+  const label = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[idx] || String.fromCharCode(65 + idx);
+  const div = document.createElement('div');
+  div.className = 'qe-block';
+  div.innerHTML = `
+    <div class="qe-block-row">
+      <span class="qe-block-label">Block ${label}</span>
+      <input type="text" class="qe-block-focus"
+             placeholder="Block focus e.g. Strength / Power" />
+      <button class="btn btn-red qe-remove"
+              onclick="const s=this.closest('.qe-session');
+                       this.closest('.qe-block').remove();
+                       updateQEBlockLabels(s);">×</button>
+    </div>
+    <div class="qe-exercises"></div>
+    <button class="qe-add-ex" onclick="addQEExercise(this)">+ add exercise</button>
+  `;
+  blocksContainer.appendChild(div);
+  addQEExercise(div.querySelector('.qe-add-ex'));
+}
+
+function updateQEBlockLabels(sessionEl) {
+  const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  sessionEl.querySelectorAll('.qe-block').forEach((block, i) => {
+    block.querySelector('.qe-block-label').textContent =
+      'Block ' + (ALPHA[i] || String.fromCharCode(65 + i));
+  });
+}
+
+function addQEExercise(btn) {
+  const block = btn.closest('.qe-block');
+  const exContainer = block.querySelector('.qe-exercises');
+  const isCardio = btn.closest('.qe-session')
+                      .querySelector('.qe-session-format').value === 'cardio';
+  const div = document.createElement('div');
+  div.className = 'qe-exercise' + (isCardio ? ' cardio' : '');
+  if (isCardio) {
+    div.innerHTML = `
+      <input type="text" class="qe-ex-name" placeholder="e.g. Ski Erg"
+             onkeydown="qeEnterNext(event,this)" />
+      <input type="text" class="qe-ex-sets" placeholder="200 cal"
+             onkeydown="qeTabNext(event,this)" />
+      <button class="btn btn-red qe-remove"
+              onclick="this.closest('.qe-exercise').remove()">×</button>
+    `;
+  } else {
+    div.innerHTML = `
+      <input type="text" class="qe-ex-code" placeholder="A1" />
+      <input type="text" class="qe-ex-name" placeholder="Exercise name"
+             onkeydown="qeEnterNext(event,this)" />
+      <input type="text" class="qe-ex-sets" placeholder="4×8"
+             onkeydown="qeTabNext(event,this)" />
+      <button class="btn btn-red qe-remove"
+              onclick="this.closest('.qe-exercise').remove()">×</button>
+    `;
+  }
+  exContainer.appendChild(div);
+  return div;
+}
+
+function qeEnterNext(e, input) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const newRow = addQEExercise(input.closest('.qe-block').querySelector('.qe-add-ex'));
+  newRow.querySelector('.qe-ex-name').focus();
+}
+
+function qeTabNext(e, input) {
+  if (e.key !== 'Tab' || e.shiftKey) return;
+  e.preventDefault();
+  const newRow = addQEExercise(input.closest('.qe-block').querySelector('.qe-add-ex'));
+  newRow.querySelector('.qe-ex-name').focus();
+}
+
+async function saveAllQESessions() {
+  const sessionEls = document.querySelectorAll('#qe-container .qe-session');
+  const toSave = [];
+
+  sessionEls.forEach(sessionEl => {
+    const name = sessionEl.querySelector('.qe-session-name').value.trim();
+    if (!name) return;
+
+    const blocks = [];
+    const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    sessionEl.querySelectorAll('.qe-block').forEach((blockEl, i) => {
+      const label = ALPHA[i] || String.fromCharCode(65 + i);
+      const focus = blockEl.querySelector('.qe-block-focus').value.trim();
+      const exercises = [];
+      blockEl.querySelectorAll('.qe-exercise').forEach(exEl => {
+        const exName = exEl.querySelector('.qe-ex-name').value.trim();
+        if (!exName) return;
+        exercises.push({
+          code:      exEl.querySelector('.qe-ex-code')?.value.trim() || '',
+          name:      exName,
+          sets_reps: exEl.querySelector('.qe-ex-sets')?.value.trim() || ''
+        });
+      });
+      if (exercises.length) blocks.push({ label, focus, exercises });
+    });
+
+    toSave.push({
+      name,
+      coach_notes:  sessionEl.querySelector('.qe-session-notes').value.trim(),
+      session_type: sessionEl.querySelector('.qe-session-format').value,
+      blocks
+    });
+  });
+
+  if (!toSave.length) {
+    alert('No sessions to save — add at least one session with a name.');
+    return;
+  }
+
+  const btn = document.getElementById('qe-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  let saved = 0;
+  for (const payload of toSave) {
+    const r = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (r.ok) saved++;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Save All';
+  document.getElementById('qe-container').innerHTML = '';
+  loadSessions();
+  switchTab('library');
+  alert(`${saved} session${saved !== 1 ? 's' : ''} saved.`);
 }
 
 // Load library on start
