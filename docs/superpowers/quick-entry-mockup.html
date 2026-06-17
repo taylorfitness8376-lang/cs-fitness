@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quick Entry — Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #000; color: #ccc; font-family: Inter, sans-serif; }
+  body { display: flex; flex-direction: column; }
+
+  .topbar { background: #111; padding: 0.6rem 1.2rem; display: flex;
+            align-items: center; justify-content: space-between;
+            border-bottom: 1px solid #222; flex-shrink: 0; }
+  .topbar-name { color: #fff; font-weight: 700; font-size: 0.9rem; }
+  .logout-btn { background: none; border: 1px solid #333; border-radius: 4px;
+                color: #666; font-size: 0.75rem; padding: 0.3rem 0.7rem; cursor: pointer; }
+
+  .tabs { display: flex; background: #0a0a0a; border-bottom: 1px solid #1a1a1a; flex-shrink: 0; }
+  .tab { padding: 0.7rem 1.3rem; color: #555; font-size: 0.82rem; cursor: pointer;
+         border-bottom: 2px solid transparent; user-select: none; }
+  .tab.active { color: #3DFF4F; border-bottom-color: #3DFF4F; }
+  .tab:hover:not(.active) { color: #aaa; }
+
+  .panel { padding: 1.2rem; overflow-y: auto; flex: 1; display: flex; flex-direction: column; }
+
+  .btn { border: none; border-radius: 5px; padding: 0.38rem 0.8rem;
+         font-size: 0.78rem; cursor: pointer; font-weight: 600; }
+  .btn-green { background: #3DFF4F; color: #000; }
+  .btn-dark  { background: #1a1a1a; border: 1px solid #2a2a2a; color: #ccc; }
+  .btn-red   { background: #1a1a1a; border: 1px solid #2a2a2a; color: #f66; }
+
+  input, select {
+    background: #111; border: 1px solid #2a2a2a; border-radius: 5px;
+    padding: 0.38rem 0.6rem; color: #ccc; font-size: 0.8rem; font-family: Inter, sans-serif; }
+  input:focus, select:focus { outline: none; border-color: #3DFF4F; }
+  input::placeholder { color: #333; }
+
+  /* ── Quick Entry ── */
+  .qe-toolbar { display:flex; justify-content:space-between; align-items:center;
+                margin-bottom:1rem; }
+  .qe-footer  { margin-top:0.8rem; }
+  .qe-session { margin-bottom:1.4rem; }
+
+  .qe-session-row { display:grid;
+    grid-template-columns:5rem 1fr 8.5rem 1fr 2rem;
+    gap:0.4rem; align-items:center;
+    background:#0a0a0a; border-top:2px solid #2a2a2a;
+    padding:0.55rem 0.7rem; border-radius: 4px 4px 0 0; }
+  .qe-session-label { color:#3DFF4F; font-size:0.7rem; font-weight:800;
+                      text-transform:uppercase; letter-spacing:0.08em; }
+
+  .qe-block { margin-left:1.5rem; }
+  .qe-block-row { display:grid;
+    grid-template-columns:5rem 1fr 2rem;
+    gap:0.4rem; align-items:center;
+    background:#0d0d0d; border-top:1px solid #1a1a1a;
+    padding:0.4rem 0.7rem; }
+  .qe-block-label { color:#555; font-size:0.7rem; font-weight:700;
+                    text-transform:uppercase; letter-spacing:0.06em; }
+
+  .qe-exercise { display:grid;
+    grid-template-columns:3.5rem 1fr 6rem 2rem;
+    gap:0.4rem; align-items:center;
+    margin-left:3rem; padding:0.28rem 0.7rem; }
+
+  .qe-add-ex { display:block; margin-left:3rem; margin-top:0.25rem;
+               background:none; border:1px dashed #1a3a1a; border-radius:4px;
+               color:#3DFF4F55; font-size:0.72rem; padding:0.25rem 0.6rem;
+               cursor:pointer; text-align:left; width: fit-content; }
+  .qe-add-ex:hover { color:#3DFF4F; border-color:#3DFF4F44; }
+
+  .qe-add-block { display:block; margin-left:1.5rem; margin-top:0.35rem;
+                  background:none; border:1px dashed #222; border-radius:4px;
+                  color:#444; font-size:0.75rem; padding:0.3rem 0.8rem;
+                  cursor:pointer; text-align:left; width: fit-content; }
+  .qe-add-block:hover { color:#3DFF4F; border-color:#3DFF4F44; }
+
+  .qe-remove { padding:0.2rem 0.45rem; font-size:0.85rem; line-height:1; }
+
+  .mock-note { background: #0a1a0a; border: 1px solid #1a3a1a; border-radius: 6px;
+               padding: 0.6rem 1rem; margin-bottom: 1.2rem; color: #3DFF4F99;
+               font-size: 0.75rem; }
+  .mock-note strong { color: #3DFF4F; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar-name">CS Fitness CMS</span>
+  <button class="logout-btn">Logout</button>
+</div>
+
+<div class="tabs">
+  <div class="tab">Library</div>
+  <div class="tab">Editor</div>
+  <div class="tab">Schedule</div>
+  <div class="tab">Now Playing</div>
+  <div class="tab active">Quick Entry</div>
+</div>
+
+<div class="panel">
+  <div class="mock-note">
+    <strong>Mockup — not wired up.</strong>
+    Tab from sets/reps field → new exercise row.
+    Enter from exercise name → new exercise row.
+    Save All posts all named sessions to the API then returns to Library.
+  </div>
+
+  <div class="qe-toolbar">
+    <button class="btn btn-dark">+ Add Session</button>
+    <button class="btn btn-green">Save All</button>
+  </div>
+
+  <!-- SESSION 1 -->
+  <div class="qe-session">
+    <div class="qe-session-row">
+      <span class="qe-session-label">Session</span>
+      <input type="text" value="Monday S&C" />
+      <select><option>Strength</option><option>Cardio / Class</option></select>
+      <input type="text" placeholder="Coach notes..." />
+      <button class="btn btn-red qe-remove">×</button>
+    </div>
+
+    <!-- Block A -->
+    <div class="qe-block">
+      <div class="qe-block-row">
+        <span class="qe-block-label">Block A</span>
+        <input type="text" value="Strength / Power" />
+        <button class="btn btn-red qe-remove">×</button>
+      </div>
+      <div class="qe-exercise">
+        <input type="text" placeholder="A1" value="A1" />
+        <input type="text" value="Back Squat" />
+        <input type="text" value="4×6" />
+        <button class="btn btn-red qe-remove">×</button>
+      </div>
+      <div class="qe-exercise">
+        <input type="text" placeholder="A2" value="A2" />
+        <input type="text" value="Romanian Deadlift" />
+        <input type="text" value="3×10" />
+        <button class="btn btn-red qe-remove">×</button>
+      </div>
+      <button class="qe-add-ex">+ add exercise</button>
+    </div>
+
+    <!-- Block B -->
+    <div class="qe-block">
+      <div class="qe-block-row">
+        <span class="qe-block-label">Block B</span>
+        <input type="text" value="Conditioning" />
+        <button class="btn btn-red qe-remove">×</button>
+      </div>
+      <div class="qe-exercise">
+        <input type="text" placeholder="B1" value="B1" />
+        <input type="text" value="Assault Bike" />
+        <input type="text" value="15 cal" />
+        <button class="btn btn-red qe-remove">×</button>
+      </div>
+      <div class="qe-exercise">
+        <input type="text" placeholder="B2" value="B2" />
+        <input type="text" value="Sled Push" />
+        <input type="text" value="20m" />
+        <button class="btn btn-red qe-remove">×</button>
+      </div>
+      <button class="qe-add-ex">+ add exercise</button>
+    </div>
+
+    <button class="qe-add-block">+ add block</button>
+  </div>
+
+  <!-- SESSION 2 -->
+  <div class="qe-session">
+    <div class="qe-session-row">
+      <span class="qe-session-label">Session</span>
+      <input type="text" value="Tuesday Cardio" />
+      <select><option>Strength</option><option selected>Cardio / Class</option></select>
+      <input type="text" value="Keep transitions tight" />
+      <button class="btn btn-red qe-remove">×</button>
+    </div>
+
+    <!-- Block A (cardio — no code column) -->
+    <div class="qe-block">
+      <div class="qe-block-row">
+        <span class="qe-block-label">Block A</span>
+        <input type="text" value="AMRAP 20 mins" />
+        <button class="btn btn-red qe-remove">×</button>
+      </div>
+      <div class="qe-exercise" style="grid-template-columns:1fr 6rem 2rem; margin-left:3rem; padding:0.28rem 0.7rem; display:grid; gap:0.4rem; align-items:center;">
+        <input type="text" value="Ski Erg" />
+        <input type="text" value="12 cal" />
+        <button class="btn btn-red qe-remove">×</button>
+      </div>
+      <div class="qe-exercise" style="grid-template-columns:1fr 6rem 2rem; margin-left:3rem; padding:0.28rem 0.7rem; display:grid; gap:0.4rem; align-items:center;">
+        <input type="text" value="Walking Lunges" />
+        <input type="text" value="20m" />
+        <button class="btn btn-red qe-remove">×</button>
+      </div>
+      <button class="qe-add-ex">+ add exercise</button>
+    </div>
+
+    <button class="qe-add-block">+ add block</button>
+  </div>
+
+  <!-- Empty new session waiting -->
+  <div class="qe-session">
+    <div class="qe-session-row">
+      <span class="qe-session-label">Session</span>
+      <input type="text" placeholder="e.g. Wednesday Strength" style="border-color:#3DFF4F;" />
+      <select><option>Strength</option><option>Cardio / Class</option></select>
+      <input type="text" placeholder="Coach notes..." />
+      <button class="btn btn-red qe-remove">×</button>
+    </div>
+    <div class="qe-block">
+      <div class="qe-block-row">
+        <span class="qe-block-label">Block A</span>
+        <input type="text" placeholder="Block focus e.g. Strength / Power" />
+        <button class="btn btn-red qe-remove">×</button>
+      </div>
+      <div class="qe-exercise">
+        <input type="text" placeholder="A1" />
+        <input type="text" placeholder="Exercise name" />
+        <input type="text" placeholder="4×8" />
+        <button class="btn btn-red qe-remove">×</button>
+      </div>
+      <button class="qe-add-ex">+ add exercise</button>
+    </div>
+    <button class="qe-add-block">+ add block</button>
+  </div>
+
+  <div class="qe-footer">
+    <button class="btn btn-dark">+ Add Session</button>
+  </div>
+</div>
+
+</body>
+</html>
