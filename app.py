@@ -195,14 +195,14 @@ def import_sessions():
 
 def get_current_session():
     db = get_db()
+    today = datetime.now().strftime("%Y-%m-%d")
 
-    # 1. Manual override takes precedence
-    ov = db.execute("SELECT session_id FROM override WHERE id=1").fetchone()
-    if ov and ov["session_id"]:
+    # 1. Manual override takes precedence, but only for the day it was published
+    ov = db.execute("SELECT session_id, set_at FROM override WHERE id=1").fetchone()
+    if ov and ov["session_id"] and ov["set_at"] and str(ov["set_at"])[:10] == today:
         return _session_to_dict(ov["session_id"], db)
 
     # 2. Today's calendar entry
-    today = datetime.now().strftime("%Y-%m-%d")
     row = db.execute("SELECT session_id FROM calendar WHERE date=?", (today,)).fetchone()
     if row and row["session_id"]:
         return _session_to_dict(row["session_id"], db)
@@ -301,8 +301,8 @@ def publish():
     sid = request.get_json().get("session_id")
     db = get_db()
     db.execute(
-        "UPDATE override SET session_id=?, set_at=CURRENT_TIMESTAMP WHERE id=1",
-        (sid,)
+        "UPDATE override SET session_id=?, set_at=? WHERE id=1",
+        (sid, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     )
     db.commit()
     return jsonify({"ok": True})

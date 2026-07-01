@@ -58,7 +58,7 @@ def test_override_wins_over_schedule(app):
         db = get_db()
         seed_sessions(db)
         db.execute("INSERT INTO schedule (day_of_week, start_time, session_id) VALUES (0,'06:00',1)")
-        db.execute("UPDATE override SET session_id=2 WHERE id=1")
+        db.execute("UPDATE override SET session_id=2, set_at='2026-06-08 08:00:00' WHERE id=1")
         db.commit()
 
         from app import get_current_session
@@ -75,3 +75,27 @@ def test_returns_none_when_no_schedule(app):
             mock_dt.now.return_value = datetime(2026, 6, 8, 9, 0)
             result = get_current_session()
         assert result is None
+
+
+def test_override_expires_next_day(app):
+    """Publishing a session should only pin the display for the day it was published."""
+    with app.app_context():
+        db = get_db()
+        seed_sessions(db)
+        db.execute("INSERT INTO calendar (date, session_id) VALUES ('2026-06-09', 2)")
+        db.execute("UPDATE override SET session_id=1, set_at='2026-06-08 08:00:00' WHERE id=1")
+        db.commit()
+
+        from app import get_current_session
+
+        # Same day it was published: override still wins
+        with patch("app.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 6, 8, 18, 0)
+            result = get_current_session()
+        assert result["name"] == "Session A"
+
+        # Next day, nobody clicked "Clear Override": calendar should win instead
+        with patch("app.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 6, 9, 9, 0)
+            result = get_current_session()
+        assert result["name"] == "Session B"
