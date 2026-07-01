@@ -24,10 +24,11 @@ def init_db():
     db = get_db()
     db.executescript("""
         CREATE TABLE IF NOT EXISTS sessions (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            name        TEXT NOT NULL,
-            coach_notes TEXT NOT NULL DEFAULT '',
-            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            name         TEXT NOT NULL,
+            coach_notes  TEXT NOT NULL DEFAULT '',
+            session_type TEXT NOT NULL DEFAULT 'strength',
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS blocks (
@@ -62,7 +63,20 @@ def init_db():
         );
 
         INSERT OR IGNORE INTO override (id, session_id) VALUES (1, NULL);
+
+        CREATE TABLE IF NOT EXISTS calendar (
+            date       TEXT PRIMARY KEY,
+            session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL
+        );
     """)
+    # Migrations for existing databases
+    for stmt in [
+        "ALTER TABLE sessions ADD COLUMN session_type TEXT NOT NULL DEFAULT 'strength'",
+    ]:
+        try:
+            db.execute(stmt)
+        except Exception:
+            pass
     db.commit()
 
 

@@ -6,3 +6,5 @@ __pycache__/
 data/gym.db
 *.db
 .DS_Store
+Archive.zip
+Archive 2.zip

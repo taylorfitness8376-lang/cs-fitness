@@ -1,0 +1,341 @@
+[
+  {
+    "name": "CS Performance - Fri 26 Jun | Full Body",
+    "coach_notes": "Full body",
+    "session_type": "strength",
+    "blocks": [
+      {
+        "label": "A",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "A", "name": "Deadlift", "sets_reps": "4×10" }
+        ]
+      },
+      {
+        "label": "B",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "B", "name": "Front Foot Elevated Split Squat", "sets_reps": "4×8" }
+        ]
+      },
+      {
+        "label": "C",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "C", "name": "Shoulder Press", "sets_reps": "4 sets" }
+        ]
+      },
+      {
+        "label": "D",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "D", "name": "Lat Pulldown", "sets_reps": "4×10" }
+        ]
+      },
+      {
+        "label": "E",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "E", "name": "Leg Extension", "sets_reps": "15, 12, 10, 8" }
+        ]
+      },
+      {
+        "label": "F",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "F1", "name": "Seated Incline DB Curls", "sets_reps": "4×12" },
+          { "code": "F2", "name": "Skull Crushers", "sets_reps": "4×12" },
+          { "code": "F3", "name": "Cable Facepull", "sets_reps": "4×12" }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "CS Performance - Sat 27 Jun | Upper + Chipper",
+    "coach_notes": "",
+    "session_type": "strength",
+    "blocks": [
+      {
+        "label": "A",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "A", "name": "Incline DB Bench Press", "sets_reps": "4×8" }
+        ]
+      },
+      {
+        "label": "B",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "B", "name": "Seated Cable Row", "sets_reps": "4×12" }
+        ]
+      },
+      {
+        "label": "C",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "C", "name": "Pendlay Row", "sets_reps": "4×10" }
+        ]
+      },
+      {
+        "label": "D",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "D", "name": "Tricep Rope Pulldowns", "sets_reps": "4×12" }
+        ]
+      },
+      {
+        "label": "E",
+        "focus": "Chipper — For time",
+        "exercises": [
+          { "code": "E1", "name": "Row", "sets_reps": "60/45 cal" },
+          { "code": "E2", "name": "Burpee Box Jumps", "sets_reps": "40 reps" },
+          { "code": "E3", "name": "Snatches", "sets_reps": "30 reps" },
+          { "code": "E4", "name": "Devil Press", "sets_reps": "20 reps" }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "CS Performance - Sun 28 Jun | Active Rest",
+    "coach_notes": "Active Rest",
+    "session_type": "strength",
+    "blocks": []
+  },
+  {
+    "name": "CS Performance - Mon 29 Jun | Lower + Conditioning",
+    "coach_notes": "Lower + conditioning",
+    "session_type": "strength",
+    "blocks": [
+      {
+        "label": "A",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "A", "name": "Back Squat", "sets_reps": "5, 4, 3, 5, 4, 3" }
+        ]
+      },
+      {
+        "label": "B",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "B1", "name": "Romanian Deadlift", "sets_reps": "4×6" },
+          { "code": "B2", "name": "Goblet Squat", "sets_reps": "4×6" }
+        ]
+      },
+      {
+        "label": "C",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "C", "name": "Leg Press", "sets_reps": "4×6" }
+        ]
+      },
+      {
+        "label": "D",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "D", "name": "Lying Leg Curl", "sets_reps": "4×8" }
+        ]
+      },
+      {
+        "label": "E",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "E", "name": "Reverse Lunges", "sets_reps": "4×8" }
+        ]
+      },
+      {
+        "label": "F",
+        "focus": "Conditioning",
+        "exercises": [
+          { "code": "F1", "name": "Ski Erg", "sets_reps": "5×3:00" },
+          { "code": "F2", "name": "Bike Erg", "sets_reps": "5×2:00" }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "CS Performance - Wed 1 Jul | Cardio + Conditioning",
+    "coach_notes": "",
+    "session_type": "cardio",
+    "blocks": [
+      {
+        "label": "A",
+        "focus": "Conditioning",
+        "exercises": [
+          { "code": "A", "name": "Rowing", "sets_reps": "2×500m" }
+        ]
+      },
+      {
+        "label": "B",
+        "focus": "Conditioning",
+        "exercises": [
+          { "code": "B", "name": "A Run", "sets_reps": "2×800m" }
+        ]
+      },
+      {
+        "label": "C",
+        "focus": "Conditioning",
+        "exercises": [
+          { "code": "C", "name": "Conditioning", "sets_reps": "1×60:00" }
+        ]
+      },
+      {
+        "label": "D",
+        "focus": "Conditioning",
+        "exercises": [
+          { "code": "D", "name": "Bike Erg", "sets_reps": "1×10:00" }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "CS Performance - Thu 2 Jul | Rest",
+    "coach_notes": "Rest day",
+    "session_type": "strength",
+    "blocks": []
+  },
+  {
+    "name": "CS Performance - Fri 3 Jul | Full Body",
+    "coach_notes": "Full body",
+    "session_type": "strength",
+    "blocks": [
+      {
+        "label": "A",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "A", "name": "Deadlift", "sets_reps": "4×10" }
+        ]
+      },
+      {
+        "label": "B",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "B", "name": "Front Foot Elevated Split Squat", "sets_reps": "4×8" }
+        ]
+      },
+      {
+        "label": "C",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "C", "name": "Shoulder Press", "sets_reps": "4 sets" }
+        ]
+      },
+      {
+        "label": "D",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "D", "name": "Lat Pulldown", "sets_reps": "4×10" }
+        ]
+      },
+      {
+        "label": "E",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "E", "name": "Leg Extension", "sets_reps": "15, 12, 10, 8" }
+        ]
+      },
+      {
+        "label": "F",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "F1", "name": "Seated Incline DB Curls", "sets_reps": "4×12" },
+          { "code": "F2", "name": "Skull Crushers", "sets_reps": "4×12" },
+          { "code": "F3", "name": "Cable Facepull", "sets_reps": "4×12" }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "CS Performance - Sat 4 Jul | Upper + AMRAP",
+    "coach_notes": "",
+    "session_type": "strength",
+    "blocks": [
+      {
+        "label": "A",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "A", "name": "Incline DB Bench Press", "sets_reps": "4×8" }
+        ]
+      },
+      {
+        "label": "B",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "B", "name": "Seated Cable Row", "sets_reps": "4×12" }
+        ]
+      },
+      {
+        "label": "C",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "C", "name": "Pendlay Row", "sets_reps": "4×10" }
+        ]
+      },
+      {
+        "label": "D",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "D", "name": "Tricep Rope Pulldowns", "sets_reps": "4×12" }
+        ]
+      },
+      {
+        "label": "E",
+        "focus": "AMRAP",
+        "exercises": [
+          { "code": "E", "name": "AMRAP", "sets_reps": "3 sets" }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "CS Performance - Tue 30 Jun | Upper Body",
+    "coach_notes": "Upper body — Bench press focus",
+    "session_type": "strength",
+    "blocks": [
+      {
+        "label": "A",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "A", "name": "Bench Press", "sets_reps": "6×3" }
+        ]
+      },
+      {
+        "label": "B",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "B", "name": "Lat Pulldown", "sets_reps": "5×10" }
+        ]
+      },
+      {
+        "label": "C",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "C1", "name": "Bent Over Row", "sets_reps": "4×8" },
+          { "code": "C2", "name": "Pull-Up", "sets_reps": "4×5" }
+        ]
+      },
+      {
+        "label": "D",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "D1", "name": "Seated DB Press", "sets_reps": "4×8" },
+          { "code": "D2", "name": "DB Lateral Raise", "sets_reps": "4×12" }
+        ]
+      },
+      {
+        "label": "E",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "E1", "name": "Seated Incline DB Curls", "sets_reps": "3 sets" },
+          { "code": "E2", "name": "Tricep Rope Pulldowns", "sets_reps": "3 sets" }
+        ]
+      },
+      {
+        "label": "F",
+        "focus": "Conditioning",
+        "exercises": [
+          { "code": "F", "name": "Conditioning", "sets_reps": "5 sets" }
+        ]
+      }
+    ]
+  }
+]

@@ -32,22 +32,25 @@
                    text-transform: uppercase; letter-spacing: 0.12em;
                    border: 1px solid #3DFF4F44; border-radius: 0.2vw;
                    padding: 0.15% 0.5%; flex-shrink: 0; }
-    .notes-text { color: #555; font-size: 0.88vw; font-style: italic; }
+    .notes-text { color: #888; font-size: 1.05vw; font-style: italic; }
 
     /* Block grid */
     .blocks { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+    .blocks.cardio { grid-template-columns: 1fr; }
     .block { padding: 1.6% 3%; border-right: 1px solid #0f0f0f;
              border-bottom: 1px solid #0f0f0f; display: flex;
              flex-direction: column; justify-content: center; }
     .block:nth-child(even) { border-right: none; }
     .block:nth-last-child(-n+2) { border-bottom: none; }
+    .blocks.cardio .block { border-right: none; }
     .block-head { display: flex; align-items: center; gap: 1.5%; margin-bottom: 1%; }
     .block-letter { font-family: 'Barlow Condensed', sans-serif; font-style: italic;
                     font-weight: 800; font-size: 3.8vw; color: #3DFF4F; line-height: 1;
                     text-shadow: 0 0 1.2vw #3DFF4F55; }
     .block-divider { width: 1px; height: 2.2vw; background: #1a1a1a; flex-shrink: 0; }
-    .block-focus { font-size: 0.75vw; color: #2a2a2a; text-transform: uppercase;
-                   letter-spacing: 0.1em; font-weight: 700; }
+    .block-focus { font-size: 0.8vw; color: #484848; text-transform: uppercase;
+                   letter-spacing: 0.08em; font-weight: 600; }
+    .exercises-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 3%; }
     .exercise { display: flex; align-items: center; gap: 1.2%;
                 padding: 0.4% 0; border-bottom: 1px solid #080808; }
     .exercise:last-child { border-bottom: none; }
@@ -57,6 +60,13 @@
     .ex-sets { color: #fff; font-size: 1.55vw; font-weight: 900;
                background: #111; border: 1px solid #222; border-radius: 0.25vw;
                padding: 0.15% 0.8%; flex-shrink: 0; min-width: 5vw; text-align: center; }
+    /* Cardio overrides */
+    .blocks.cardio .block-letter { display: none; }
+    .blocks.cardio .block-divider { display: none; }
+    .blocks.cardio .block-focus { font-size: 1.6vw; color: #fff; font-weight: 800;
+                                   letter-spacing: 0.12em; margin-bottom: 0.6%; }
+    .blocks.cardio .ex-name { font-size: 2.6vw; }
+    .blocks.cardio .ex-sets { font-size: 2.4vw; min-width: 6vw; }
 
     /* Idle state */
     .idle { flex: 1; display: flex; align-items: center; justify-content: center; }
@@ -84,9 +94,11 @@
       const date = now.toLocaleDateString("en-GB", {day:"numeric",month:"long",year:"numeric"});
       const time = now.toLocaleTimeString("en-GB", {hour:"2-digit",minute:"2-digit"});
 
-      // Pad blocks to even number for grid
+      const isCardio = data.session_type === 'cardio';
+
+      // Pad blocks to even number for grid (strength only)
       const blocks = [...(data.blocks || [])];
-      if (blocks.length % 2 !== 0) blocks.push(null);
+      if (!isCardio && blocks.length % 2 !== 0) blocks.push(null);
 
       root.innerHTML = `
         <div class="header">
@@ -104,7 +116,7 @@
           <span class="notes-label">Coach</span>
           <span class="notes-text">${esc(data.coach_notes)}</span>
         </div>` : ""}
-        <div class="blocks">
+        <div class="blocks${isCardio ? ' cardio' : ''}">
           ${blocks.map(b => b ? `
             <div class="block">
               <div class="block-head">
@@ -112,12 +124,14 @@
                 <div class="block-divider"></div>
                 <span class="block-focus">${esc(b.focus)}</span>
               </div>
-              ${(b.exercises||[]).map(e => `
-                <div class="exercise">
-                  <span class="ex-code">${esc(e.code)}</span>
-                  <span class="ex-name">${esc(e.name)}</span>
-                  ${e.sets_reps ? `<span class="ex-sets">${esc(e.sets_reps)}</span>` : ""}
-                </div>`).join("")}
+              <div class="${isCardio ? 'exercises-grid' : ''}">
+                ${(b.exercises||[]).map(e => `
+                  <div class="exercise">
+                    ${!isCardio ? `<span class="ex-code">${esc(e.code)}</span>` : ""}
+                    <span class="ex-name">${esc(e.name)}</span>
+                    ${e.sets_reps ? `<span class="ex-sets">${esc(e.sets_reps)}</span>` : ""}
+                  </div>`).join("")}
+              </div>
             </div>` : `<div class="block"></div>`).join("")}
         </div>`;
     }

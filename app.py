@@ -119,8 +119,8 @@ def create_session():
     data = request.get_json()
     db = get_db()
     cur = db.execute(
-        "INSERT INTO sessions (name, coach_notes) VALUES (?, ?)",
-        (data["name"], data.get("coach_notes", ""))
+        "INSERT INTO sessions (name, coach_notes, session_type) VALUES (?, ?, ?)",
+        (data["name"], data.get("coach_notes", ""), data.get("session_type", "strength"))
     )
     session_id = cur.lastrowid
     _save_blocks(session_id, data.get("blocks", []), db)
@@ -143,8 +143,8 @@ def get_session(sid):
 def update_session(sid):
     data = request.get_json()
     db = get_db()
-    db.execute("UPDATE sessions SET name=?, coach_notes=? WHERE id=?",
-               (data["name"], data.get("coach_notes", ""), sid))
+    db.execute("UPDATE sessions SET name=?, coach_notes=?, session_type=? WHERE id=?",
+               (data["name"], data.get("coach_notes", ""), data.get("session_type", "strength"), sid))
     db.execute("DELETE FROM blocks WHERE session_id=?", (sid,))
     _save_blocks(sid, data.get("blocks", []), db)
     db.commit()
@@ -160,35 +160,97 @@ def delete_session(sid):
     return "", 204
 
 
+@app.route("/api/sessions/export", methods=["GET"])
+@require_auth
+def export_sessions():
+    db = get_db()
+    rows = db.execute("SELECT id FROM sessions ORDER BY name").fetchall()
+    return jsonify([_session_to_dict(row["id"], db) for row in rows])
+
+
+@app.route("/api/sessions/import", methods=["POST"])
+@require_auth
+def import_sessions():
+    data = request.get_json()
+    if not isinstance(data, list):
+        return jsonify({"error": "expected a list"}), 400
+    db = get_db()
+    existing_names = {r["name"] for r in db.execute("SELECT name FROM sessions").fetchall()}
+    added = 0
+    for s in data:
+        if s.get("name") and s["name"] not in existing_names:
+            cur = db.execute(
+                "INSERT INTO sessions (name, coach_notes, session_type) VALUES (?,?,?)",
+                (s["name"], s.get("coach_notes", ""), s.get("session_type", "strength"))
+            )
+            _save_blocks(cur.lastrowid, s.get("blocks", []), db)
+            existing_names.add(s["name"])
+            added += 1
+    db.commit()
+    return jsonify({"added": added, "skipped": len(data) - added})
+
+
 # ── Schedule logic ────────────────────────────────────────
 
 
 def get_current_session():
     db = get_db()
 
-    # 1. Check override
+    # 1. Manual override takes precedence
     ov = db.execute("SELECT session_id FROM override WHERE id=1").fetchone()
     if ov and ov["session_id"]:
         return _session_to_dict(ov["session_id"], db)
 
-    # 2. Walk back through days (up to 7) to find last scheduled slot
-    now = datetime.now()
-    current_day = now.weekday()      # 0=Mon … 6=Sun
-    current_time = now.strftime("%H:%M")
-
-    for days_back in range(7):
-        check_day = (current_day - days_back) % 7
-        check_time = current_time if days_back == 0 else "23:59"
-        row = db.execute(
-            "SELECT session_id FROM schedule "
-            "WHERE day_of_week=? AND start_time<=? "
-            "ORDER BY start_time DESC LIMIT 1",
-            (check_day, check_time)
-        ).fetchone()
-        if row:
-            return _session_to_dict(row["session_id"], db)
+    # 2. Today's calendar entry
+    today = datetime.now().strftime("%Y-%m-%d")
+    row = db.execute("SELECT session_id FROM calendar WHERE date=?", (today,)).fetchone()
+    if row and row["session_id"]:
+        return _session_to_dict(row["session_id"], db)
 
     return None
+
+
+# ── Calendar CRUD ─────────────────────────────────────────
+
+@app.route("/api/calendar", methods=["GET"])
+@require_auth
+def get_calendar():
+    start = request.args.get("start", "")
+    end   = request.args.get("end", "")
+    db = get_db()
+    rows = db.execute(
+        "SELECT date, session_id FROM calendar WHERE date >= ? AND date <= ? ORDER BY date",
+        (start, end)
+    ).fetchall()
+    result = []
+    for row in rows:
+        s = _session_to_dict(row["session_id"], db)
+        if s:
+            s["date"] = row["date"]
+            result.append(s)
+    return jsonify(result)
+
+
+@app.route("/api/calendar", methods=["POST"])
+@require_auth
+def set_calendar():
+    data = request.get_json()
+    db = get_db()
+    db.execute(
+        "INSERT OR REPLACE INTO calendar (date, session_id) VALUES (?, ?)",
+        (data["date"], data["session_id"])
+    )
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/calendar/<date>", methods=["DELETE"])
+@require_auth
+def delete_calendar(date):
+    db = get_db()
+    db.execute("DELETE FROM calendar WHERE date=?", (date,))
+    db.commit()
+    return "", 204
 
 
 # ── Public session endpoint (polled by TV) ────────────────
