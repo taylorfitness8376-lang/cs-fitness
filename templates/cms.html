@@ -124,6 +124,11 @@
     .cal-remove-btn { background:none; border:none; color:#333; font-size:0.66rem;
                       cursor:pointer; text-align:left; padding:0; }
     .cal-remove-btn:hover { color:#f66; }
+    .cal-publish-btn { background:#0d1f0d; border:1px solid #2a4a2a; color:#3DFF4F;
+                        font-size:0.66rem; font-weight:700; text-transform:uppercase;
+                        letter-spacing:0.04em; border-radius:4px; padding:0.35rem 0;
+                        cursor:pointer; }
+    .cal-publish-btn:hover { background:#123312; }
     .cal-assign-select { width:100%; background:transparent; border:1px dashed #1a3a1a;
                          color:#3DFF4F66; font-size:0.72rem; border-radius:4px;
                          padding:0.35rem; cursor:pointer; }
@@ -587,6 +592,7 @@ async function renderCalendar() {
             ${allSessions.map(s =>
               `<option value="${s.id}">${esc(s.name)}</option>`).join("")}
           </select>
+          <button class="cal-publish-btn" onclick="publishSession(${session.id})">Publish Now</button>
           <button class="cal-remove-btn" onclick="calRemove('${dateStr}')">Remove</button>
         </div>`;
     } else {
