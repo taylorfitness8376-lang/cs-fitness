@@ -519,7 +519,10 @@ const CAL_MONTHS = ["January","February","March","April","May","June",
 const CAL_DAYS   = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 
 function calDateStr(d) {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function calGetWeekStart(date) {
