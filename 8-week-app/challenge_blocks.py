@@ -5,7 +5,7 @@ import json
 import re
 import secrets
 
-from database import get_db, calculate_challenge_targets
+from database import get_db, calculate_challenge_targets, init_challenge_tables
 from challenge import _get_active_profile
 
 challenge_blocks_bp = Blueprint("challenge_blocks", __name__)
@@ -66,6 +66,7 @@ DEFAULT_ANNUAL_BLOCKS = [
 
 
 def ensure_blocks_and_auth_tables(db):
+    init_challenge_tables(db)
     db.execute(
         """CREATE TABLE IF NOT EXISTS challenge_blocks (
             id                  INTEGER PRIMARY KEY AUTOINCREMENT,

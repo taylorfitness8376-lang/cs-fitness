@@ -36,6 +36,12 @@ app.register_blueprint(challenge_bp)
 app.register_blueprint(challenge_progress_bp)
 app.register_blueprint(challenge_blocks_bp)
 
+with app.app_context():
+    try:
+        init_db()
+    except Exception:
+        pass
+
 
 def require_auth(f):
     from functools import wraps

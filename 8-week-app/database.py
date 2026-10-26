@@ -6,11 +6,21 @@ from flask import g, current_app
 def get_db():
     if "db" not in g:
         path = current_app.config.get("DATABASE") or current_app.config["DATABASE_PATH"]
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+        except OSError:
+            fallback_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+            os.makedirs(fallback_dir, exist_ok=True)
+            path = os.path.join(fallback_dir, "gym.db")
         g.db = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA journal_mode=WAL")
         g.db.execute("PRAGMA foreign_keys=ON")
+        has_tables = g.db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='challenge_profiles'"
+        ).fetchone()
+        if not has_tables:
+            init_db()
     return g.db
 
 
