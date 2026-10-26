@@ -34,9 +34,9 @@
         ⌚ Sync Garmin
       </button>
       <div class="score-pill" id="hdr-score">Win the Day: --/100</div>
-      <a href="/challenge/login" class="btn btn-sm" id="hdr-auth-btn" style="text-decoration:none" title="Sign in, switch challenger, or join an 8-week block">🔐 Sign In / Block</a>
+      <a href="/challenge/admin" class="btn btn-green btn-sm" id="hdr-admin-btn" style="text-decoration:none;display:none" title="Open Coach &amp; Admin Portal (Chris · Laura · Ewan)">🛡️ Coach Admin</a>
+      <a href="/challenge/login" class="btn btn-sm" id="hdr-auth-btn" style="text-decoration:none" title="Sign in or manage account">🔐 Sign In</a>
       <a href="/" class="btn btn-sm" style="text-decoration:none">🏠 Home</a>
-      <a href="/cms" class="btn btn-sm" style="text-decoration:none">TV CMS</a>
     </div>
   </header>
 
@@ -136,7 +136,7 @@
     </button>
     <button class="nav-tab" data-tab="integrations" onclick="switchTab('integrations')">
       <span class="icon">⚙️</span>
-      <span>4. Settings &amp; Coach</span>
+      <span>4. Settings &amp; Sync</span>
     </button>
   </nav>
 
@@ -698,104 +698,59 @@
         </div>
       </div>
 
-      <!-- 2. User Profile & Target Setup + Onboarding Calculator -->
+      <!-- 2. My Account, Email & Password + Admin Portal Link -->
       <div class="card">
         <div class="card-header">
-          <span class="card-title">👤 2. User Management &amp; Target Calculator</span>
-          <span class="badge badge-green">Chris's Formula Engine</span>
+          <span class="card-title">🔐 2. My Account &amp; Sign-In Settings</span>
+          <span class="badge badge-green" id="my-acct-role-badge">Challenger</span>
         </div>
-        <p style="font-size:0.73rem;color:var(--muted);margin-bottom:0.55rem">
-          Update your targets or onboard a new challenger user (auto-calculates Calories <code>LBM×2.2×14</code>, Protein, Water &amp; 8-Week Step/Weight targets).
+        <p style="font-size:0.74rem;color:var(--muted);margin-bottom:0.65rem">
+          Manage your email address and password for signing in to the 8-Week Challenge app across your phone and laptop.
         </p>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:0.55rem">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.55rem;margin-bottom:0.6rem">
           <div>
-            <label class="field-label">Challenger Name</label>
-            <input type="text" id="calc-name" value="Ewan t" />
+            <label class="field-label">Email Address</label>
+            <input type="email" id="my-acct-email" placeholder="you@example.com" />
           </div>
           <div>
-            <label class="field-label">Start Weight (kg)</label>
-            <input type="number" step="0.1" id="calc-sw" value="84.0" />
-          </div>
-          <div>
-            <label class="field-label">Target Weight (kg)</label>
-            <input type="number" step="0.1" id="calc-tw" value="78.3" />
-          </div>
-          <div>
-            <label class="field-label">Start Body Fat (%)</label>
-            <input type="number" step="0.5" id="calc-sbf" value="16.0" />
-          </div>
-          <div>
-            <label class="field-label">Target Body Fat (%)</label>
-            <input type="number" step="0.5" id="calc-tbf" value="14.0" />
-          </div>
-          <div>
-            <label class="field-label">Protein Target (g)</label>
-            <input type="number" id="calc-prot" value="150" />
+            <label class="field-label">New Password</label>
+            <input type="password" id="my-acct-new-pw" placeholder="At least 4 characters" />
           </div>
         </div>
-        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.65rem">
-          <label style="font-size:0.74rem;display:flex;align-items:center;gap:0.35rem;cursor:pointer">
-            <input type="checkbox" id="calc-returning" style="width:auto" /> Returning (14k Steps)
-          </label>
-          <button class="btn btn-sm" onclick="runCoachCalculator(false)">🧮 Preview Targets</button>
-          <button class="btn btn-green btn-sm" onclick="runCoachCalculator(true)">➕ Save / Add User to System</button>
+        <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-green btn-sm" onclick="saveMyAccountSettings()">💾 Save Email &amp; Password</button>
+          <a href="/challenge/login" class="btn btn-sm" style="text-decoration:none">🔄 Switch Account / Sign Out</a>
         </div>
-        <div id="calc-output-box" style="background:#080b09;border:1px solid var(--border);border-radius:9px;padding:0.65rem;font-size:0.76rem"></div>
-      </div>
-    </div>
 
-    <!-- 3. Chris's In-App Weekly Check-In Review Inbox -->
-    <div class="card" style="border-color:rgba(61,255,79,0.35)">
-      <div class="card-header">
-        <span class="card-title">📋 3. Coach Chris — In-App Weekly Check-In Review Inbox</span>
-        <span class="badge badge-green" id="coach-inbox-badge">Replaces Telegram Check-Ins</span>
-      </div>
-      <div id="coach-checkin-inbox-list"></div>
-    </div>
-
-    <!-- 4. Active Users / Cohort Directory -->
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">🏆 4. Active Challengers &amp; Targets Directory</span>
-        <span class="badge badge-green" id="cohort-count-badge">Challengers</span>
-      </div>
-      <div class="table-wrap">
-        <table class="cs-table">
-          <thead>
-            <tr>
-              <th>Client</th>
-              <th>Goal</th>
-              <th>Start Wt / BF%</th>
-              <th>Target Wt</th>
-              <th>LBM / Fat Mass</th>
-              <th>Calories</th>
-              <th>Macros (P / F / C)</th>
-              <th>Water</th>
-              <th>Wk 1 → Wk 8 Steps</th>
-            </tr>
-          </thead>
-          <tbody id="cohort-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- 5. 8-Week Cohort Block Manager, Invites & Payment Form Webhook -->
-    <div class="card" style="border-color:rgba(61,255,79,0.4)">
-      <div class="card-header">
-        <span class="card-title">🗓️ 5. 8-Week Cohort Block Manager, Invites &amp; Payment Auto-Enroll</span>
-        <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
-          <a href="/challenge/login?code=CS-OCT2026" class="btn btn-sm" style="text-decoration:none">🎟️ Open Invite / Sign-In Page</a>
-          <button class="btn btn-green btn-sm" onclick="loadCohortBlocks()">🔄 Refresh Blocks</button>
+        <div id="admin-portal-callout" style="display:none;margin-top:0.85rem;padding:0.75rem;background:rgba(61,255,79,0.08);border:1px solid rgba(61,255,79,0.4);border-radius:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap">
+            <div>
+              <div style="font-size:0.82rem;font-weight:900;color:var(--green)">🛡️ Coach &amp; Admin Portal (Chris · Laura · Ewan)</div>
+              <div style="font-size:0.72rem;color:#cbd5e1;margin-top:0.15rem">
+                Manage 8-week blocks, add users, review weekly check-ins, inspect weekly sheets &amp; compare progress photos side-by-side.
+              </div>
+            </div>
+            <a href="/challenge/admin" class="btn btn-green btn-sm" style="text-decoration:none">🛡️ Open Coach Admin View →</a>
+          </div>
         </div>
       </div>
-      <p style="font-size:0.75rem;color:var(--muted);margin-bottom:0.75rem">
-        Manage Chris's ~5 annual <strong>8-Week Cohort Blocks</strong> (with break/recovery weeks between blocks), copy invite links, auto-enroll new challengers from a Stripe/Typeform payment webhook, and roll returning members into the next block (auto-setting 14,000 steps/day).
-      </p>
-      <div id="cohort-blocks-manager-box"></div>
     </div>
 
-    <!-- Hidden legacy containers -->
+    <!-- Hidden legacy containers (Coach tools moved to dedicated /challenge/admin portal) -->
     <div style="display:none">
+      <input type="text" id="calc-name" value="Ewan t" />
+      <input type="number" id="calc-sw" value="84.0" />
+      <input type="number" id="calc-tw" value="78.3" />
+      <input type="number" id="calc-sbf" value="16.0" />
+      <input type="number" id="calc-tbf" value="14.0" />
+      <input type="number" id="calc-prot" value="150" />
+      <input type="checkbox" id="calc-returning" />
+      <div id="calc-output-box"></div>
+      <div id="coach-inbox-badge"></div>
+      <div id="coach-checkin-inbox-list"></div>
+      <div id="cohort-count-badge"></div>
+      <table><tbody id="cohort-tbody"></tbody></table>
+      <div id="cohort-blocks-manager-box"></div>
       <div id="rhythm-tasks-list"></div>
       <div id="staples-library-list"></div>
       <div id="routes-library-list"></div>
@@ -807,7 +762,7 @@
 </div>
 
 <div class="toast" id="app-toast">Saved!</div>
-<script src="/static/challenge.js?v=10"></script>
-<script src="/static/challenge_progress.js?v=10"></script>
+<script src="/static/challenge.js?v=12"></script>
+<script src="/static/challenge_progress.js?v=12"></script>
 </body>
 </html>

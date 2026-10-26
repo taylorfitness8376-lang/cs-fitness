@@ -143,6 +143,61 @@ def ensure_blocks_and_auth_tables(db):
                 )
         db.commit()
 
+    # Purge any legacy sample/demo profiles or simulated demo check-ins
+    demo_pids = [
+        r["id"]
+        for r in db.execute(
+            "SELECT id FROM challenge_profiles WHERE client_name LIKE 'Sarah M%' OR client_name LIKE 'Dan K%'"
+        ).fetchall()
+    ]
+    for dpid in demo_pids:
+        db.execute("DELETE FROM challenge_block_enrollments WHERE profile_id=?", (dpid,))
+        db.execute("DELETE FROM challenge_user_accounts WHERE profile_id=?", (dpid,))
+        db.execute("DELETE FROM daily_checkins WHERE profile_id=?", (dpid,))
+        db.execute("DELETE FROM challenge_profiles WHERE id=?", (dpid,))
+    db.execute(
+        """DELETE FROM daily_checkins
+           WHERE sync_source_garmin IN ('Garmin Fenix 7', 'Garmin Connect (Fenix 7 + Index S2)', 'Garmin Connect (Simulated)')"""
+    )
+
+    # Ensure the 3 Admin accounts (Ewan, Chris, Laura) exist
+    admin_seeds = [
+        ("Ewan t", "ewan", "taylor.ewan@gmail.com", "mens"),
+        ("Chris", "chris", "chris@cs.fitness", "mens"),
+        ("Laura", "laura", "laura@cs.fitness", "ladies"),
+    ]
+    for cname, uname, default_email, track in admin_seeds:
+        p_row = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (cname,)).fetchone()
+        if not p_row:
+            calc = calculate_challenge_targets(80.0, 75.0, 16.0, 14.0, 150, "2026-10-19", "Coach / Admin", False)
+            db.execute(
+                """INSERT INTO challenge_profiles (
+                    client_name, goal, start_date, end_date,
+                    start_weight_kg, target_weight_kg, start_body_fat_pct, target_body_fat_pct,
+                    lean_body_mass_kg, fat_mass_kg, to_lose_kg,
+                    target_calories, target_protein_g, target_fats_g, target_carbs_g,
+                    target_fibre_g, target_water_l, target_sleep_hrs,
+                    returning_member, workout_track, weekly_targets_json
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    cname, "Coach / Admin", "2026-10-19", calc["end_date"],
+                    80.0, 75.0, 16.0, 14.0,
+                    calc["lean_body_mass_kg"], calc["fat_mass_kg"], calc["to_lose_kg"],
+                    calc["target_calories"], calc["target_protein_g"], calc["target_fats_g"], calc["target_carbs_g"],
+                    calc["target_fibre_g"], calc["target_water_l"], calc["target_sleep_hrs"],
+                    0, track, json.dumps(calc["weekly_targets"]),
+                ),
+            )
+            p_row = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (cname,)).fetchone()
+        if p_row:
+            db.execute(
+                """INSERT INTO challenge_user_accounts (profile_id, username, email, role, invite_token)
+                   VALUES (?,?,?,?,?)
+                   ON CONFLICT(profile_id) DO UPDATE SET role='admin',
+                       email=CASE WHEN challenge_user_accounts.email='' THEN excluded.email ELSE challenge_user_accounts.email END""",
+                (p_row["id"], uname, default_email, "admin", secrets.token_urlsafe(12)),
+            )
+
     # Ensure every profile has a row in challenge_user_accounts
     for p in db.execute("SELECT id, client_name FROM challenge_profiles").fetchall():
         existing = db.execute("SELECT profile_id FROM challenge_user_accounts WHERE profile_id=?", (p["id"],)).fetchone()
@@ -151,7 +206,7 @@ def ensure_blocks_and_auth_tables(db):
             clash = db.execute("SELECT 1 FROM challenge_user_accounts WHERE username=?", (slug,)).fetchone()
             uname = f"{slug}{p['id']}" if clash else slug
             default_email = "taylor.ewan@gmail.com" if p["client_name"] == "Ewan t" else f"{uname}@taylorfitness.co.uk"
-            role = "admin" if p["client_name"] == "Ewan t" else "challenger"
+            role = "admin" if p["client_name"].lower() in ("ewan t", "chris", "laura") else "challenger"
             db.execute(
                 """INSERT OR IGNORE INTO challenge_user_accounts (profile_id, username, email, role, invite_token)
                    VALUES (?,?,?,?,?)""",
@@ -773,4 +828,267 @@ def api_challenge_backup_import():
     pid = int(data.get("profile_id") or prof["id"])
     counts = _restore_backup_payload(db, data, target_profile_id=pid)
     return jsonify({"ok": True, "profile_id": pid, "restored": counts})
+
+
+@challenge_blocks_bp.route("/challenge/admin")
+def challenge_admin_page():
+    """Dedicated Coach & Admin Portal for Chris, Laura, and Ewan."""
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    return render_template("challenge_admin.html")
+
+
+@challenge_blocks_bp.route("/api/challenge/admin/admins", methods=["GET"])
+def api_challenge_list_admins():
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    rows = db.execute(
+        """SELECT a.profile_id, a.username, a.email, a.role,
+                  CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password,
+                  p.client_name
+           FROM challenge_user_accounts a
+           JOIN challenge_profiles p ON p.id = a.profile_id
+           WHERE a.role='admin' OR LOWER(p.client_name) IN ('ewan t', 'chris', 'laura')
+           ORDER BY p.id"""
+    ).fetchall()
+    return jsonify({"ok": True, "admins": [dict(r) for r in rows]})
+
+
+@challenge_blocks_bp.route("/api/challenge/admin/update-admin-account", methods=["POST"])
+def api_challenge_update_admin_account():
+    """Update email, username, role, or password for an admin or user account."""
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    data = request.get_json() or {}
+    pid = int(data.get("profile_id") or 0)
+    email = (data.get("email") or "").strip().lower()
+    new_pw = str(data.get("password") or "").strip()
+    role = (data.get("role") or "admin").strip()
+    if not pid:
+        return jsonify({"ok": False, "error": "profile_id is required"}), 400
+
+    if email:
+        db.execute(
+            "UPDATE challenge_user_accounts SET email=?, role=?, updated_at=CURRENT_TIMESTAMP WHERE profile_id=?",
+            (email, role, pid),
+        )
+    else:
+        db.execute(
+            "UPDATE challenge_user_accounts SET role=?, updated_at=CURRENT_TIMESTAMP WHERE profile_id=?",
+            (role, pid),
+        )
+    if new_pw:
+        pw_hash = bcrypt.hashpw(new_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        db.execute(
+            "UPDATE challenge_user_accounts SET password_hash=?, updated_at=CURRENT_TIMESTAMP WHERE profile_id=?",
+            (pw_hash, pid),
+        )
+    db.commit()
+    acct = db.execute(
+        """SELECT a.profile_id, a.username, a.email, a.role,
+                  CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password,
+                  p.client_name
+           FROM challenge_user_accounts a
+           JOIN challenge_profiles p ON p.id = a.profile_id
+           WHERE a.profile_id=?""",
+        (pid,),
+    ).fetchone()
+    return jsonify({"ok": True, "admin": dict(acct) if acct else None})
+
+
+@challenge_blocks_bp.route("/api/challenge/admin/challenger-detail", methods=["GET"])
+def api_challenge_admin_challenger_detail():
+    """Return complete weekly data, 7-day sheet, week-over-week trajectory, check-in submissions & all photos for a challenger."""
+    from challenge import _build_week_sheet
+    from challenge_progress import compute_week_over_week
+
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    pid = int(request.args.get("profile_id") or 1)
+    week_num = int(request.args.get("week") if request.args.get("week") is not None else 1)
+
+    p_row = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (pid,)).fetchone()
+    if not p_row:
+        p_row = db.execute("SELECT * FROM challenge_profiles ORDER BY id LIMIT 1").fetchone()
+    profile = dict(p_row)
+    profile["weekly_targets"] = json.loads(profile.get("weekly_targets_json", "[]") or "[]")
+
+    acct = db.execute("SELECT username, email, role, invite_token FROM challenge_user_accounts WHERE profile_id=?", (profile["id"],)).fetchone()
+    profile["email"] = acct["email"] if acct else ""
+    profile["role"] = acct["role"] if acct else "challenger"
+    profile["invite_token"] = acct["invite_token"] if acct else ""
+
+    week_sheet = _build_week_sheet(db, profile, week_num)
+    for row in week_sheet.get("rows", []):
+        for k in ("created_at", "updated_at"):
+            if row.get(k) is not None:
+                row[k] = str(row[k])
+        try:
+            acts = [
+                dict(a)
+                for a in db.execute(
+                    "SELECT title, category, duration_mins, distance_km, calories FROM daily_activities WHERE profile_id=? AND date=?",
+                    (profile["id"], row["date"]),
+                ).fetchall()
+            ]
+        except Exception:
+            acts = []
+        row["activities"] = acts
+    week_sheet["days"] = week_sheet.get("rows", [])
+    week_sheet["week_start"] = week_sheet.get("start_date", "")
+    week_sheet["week_end"] = week_sheet.get("end_date", "")
+    week_sheet["target_steps"] = week_sheet.get("step_target", 10000)
+
+    for k in ("created_at", "updated_at"):
+        if profile.get(k) is not None:
+            profile[k] = str(profile[k])
+
+    wow = compute_week_over_week(db, profile)
+
+    photos = [
+        dict(r)
+        for r in db.execute(
+            """SELECT id, profile_id, week_num, pose, taken_date, weight_kg, notes, photo_data_url
+               FROM progress_photos WHERE profile_id=? ORDER BY week_num ASC, id ASC""",
+            (profile["id"],),
+        ).fetchall()
+    ]
+
+    subs = [
+        dict(r)
+        for r in db.execute(
+            """SELECT * FROM weekly_submissions WHERE profile_id=? ORDER BY week_num DESC""",
+            (profile["id"],),
+        ).fetchall()
+    ]
+    for s in subs:
+        for k in ("submitted_at", "reviewed_at", "updated_at"):
+            if s.get(k) is not None:
+                s[k] = str(s[k])
+
+    return jsonify({
+        "ok": True,
+        "profile": profile,
+        "selected_week": week_num,
+        "week_sheet": week_sheet,
+        "week_over_week": wow,
+        "photos": photos,
+        "submissions": subs,
+    })
+
+
+@challenge_blocks_bp.route("/api/challenge/admin/cohort-summary", methods=["GET"])
+def api_challenge_admin_cohort_summary():
+    """High-speed summary table for ~100+ challengers across a cohort block & week, with click-through to full details."""
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    week_num = int(request.args.get("week") if request.args.get("week") is not None else 1)
+    block_id_filter = int(request.args.get("block_id") or 0)
+
+    profiles = [
+        dict(r)
+        for r in db.execute(
+            """SELECT p.*, COALESCE(a.email, '') AS email, COALESCE(a.role, 'challenger') AS role,
+                      e.block_id, COALESCE(b.name, 'Block 1 · Oct–Dec 2026') AS block_name,
+                      COALESCE(b.invite_code, 'CS-OCT2026') AS invite_code
+               FROM challenge_profiles p
+               LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
+               LEFT JOIN challenge_block_enrollments e ON e.profile_id = p.id
+               LEFT JOIN challenge_blocks b ON b.id = e.block_id
+               WHERE LOWER(p.client_name) NOT IN ('chris', 'laura')
+               ORDER BY p.id ASC"""
+        ).fetchall()
+    ]
+
+    # Deduplicate in case a challenger is enrolled in multiple blocks (pick matching block_id_filter or latest)
+    by_pid = {}
+    for p in profiles:
+        if block_id_filter and p.get("block_id") != block_id_filter:
+            continue
+        by_pid[p["id"]] = p
+
+    subs_map = {
+        r["profile_id"]: dict(r)
+        for r in db.execute("SELECT * FROM weekly_submissions WHERE week_num=?", (week_num,)).fetchall()
+    }
+    photos_map = {
+        r["profile_id"]: r["cnt"]
+        for r in db.execute(
+            "SELECT profile_id, COUNT(*) AS cnt FROM progress_photos WHERE week_num=? AND photo_data_url != '' GROUP BY profile_id",
+            (week_num,),
+        ).fetchall()
+    }
+
+    roster = []
+    for pid, p in by_pid.items():
+        start_dt = datetime.strptime((p.get("start_date") or "2026-10-19")[:10], "%Y-%m-%d")
+        wk_start = (start_dt - timedelta(days=7)) if week_num == 0 else (start_dt + timedelta(days=(week_num - 1) * 7))
+        wk_end = wk_start + timedelta(days=6)
+        d_start_str, d_end_str = wk_start.strftime("%Y-%m-%d"), wk_end.strftime("%Y-%m-%d")
+
+        base_step = 14000 if p.get("returning_member") else 10000
+        step_target = base_step if week_num == 0 else max(base_step, 10000 + (min(8, week_num) - 1) * 1000)
+        wk_target_w = round(float(p.get("start_weight_kg") or 84.0) * (0.99 ** max(0, week_num - 1)), 2)
+
+        agg = db.execute(
+            """SELECT COUNT(*) AS days_logged,
+                      SUM(CASE WHEN stick_to_plan='Y' THEN 1 ELSE 0 END) AS days_on_plan,
+                      AVG(CASE WHEN weight_kg > 0 THEN weight_kg END) AS avg_w,
+                      AVG(CASE WHEN steps > 0 THEN steps END) AS avg_s,
+                      AVG(CASE WHEN calories > 0 THEN calories END) AS avg_c,
+                      AVG(CASE WHEN protein_g > 0 THEN protein_g END) AS avg_p,
+                      AVG(CASE WHEN water_l > 0 THEN water_l END) AS avg_wat
+               FROM daily_checkins
+               WHERE profile_id=? AND date >= ? AND date <= ?
+                 AND (steps > 0 OR calories > 0 OR weight_kg IS NOT NULL OR water_l > 0)""",
+            (pid, d_start_str, d_end_str),
+        ).fetchone()
+
+        avg_w = round(float(agg["avg_w"]), 2) if agg and agg["avg_w"] else None
+        start_w = float(p.get("start_weight_kg") or 84.0)
+        delta_w = round(avg_w - start_w, 2) if avg_w is not None else None
+        sub = subs_map.get(pid, {})
+        status = sub.get("status") or ("In Progress" if (agg and agg["days_logged"] > 0) else "No Logs Yet")
+
+        roster.append({
+            "profile_id": pid,
+            "client_name": p["client_name"],
+            "email": p["email"],
+            "role": p["role"],
+            "goal": p.get("goal") or "Weight Loss",
+            "returning_member": bool(p.get("returning_member")),
+            "block_id": p.get("block_id") or 1,
+            "block_name": p.get("block_name") or "Block 1 · Oct–Dec 2026",
+            "invite_code": p.get("invite_code") or "CS-OCT2026",
+            "start_weight_kg": start_w,
+            "target_weight_kg": float(p.get("target_weight_kg") or 78.3),
+            "week_target_weight_kg": wk_target_w,
+            "target_calories": int(p.get("target_calories") or 2173),
+            "target_protein_g": int(p.get("target_protein_g") or 150),
+            "target_water_l": float(p.get("target_water_l") or 3.66),
+            "step_target": step_target,
+            "days_logged": int(agg["days_logged"] or 0) if agg else 0,
+            "days_on_plan": int(agg["days_on_plan"] or 0) if agg else 0,
+            "avg_weight_kg": avg_w,
+            "weight_delta_kg": delta_w,
+            "avg_steps": int(round(float(agg["avg_s"] or 0))) if agg else 0,
+            "avg_calories": int(round(float(agg["avg_c"] or 0))) if agg else 0,
+            "avg_protein_g": int(round(float(agg["avg_p"] or 0))) if agg else 0,
+            "avg_water_l": round(float(agg["avg_wat"] or 0.0), 2) if agg else 0.0,
+            "photos_count": int(photos_map.get(pid, 0)),
+            "submission_status": status,
+            "challenger_comments": sub.get("challenger_comments") or "",
+            "coach_feedback": sub.get("coach_feedback") or "",
+        })
+
+    kpis = {
+        "total_challengers": len(roster),
+        "needs_review": sum(1 for r in roster if r["submission_status"] == "Submitted"),
+        "reviewed": sum(1 for r in roster if r["submission_status"] == "Reviewed"),
+        "low_logging": sum(1 for r in roster if r["days_logged"] < 3),
+        "with_photos": sum(1 for r in roster if r["photos_count"] > 0),
+    }
+    return jsonify({"ok": True, "week": week_num, "kpis": kpis, "roster": roster})
+
+
 

@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coach &amp; Admin Portal — CS Fitness 8-Week Challenge</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/challenge.css?v=11" />
+  <style>
+    .admin-nav {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 0.4rem;
+      margin-bottom: 0.9rem;
+    }
+    @media (max-width: 960px) {
+      .admin-nav { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 560px) {
+      .admin-nav { grid-template-columns: repeat(2, 1fr); }
+    }
+    .challenger-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      padding: 0.7rem 0.95rem;
+      margin-bottom: 0.85rem;
+      background: linear-gradient(90deg, rgba(61,255,79,0.12), rgba(13,21,16,0.95));
+      border: 1px solid rgba(61,255,79,0.45);
+      border-radius: 12px;
+    }
+    .photo-compare-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+    }
+    @media (max-width: 860px) {
+      .photo-compare-grid { grid-template-columns: 1fr; }
+    }
+    .pose-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+    }
+    .pose-img-box {
+      background: #070a08;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 0.35rem;
+      text-align: center;
+    }
+    .pose-img-box img {
+      width: 100%;
+      height: 240px;
+      object-fit: contain;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Top Header -->
+  <header class="top-header">
+    <div class="brand-row">
+      <img src="/static/logo.jpg" alt="CS Fitness" class="brand-logo" />
+      <div>
+        <div class="brand-title">CS FITNESS · COACH &amp; ADMIN PORTAL</div>
+        <div class="brand-sub" id="admin-hdr-sub">Coaches &amp; Admins: Chris · Laura · Ewan</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span class="badge badge-green" id="admin-signed-in-pill">🛡️ Admin View</span>
+      <a href="/challenge" class="btn btn-green btn-sm" style="text-decoration:none">🏋️ Challenger App View</a>
+      <a href="/challenge/login" class="btn btn-sm" style="text-decoration:none">🔐 Switch Admin / User</a>
+      <a href="/" class="btn btn-sm" style="text-decoration:none">🏠 Hub</a>
+    </div>
+  </header>
+
+  <!-- Active Challenger Selector Bar (Drives Weekly Data, Progress Over Time, Photo Compare & Direct Coach Feedback) -->
+  <div class="challenger-bar">
+    <div style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="switchAdminTab('roster')" title="Return to 100-Challenger Summary Table">📋 ← All Challengers Summary</button>
+      <span style="font-size:0.78rem;font-weight:900;color:var(--green)">👤 SELECTED:</span>
+      <select id="admin-challenger-select" style="width:auto;min-width:210px;font-weight:800" onchange="selectAdminChallenger(this.value)"></select>
+      <button class="btn btn-sm" onclick="stepAdminChallenger(1)" title="Next Challenger in Roster">Next Challenger →</button>
+      <span style="font-size:0.75rem;color:#cbd5e1" id="admin-challenger-quick-stats">Loading challenger stats...</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap">
+      <label style="font-size:0.74rem;color:var(--muted);font-weight:700">Week:</label>
+      <select id="admin-week-select" style="width:auto;font-weight:800" onchange="changeAdminWeek(this.value)">
+        <option value="0">Week 0 (Pre-Coaching)</option>
+        <option value="1" selected>Week 1</option>
+        <option value="2">Week 2</option>
+        <option value="3">Week 3</option>
+        <option value="4">Week 4</option>
+        <option value="5">Week 5</option>
+        <option value="6">Week 6</option>
+        <option value="7">Week 7</option>
+        <option value="8">Week 8</option>
+      </select>
+      <button class="btn btn-sm" onclick="openChallengerInMainApp()">👁️ Open in Challenger App</button>
+    </div>
+  </div>
+
+  <!-- 7-Module Coach & Admin Navigation (Tab 1 = 100-Challenger Summary Roster) -->
+  <nav class="admin-nav" style="grid-template-columns:repeat(7,1fr)">
+    <button class="nav-tab active" data-tab="roster" onclick="switchAdminTab('roster')">
+      <span class="icon">🏆</span>
+      <span>1. Cohort Summary</span>
+    </button>
+    <button class="nav-tab" data-tab="review" onclick="switchAdminTab('review')">
+      <span class="icon">📬</span>
+      <span>2. Review &amp; Feedback</span>
+    </button>
+    <button class="nav-tab" data-tab="weekly" onclick="switchAdminTab('weekly')">
+      <span class="icon">📊</span>
+      <span>3. Weekly Sheet</span>
+    </button>
+    <button class="nav-tab" data-tab="photos" onclick="switchAdminTab('photos')">
+      <span class="icon">📸</span>
+      <span>4. Compare Photos</span>
+    </button>
+    <button class="nav-tab" data-tab="trajectory" onclick="switchAdminTab('trajectory')">
+      <span class="icon">📈</span>
+      <span>5. Progress Trajectory</span>
+    </button>
+    <button class="nav-tab" data-tab="blocks" onclick="switchAdminTab('blocks')">
+      <span class="icon">🗓️</span>
+      <span>6. Manage Blocks</span>
+    </button>
+    <button class="nav-tab" data-tab="users" onclick="switchAdminTab('users')">
+      <span class="icon">👥</span>
+      <span>7. Users &amp; 3 Admins</span>
+    </button>
+  </nav>
+
+  <!-- =========================================================================
+       MODULE 0 (DEFAULT): COHORT SUMMARY ROSTER (BUILT FOR ~100+ CHALLENGERS)
+       ========================================================================= -->
+  <section class="tab-panel active" id="admin-panel-roster">
+    <div class="card" style="border-color:rgba(61,255,79,0.45)">
+      <div class="card-header">
+        <span class="card-title" id="roster-card-title">🏆 Cohort Summary Roster (100-Challenger Overview — Click Any Row for Full Details)</span>
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick="switchAdminTab('users')">➕ Add Challenger</button>
+          <button class="btn btn-green btn-sm" onclick="loadCohortSummaryRoster()">🔄 Refresh Roster</button>
+        </div>
+      </div>
+
+      <!-- Clickable KPI Filter Cards -->
+      <div id="roster-kpi-strip" style="display:grid;grid-template-columns:repeat(5,1fr);gap:0.5rem;margin-bottom:0.75rem;text-align:center"></div>
+
+      <!-- Search, Block Filter, Status Filter & Sort Bar -->
+      <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:0.5rem;margin-bottom:0.75rem">
+        <input type="text" id="roster-search" placeholder="🔍 Search 100+ challengers by name or email..." oninput="renderCohortSummaryTable()" />
+        <select id="roster-block-filter" onchange="loadCohortSummaryRoster()">
+          <option value="0">All 8-Week Blocks</option>
+        </select>
+        <select id="roster-status-filter" onchange="renderCohortSummaryTable()">
+          <option value="all">Filter: All Challengers</option>
+          <option value="needs_review">📬 Needs Coach Review (Submitted)</option>
+          <option value="reviewed">✅ Reviewed by Coach</option>
+          <option value="with_photos">📸 Has Weekly Photos</option>
+          <option value="low_logging">⚠️ Low Logging (&lt; 3 days)</option>
+        </select>
+        <select id="roster-sort" onchange="renderCohortSummaryTable()">
+          <option value="priority">Sort: Needs Review First</option>
+          <option value="name">Sort: Name (A → Z)</option>
+          <option value="weight_loss">Sort: Best Weight Loss (Δ kg)</option>
+          <option value="steps">Sort: Highest Avg Steps</option>
+          <option value="days">Sort: Days Logged (High → Low)</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table class="cs-table">
+          <thead>
+            <tr>
+              <th>Challenger</th>
+              <th>Block</th>
+              <th>Days Logged</th>
+              <th>Avg Weight (Δ vs Start)</th>
+              <th>Avg Steps vs Min</th>
+              <th>Avg Cals / Target</th>
+              <th>Avg Protein</th>
+              <th>Photos</th>
+              <th>Check-In Status</th>
+              <th>Coach Feedback / Action</th>
+            </tr>
+          </thead>
+          <tbody id="roster-summary-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================================
+       MODULE 1: WEEKLY CHECK-IN REVIEW INBOX & IN-APP COACH FEEDBACK
+       ========================================================================= -->
+  <section class="tab-panel" id="admin-panel-review">
+    <div class="grid-2">
+      <!-- Direct In-App Coach Feedback for Selected Challenger + Week -->
+      <div class="card" style="border-color:rgba(61,255,79,0.45)">
+        <div class="card-header">
+          <span class="card-title" id="direct-fb-title">💬 Provide In-App Coach Feedback — Ewan t (Week 1)</span>
+          <span class="badge badge-green" id="direct-fb-status-badge">Ready</span>
+        </div>
+        <div id="direct-fb-week-summary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.45rem;margin-bottom:0.65rem;text-align:center"></div>
+        <div style="font-size:0.75rem;color:#cbd5e1;padding:0.55rem 0.7rem;background:#080b09;border:1px solid var(--border);border-radius:8px;margin-bottom:0.65rem">
+          <strong style="color:var(--green)">Challenger's Weekly Write-Up:</strong>
+          <div id="direct-fb-challenger-writeup" style="margin-top:0.2rem">No write-up submitted yet for this week.</div>
+        </div>
+        <div style="margin-bottom:0.6rem">
+          <label class="field-label">Coach Feedback (Chris / Laura — Appears Immediately in Challenger's App)</label>
+          <textarea id="direct-fb-textarea" rows="3" placeholder="Write coach feedback, praise, and focus points for next week..."></textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:0.5rem;align-items:end">
+          <div>
+            <label class="field-label">Adjust Daily Calories (kcal)</label>
+            <input type="number" id="direct-fb-cals" value="2173" />
+          </div>
+          <div>
+            <label class="field-label">Adjust Daily Protein (g)</label>
+            <input type="number" id="direct-fb-prot" value="150" />
+          </div>
+          <button class="btn btn-green" onclick="saveDirectCoachFeedback()">💬 Publish Feedback to App</button>
+        </div>
+      </div>
+
+      <!-- Selected Week's 3 Progress Photos Quick Preview -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title" id="review-photos-title">📸 Selected Week Progress Photos (Side · Front · Back)</span>
+          <button class="btn btn-sm" onclick="switchAdminTab('photos')">🔍 Open Side-by-Side Photo Compare →</button>
+        </div>
+        <div id="review-week-photos-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem"></div>
+      </div>
+    </div>
+
+    <!-- All Submitted Check-Ins Inbox Across Cohort -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📬 Cohort Weekly Check-In Review Inbox (All Challengers)</span>
+        <span class="badge badge-green" id="inbox-count-badge">0 Submissions</span>
+      </div>
+      <div id="admin-checkin-inbox-list"></div>
+    </div>
+  </section>
+
+  <!-- =========================================================================
+       MODULE 2: WEEKLY DATA, 7-DAY DAILY SHEET & PHOTOS FOR SELECTED WEEK
+       ========================================================================= -->
+  <section class="tab-panel" id="admin-panel-weekly">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" id="weekly-sheet-title">📊 Weekly Data &amp; 7-Day Daily Check-In Sheet</span>
+        <span class="badge badge-green" id="weekly-sheet-dates-badge">Mon – Sun</span>
+      </div>
+      <div id="weekly-kpi-strip" style="display:grid;grid-template-columns:repeat(6,1fr);gap:0.5rem;margin-bottom:0.8rem;text-align:center"></div>
+      <div class="table-wrap">
+        <table class="cs-table">
+          <thead>
+            <tr>
+              <th>Day</th>
+              <th>Date</th>
+              <th>Morning Weight</th>
+              <th>Training</th>
+              <th>Steps vs Min</th>
+              <th>Calories</th>
+              <th>Protein</th>
+              <th>C / F / Fibre</th>
+              <th>Water</th>
+              <th>Sleep</th>
+              <th>Plan?</th>
+              <th>Notes &amp; Activities</th>
+            </tr>
+          </thead>
+          <tbody id="admin-week-sheet-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" id="weekly-photos-card-title">📸 Photos Uploaded for This Week</span>
+        <span class="badge badge-blue">Click any photo to enlarge</span>
+      </div>
+      <div id="weekly-tab-photos-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.7rem"></div>
+    </div>
+  </section>
+
+  <!-- =========================================================================
+       MODULE 3: PROGRESS PHOTO COMPARISON STUDIO (SIDE-BY-SIDE ACROSS WEEKS)
+       ========================================================================= -->
+  <section class="tab-panel" id="admin-panel-photos">
+    <div class="card" style="border-color:rgba(61,255,79,0.45)">
+      <div class="card-header">
+        <span class="card-title">📸 Side-by-Side Progress Photo Comparison Studio</span>
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+          <label style="font-size:0.74rem;color:var(--muted);font-weight:700">Baseline (Week A):</label>
+          <select id="cmp-week-a" style="width:auto;font-weight:800" onchange="renderPhotoComparison()">
+            <option value="0" selected>Week 0 (Pre-Coaching)</option>
+            <option value="1">Week 1</option>
+            <option value="2">Week 2</option>
+            <option value="3">Week 3</option>
+            <option value="4">Week 4</option>
+            <option value="5">Week 5</option>
+            <option value="6">Week 6</option>
+            <option value="7">Week 7</option>
+            <option value="8">Week 8</option>
+          </select>
+          <span style="color:var(--green);font-weight:900">VS</span>
+          <label style="font-size:0.74rem;color:var(--muted);font-weight:700">Compare (Week B):</label>
+          <select id="cmp-week-b" style="width:auto;font-weight:800" onchange="renderPhotoComparison()">
+            <option value="0">Week 0 (Pre-Coaching)</option>
+            <option value="1" selected>Week 1</option>
+            <option value="2">Week 2</option>
+            <option value="3">Week 3</option>
+            <option value="4">Week 4</option>
+            <option value="5">Week 5</option>
+            <option value="6">Week 6</option>
+            <option value="7">Week 7</option>
+            <option value="8">Week 8</option>
+          </select>
+        </div>
+      </div>
+      <div id="cmp-delta-banner" style="margin-bottom:0.75rem;padding:0.6rem 0.85rem;background:#080b09;border:1px solid var(--border);border-radius:10px;font-size:0.78rem"></div>
+      <div class="photo-compare-grid" id="photo-compare-poses-grid"></div>
+    </div>
+
+    <!-- All Weeks Photo Timeline -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🎞️ Complete 8-Week Photo Timeline (All Uploaded Poses)</span>
+        <span class="badge badge-green" id="total-photos-badge">0 Photos</span>
+      </div>
+      <div id="all-photos-timeline-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:0.65rem"></div>
+    </div>
+  </section>
+
+  <!-- =========================================================================
+       MODULE 4: PROGRESS OVER TIME (WEEK 0 → WEEK 8 TRAJECTORY)
+       ========================================================================= -->
+  <section class="tab-panel" id="admin-panel-trajectory">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" id="trajectory-title">📈 Week-over-Week Progress Trajectory (Pre-Coaching Wk 0 → Week 8)</span>
+        <span class="badge badge-green" id="trajectory-goal-badge">Goal</span>
+      </div>
+      <div class="table-wrap">
+        <table class="cs-table">
+          <thead>
+            <tr>
+              <th>Week</th>
+              <th>Dates</th>
+              <th>Days Logged</th>
+              <th>Avg Weight</th>
+              <th>Change vs Start</th>
+              <th>Target Weight</th>
+              <th>Avg Steps vs Min</th>
+              <th>Avg Calories</th>
+              <th>Avg Protein</th>
+              <th>Avg Water</th>
+              <th>Avg Sleep</th>
+              <th>Sessions &amp; Volume</th>
+              <th>Photos</th>
+              <th>Check-In &amp; Coach Feedback</th>
+            </tr>
+          </thead>
+          <tbody id="admin-trajectory-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================================
+       MODULE 5: CREATE & MANAGE 8-WEEK COHORT BLOCKS
+       ========================================================================= -->
+  <section class="tab-panel" id="admin-panel-blocks">
+    <div class="card" style="border-color:rgba(61,255,79,0.45)">
+      <div class="card-header">
+        <span class="card-title">🗓️ Create &amp; Manage 8-Week Cohort Blocks</span>
+        <button class="btn btn-green btn-sm" onclick="loadAdminBlocks()">🔄 Refresh Blocks</button>
+      </div>
+      <p style="font-size:0.75rem;color:var(--muted);margin-bottom:0.75rem">
+        Create sequential 8-week blocks (~5 per year with break weeks in between), copy block invite URLs for new challengers, and roll returning members into the next block (automatically setting 14,000 steps/day).
+      </p>
+      <div id="admin-blocks-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:0.65rem;margin-bottom:0.9rem"></div>
+
+      <div class="grid-2">
+        <div style="padding:0.75rem;border-radius:10px;background:#080b09;border:1px solid var(--border)">
+          <div style="font-size:0.82rem;font-weight:800;color:var(--green);margin-bottom:0.5rem">➕ Create New 8-Week Cohort Block</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.45rem;margin-bottom:0.5rem">
+            <div>
+              <label class="field-label">Block Name</label>
+              <input type="text" id="adm-block-name" placeholder="e.g. Block 4 · Autumn 2027" />
+            </div>
+            <div>
+              <label class="field-label">Week 1 Monday Start Date</label>
+              <input type="date" id="adm-block-start" value="2027-08-16" />
+            </div>
+            <div>
+              <label class="field-label">Invite Code</label>
+              <input type="text" id="adm-block-code" placeholder="CS-AUG2027" />
+            </div>
+            <div>
+              <label class="field-label">Status</label>
+              <select id="adm-block-status">
+                <option value="Upcoming">Upcoming</option>
+                <option value="Active">Active</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-green btn-sm" onclick="adminCreateBlock()">🗓️ Create 8-Week Block</button>
+        </div>
+
+        <div style="padding:0.75rem;border-radius:10px;background:#080b09;border:1px solid var(--border)">
+          <div style="font-size:0.82rem;font-weight:800;color:var(--blue);margin-bottom:0.5rem">🔁 Rollover Returning Members to Next Block</div>
+          <p style="font-size:0.72rem;color:var(--muted);margin-bottom:0.5rem">
+            Carries continuing challengers into the next 8-week cohort block using their latest weight and upgrades their daily minimum to <strong>14,000 steps/day</strong>.
+          </p>
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:0.4rem;align-items:end">
+            <div>
+              <label class="field-label">From Block</label>
+              <select id="adm-roll-from"></select>
+            </div>
+            <div>
+              <label class="field-label">To Block</label>
+              <select id="adm-roll-to"></select>
+            </div>
+            <button class="btn btn-green btn-sm" onclick="adminRolloverMembers()">🔁 Rollover</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================================
+       MODULE 6: CREATE & ADD NEW USERS + MANAGE 3 ADMINS (CHRIS, LAURA, EWAN)
+       ========================================================================= -->
+  <section class="tab-panel" id="admin-panel-users">
+    <div class="grid-2">
+      <!-- Add New Challenger Form -->
+      <div class="card" style="border-color:rgba(61,255,79,0.45)">
+        <div class="card-header">
+          <span class="card-title">➕ Add / Onboard New Challenger</span>
+          <span class="badge badge-green">Chris's Formula Engine</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.55rem">
+          <div>
+            <label class="field-label">Challenger Full Name</label>
+            <input type="text" id="new-user-name" placeholder="e.g. Alex Morgan" />
+          </div>
+          <div>
+            <label class="field-label">Email Address (for Sign-In)</label>
+            <input type="email" id="new-user-email" placeholder="alex@example.com" />
+          </div>
+          <div>
+            <label class="field-label">Initial Password (Optional)</label>
+            <input type="password" id="new-user-pass" placeholder="Or user sets on first sign-in" />
+          </div>
+          <div>
+            <label class="field-label">Assign to 8-Week Block</label>
+            <select id="new-user-block"></select>
+          </div>
+          <div>
+            <label class="field-label">Start Weight (kg)</label>
+            <input type="number" step="0.1" id="new-user-sw" value="82.0" />
+          </div>
+          <div>
+            <label class="field-label">Target Weight (kg)</label>
+            <input type="number" step="0.1" id="new-user-tw" value="76.3" />
+          </div>
+          <div>
+            <label class="field-label">Start Body Fat (%)</label>
+            <input type="number" step="0.5" id="new-user-sbf" value="18.0" />
+          </div>
+          <div>
+            <label class="field-label">Target Body Fat (%)</label>
+            <input type="number" step="0.5" id="new-user-tbf" value="15.0" />
+          </div>
+          <div>
+            <label class="field-label">Daily Protein Target (g)</label>
+            <input type="number" id="new-user-prot" value="150" />
+          </div>
+          <div>
+            <label class="field-label">Workout Track</label>
+            <select id="new-user-track">
+              <option value="mens">Men's Workouts 1–4</option>
+              <option value="ladies">Ladies' Workouts 1–4</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+          <label style="font-size:0.74rem;display:flex;align-items:center;gap:0.35rem;cursor:pointer">
+            <input type="checkbox" id="new-user-returning" style="width:auto" /> Returning Member (Starts at 14,000 steps/day)
+          </label>
+          <button class="btn btn-green btn-sm" onclick="adminCreateChallenger()">➕ Create Challenger &amp; Generate Targets</button>
+        </div>
+        <div id="new-user-result-box" style="margin-top:0.55rem;font-size:0.75rem;color:var(--green)"></div>
+      </div>
+
+      <!-- 3 Admins Management (Chris, Laura, Ewan) -->
+      <div class="card" style="border-color:rgba(56,189,248,0.45)">
+        <div class="card-header">
+          <span class="card-title">🛡️ 3 Coach &amp; Admin Accounts (Chris · Laura · Ewan)</span>
+          <span class="badge badge-blue">Admin Sign-In Emails</span>
+        </div>
+        <p style="font-size:0.73rem;color:var(--muted);margin-bottom:0.65rem">
+          Update the email address and password for <strong>Chris</strong>, <strong>Laura</strong>, and <strong>Ewan</strong> whenever you have their exact email addresses. Signing in with any of these 3 accounts grants Coach &amp; Admin access.
+        </p>
+        <div id="admins-management-list"></div>
+      </div>
+    </div>
+
+    <!-- Full Challengers Directory -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🏆 All Challengers &amp; Calculated Targets Directory</span>
+        <span class="badge badge-green" id="adm-directory-count">0 Users</span>
+      </div>
+      <div class="table-wrap">
+        <table class="cs-table">
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th>Email / Role</th>
+              <th>Start → Target Wt</th>
+              <th>Body Fat %</th>
+              <th>LBM / Fat Mass</th>
+              <th>Calories</th>
+              <th>Macros (P / F / C)</th>
+              <th>Water</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="adm-directory-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="toast" id="admin-toast">Saved!</div>
+
+<script>
+const ADMIN_STATE = {
+  challengers: [],
+  blocks: [],
+  admins: [],
+  selectedProfileId: 1,
+  selectedWeek: 1,
+  detail: null,
+  progressSummary: null,
+};
+
+function showAdminToast(msg) {
+  const t = document.getElementById('admin-toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function switchAdminTab(tab) {
+  document.querySelectorAll('.admin-nav .nav-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  ['roster', 'review', 'weekly', 'photos', 'trajectory', 'blocks', 'users'].forEach(k => {
+    const el = document.getElementById('admin-panel-' + k);
+    if (el) el.classList.toggle('active', k === tab);
+  });
+}
+
+async function initAdminPortal() {
+  const [authRes, blocksRes, adminsRes, progRes] = await Promise.all([
+    fetch('/api/challenge/auth/status').then(r => r.json()),
+    fetch('/api/challenge/blocks').then(r => r.json()),
+    fetch('/api/challenge/admin/admins').then(r => r.json()),
+    fetch('/api/challenge/progress/summary').then(r => r.json()),
+  ]);
+
+  if (authRes.ok) {
+    const pill = document.getElementById('admin-signed-in-pill');
+    if (pill) pill.textContent = `🛡️ Signed in: ${authRes.client_name} (${authRes.email || authRes.role})`;
+  }
+
+  ADMIN_STATE.blocks = blocksRes.blocks || [];
+  ADMIN_STATE.challengers = (blocksRes.challengers || []).filter(c => !['chris', 'laura'].includes((c.client_name || '').toLowerCase()));
+  ADMIN_STATE.admins = adminsRes.admins || [];
+  ADMIN_STATE.progressSummary = progRes;
+
+  const blkFilter = document.getElementById('roster-block-filter');
+  if (blkFilter) {
+    blkFilter.innerHTML = `<option value="0">All 8-Week Blocks</option>` +
+      ADMIN_STATE.blocks.map(b => `<option value="${b.id}">${b.name} (${b.invite_code})</option>`).join('');
+  }
+
+  // Populate challenger selector (putting Ewan t first)
+  const sel = document.getElementById('admin-challenger-select');
+  const sorted = [...ADMIN_STATE.challengers].sort((a, b) => (a.id === 1 ? -1 : b.id === 1 ? 1 : a.id - b.id));
+  if (sel) {
+    sel.innerHTML = sorted.map(c =>
+      `<option value="${c.id}" ${c.id === ADMIN_STATE.selectedProfileId ? 'selected' : ''}>${c.client_name} (${c.goal || 'Weight Loss'} · ${c.target_calories} kcal)</option>`
+    ).join('');
+  }
+
+  renderAdminBlocksSection();
+  renderAdminsAndUsersDirectory();
+  renderGlobalCheckinInbox();
+  await loadCohortSummaryRoster();
+  await loadChallengerDetail(ADMIN_STATE.selectedProfileId, ADMIN_STATE.selectedWeek);
+}
+
+async function loadCohortSummaryRoster() {
+  const wk = ADMIN_STATE.selectedWeek;
+  const blk = document.getElementById('roster-block-filter')?.value || 0;
+  const res = await fetch(`/api/challenge/admin/cohort-summary?week=${wk}&block_id=${blk}`).then(r => r.json());
+  if (!res.ok) return;
+  ADMIN_STATE.roster = res.roster || [];
+  ADMIN_STATE.rosterKpis = res.kpis || {};
+  renderCohortSummaryTable();
+}
+
+function setRosterStatusFilter(filterVal) {
+  const sel = document.getElementById('roster-status-filter');
+  if (sel) sel.value = filterVal;
+  renderCohortSummaryTable();
+}
+
+function renderCohortSummaryTable() {
+  const k = ADMIN_STATE.rosterKpis || {};
+  const wk = ADMIN_STATE.selectedWeek;
+  const wkLabel = wk === 0 ? 'Week 0 (Pre-Coaching)' : `Week ${wk}`;
+  const titleEl = document.getElementById('roster-card-title');
+  if (titleEl) {
+    titleEl.textContent = `🏆 Cohort Summary Roster — ${wkLabel} (${k.total_challengers || 0} Challengers · Click Any Row for Details)`;
+  }
+
+  const kpiStrip = document.getElementById('roster-kpi-strip');
+  if (kpiStrip) {
+    kpiStrip.innerHTML = `
+      <div style="cursor:pointer;background:var(--surface-2);padding:0.55rem;border-radius:9px;border:1px solid var(--border)" onclick="setRosterStatusFilter('all')">
+        <div style="font-size:0.64rem;color:var(--muted)">TOTAL CHALLENGERS</div>
+        <div style="font-size:1.15rem;font-weight:900;color:#fff">${k.total_challengers || 0}</div>
+        <div style="font-size:0.62rem;color:var(--green)">Click to show all</div>
+      </div>
+      <div style="cursor:pointer;background:var(--surface-2);padding:0.55rem;border-radius:9px;border:1px solid rgba(56,189,248,0.45)" onclick="setRosterStatusFilter('needs_review')">
+        <div style="font-size:0.64rem;color:var(--muted)">📬 NEEDS COACH REVIEW</div>
+        <div style="font-size:1.15rem;font-weight:900;color:var(--blue)">${k.needs_review || 0}</div>
+        <div style="font-size:0.62rem;color:#cbd5e1">Submitted check-ins</div>
+      </div>
+      <div style="cursor:pointer;background:var(--surface-2);padding:0.55rem;border-radius:9px;border:1px solid rgba(61,255,79,0.45)" onclick="setRosterStatusFilter('reviewed')">
+        <div style="font-size:0.64rem;color:var(--muted)">✅ REVIEWED</div>
+        <div style="font-size:1.15rem;font-weight:900;color:var(--green)">${k.reviewed || 0}</div>
+        <div style="font-size:0.62rem;color:#cbd5e1">Feedback sent</div>
+      </div>
+      <div style="cursor:pointer;background:var(--surface-2);padding:0.55rem;border-radius:9px;border:1px solid var(--border)" onclick="setRosterStatusFilter('with_photos')">
+        <div style="font-size:0.64rem;color:var(--muted)">📸 HAS WEEKLY PHOTOS</div>
+        <div style="font-size:1.15rem;font-weight:900;color:#fff">${k.with_photos || 0}</div>
+        <div style="font-size:0.62rem;color:#cbd5e1">Ready to compare</div>
+      </div>
+      <div style="cursor:pointer;background:var(--surface-2);padding:0.55rem;border-radius:9px;border:1px solid rgba(251,191,36,0.45)" onclick="setRosterStatusFilter('low_logging')">
+        <div style="font-size:0.64rem;color:var(--muted)">⚠️ LOW LOGGING (&lt;3d)</div>
+        <div style="font-size:1.15rem;font-weight:900;color:#fbbf24">${k.low_logging || 0}</div>
+        <div style="font-size:0.62rem;color:#cbd5e1">Needs accountability</div>
+      </div>
+    `;
+  }
+
+  const q = (document.getElementById('roster-search')?.value || '').trim().toLowerCase();
+  const stFilter = document.getElementById('roster-status-filter')?.value || 'all';
+  const sortBy = document.getElementById('roster-sort')?.value || 'priority';
+
+  let rows = [...(ADMIN_STATE.roster || [])].filter(r => {
+    if (q && !(`${r.client_name} ${r.email} ${r.block_name}`.toLowerCase().includes(q))) return false;
+    if (stFilter === 'needs_review') return r.submission_status === 'Submitted';
+    if (stFilter === 'reviewed') return r.submission_status === 'Reviewed';
+    if (stFilter === 'with_photos') return (r.photos_count || 0) > 0;
+    if (stFilter === 'low_logging') return (r.days_logged || 0) < 3;
+    return true;
+  });
+
+  rows.sort((a, b) => {
+    if (sortBy === 'name') return a.client_name.localeCompare(b.client_name);
+    if (sortBy === 'weight_loss') return (a.weight_delta_kg ?? 99) - (b.weight_delta_kg ?? 99);
+    if (sortBy === 'steps') return (b.avg_steps || 0) - (a.avg_steps || 0);
+    if (sortBy === 'days') return (b.days_logged || 0) - (a.days_logged || 0);
+    // Priority: Submitted first, then days logged
+    const rank = s => s === 'Submitted' ? 0 : s === 'In Progress' ? 1 : s === 'Reviewed' ? 2 : 3;
+    return rank(a.submission_status) - rank(b.submission_status) || (b.days_logged - a.days_logged);
+  });
+
+  const tbody = document.getElementById('roster-summary-tbody');
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:1.2rem">No challengers match this filter.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => {
+    const deltaStr = r.weight_delta_kg !== null ? `(${r.weight_delta_kg > 0 ? '+' : ''}${r.weight_delta_kg} kg)` : '';
+    const stepOk = (r.avg_steps || 0) >= (r.step_target || 10000);
+    const stBadge = r.submission_status === 'Reviewed' ? 'badge-green' : r.submission_status === 'Submitted' ? 'badge-blue' : '';
+    return `<tr style="cursor:pointer" onclick="clickChallengerFromRoster(${r.profile_id}, 'review')" title="Click to inspect ${r.client_name}'s full weekly data, photos & coach feedback">
+      <td>
+        <strong style="color:#fff;font-size:0.84rem">${r.client_name}</strong>
+        ${r.returning_member ? '<span class="badge badge-blue" style="margin-left:4px">🔁 14k</span>' : ''}
+        <div style="font-size:0.68rem;color:var(--muted)">${r.email || ''}</div>
+      </td>
+      <td><span class="badge">${r.invite_code}</span></td>
+      <td><strong>${r.days_logged}/7</strong> <span style="color:var(--muted);font-size:0.68rem">(${r.days_on_plan}Y)</span></td>
+      <td>
+        <strong style="color:#fff">${r.avg_weight_kg ? r.avg_weight_kg + ' kg' : '—'}</strong>
+        <span style="color:${(r.weight_delta_kg || 0) <= 0 ? 'var(--green)' : '#f87171'};font-size:0.72rem;font-weight:700">${deltaStr}</span>
+        <div style="font-size:0.65rem;color:var(--muted)">Start ${r.start_weight_kg} → Goal ${r.target_weight_kg}kg</div>
+      </td>
+      <td style="color:${stepOk ? 'var(--green)' : '#fff'};font-weight:800">
+        ${(r.avg_steps || 0).toLocaleString()}
+        <div style="font-size:0.65rem;color:var(--muted)">Min ${(r.step_target || 10000).toLocaleString()}</div>
+      </td>
+      <td><strong>${r.avg_calories || 0}</strong> <span style="font-size:0.68rem;color:var(--muted)">/ ${r.target_calories}</span></td>
+      <td style="color:var(--green);font-weight:700">${r.avg_protein_g || 0}g <span style="font-size:0.68rem;color:var(--muted)">/ ${r.target_protein_g}g</span></td>
+      <td><span class="badge ${r.photos_count >= 3 ? 'badge-green' : r.photos_count > 0 ? 'badge-blue' : ''}">📸 ${r.photos_count}/3</span></td>
+      <td><span class="badge ${stBadge}">${r.submission_status}</span></td>
+      <td onclick="event.stopPropagation()">
+        <div style="display:flex;gap:0.3rem;flex-wrap:wrap">
+          <button class="btn btn-green btn-sm" onclick="clickChallengerFromRoster(${r.profile_id}, 'review')">💬 Review</button>
+          <button class="btn btn-sm" onclick="clickChallengerFromRoster(${r.profile_id}, 'weekly')">📊 Sheet</button>
+          <button class="btn btn-sm" onclick="clickChallengerFromRoster(${r.profile_id}, 'photos')">📸 Photos</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function clickChallengerFromRoster(profileId, targetTab) {
+  ADMIN_STATE.selectedProfileId = Number(profileId);
+  const sel = document.getElementById('admin-challenger-select');
+  if (sel) sel.value = String(profileId);
+  await loadChallengerDetail(profileId, ADMIN_STATE.selectedWeek);
+  switchAdminTab(targetTab || 'review');
+}
+
+async function stepAdminChallenger(dir) {
+  const list = ADMIN_STATE.roster && ADMIN_STATE.roster.length ? ADMIN_STATE.roster.map(r => r.profile_id) : ADMIN_STATE.challengers.map(c => c.id);
+  if (!list.length) return;
+  const idx = list.indexOf(ADMIN_STATE.selectedProfileId);
+  const nextId = list[(idx + dir + list.length) % list.length];
+  ADMIN_STATE.selectedProfileId = nextId;
+  const sel = document.getElementById('admin-challenger-select');
+  if (sel) sel.value = String(nextId);
+  await loadChallengerDetail(nextId, ADMIN_STATE.selectedWeek);
+}
+
+async function selectAdminChallenger(profileId) {
+  ADMIN_STATE.selectedProfileId = Number(profileId);
+  await loadChallengerDetail(ADMIN_STATE.selectedProfileId, ADMIN_STATE.selectedWeek);
+}
+
+async function changeAdminWeek(weekNum) {
+  ADMIN_STATE.selectedWeek = Number(weekNum);
+  await loadCohortSummaryRoster();
+  await loadChallengerDetail(ADMIN_STATE.selectedProfileId, ADMIN_STATE.selectedWeek);
+}
+
+async function loadChallengerDetail(profileId, weekNum) {
+  const res = await fetch(`/api/challenge/admin/challenger-detail?profile_id=${profileId}&week=${weekNum}`);
+  const data = await res.json();
+  if (!data.ok) return;
+  ADMIN_STATE.detail = data;
+
+  const p = data.profile;
+  const qs = document.getElementById('admin-challenger-quick-stats');
+  if (qs) {
+    qs.innerHTML = `Start: <strong>${p.start_weight_kg} kg (${p.start_body_fat_pct}% BF)</strong> → Goal: <strong style="color:var(--green)">${p.target_weight_kg} kg</strong> · Targets: <strong>${p.target_calories} kcal</strong> / <strong>${p.target_protein_g}g P</strong> / <strong>${p.target_water_l}L Water</strong>`;
+  }
+
+  renderDirectFeedbackCard();
+  renderWeeklySheetSection();
+  renderPhotoComparison();
+  renderTrajectoryTable();
+}
+
+function renderDirectFeedbackCard() {
+  const d = ADMIN_STATE.detail;
+  if (!d) return;
+  const p = d.profile;
+  const wk = d.selected_week;
+  const wkRow = (d.week_over_week || []).find(w => Number(w.week_num) === wk) || {};
+
+  document.getElementById('direct-fb-title').textContent = `💬 In-App Coach Feedback — ${p.client_name} (${wk === 0 ? 'Pre-Coaching Wk 0' : 'Week ' + wk})`;
+  const stBadge = document.getElementById('direct-fb-status-badge');
+  stBadge.textContent = wkRow.submission_status || 'In Progress';
+
+  document.getElementById('direct-fb-week-summary').innerHTML = `
+    <div style="background:var(--surface-2);padding:0.45rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG WEIGHT</div><div style="font-size:0.95rem;font-weight:800;color:var(--green)">${wkRow.avg_weight_kg ? wkRow.avg_weight_kg + ' kg' : '—'}</div></div>
+    <div style="background:var(--surface-2);padding:0.45rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG STEPS</div><div style="font-size:0.95rem;font-weight:800;color:#fff">${(wkRow.avg_steps || 0).toLocaleString()}</div></div>
+    <div style="background:var(--surface-2);padding:0.45rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG CALORIES</div><div style="font-size:0.95rem;font-weight:800;color:#fff">${wkRow.avg_calories || 0} kcal</div></div>
+    <div style="background:var(--surface-2);padding:0.45rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG PROTEIN</div><div style="font-size:0.95rem;font-weight:800;color:var(--green)">${wkRow.avg_protein_g || 0}g</div></div>
+  `;
+
+  document.getElementById('direct-fb-challenger-writeup').innerHTML = wkRow.challenger_comments
+    ? wkRow.challenger_comments
+    : '<em>No weekly write-up submitted yet by challenger for this week. You can still leave proactive coach feedback below!</em>';
+
+  document.getElementById('direct-fb-textarea').value = wkRow.coach_feedback || '';
+  document.getElementById('direct-fb-cals').value = p.target_calories || 2173;
+  document.getElementById('direct-fb-prot').value = p.target_protein_g || 150;
+
+  // Render the 3 photos for the selected week
+  const weekPhotos = (d.photos || []).filter(ph => Number(ph.week_num) === wk);
+  document.getElementById('review-photos-title').textContent = `📸 ${p.client_name} — ${wk === 0 ? 'Pre-Coaching Wk 0' : 'Week ' + wk} Photos (${weekPhotos.length}/3)`;
+  document.getElementById('review-week-photos-grid').innerHTML = ['Side', 'Front', 'Back'].map(pose => {
+    const rec = weekPhotos.find(x => x.pose === pose);
+    return `<div class="pose-img-box">
+      <div style="font-size:0.72rem;font-weight:800;color:var(--green);margin-bottom:4px">${pose.toUpperCase()}</div>
+      ${rec && rec.photo_data_url
+        ? `<img src="${rec.photo_data_url}" onclick="window.open(this.src,'_blank')" title="Click to view full size" />`
+        : `<div style="height:200px;display:flex;align-items:center;justify-content:center;font-size:0.72rem;color:var(--muted)">No ${pose} photo</div>`}
+    </div>`;
+  }).join('');
+}
+
+async function saveDirectCoachFeedback() {
+  const d = ADMIN_STATE.detail;
+  if (!d) return;
+  const payload = {
+    profile_id: d.profile.id,
+    week_num: d.selected_week,
+    coach_feedback: document.getElementById('direct-fb-textarea').value,
+    new_target_calories: Number(document.getElementById('direct-fb-cals').value || d.profile.target_calories),
+    new_target_protein_g: Number(document.getElementById('direct-fb-prot').value || d.profile.target_protein_g),
+  };
+  const res = await fetch('/api/challenge/weekly-checkin/review', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const out = await res.json();
+  if (out.ok) {
+    showAdminToast(`✅ Published Coach Feedback for ${d.profile.client_name} (Week ${d.selected_week})!`);
+    const progRes = await fetch('/api/challenge/progress/summary').then(r => r.json());
+    ADMIN_STATE.progressSummary = progRes;
+    renderGlobalCheckinInbox();
+    await loadChallengerDetail(d.profile.id, d.selected_week);
+  }
+}
+
+function renderGlobalCheckinInbox() {
+  const subs = (ADMIN_STATE.progressSummary && ADMIN_STATE.progressSummary.weekly_submissions) || [];
+  const badge = document.getElementById('inbox-count-badge');
+  if (badge) badge.textContent = `${subs.length} Submission(s)`;
+  const box = document.getElementById('admin-checkin-inbox-list');
+  if (!box) return;
+  if (!subs.length) {
+    box.innerHTML = `<div style="padding:0.75rem;color:var(--muted);font-size:0.78rem">No check-ins in inbox yet. Use the card above to review any challenger &amp; week directly.</div>`;
+    return;
+  }
+  box.innerHTML = subs.map(s => `
+    <div style="padding:0.8rem;border-radius:10px;background:var(--surface-2);border:1px solid ${s.status === 'Reviewed' ? 'var(--green)' : 'var(--border)'};margin-bottom:0.65rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.45rem">
+        <div>
+          <strong style="color:#fff;font-size:0.88rem">👤 ${s.client_name} — ${s.week_num === 0 ? 'Pre-Coaching Wk 0' : 'Week ' + s.week_num}</strong>
+          <span class="badge ${s.status === 'Reviewed' ? 'badge-green' : 'badge-blue'}" style="margin-left:0.4rem">${s.status}</span>
+        </div>
+        <div style="display:flex;gap:0.4rem;align-items:center">
+          <span style="font-size:0.73rem;color:var(--muted)">
+            Wt: <strong style="color:#fff">${s.avg_weight_kg ?? '—'} kg</strong> ·
+            Steps: <strong style="color:var(--green)">${(s.avg_steps || 0).toLocaleString()}</strong> ·
+            Cal/Prot: <strong>${s.avg_calories || 0} kcal / ${s.avg_protein_g || 0}g P</strong>
+          </span>
+          <button class="btn btn-sm" onclick="inspectSubmission(${s.profile_id}, ${s.week_num})">🔍 Inspect Week &amp; Photos</button>
+        </div>
+      </div>
+      <div style="font-size:0.75rem;color:#cbd5e1;margin-bottom:0.5rem;padding:0.45rem 0.6rem;background:#080b09;border-radius:6px">
+        <strong>Challenger Write-Up:</strong> ${s.challenger_comments || '<em>No comments</em>'}
+      </div>
+      ${s.card_data_url ? `<div style="margin-bottom:0.5rem"><img src="${s.card_data_url}" style="max-height:200px;border-radius:8px;border:1px solid var(--green);cursor:pointer" onclick="window.open(this.src,'_blank')" /></div>` : ''}
+      <div style="display:grid;grid-template-columns:1fr 120px 110px auto;gap:0.45rem;align-items:center">
+        <input type="text" id="inbox-fb-${s.profile_id}-${s.week_num}" value="${(s.coach_feedback || '').replace(/"/g, '&quot;')}" placeholder="Write Coach feedback..." />
+        <input type="number" id="inbox-cal-${s.profile_id}-${s.week_num}" value="${s.target_calories || 2173}" title="Daily Calories" />
+        <input type="number" id="inbox-prot-${s.profile_id}-${s.week_num}" value="${s.target_protein_g || 150}" title="Daily Protein (g)" />
+        <button class="btn btn-green btn-sm" onclick="saveInboxRowFeedback(${s.profile_id}, ${s.week_num})">💬 Save Review</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function saveInboxRowFeedback(profileId, weekNum) {
+  const coach_feedback = document.getElementById(`inbox-fb-${profileId}-${weekNum}`)?.value || '';
+  const new_target_calories = Number(document.getElementById(`inbox-cal-${profileId}-${weekNum}`)?.value || 2173);
+  const new_target_protein_g = Number(document.getElementById(`inbox-prot-${profileId}-${weekNum}`)?.value || 150);
+  await fetch('/api/challenge/weekly-checkin/review', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile_id: profileId, week_num: weekNum, coach_feedback, new_target_calories, new_target_protein_g }),
+  });
+  showAdminToast(`✅ Saved Coach Feedback for Week ${weekNum}!`);
+  const progRes = await fetch('/api/challenge/progress/summary').then(r => r.json());
+  ADMIN_STATE.progressSummary = progRes;
+  renderGlobalCheckinInbox();
+  await loadChallengerDetail(ADMIN_STATE.selectedProfileId, ADMIN_STATE.selectedWeek);
+}
+
+async function inspectSubmission(profileId, weekNum) {
+  ADMIN_STATE.selectedProfileId = Number(profileId);
+  ADMIN_STATE.selectedWeek = Number(weekNum);
+  document.getElementById('admin-challenger-select').value = String(profileId);
+  document.getElementById('admin-week-select').value = String(weekNum);
+  await loadChallengerDetail(profileId, weekNum);
+  switchAdminTab('weekly');
+}
+
+function renderWeeklySheetSection() {
+  const d = ADMIN_STATE.detail;
+  if (!d || !d.week_sheet) return;
+  const ws = d.week_sheet;
+  const av = ws.averages || {};
+  const p = d.profile;
+  const wkLbl = d.selected_week === 0 ? 'Pre-Coaching (Week 0)' : `Week ${d.selected_week}`;
+
+  document.getElementById('weekly-sheet-title').textContent = `📊 ${p.client_name} — ${wkLbl} Daily Check-In Sheet`;
+  document.getElementById('weekly-sheet-dates-badge').textContent = `${ws.week_start} → ${ws.week_end}`;
+
+  document.getElementById('weekly-kpi-strip').innerHTML = `
+    <div style="background:var(--surface-2);padding:0.5rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG WEIGHT</div><div style="font-size:0.95rem;font-weight:800;color:var(--green)">${av.avg_weight_kg ? av.avg_weight_kg + ' kg' : '—'}</div><div style="font-size:0.62rem;color:var(--muted)">Target ${ws.target_weight_kg} kg</div></div>
+    <div style="background:var(--surface-2);padding:0.5rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG STEPS</div><div style="font-size:0.95rem;font-weight:800;color:#fff">${(av.avg_steps || 0).toLocaleString()}</div><div style="font-size:0.62rem;color:var(--muted)">Min ${(ws.target_steps || 10000).toLocaleString()}</div></div>
+    <div style="background:var(--surface-2);padding:0.5rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG CALORIES</div><div style="font-size:0.95rem;font-weight:800;color:#fff">${av.avg_calories || 0} kcal</div><div style="font-size:0.62rem;color:var(--muted)">Target ${p.target_calories}</div></div>
+    <div style="background:var(--surface-2);padding:0.5rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG PROTEIN</div><div style="font-size:0.95rem;font-weight:800;color:var(--green)">${av.avg_protein_g || 0}g</div><div style="font-size:0.62rem;color:var(--muted)">Target ${p.target_protein_g}g</div></div>
+    <div style="background:var(--surface-2);padding:0.5rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG WATER</div><div style="font-size:0.95rem;font-weight:800;color:var(--blue)">${av.avg_water_l || 0}L</div><div style="font-size:0.62rem;color:var(--muted)">Target ${p.target_water_l}L</div></div>
+    <div style="background:var(--surface-2);padding:0.5rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">SESSIONS</div><div style="font-size:0.95rem;font-weight:800;color:var(--green)">${av.gym_sessions || 0} GYM / ${av.cardio_sessions || 0} CARDIO</div><div style="font-size:0.62rem;color:var(--muted)">${av.days_logged || 0}/7 days</div></div>
+  `;
+
+  const tbody = document.getElementById('admin-week-sheet-tbody');
+  tbody.innerHTML = (ws.days || []).map(day => {
+    const acts = (day.activities || []).map(a => `<span class="badge badge-green" style="margin-right:3px">${a.title} (${a.duration_mins || 0}m)</span>`).join('');
+    return `<tr>
+      <td><strong>${day.day_short}</strong></td>
+      <td>${day.date}</td>
+      <td>${day.weight_kg ? `<strong>${day.weight_kg} kg</strong> <span style="color:var(--muted);font-size:0.66rem">${day.weigh_time || ''}</span>` : '—'}</td>
+      <td><span class="badge ${day.training_type !== 'REST' ? 'badge-green' : ''}">${day.training_type || 'REST'}</span></td>
+      <td style="color:${(day.steps || 0) >= (ws.target_steps || 10000) ? 'var(--green)' : '#fff'};font-weight:700">${(day.steps || 0).toLocaleString()}</td>
+      <td>${day.calories || 0}</td>
+      <td style="color:var(--green);font-weight:700">${day.protein_g || 0}g</td>
+      <td>${day.carbs_g || 0}C / ${day.fats_g || 0}F / ${day.fibre_g || 0}Fb</td>
+      <td>${day.water_l || 0}L</td>
+      <td>${day.sleep_str || '—'}</td>
+      <td>${day.stick_to_plan || '—'}</td>
+      <td style="max-width:280px;font-size:0.71rem">${acts} ${day.notes || ''}</td>
+    </tr>`;
+  }).join('');
+
+  const weekPhotos = (d.photos || []).filter(ph => Number(ph.week_num) === d.selected_week);
+  document.getElementById('weekly-tab-photos-grid').innerHTML = ['Side', 'Front', 'Back'].map(pose => {
+    const rec = weekPhotos.find(x => x.pose === pose);
+    return `<div class="pose-img-box">
+      <div style="font-size:0.75rem;font-weight:800;color:var(--green);margin-bottom:4px">${pose.toUpperCase()} POSE (${wkLbl})</div>
+      ${rec && rec.photo_data_url
+        ? `<img src="${rec.photo_data_url}" style="height:290px" onclick="window.open(this.src,'_blank')" />
+           <div style="font-size:0.68rem;color:var(--muted);margin-top:4px">${rec.taken_date || ''} ${rec.weight_kg ? '· ' + rec.weight_kg + ' kg' : ''}</div>`
+        : `<div style="height:240px;display:flex;align-items:center;justify-content:center;font-size:0.75rem;color:var(--muted)">No ${pose} photo uploaded for ${wkLbl}</div>`}
+    </div>`;
+  }).join('');
+}
+
+function renderPhotoComparison() {
+  const d = ADMIN_STATE.detail;
+  if (!d) return;
+  const photos = d.photos || [];
+  const wow = d.week_over_week || [];
+  const wkA = Number(document.getElementById('cmp-week-a')?.value ?? 0);
+  const wkB = Number(document.getElementById('cmp-week-b')?.value ?? 1);
+  const rowA = wow.find(w => Number(w.week_num) === wkA) || {};
+  const rowB = wow.find(w => Number(w.week_num) === wkB) || {};
+
+  const wtA = rowA.avg_weight_kg ?? d.profile.start_weight_kg;
+  const wtB = rowB.avg_weight_kg ?? null;
+  const delta = (wtA && wtB) ? (wtB - wtA).toFixed(2) : null;
+
+  document.getElementById('cmp-delta-banner').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
+      <div>
+        <strong style="color:var(--green)">👤 ${d.profile.client_name}</strong> · Comparing <strong>${wkA === 0 ? 'Week 0 (Pre-Coaching)' : 'Week ' + wkA}</strong> (${wtA ? wtA + ' kg' : '—'})
+        vs <strong>${wkB === 0 ? 'Week 0 (Pre-Coaching)' : 'Week ' + wkB}</strong> (${wtB ? wtB + ' kg' : '—'})
+      </div>
+      <div>
+        ${delta !== null ? `<span class="badge badge-green">Scale Change: ${delta > 0 ? '+' : ''}${delta} kg</span>` : '<span class="badge badge-blue">Select any two weeks with photos</span>'}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('photo-compare-poses-grid').innerHTML = ['Side', 'Front', 'Back'].map(pose => {
+    const pA = photos.find(x => Number(x.week_num) === wkA && x.pose === pose);
+    const pB = photos.find(x => Number(x.week_num) === wkB && x.pose === pose);
+    const cell = (rec, w) => rec && rec.photo_data_url
+      ? `<div class="pose-img-box">
+          <div style="font-size:0.68rem;font-weight:800;color:#cbd5e1;margin-bottom:3px">${w === 0 ? 'Wk 0 (Pre)' : 'Week ' + w}</div>
+          <img src="${rec.photo_data_url}" onclick="window.open(this.src,'_blank')" title="Click to enlarge" />
+          <div style="font-size:0.65rem;color:var(--muted);margin-top:3px">${rec.taken_date || ''} ${rec.weight_kg ? '· ' + rec.weight_kg + 'kg' : ''}</div>
+        </div>`
+      : `<div class="pose-img-box" style="display:flex;flex-direction:column;justify-content:center;min-height:260px">
+          <div style="font-size:0.68rem;font-weight:800;color:var(--muted)">${w === 0 ? 'Wk 0 (Pre)' : 'Week ' + w}</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.5rem">No ${pose} photo</div>
+        </div>`;
+    return `<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:11px;padding:0.6rem">
+      <div style="font-size:0.8rem;font-weight:900;color:var(--green);text-align:center;margin-bottom:0.45rem">${pose.toUpperCase()} POSE COMPARISON</div>
+      <div class="pose-pair">${cell(pA, wkA)}${cell(pB, wkB)}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('total-photos-badge').textContent = `${photos.length} Uploaded Photo(s)`;
+  document.getElementById('all-photos-timeline-grid').innerHTML = photos.map(ph => `
+    <div class="pose-img-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span class="badge badge-green">${ph.week_num === 0 ? 'Wk 0 (Pre)' : 'Week ' + ph.week_num}</span>
+        <strong style="font-size:0.72rem;color:#fff">${ph.pose}</strong>
+      </div>
+      <img src="${ph.photo_data_url}" style="height:200px" onclick="window.open(this.src,'_blank')" />
+      <div style="font-size:0.66rem;color:var(--muted);margin-top:4px">${ph.taken_date || ''} ${ph.weight_kg ? '· ' + ph.weight_kg + ' kg' : ''}</div>
+    </div>
+  `).join('');
+}
+
+function renderTrajectoryTable() {
+  const d = ADMIN_STATE.detail;
+  if (!d) return;
+  const p = d.profile;
+  document.getElementById('trajectory-title').textContent = `📈 ${p.client_name} — Week-over-Week Progress Trajectory`;
+  document.getElementById('trajectory-goal-badge').textContent = `${p.start_weight_kg} kg → ${p.target_weight_kg} kg`;
+
+  const tbody = document.getElementById('admin-trajectory-tbody');
+  tbody.innerHTML = (d.week_over_week || []).map(w => `
+    <tr>
+      <td><strong>${w.label}</strong></td>
+      <td style="font-size:0.7rem;color:var(--muted)">${w.week_start} → ${w.week_end}</td>
+      <td>${w.days_logged}/7</td>
+      <td style="font-weight:800;color:#fff">${w.avg_weight_kg ? w.avg_weight_kg + ' kg' : '—'}</td>
+      <td style="color:${(w.total_delta_kg || 0) <= 0 ? 'var(--green)' : '#f87171'};font-weight:700">${w.total_delta_kg !== null ? (w.total_delta_kg > 0 ? '+' : '') + w.total_delta_kg + ' kg' : '—'}</td>
+      <td>${w.target_weight_kg} kg</td>
+      <td style="color:${(w.avg_steps || 0) >= (w.target_steps || 10000) ? 'var(--green)' : '#fff'};font-weight:700">${(w.avg_steps || 0).toLocaleString()} <span style="color:var(--muted);font-size:0.66rem">/ ${(w.target_steps || 10000).toLocaleString()}</span></td>
+      <td>${w.avg_calories || 0}</td>
+      <td>${w.avg_protein_g || 0}g</td>
+      <td>${w.avg_water_l || 0}L</td>
+      <td>${w.avg_sleep_str || '—'}</td>
+      <td>${w.gym_sessions || 0}G / ${w.cardio_sessions || 0}C · ${(w.workout_volume_kg || 0).toLocaleString()} kg</td>
+      <td><span class="badge ${w.photos_uploaded >= 3 ? 'badge-green' : ''}">${w.photos_uploaded || 0}/3</span></td>
+      <td>
+        <span class="badge ${w.submission_status === 'Reviewed' ? 'badge-green' : w.submission_status === 'Submitted' ? 'badge-blue' : ''}">${w.submission_status}</span>
+        <button class="btn btn-sm" style="margin-left:4px;padding:0.15rem 0.45rem;font-size:0.66rem" onclick="inspectSubmission(${p.id}, ${w.week_num})">Open</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function loadAdminBlocks() {
+  const res = await fetch('/api/challenge/blocks').then(r => r.json());
+  if (res.ok) {
+    ADMIN_STATE.blocks = res.blocks || [];
+    ADMIN_STATE.challengers = res.challengers || [];
+    renderAdminBlocksSection();
+    renderAdminsAndUsersDirectory();
+  }
+}
+
+function renderAdminBlocksSection() {
+  const blocks = ADMIN_STATE.blocks || [];
+  const grid = document.getElementById('admin-blocks-grid');
+  if (grid) {
+    grid.innerHTML = blocks.map(b => `
+      <div style="padding:0.75rem;border-radius:10px;background:var(--surface-2);border:1px solid ${b.status === 'Active' ? 'var(--green)' : 'var(--border)'}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem">
+          <strong style="color:#fff;font-size:0.86rem">${b.name}</strong>
+          <span class="badge ${b.status === 'Active' ? 'badge-green' : b.status === 'Upcoming' ? 'badge-blue' : ''}">${b.status}</span>
+        </div>
+        <div style="font-size:0.72rem;color:#cbd5e1;margin-bottom:0.3rem">
+          🗓️ Pre-Coaching: <strong>${b.pre_coaching_date}</strong><br/>
+          🏁 Weeks 1–8: <strong>${b.start_date} → ${b.end_date}</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;flex-wrap:wrap;margin-top:0.45rem">
+          <span class="badge badge-green">🎟️ ${b.invite_code} (${b.member_count || 0} enrolled)</span>
+          <button class="btn btn-sm" onclick="navigator.clipboard.writeText(window.location.origin + '/challenge/login?code=${b.invite_code}');showAdminToast('📋 Copied Invite Link!')">📋 Copy Invite URL</button>
+        </div>
+      </div>
+    `).join('');
+  }
+  const fromSel = document.getElementById('adm-roll-from');
+  const toSel = document.getElementById('adm-roll-to');
+  const userBlkSel = document.getElementById('new-user-block');
+  const opts = blocks.map(b => `<option value="${b.id}" data-code="${b.invite_code}">${b.name} (${b.invite_code})</option>`).join('');
+  if (fromSel) fromSel.innerHTML = opts;
+  if (toSel) toSel.innerHTML = opts;
+  if (userBlkSel) userBlkSel.innerHTML = blocks.map(b => `<option value="${b.invite_code}">${b.name} (${b.invite_code})</option>`).join('');
+}
+
+async function adminCreateBlock() {
+  const payload = {
+    name: document.getElementById('adm-block-name').value || 'New 8-Week Cohort Block',
+    start_date: document.getElementById('adm-block-start').value || '2027-08-16',
+    invite_code: document.getElementById('adm-block-code').value || '',
+    status: document.getElementById('adm-block-status').value || 'Upcoming',
+  };
+  const res = await fetch('/api/challenge/blocks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then(r => r.json());
+  if (res.ok) {
+    showAdminToast(`✅ Created 8-Week Block: ${res.block.name}`);
+    await loadAdminBlocks();
+  }
+}
+
+async function adminRolloverMembers() {
+  const from_block_id = Number(document.getElementById('adm-roll-from').value || 0);
+  const to_block_id = Number(document.getElementById('adm-roll-to').value || 0);
+  const res = await fetch('/api/challenge/blocks/rollover', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from_block_id, to_block_id }),
+  }).then(r => r.json());
+  if (res.ok) {
+    showAdminToast(res.message || '🔁 Rolled returning members into next block!');
+    await loadAdminBlocks();
+  }
+}
+
+function renderAdminsAndUsersDirectory() {
+  const adminsBox = document.getElementById('admins-management-list');
+  if (adminsBox) {
+    adminsBox.innerHTML = (ADMIN_STATE.admins || []).map(a => `
+      <div style="padding:0.65rem;border-radius:9px;background:var(--surface-2);border:1px solid var(--border);margin-bottom:0.5rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem">
+          <strong style="color:#fff;font-size:0.84rem">🛡️ ${a.client_name} <span style="color:var(--muted);font-size:0.72rem">(@${a.username})</span></strong>
+          <span class="badge badge-green">${a.has_password ? '🔑 Password Set' : 'Set Password Below'}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 150px auto;gap:0.4rem;align-items:center">
+          <input type="email" id="adm-email-${a.profile_id}" value="${a.email || ''}" placeholder="Admin email address..." />
+          <input type="password" id="adm-pw-${a.profile_id}" placeholder="New password (optional)" />
+          <button class="btn btn-green btn-sm" onclick="saveAdminAccountRow(${a.profile_id})">💾 Save</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  const chs = ADMIN_STATE.challengers || [];
+  document.getElementById('adm-directory-count').textContent = `${chs.length} Profiles`;
+  document.getElementById('adm-directory-tbody').innerHTML = chs.map(c => `
+    <tr>
+      <td><strong>${c.client_name}</strong></td>
+      <td><span style="color:#cbd5e1">${c.email || '—'}</span> <span class="badge ${c.role === 'admin' ? 'badge-green' : 'badge-blue'}">${c.role || 'challenger'}</span></td>
+      <td>${c.start_weight_kg} kg → <strong style="color:var(--green)">${c.target_weight_kg} kg</strong></td>
+      <td>${c.start_body_fat_pct}% → ${c.target_body_fat_pct}%</td>
+      <td>${c.lean_body_mass_kg} kg LBM / ${c.fat_mass_kg} kg Fat</td>
+      <td><strong>${c.target_calories} kcal</strong></td>
+      <td>${c.target_protein_g}g P / ${c.target_fats_g}g F / ${c.target_carbs_g}g C</td>
+      <td>${c.target_water_l}L</td>
+      <td>
+        <button class="btn btn-green btn-sm" onclick="inspectSubmission(${c.id}, ${ADMIN_STATE.selectedWeek})">📊 Inspect Data &amp; Photos</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function saveAdminAccountRow(profileId) {
+  const email = document.getElementById(`adm-email-${profileId}`)?.value || '';
+  const password = document.getElementById(`adm-pw-${profileId}`)?.value || '';
+  const res = await fetch('/api/challenge/admin/update-admin-account', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile_id: profileId, email, password, role: 'admin' }),
+  }).then(r => r.json());
+  if (res.ok) {
+    showAdminToast(`✅ Updated Admin account for ${res.admin.client_name} (${res.admin.email})`);
+    const adminsRes = await fetch('/api/challenge/admin/admins').then(r => r.json());
+    ADMIN_STATE.admins = adminsRes.admins || [];
+    renderAdminsAndUsersDirectory();
+  }
+}
+
+async function adminCreateChallenger() {
+  const payload = {
+    invite_code: document.getElementById('new-user-block').value || 'CS-OCT2026',
+    client_name: document.getElementById('new-user-name').value,
+    email: document.getElementById('new-user-email').value,
+    password: document.getElementById('new-user-pass').value,
+    start_weight_kg: parseFloat(document.getElementById('new-user-sw').value || '82'),
+    target_weight_kg: parseFloat(document.getElementById('new-user-tw').value || '76.3'),
+    start_body_fat_pct: parseFloat(document.getElementById('new-user-sbf').value || '18'),
+    target_body_fat_pct: parseFloat(document.getElementById('new-user-tbf').value || '15'),
+    protein_g: parseInt(document.getElementById('new-user-prot').value || '150', 10),
+    workout_track: document.getElementById('new-user-track').value,
+    returning_member: document.getElementById('new-user-returning').checked,
+    auto_sign_in: false,
+  };
+  const res = await fetch('/api/challenge/blocks/join', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then(r => r.json());
+  const box = document.getElementById('new-user-result-box');
+  if (!res.ok) {
+    box.style.color = '#f87171';
+    box.textContent = res.error || 'Could not create user';
+    return;
+  }
+  box.style.color = 'var(--green)';
+  box.innerHTML = `✅ Added <strong>${res.client_name}</strong> (${res.email}) · Sign-In Invite Link: <code>${window.location.origin}${res.invite_url}</code>`;
+  showAdminToast(`✅ Added ${res.client_name} to ${res.block.name}!`);
+  await initAdminPortal();
+}
+
+async function openChallengerInMainApp() {
+  await fetch('/api/challenge/auth/switch-user', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile_id: ADMIN_STATE.selectedProfileId }),
+  });
+  window.location.href = '/challenge';
+}
+
+initAdminPortal();
+</script>
+</body>
+</html>

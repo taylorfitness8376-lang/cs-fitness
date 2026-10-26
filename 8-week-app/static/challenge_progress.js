@@ -63,26 +63,11 @@ function isDemoActivity(a) {
 }
 
 function injectDataSourceClarifiers() {
-  const hdrSyncBtn = document.getElementById('btn-sync-now');
-  if (hdrSyncBtn && !document.getElementById('btn-hdr-clear-demo')) {
-    const clearBtn = document.createElement('button');
-    clearBtn.id = 'btn-hdr-clear-demo';
-    clearBtn.className = 'btn btn-sm';
-    clearBtn.textContent = '🧹 Clear Demo Data';
-    clearBtn.title = 'Remove any pre-seeded or simulated demo rows';
-    clearBtn.onclick = clearAllFakeDataNow;
-    hdrSyncBtn.parentNode.insertBefore(clearBtn, hdrSyncBtn.nextSibling);
-  }
-  const simBtn = document.querySelector('button[onclick="triggerSimulateSync()"]');
-  if (simBtn && !document.getElementById('btn-clear-demo')) {
-    simBtn.textContent = '🧪 Demo Test Data';
-    const clearBtn2 = document.createElement('button');
-    clearBtn2.id = 'btn-clear-demo';
-    clearBtn2.className = 'btn btn-sm';
-    clearBtn2.textContent = '🧹 Clear Demo Data';
-    clearBtn2.onclick = clearAllFakeDataNow;
-    simBtn.parentNode.insertBefore(clearBtn2, simBtn.nextSibling);
-  }
+  // Demo data and Clear Demo Data buttons removed — app runs purely on real logged & synced data
+  const oldBtn1 = document.getElementById('btn-hdr-clear-demo');
+  if (oldBtn1) oldBtn1.remove();
+  const oldBtn2 = document.getElementById('btn-clear-demo');
+  if (oldBtn2) oldBtn2.remove();
 }
 
 async function clearAllFakeDataNow() {
@@ -1513,5 +1498,66 @@ window.importChallengerBackupJson = async function(event) {
     await refreshProgressSummary();
   }
 };
+
+window.syncMyAccountStatus = async function() {
+  try {
+    const res = await fetch('/api/challenge/auth/status');
+    const data = await res.json();
+    if (!data.ok) return;
+    const authBtn = document.getElementById('hdr-auth-btn');
+    if (authBtn && data.client_name) {
+      authBtn.textContent = `👤 ${data.client_name}`;
+    }
+    const emailInput = document.getElementById('my-acct-email');
+    if (emailInput && data.email && document.activeElement !== emailInput) {
+      emailInput.value = data.email;
+    }
+    const roleBadge = document.getElementById('my-acct-role-badge');
+    const isAdmin = data.role === 'admin';
+    if (roleBadge) {
+      roleBadge.textContent = isAdmin ? '🛡️ Admin / Coach' : 'Challenger';
+      roleBadge.className = isAdmin ? 'badge badge-green' : 'badge badge-blue';
+    }
+    const hdrAdminBtn = document.getElementById('hdr-admin-btn');
+    if (hdrAdminBtn) hdrAdminBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    const callout = document.getElementById('admin-portal-callout');
+    if (callout) callout.style.display = isAdmin ? 'block' : 'none';
+  } catch (e) {}
+};
+
+window.saveMyAccountSettings = async function() {
+  const email = document.getElementById('my-acct-email')?.value?.trim() || '';
+  const new_password = document.getElementById('my-acct-new-pw')?.value || '';
+  if (!email && !new_password) {
+    showToast('Enter an email address or new password to save');
+    return;
+  }
+  if (new_password && new_password.length >= 4) {
+    const res = await fetch('/api/challenge/auth/set-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, new_password })
+    });
+    const d = await res.json();
+    if (!d.ok) {
+      showToast(`⚠️ ${d.error || 'Could not update password'}`);
+      return;
+    }
+    document.getElementById('my-acct-new-pw').value = '';
+    showToast('✅ Saved email & password!');
+  } else if (email) {
+    const st = await (await fetch('/api/challenge/auth/status')).json();
+    await fetch('/api/challenge/admin/update-admin-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_id: st.profile_id, email, role: st.role || 'challenger' })
+    });
+    showToast('✅ Saved email address!');
+  }
+  await window.syncMyAccountStatus();
+};
+
+setTimeout(() => { window.syncMyAccountStatus(); }, 300);
+
 
 

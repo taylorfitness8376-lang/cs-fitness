@@ -67,14 +67,23 @@
       </div>
       <div style="display:grid;gap:0.65rem;margin-bottom:0.85rem">
         <div>
-          <label class="field-label">Email Address or Challenger Name</label>
-          <input type="text" id="login-email" value="{{ email_prefill or 'taylor.ewan@gmail.com' }}" placeholder="you@example.com or Ewan t" />
+          <label class="field-label">Email Address or Challenger / Coach Name</label>
+          <input type="text" id="login-email" value="{{ email_prefill or 'taylor.ewan@gmail.com' }}" placeholder="you@example.com, Chris, Laura, or Ewan t" />
+          <div style="display:flex;gap:0.35rem;flex-wrap:wrap;margin-top:0.4rem;align-items:center">
+            <span style="font-size:0.68rem;color:var(--muted);font-weight:700">Quick Select Admin:</span>
+            <button type="button" class="btn btn-sm" style="padding:0.18rem 0.45rem;font-size:0.68rem" onclick="document.getElementById('login-email').value='chris@cs.fitness'">🛡️ Chris</button>
+            <button type="button" class="btn btn-sm" style="padding:0.18rem 0.45rem;font-size:0.68rem" onclick="document.getElementById('login-email').value='laura@cs.fitness'">🛡️ Laura</button>
+            <button type="button" class="btn btn-sm" style="padding:0.18rem 0.45rem;font-size:0.68rem" onclick="document.getElementById('login-email').value='taylor.ewan@gmail.com'">🛡️ Ewan</button>
+          </div>
         </div>
         <div>
           <label class="field-label">Password (If no password set yet, enter one to save it)</label>
           <input type="password" id="login-password" placeholder="Enter your password..." />
         </div>
-        <button class="btn btn-green" onclick="submitEmailLogin()">🚀 Sign In to 8-Week App</button>
+        <div class="grid-2" style="margin-bottom:0;gap:0.45rem">
+          <button class="btn btn-green" onclick="submitEmailLogin(false)">🚀 Sign In to 8-Week App</button>
+          <button class="btn btn-primary" onclick="submitEmailLogin(true)">🛡️ Coach &amp; Admin Portal</button>
+        </div>
       </div>
       <div style="font-size:0.7rem;color:var(--muted);text-align:center;margin-bottom:0.5rem">— OR SOCIAL SIGN-IN (READY FOR OAUTH CLIENT ID) —</div>
       <div class="oauth-row">
@@ -187,7 +196,7 @@
     if (window.location.search.includes('code=') || window.location.search.includes('invite=')) {
       showAuthTab('invite');
     }
-    async function submitEmailLogin() {
+    async function submitEmailLogin(forceAdminView) {
       const email = document.getElementById('login-email').value;
       const password = document.getElementById('login-password').value;
       const res = await fetch('/api/challenge/auth/login', {
@@ -202,9 +211,11 @@
         msg.textContent = data.error || 'Sign-in failed';
         return;
       }
+      const isCoachOnly = ['chris', 'laura'].includes((data.client_name || '').toLowerCase());
+      const dest = (forceAdminView || (data.role === 'admin' && isCoachOnly)) ? '/challenge/admin' : '/challenge';
       msg.style.color = 'var(--green)';
-      msg.textContent = '✅ Signed in as ' + data.client_name + '! Redirecting...';
-      setTimeout(() => { window.location.href = '/challenge'; }, 500);
+      msg.textContent = '✅ Signed in as ' + data.client_name + ' (' + data.role + ')! Redirecting...';
+      setTimeout(() => { window.location.href = dest; }, 450);
     }
     async function submitBlockJoin() {
       const payload = {

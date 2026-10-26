@@ -331,6 +331,51 @@ def test_cohort_blocks_enroll_rollover_and_auth(client):
     assert roll_res["rolled_over_count"] >= 2
 
 
+def test_coach_admin_portal_and_three_admins(client):
+    # 1. Challenger page no longer shows TV CMS link and shows 4. Settings & Sync
+    ch_page = client.get("/challenge")
+    assert ch_page.status_code == 200
+    html = ch_page.get_data(as_text=True)
+    assert "4. Settings &amp; Sync" in html
+    assert ">TV CMS<" not in html
+
+    # 2. Dedicated Coach & Admin Portal renders cleanly
+    adm_page = client.get("/challenge/admin")
+    assert adm_page.status_code == 200
+    assert "COACH &amp; ADMIN PORTAL" in adm_page.get_data(as_text=True)
+
+    # 3. 3 Admins (Chris, Laura, Ewan) are configured
+    admins_res = client.get("/api/challenge/admin/admins").get_json()
+    assert admins_res["ok"] is True
+    names = {a["client_name"].lower() for a in admins_res["admins"]}
+    assert {"ewan t", "chris", "laura"}.issubset(names)
+
+    # 4. Update Chris's admin email address
+    chris_row = [a for a in admins_res["admins"] if a["client_name"].lower() == "chris"][0]
+    upd = client.post("/api/challenge/admin/update-admin-account", json={
+        "profile_id": chris_row["profile_id"],
+        "email": "chris.coach@taylorfitness.co.uk",
+        "role": "admin",
+    }).get_json()
+    assert upd["ok"] is True
+    assert upd["admin"]["email"] == "chris.coach@taylorfitness.co.uk"
+
+    # 5. Challenger deep-dive endpoint returns weekly sheet, trajectory & photos for comparison
+    det = client.get("/api/challenge/admin/challenger-detail?profile_id=1&week=1").get_json()
+    assert det["ok"] is True
+    assert det["profile"]["client_name"] == "Ewan t"
+    assert len(det["week_over_week"]) == 9
+    assert len(det["week_sheet"]["days"]) == 7
+
+    # 6. 100-challenger summary roster endpoint returns KPIs and summary rows
+    ros = client.get("/api/challenge/admin/cohort-summary?week=1").get_json()
+    assert ros["ok"] is True
+    assert ros["kpis"]["total_challengers"] >= 1
+    assert any(r["client_name"] == "Ewan t" for r in ros["roster"])
+
+
+
+
 
 
 
