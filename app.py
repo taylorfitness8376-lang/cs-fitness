@@ -4,6 +4,8 @@ import bcrypt
 import os
 from datetime import datetime
 from database import init_db, get_db, init_app
+from challenge import challenge_bp
+from challenge_progress import challenge_progress_bp
 import config
 
 app = Flask(__name__)
@@ -11,6 +13,8 @@ app.secret_key = config.SECRET_KEY
 app.config["DATABASE_PATH"] = config.DATABASE_PATH
 
 init_app(app)
+app.register_blueprint(challenge_bp)
+app.register_blueprint(challenge_progress_bp)
 
 
 def require_auth(f):
@@ -25,7 +29,7 @@ def require_auth(f):
 
 @app.route("/")
 def index():
-    return redirect(url_for("cms"))
+    return redirect("/challenge")
 
 
 @app.route("/login", methods=["GET", "POST"])

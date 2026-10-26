@@ -1,0 +1,1347 @@
+// CS Fitness 8-Week Challenge — Real Data, Week-over-Week Progress, 3-Photo Weekly Check-In & Workout Roll-Up
+window.PROGRESS_SUMMARY = null;
+
+function getActiveSheetWeek() {
+  const sel = document.getElementById('ci-week-select');
+  return sel ? parseInt(sel.value || '0', 10) : 0;
+}
+
+async function initRealDataAndProgress() {
+  injectDataSourceClarifiers();
+  injectWorkoutRollupBanner();
+  injectWeekOverWeekOnCheckinTab();
+  upgradeThreePhotoWeeklyVault();
+  upgradeIntegrationsSaveAndImport();
+  if (typeof STATE !== 'undefined' && STATE && STATE.overview) {
+    window.renderTodayDashboard(STATE.overview);
+    if (STATE.overview.current_week_sheet) {
+      window.renderWeekSheetData(STATE.overview.current_week_sheet);
+    }
+  }
+  renderThreePhotoSlots();
+  renderDataSourceBadges();
+  renderSavedIntegrationStatus();
+  await refreshProgressSummary();
+}
+
+async function refreshProgressSummary() {
+  try {
+    const res = await fetch('/api/challenge/progress/summary');
+    const data = await res.json();
+    if (data.ok) {
+      window.PROGRESS_SUMMARY = data;
+      renderWeekOverWeekTable();
+      renderWorkoutRollupBanner();
+      renderThreePhotoSlots();
+      renderWeeklySubmissionState();
+      renderWeeklyCheckinCardCanvas();
+      renderCoachWowSideBySide();
+      renderCoachCheckinInbox();
+      renderDailyJourneyMoments();
+      renderDataSourceBadges();
+      renderSavedIntegrationStatus();
+    }
+  } catch (e) {
+    console.warn('Progress summary fetch error:', e);
+  }
+}
+
+const DEMO_GARMIN_SOURCES = [
+  'Garmin Fenix 7',
+  'Garmin Connect (Fenix 7 + Index S2)',
+  'Garmin Connect (Simulated)',
+];
+
+function isDemoCheckin(c) {
+  return Boolean(c && DEMO_GARMIN_SOURCES.includes(c.sync_source_garmin));
+}
+
+function isDemoActivity(a) {
+  const gid = String((a && a.garmin_activity_id) || '');
+  return gid.startsWith('act-101') || gid.startsWith('garmin-run-') || gid.startsWith('garmin-gym-');
+}
+
+function injectDataSourceClarifiers() {
+  const hdrSyncBtn = document.getElementById('btn-sync-now');
+  if (hdrSyncBtn && !document.getElementById('btn-hdr-clear-demo')) {
+    const clearBtn = document.createElement('button');
+    clearBtn.id = 'btn-hdr-clear-demo';
+    clearBtn.className = 'btn btn-sm';
+    clearBtn.textContent = '🧹 Clear Demo Data';
+    clearBtn.title = 'Remove any pre-seeded or simulated demo rows';
+    clearBtn.onclick = clearAllFakeDataNow;
+    hdrSyncBtn.parentNode.insertBefore(clearBtn, hdrSyncBtn.nextSibling);
+  }
+  const simBtn = document.querySelector('button[onclick="triggerSimulateSync()"]');
+  if (simBtn && !document.getElementById('btn-clear-demo')) {
+    simBtn.textContent = '🧪 Demo Test Data';
+    const clearBtn2 = document.createElement('button');
+    clearBtn2.id = 'btn-clear-demo';
+    clearBtn2.className = 'btn btn-sm';
+    clearBtn2.textContent = '🧹 Clear Demo Data';
+    clearBtn2.onclick = clearAllFakeDataNow;
+    simBtn.parentNode.insertBefore(clearBtn2, simBtn.nextSibling);
+  }
+}
+
+async function clearAllFakeDataNow() {
+  await fetch('/api/challenge/clear-fake-data', { method: 'POST' });
+  await loadOverview(STATE.date);
+  await refreshProgressSummary();
+  showToast('🧹 Demo data cleared — showing only your real entries!');
+}
+
+// Wrap renderTodayDashboard so legacy demo/simulated rows show as 0/clean and null Garmin metrics show "—"
+const _origRenderTodayDashboard = window.renderTodayDashboard;
+window.renderTodayDashboard = function(data) {
+  if (data) {
+    data.daily_activities = (data.daily_activities || []).filter((a) => !isDemoActivity(a));
+    if (isDemoCheckin(data.checkin)) {
+      Object.assign(data.checkin, {
+        _was_demo: true,
+        weight_kg: null,
+        weigh_time: '06:30',
+        training_type: 'REST',
+        class_attended: '',
+        steps: 0,
+        protein_g: 0,
+        calories: 0,
+        carbs_g: 0,
+        fats_g: 0,
+        fibre_g: 0,
+        water_l: 0,
+        sleep_mins: 0,
+        sleep_str: '',
+        sleep_score: null,
+        body_battery: null,
+        resting_hr: null,
+        stick_to_plan: 'Y',
+        morning_steps_banked: 0,
+        checkpoint_12pm_5k: 0,
+        checkpoint_5pm_10k: 0,
+        caffeine_cutoff_met: 0,
+        electrolytes_taken: 0,
+        notes: '',
+        mindset_win: '',
+        sync_source_garmin: '',
+        sync_source_nutrition: '',
+      });
+      data.win_the_day = { score: 0, checks: {} };
+      data.rolling_weight = { current_7d_avg: null, points: [] };
+      if (data.whatsapp_share) {
+        data.whatsapp_share.caption = `${data.date || STATE.date} Check-In · 0 steps · 0 kcal · 0g P · 0.0L H2O #Ewan #steps #macros #winTheDay`;
+      }
+    }
+  }
+  if (_origRenderTodayDashboard) _origRenderTodayDashboard(data);
+  const c = (data && data.checkin) || {};
+  const ss = document.getElementById('td-sleep-score');
+  const bb = document.getElementById('td-body-battery');
+  const rhr = document.getElementById('td-rhr');
+  if (ss) ss.textContent = c.sleep_score != null ? `${c.sleep_score}/100` : '—';
+  if (bb) bb.textContent = c.body_battery != null ? `${c.body_battery}%` : '—';
+  if (rhr) rhr.textContent = c.resting_hr != null ? `${c.resting_hr} bpm` : '—';
+  const sleepCardEl = document.getElementById('td-sleep-card-val');
+  const sleepBadgeEl = document.getElementById('sleep-status-badge');
+  const sleepDisplay = c.sleep_str || (c.sleep_mins > 0 ? `${Math.floor(c.sleep_mins / 60)}h ${c.sleep_mins % 60}m` : '—');
+  if (sleepCardEl) sleepCardEl.innerHTML = `${sleepDisplay} <span style="font-size:0.78rem;color:var(--muted)">/ 8h 00m</span>`;
+  if (sleepBadgeEl) {
+    sleepBadgeEl.textContent = (c.sleep_mins || 0) >= 480 ? '✅ 8h+ Hit' : '8h Target';
+    sleepBadgeEl.className = 'badge ' + ((c.sleep_mins || 0) >= 480 ? 'badge-green' : '');
+  }
+  const scSleep = document.getElementById('sc-sleep');
+  const scTrain = document.getElementById('sc-training');
+  if (scSleep) scSleep.textContent = sleepDisplay;
+  if (scTrain) scTrain.textContent = c.training_type || 'REST';
+  renderDailyJourneyMoments();
+  renderDataSourceBadges();
+};
+
+const _origRenderWeekSheetData = window.renderWeekSheetData;
+window.renderWeekSheetData = function(sheet) {
+  if (sheet && Array.isArray(sheet.rows)) {
+    sheet.rows.forEach((r) => {
+      if (isDemoCheckin(r)) {
+        Object.assign(r, {
+          _was_demo: true,
+          weight_kg: null,
+          weigh_time: '06:30',
+          training_type: 'REST',
+          steps: 0,
+          protein_g: 0,
+          calories: 0,
+          sleep_str: '',
+          stick_to_plan: 'Y',
+          notes: '',
+          step_green: false,
+          protein_green: false,
+          calories_green: false,
+          sync_source_garmin: '',
+          sync_source_nutrition: '',
+        });
+      }
+    });
+    const real = sheet.rows.filter((r) => r.steps > 0 || r.calories > 0 || r.weight_kg != null);
+    const wts = real.filter((r) => r.weight_kg != null).map((r) => Number(r.weight_kg));
+    sheet.averages = {
+      avg_calories: real.length ? Math.round(real.reduce((s, r) => s + (r.calories || 0), 0) / real.length) : 0,
+      avg_protein_g: real.length ? Math.round(real.reduce((s, r) => s + (r.protein_g || 0), 0) / real.length) : 0,
+      avg_steps: real.length ? Math.round(real.reduce((s, r) => s + (r.steps || 0), 0) / real.length) : 0,
+      avg_weight_kg: wts.length ? Number((wts.reduce((a, b) => a + b, 0) / wts.length).toFixed(2)) : 0,
+      weight_loss_pct: 0,
+      days_logged: real.length,
+      days_on_plan: real.filter((r) => r.stick_to_plan === 'Y').length,
+    };
+  }
+  if (_origRenderWeekSheetData) _origRenderWeekSheetData(sheet);
+  const wk = getActiveSheetWeek();
+  const photos = ((STATE.overview && STATE.overview.progress_photos) || []).filter((p) => Number(p.week_num) === wk);
+  const posesLogged = ['Front', 'Side', 'Back'].filter((pose) => photos.some((p) => p.pose === pose));
+  const box = document.getElementById('tg-summary-box');
+  if (box && !box.value.includes('Progress Photos (')) {
+    box.value += `\n📸 Progress Photos (${posesLogged.length}/3 Included): ${posesLogged.join(', ') || 'None recorded yet'}`;
+  }
+  renderWeekOverWeekTable();
+  renderThreePhotoSlots();
+  renderWeeklySubmissionState();
+};
+
+const _origPostCheckinUpdate = window.postCheckinUpdate;
+window.postCheckinUpdate = async function(payload, toastMsg) {
+  const c = STATE.overview && STATE.overview.checkin;
+  if (c && c._was_demo) {
+    payload = Object.assign({
+      weight_kg: null,
+      steps: 0,
+      protein_g: 0,
+      calories: 0,
+      carbs_g: 0,
+      fats_g: 0,
+      fibre_g: 0,
+      water_l: 0,
+      sleep: '',
+      morning_steps_banked: 0,
+      checkpoint_12pm_5k: 0,
+      checkpoint_5pm_10k: 0,
+      caffeine_cutoff_met: 0,
+      electrolytes_taken: 0,
+      notes: '',
+      mindset_win: '',
+      sync_source_garmin: 'Manual Entry',
+      sync_source_nutrition: 'Manual Entry',
+    }, payload);
+  } else if (!payload.sync_source_garmin) {
+    payload.sync_source_garmin = 'Manual Entry';
+  }
+  if (_origPostCheckinUpdate) return _origPostCheckinUpdate(payload, toastMsg);
+};
+
+const _origRenderIntegrations = window.renderIntegrationsAndStaples;
+window.renderIntegrationsAndStaples = function(data) {
+  if (_origRenderIntegrations) _origRenderIntegrations(data);
+  const integ = (data && data.integrations) || {};
+  const mfpEl = document.getElementById('cfg-mfp-user');
+  if (mfpEl) mfpEl.value = integ.mfp_username || '';
+  renderSavedIntegrationStatus();
+};
+
+function renderDataSourceBadges() {
+  const c = (STATE.overview && STATE.overview.checkin) || {};
+  const integ = (STATE.overview && STATE.overview.integrations) || {};
+  const gSrc = c.sync_source_garmin || (integ.garmin_email ? `Saved (${integ.garmin_email})` : 'Manual Entry');
+  const nSrc = c.calories > 0 ? `Manual Entry (${c.calories} kcal · ${c.protein_g || 0}g P)` : 'Add Manually in Step 2';
+
+  const panelToday = document.getElementById('panel-today');
+  let banner = document.getElementById('live-source-explainer');
+  if (panelToday && !banner) {
+    banner = document.createElement('div');
+    banner.id = 'live-source-explainer';
+    banner.style.cssText = 'margin-bottom:10px;padding:8px 12px;border-radius:10px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);font-size:12px;color:#cbd5e1;';
+    panelToday.insertBefore(banner, panelToday.firstChild);
+  }
+  if (banner) {
+    const hasData = (c.steps > 0 || c.calories > 0 || c.weight_kg != null || c.sleep_mins > 0);
+    banner.innerHTML = hasData
+      ? `📊 <strong>${STATE.date} Data Sources:</strong> Steps/Scale/Sleep: <strong>${gSrc}</strong> · Calories/Macros: <strong>${nSrc}</strong>`
+      : `✨ <strong>${STATE.date}: Clean Slate (0 mocked metrics).</strong> Enter your numbers below, tap a Staple Meal, or click <strong>🔄 Live Sync</strong> once Garmin/MFP is saved in Tab 4.`;
+  }
+}
+
+// ── WORKOUT ROLL-UP BANNER & HOOK (TAB 2 -> TAB 1 & TAB 3) ──────────────────
+function injectWorkoutRollupBanner() {
+  const panel = document.getElementById('panel-workouts');
+  if (!panel || document.getElementById('workout-rollup-card')) return;
+  const card = document.createElement('div');
+  card.id = 'workout-rollup-card';
+  card.className = 'card';
+  card.style.cssText = 'border:1px solid rgba(61,255,79,0.35);margin-bottom:0.8rem;';
+  panel.insertBefore(card, panel.firstChild);
+}
+
+function renderWorkoutRollupBanner() {
+  const card = document.getElementById('workout-rollup-card');
+  if (!card || !window.PROGRESS_SUMMARY) return;
+  const wk = parseInt(document.getElementById('wo-week-select')?.value || '1', 10);
+  const wNum = parseInt(document.getElementById('wo-num-select')?.value || '1', 10);
+  const wkSummary = (PROGRESS_SUMMARY.weeks || []).find(w => w.week_num === wk) || {};
+  card.innerHTML = `
+    <div class="card-header">
+      <div class="card-title">🔗 Where Your Workout Logs Roll Up (Week ${wk})</div>
+      <span class="badge badge-green">${wkSummary.workout_exercises_logged || 0} Exercises · ${wkSummary.workout_sets_logged || 0} Sets · ${(wkSummary.workout_volume_kg || 0).toLocaleString()} kg Volume</span>
+    </div>
+    <div style="font-size:0.75rem;color:var(--muted);line-height:1.45">
+      Every set you save below (e.g. <code>60kg x8, 8</code>) automatically rolls up into <strong>3 places</strong>:
+      <strong>1) Today Tab (${STATE.date})</strong> under Today's Workouts (Workout ${wNum} sets & kg tonnage) ·
+      <strong>2) Weekly Check-In Sheet</strong> (marks Training Type as <code>GYM</code> or <code>GYM & CARDIO</code>) ·
+      <strong>3) Week-over-Week Progress Table</strong> (tracks weekly strength sets & volume).
+    </div>
+  `;
+}
+
+const _origSaveWorkoutRow = window.saveWorkoutRow;
+window.saveWorkoutRow = async function(rowKey, order, exercise, sets, reps) {
+  if (_origSaveWorkoutRow) {
+    await _origSaveWorkoutRow(rowKey, order, exercise, sets, reps);
+  }
+  const track = document.getElementById('wo-track-select')?.value || 'mens';
+  const workout_num = parseInt(document.getElementById('wo-num-select')?.value || '1', 10);
+  const week_num = parseInt(document.getElementById('wo-week-select')?.value || '1', 10);
+  const res = await fetch('/api/challenge/workouts/rollup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ track, workout_num, week_num, date: STATE.date })
+  });
+  const data = await res.json();
+  if (data.ok && data.rolled_up) {
+    await loadOverview(STATE.date);
+    await refreshProgressSummary();
+    showToast(`💪 Rolled up ${data.sets} sets (${data.volume_kg.toLocaleString()} kg) → Today & Check-In Sheet!`);
+  }
+};
+
+// ── WEEK-OVER-WEEK PROGRESS TABLE ON CHECK-IN SHEET (TAB 3) ──────────────────
+function injectWeekOverWeekOnCheckinTab() {
+  const panel = document.getElementById('panel-checkin');
+  if (!panel || document.getElementById('wow-progress-card')) return;
+  const card = document.createElement('div');
+  card.id = 'wow-progress-card';
+  card.className = 'card';
+  panel.insertBefore(card, panel.children[2] || null);
+}
+
+function renderWeekOverWeekTable() {
+  const card = document.getElementById('wow-progress-card');
+  if (!card || !window.PROGRESS_SUMMARY) return;
+  const curWk = getActiveSheetWeek();
+  const rowsHtml = (PROGRESS_SUMMARY.weeks || []).map(w => {
+    const isCur = w.week_num === curWk;
+    const wtStr = w.avg_weight_kg !== null ? `${w.avg_weight_kg.toFixed(2)} kg` : '—';
+    const deltaStr = w.weight_change_vs_prev_kg !== null
+      ? `<span style="color:${w.weight_change_vs_prev_kg <= 0 ? '#3DFF4F' : '#f87171'}">${w.weight_change_vs_prev_kg > 0 ? '+' : ''}${w.weight_change_vs_prev_kg.toFixed(2)} kg</span>`
+      : '—';
+    const stepsStr = w.avg_steps > 0 ? `${w.avg_steps.toLocaleString()} / ${(w.target_steps/1000).toFixed(0)}k` : '—';
+    const calStr = w.avg_calories > 0 ? `${w.avg_calories} kcal · ${w.avg_protein_g}g P` : '—';
+    const volStr = w.workout_volume_kg > 0 ? `${w.workout_volume_kg.toLocaleString()} kg (${w.workout_sets_logged}s)` : '—';
+    const pBadge = w.photos_count >= 3 ? `✅ 3/3` : `${w.photos_count}/3 (${w.poses_logged.join(',') || 'none'})`;
+    return `<tr style="${isCur ? 'background:rgba(61,255,79,0.1);font-weight:700;' : ''}cursor:pointer" onclick="document.getElementById('ci-week-select').value='${w.week_num}';loadWeekSheet('${w.week_num}')">
+      <td><strong>${w.label.split('(')[0].trim()}</strong></td>
+      <td>${w.days_logged}/7</td>
+      <td>${wtStr} <small style="color:var(--muted)">(T:${w.target_weight_kg})</small></td>
+      <td>${deltaStr}</td>
+      <td>${stepsStr}</td>
+      <td>${calStr}</td>
+      <td>${w.gym_sessions} GYM / ${w.cardio_sessions} CARDIO</td>
+      <td>${volStr}</td>
+      <td>${pBadge}</td>
+    </tr>`;
+  }).join('');
+
+  card.innerHTML = `
+    <div class="card-header">
+      <div class="card-title">📈 Week-over-Week Progress Comparison (Click any week to view)</div>
+      <span class="badge badge-green">Pre-Coaching + Weeks 1–8</span>
+    </div>
+    <div class="table-wrap">
+      <table class="cs-table">
+        <thead>
+          <tr><th>Week</th><th>Days</th><th>Avg Wt (Target)</th><th>Δ vs Prev Wk</th><th>Avg Steps</th><th>Avg Cal & Prot</th><th>Sessions</th><th>Strength Volume</th><th>3 Photos</th></tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ── 3 PROGRESS PHOTOS (FRONT, SIDE, BACK) & WEEKLY SUBMISSION ────────────────
+function upgradeThreePhotoWeeklyVault() {
+  const listEl = document.getElementById('photos-vault-list');
+  if (!listEl) return;
+  const card = listEl.closest('.card');
+  if (!card || card.dataset.upgraded === '1') return;
+  card.dataset.upgraded = '1';
+  card.innerHTML = `
+    <div class="card-header" style="flex-wrap:wrap;gap:6px">
+      <div class="card-title">📸 Weekly 3-Photo Check-In (<span id="photo-active-wk-label">Week 1</span>: Side · Front · Back)</div>
+      <div style="display:flex;gap:6px;align-items:center;font-size:0.74rem;flex-wrap:wrap">
+        <label class="btn btn-sm" style="cursor:pointer;padding:2px 8px;font-size:0.68rem" title="Auto-slice a 3-pose collage into Side, Front & Back">
+          ✂️ Split 3-Pose Collage
+          <input type="file" accept="image/*" style="display:none" onchange="handleThreePoseCollageUpload(event)" />
+        </label>
+        <span>Compare:</span>
+        <select id="photo-cmp-wk-a" onchange="renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:82px"><option value="0">Wk 0</option><option value="1" selected>Wk 1</option><option value="2">Wk 2</option><option value="3">Wk 3</option><option value="4">Wk 4</option><option value="5">Wk 5</option><option value="6">Wk 6</option><option value="7">Wk 7</option><option value="8">Wk 8</option></select>
+        <span>vs</span>
+        <select id="photo-cmp-wk-b" onchange="renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:82px"><option value="0">Wk 0</option><option value="1">Wk 1</option><option value="2" selected>Wk 2</option><option value="3">Wk 3</option><option value="4">Wk 4</option><option value="5">Wk 5</option><option value="6">Wk 6</option><option value="7">Wk 7</option><option value="8">Wk 8</option></select>
+      </div>
+    </div>
+    <div id="three-photo-slots" class="grid-3" style="margin-bottom:0.75rem"></div>
+    <div id="three-photo-comparison"></div>
+  `;
+}
+
+function renderThreePhotoSlots() {
+  const slotsEl = document.getElementById('three-photo-slots');
+  if (!slotsEl) return;
+  const wk = getActiveSheetWeek();
+  const lbl = document.getElementById('photo-active-wk-label');
+  if (lbl) lbl.textContent = wk === 0 ? 'Pre-Coaching (Wk 0)' : `Week ${wk}`;
+  const photos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
+  const poses = ['Side', 'Front', 'Back'];
+
+  slotsEl.innerHTML = poses.map(pose => {
+    const rec = photos.find(p => Number(p.week_num) === wk && p.pose === pose);
+    const imgHtml = rec && rec.photo_data_url
+      ? `<img src="${rec.photo_data_url}" style="width:100%;height:130px;object-fit:contain;background:#070a08;border-radius:8px;margin-bottom:6px;border:1px solid var(--green)"/>`
+      : `<div style="width:100%;height:130px;border-radius:8px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.72rem;margin-bottom:6px">${rec ? '✅ Logged' : `No ${pose} photo`}</div>`;
+    return `<div style="padding:0.6rem;border-radius:10px;background:var(--surface-2);border:1px solid ${rec ? 'var(--green)' : 'var(--border)'};text-align:center">
+      <div style="font-weight:700;font-size:0.78rem;margin-bottom:4px">${rec ? '✅' : '📷'} ${pose} Pose (Wk ${wk})</div>
+      ${imgHtml}
+      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:6px">${rec ? `${rec.taken_date}${rec.weight_kg ? ' · ' + rec.weight_kg + 'kg' : ''}` : 'Fasted morning'}</div>
+      <label class="btn btn-green btn-sm" style="cursor:pointer;display:inline-block">
+        📤 ${rec ? 'Update' : 'Record'} ${pose}
+        <input type="file" accept="image/*" style="display:none" onchange="handlePoseFileSelect(event, ${wk}, '${pose}')"/>
+      </label>
+    </div>`;
+  }).join('');
+
+  const cmpEl = document.getElementById('three-photo-comparison');
+  const wkA = Number(document.getElementById('photo-cmp-wk-a')?.value ?? 0);
+  const wkB = Number(document.getElementById('photo-cmp-wk-b')?.value ?? wk);
+  if (cmpEl) {
+    cmpEl.innerHTML = `<div style="font-size:0.74rem;font-weight:700;margin-bottom:6px;color:var(--muted)">🔍 Side-by-Side Comparison: Wk ${wkA} vs Wk ${wkB} (Front · Side · Back)</div>
+      <div class="grid-3">${poses.map(pose => {
+        const pA = photos.find(p => Number(p.week_num) === wkA && p.pose === pose);
+        const pB = photos.find(p => Number(p.week_num) === wkB && p.pose === pose);
+        const box = (p, w) => p && p.photo_data_url
+          ? `<img src="${p.photo_data_url}" style="width:100%;height:85px;object-fit:cover;border-radius:6px"/>`
+          : `<div style="height:85px;border-radius:6px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">Wk ${w}: ${p ? 'Logged' : 'Empty'}</div>`;
+        return `<div style="padding:6px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border)"><div style="font-size:0.7rem;font-weight:700;text-align:center;margin-bottom:4px">${pose}</div><div class="grid-2">${box(pA, wkA)}${box(pB, wkB)}</div></div>`;
+      }).join('')}</div>`;
+  }
+}
+
+window.handlePoseFileSelect = function(event, weekNum, pose) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const img = new Image();
+    img.onload = async function() {
+      const canvas = document.createElement('canvas');
+      const maxDim = 600;
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else { w = Math.round(w * maxDim / h); h = maxDim; }
+      }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const c = (STATE.overview && STATE.overview.checkin) || {};
+      const res = await fetch('/api/challenge/photos/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ week_num: weekNum, pose, taken_date: STATE.date, weight_kg: c.weight_kg || null, photo_data_url: canvas.toDataURL('image/jpeg', 0.8) })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        if (STATE.overview) STATE.overview.progress_photos = data.photos;
+        await refreshProgressSummary();
+        showToast(`📸 Recorded ${pose} photo for Week ${weekNum}!`);
+      }
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+// ── REAL GARMIN & MYFITNESSPAL SAVE + CONNECT + CSV IMPORT (TAB 4) ───────────
+function upgradeIntegrationsSaveAndImport() {
+  const saveBtn = document.querySelector('button[onclick="saveIntegrationsConfig()"]');
+  if (saveBtn && !document.getElementById('sync-connection-report')) {
+    const statusBox = document.createElement('div');
+    statusBox.id = 'sync-connection-report';
+    statusBox.style.cssText = 'margin-top:10px;padding:10px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border);font-size:0.74rem;';
+    saveBtn.parentNode.insertBefore(statusBox, saveBtn.nextSibling);
+
+    const importBox = document.createElement('div');
+    importBox.style.cssText = 'margin-top:10px;padding:10px;border-radius:10px;background:var(--surface-2);border:1px dashed var(--border);font-size:0.74rem;';
+    importBox.innerHTML = `
+      <strong>📂 Direct File Import (Garmin Connect or MyFitnessPal .csv / .json)</strong>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        <label class="btn btn-sm" style="cursor:pointer">⌚ Import Garmin CSV/JSON<input type="file" accept=".csv,.json" style="display:none" onchange="importSyncFile(event, 'garmin')"/></label>
+        <label class="btn btn-sm" style="cursor:pointer">🥗 Import MyFitnessPal CSV/JSON<input type="file" accept=".csv,.json" style="display:none" onchange="importSyncFile(event, 'mfp')"/></label>
+      </div>
+    `;
+    statusBox.parentNode.insertBefore(importBox, statusBox.nextSibling);
+  }
+  renderSavedIntegrationStatus();
+}
+
+function renderSavedIntegrationStatus() {
+  const box = document.getElementById('sync-connection-report');
+  if (!box) return;
+  const intg = (STATE.overview && STATE.overview.integrations) || {};
+  box.style.display = 'block';
+  box.innerHTML = `
+    <div><strong>🔐 Saved Account Status in Database:</strong></div>
+    <div style="margin-top:4px">• <strong>Garmin Email:</strong> ${intg.garmin_email || '<em>Not saved yet</em>'} ${intg.garmin_password_set ? '(Password/Token set)' : ''} · Last Sync: ${intg.garmin_last_sync || 'Never'}</div>
+    <div>• <strong>Nutrition (Calories, Protein &amp; Water):</strong> Add manually each morning in Tab 1 Step 2</div>
+  `;
+}
+
+window.saveIntegrationsConfig = async function() {
+  const box = document.getElementById('sync-connection-report');
+  if (box) box.innerHTML = `⏳ Saving account details & testing live sync for ${STATE.date}...`;
+  const payload = {
+    date: STATE.date,
+    garmin_email: document.getElementById('cfg-garmin-email')?.value || '',
+    garmin_password: document.getElementById('cfg-garmin-pass')?.value || '',
+    nutrition_provider: document.getElementById('cfg-nutri-provider')?.value || 'myfitnesspal',
+    mfp_username: document.getElementById('cfg-mfp-user')?.value || '',
+    telegram_bot_token: document.getElementById('cfg-tg-token')?.value || '',
+    telegram_chat_id: document.getElementById('cfg-tg-chat')?.value || '',
+  };
+  const res = await fetch('/api/challenge/sync/connect', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  await loadOverview(STATE.date);
+  await refreshProgressSummary();
+  if (box) {
+    box.style.display = 'block';
+    box.innerHTML = `
+      <div style="color:var(--green);font-weight:700;margin-bottom:4px">✅ Account Details Saved to Database!</div>
+      <div>• <strong>Garmin:</strong> ${data.garmin_status}</div>
+      <div>• <strong>Nutrition:</strong> ${data.mfp_status}</div>
+    `;
+  }
+  showToast('💾 Saved Garmin & Telegram configuration!');
+};
+
+window.importSyncFile = function(event, source) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async function(ev) {
+    const res = await fetch('/api/challenge/sync/import-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source, content: ev.target.result, date: STATE.date })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      await loadOverview(STATE.date);
+      await refreshProgressSummary();
+      showToast(`✅ Imported ${data.imported_count} real ${source.toUpperCase()} record(s)!`);
+    }
+  };
+  reader.readAsText(file);
+};
+
+window.triggerLiveSync = async function() {
+  const emailEl = document.getElementById('cfg-garmin-email');
+  const passEl = document.getElementById('cfg-garmin-pass');
+  const mfpEl = document.getElementById('cfg-mfp-user');
+  const res = await fetch('/api/challenge/sync/live', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      date: STATE.date,
+      garmin_email: emailEl ? emailEl.value : '',
+      garmin_password: passEl ? passEl.value : '',
+      mfp_username: mfpEl ? mfpEl.value : '',
+    }),
+  });
+  const data = await res.json();
+  await loadOverview(STATE.date);
+  await refreshProgressSummary();
+  const msg = (data.messages && data.messages.join(' · ')) || 'Sync completed';
+  if (!data.ok && msg.toLowerCase().includes('tab 4')) {
+    if (typeof switchTab === 'function') switchTab('integrations');
+    if (passEl) passEl.focus();
+  }
+  showToast(data.ok ? `🔄 ${msg}` : `ℹ️ ${msg}`);
+};
+
+// ── CLEAN 9:16 INSTAGRAM SCOREBOARD PNG (STATS-ONLY, WEIGHT HIDDEN) ──────────
+window.downloadInstagramScoreboardPng = async function() {
+  const c = (STATE.overview && STATE.overview.checkin) || {};
+  const canvas = document.createElement('canvas');
+  canvas.width = 1080;
+  canvas.height = 1920;
+  const ctx = canvas.getContext('2d');
+
+  const grad = ctx.createLinearGradient(0, 0, 1080, 1920);
+  grad.addColorStop(0, '#050806');
+  grad.addColorStop(0.5, '#0b140d');
+  grad.addColorStop(1, '#050806');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 1080, 1920);
+
+  ctx.strokeStyle = 'rgba(61,255,79,0.45)';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(48, 80, 984, 1760);
+
+  ctx.fillStyle = '#3DFF4F';
+  ctx.font = 'italic 900 62px sans-serif';
+  ctx.fillText('CS FITNESS · 8-WEEK CHALLENGE', 96, 195);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 40px sans-serif';
+  ctx.fillText(`DAILY SCOREBOARD · ${STATE.date}`, 96, 265);
+
+  const sleepStr = c.sleep_str || (c.sleep_mins > 0 ? `${Math.floor(c.sleep_mins / 60)}h ${c.sleep_mins % 60}m` : '—');
+  const tiles = [
+    { label: '1. STEPS (GARMIN / APPLE)', val: Number(c.steps || 0).toLocaleString(), sub: `Target: ${(c.step_target || 10000).toLocaleString()}`, col: '#3DFF4F' },
+    { label: '2. CALORIES (MFP / MANUAL)', val: `${c.calories || 0} kcal`, sub: 'Daily Nutrition Target', col: '#ffffff' },
+    { label: '3. PROTEIN', val: `${c.protein_g || 0}g`, sub: 'Target: 150g+', col: '#3DFF4F' },
+    { label: '4. WATER INTAKE', val: `${Number(c.water_l || 0).toFixed(2)}L`, sub: 'Target: 3.66L', col: '#38bdf8' },
+    { label: '5. SLEEP (GARMIN / APPLE)', val: sleepStr, sub: 'Target: 8h 00m', col: '#ffffff' },
+    { label: '6. TRAINING', val: c.training_type || 'REST', sub: c.class_attended || 'Daily Session', col: '#3DFF4F' },
+  ];
+
+  tiles.forEach((t, i) => {
+    const colIdx = i % 2;
+    const rowIdx = Math.floor(i / 2);
+    const x = 96 + colIdx * 456;
+    const y = 320 + rowIdx * 320;
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.fillRect(x, y, 432, 290);
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, 432, 290);
+
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '700 24px sans-serif';
+    ctx.fillText(t.label, x + 28, y + 58);
+
+    ctx.fillStyle = t.col;
+    ctx.font = '900 58px sans-serif';
+    ctx.fillText(String(t.val), x + 28, y + 165);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '600 24px sans-serif';
+    ctx.fillText(String(t.sub).slice(0, 26), x + 28, y + 240);
+  });
+
+  const moments = ((window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.daily_moments) || []).filter(m => m.date === STATE.date && m.photo_data_url).slice(0, 4);
+  for (let i = 0; i < moments.length; i++) {
+    const m = moments[i];
+    const img = await new Promise(r => { const im = new Image(); im.onload = () => r(im); im.onerror = () => r(null); im.src = m.photo_data_url; });
+    if (img) {
+      const mx = 96 + i * 226;
+      ctx.drawImage(img, mx, 1310, 210, 210);
+      ctx.strokeStyle = '#3DFF4F'; ctx.lineWidth = 2; ctx.strokeRect(mx, 1310, 210, 210);
+      ctx.fillStyle = '#3DFF4F'; ctx.font = '700 20px sans-serif'; ctx.fillText(m.slot, mx + 8, 1550);
+    }
+  }
+
+  ctx.fillStyle = '#3DFF4F';
+  ctx.font = '700 34px sans-serif';
+  ctx.fillText('#CSFitness  #8WeekChallenge  #WinTheDay', 96, 1690);
+  ctx.fillStyle = '#64748b';
+  ctx.font = '600 26px sans-serif';
+  ctx.fillText('Garmin / Apple Health + MFP / Manual Nutrition · Scale weight kept private', 96, 1750);
+
+  const a = document.createElement('a');
+  a.download = `cs-fitness-daily-snapshot-${STATE.date}.png`;
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+  showToast('📸 Downloaded End-of-Day Daily Snapshot PNG!');
+};
+
+// ── IN-APP WEEKLY CHECK-IN SUBMISSION & COACH CHRIS REVIEW INBOX ─────────────
+function renderWeeklySubmissionState() {
+  if (!window.PROGRESS_SUMMARY) return;
+  const wk = getActiveSheetWeek();
+  const wkObj = (PROGRESS_SUMMARY.weeks || []).find(w => Number(w.week_num) === wk) || {};
+  const badge = document.getElementById('wk-submission-status-badge');
+  const commentsEl = document.getElementById('wk-challenger-comments');
+  const feedbackEl = document.getElementById('wk-coach-feedback-text');
+  if (badge) {
+    const st = wkObj.submission_status || 'Not Submitted';
+    badge.textContent = st === 'Reviewed' ? '✅ Reviewed by Coach Chris' : (st === 'Submitted' ? '📤 Submitted to Coach' : 'Not Submitted');
+    badge.className = 'badge ' + (st === 'Not Submitted' ? '' : 'badge-green');
+  }
+  if (commentsEl && document.activeElement !== commentsEl) {
+    commentsEl.value = wkObj.challenger_comments || '';
+  }
+  if (feedbackEl) {
+    feedbackEl.textContent = wkObj.coach_feedback
+      ? wkObj.coach_feedback
+      : 'No coach feedback yet for this week. Submit your check-in below so Chris can review it in the Coach Portal.';
+    feedbackEl.style.color = wkObj.coach_feedback ? '#fff' : 'var(--muted)';
+  }
+}
+
+window.submitWeeklyCheckinInApp = async function() {
+  const wk = getActiveSheetWeek();
+  const comments = document.getElementById('wk-challenger-comments')?.value || '';
+  if (window.renderWeeklyCheckinCardCanvas) await window.renderWeeklyCheckinCardCanvas();
+  const canvas = document.getElementById('weekly-checkin-card-canvas');
+  const card_data_url = canvas ? canvas.toDataURL('image/jpeg', 0.85) : '';
+  const res = await fetch('/api/challenge/weekly-checkin/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ week_num: wk, challenger_comments: comments, card_data_url }),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    await refreshProgressSummary();
+    showToast(`✅ Week ${wk} Stylised Card & Write-Up saved for Coach Chris!`);
+  }
+};
+
+function renderCoachCheckinInbox() {
+  const box = document.getElementById('coach-checkin-inbox-list');
+  if (!box || !window.PROGRESS_SUMMARY) return;
+  const subs = PROGRESS_SUMMARY.weekly_submissions || [];
+  const badge = document.getElementById('coach-inbox-badge');
+  if (badge) badge.textContent = `${subs.length} Check-In(s) in Inbox`;
+  if (!subs.length) {
+    box.innerHTML = `<div style="padding:0.75rem;color:var(--muted);font-size:0.76rem">No weekly check-ins submitted yet. On Tab 3 (Weekly Check-In), click <strong>✅ Submit Weekly Check-In (In-App)</strong> to send a week here for Coach Chris to review.</div>`;
+    return;
+  }
+  box.innerHTML = subs.map(s => `
+    <div style="padding:0.75rem;border-radius:10px;background:var(--surface-2);border:1px solid ${s.status === 'Reviewed' ? 'var(--green)' : 'var(--border)'};margin-bottom:0.65rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.45rem">
+        <div>
+          <strong style="color:#fff;font-size:0.86rem">👤 ${s.client_name} — Week ${s.week_num} Check-In</strong>
+          <span class="badge ${s.status === 'Reviewed' ? 'badge-green' : 'badge-blue'}" style="margin-left:0.4rem">${s.status}</span>
+        </div>
+        <div style="font-size:0.72rem;color:var(--muted)">
+          Avg Weight: <strong style="color:#fff">${s.avg_weight_kg ?? '—'} kg</strong> ·
+          Avg Steps: <strong style="color:var(--green)">${(s.avg_steps || 0).toLocaleString()}</strong> ·
+          Avg Cal/Prot: <strong style="color:#fff">${s.avg_calories || 0} kcal / ${s.avg_protein_g || 0}g P</strong> ·
+          Photos: <strong>${s.photos_count || 0}/3</strong>
+        </div>
+      </div>
+      <div style="font-size:0.75rem;color:#cbd5e1;margin-bottom:0.5rem;padding:0.45rem 0.6rem;background:#080b09;border-radius:6px">
+        <strong>Challenger Write-Up:</strong> ${s.challenger_comments || '<em>No comments added</em>'}
+      </div>
+      ${s.card_data_url ? `<div style="margin-bottom:0.55rem"><img src="${s.card_data_url}" alt="Week ${s.week_num} Card" style="max-height:220px;border-radius:8px;border:1px solid var(--green);cursor:pointer" onclick="window.open(this.src,'_blank')" title="Click to view full Stylised Weekly PNG Card"/></div>` : ''}
+      <div style="display:grid;grid-template-columns:1fr 130px 120px auto;gap:0.45rem;align-items:center">
+        <input type="text" id="coach-fb-${s.profile_id}-${s.week_num}" value="${(s.coach_feedback || '').replace(/"/g, '&quot;')}" placeholder="Coach Chris feedback & next week focus..." style="font-size:0.75rem" />
+        <input type="number" id="coach-cal-${s.profile_id}-${s.week_num}" value="${s.target_calories || 2173}" title="Adjust Daily Calorie Target" style="font-size:0.75rem" />
+        <input type="number" id="coach-prot-${s.profile_id}-${s.week_num}" value="${s.target_protein_g || 150}" title="Adjust Protein Target (g)" style="font-size:0.75rem" />
+        <button class="btn btn-green btn-sm" onclick="saveCoachWeeklyReview(${s.profile_id}, ${s.week_num})">💬 Save Coach Review</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+window.saveCoachWeeklyReview = async function(profileId, weekNum) {
+  const fb = document.getElementById(`coach-fb-${profileId}-${weekNum}`)?.value || '';
+  const cal = document.getElementById(`coach-cal-${profileId}-${weekNum}`)?.value;
+  const prot = document.getElementById(`coach-prot-${profileId}-${weekNum}`)?.value;
+  const res = await fetch('/api/challenge/weekly-checkin/review', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      profile_id: profileId,
+      week_num: weekNum,
+      coach_feedback: fb,
+      new_target_calories: cal ? Number(cal) : null,
+      new_target_protein_g: prot ? Number(prot) : null,
+    }),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    await loadOverview(STATE.date);
+    await refreshProgressSummary();
+    showToast(`✅ Coach Chris review saved for Week ${weekNum}!`);
+  }
+};
+
+function loadImageAsync(src) {
+  return new Promise((resolve) => {
+    if (!src) return resolve(null);
+    const im = new Image();
+    im.crossOrigin = 'anonymous';
+    im.onload = () => resolve(im);
+    im.onerror = () => resolve(null);
+    im.src = src;
+  });
+}
+
+function knockOutWhiteBgToCanvas(img, removeWhite) {
+  const off = document.createElement('canvas');
+  off.width = img.width || 400;
+  off.height = img.height || 600;
+  const octx = off.getContext('2d');
+  octx.drawImage(img, 0, 0);
+  if (!removeWhite) return off;
+  try {
+    const idata = octx.getImageData(0, 0, off.width, off.height);
+    const d = idata.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      const maxC = Math.max(r, g, b), minC = Math.min(r, g, b);
+      if (minC > 236 && (maxC - minC) < 16) {
+        d[i + 3] = 0;
+      } else if (minC > 220 && (maxC - minC) < 18) {
+        d[i + 3] = Math.round(((236 - minC) / 16) * 255);
+      }
+    }
+    octx.putImageData(idata, 0, 0);
+  } catch (e) {}
+  return off;
+}
+
+window.renderWeeklyCheckinCardCanvas = async function() {
+  const canvas = document.getElementById('weekly-checkin-card-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const wk = getActiveSheetWeek();
+  const prof = (STATE.overview && STATE.overview.profile) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.profile) || { client_name: 'Ewan t', start_weight_kg: 84.0, target_weight_kg: 78.3, target_calories: 2173, target_protein_g: 150 };
+  const wkObj = ((window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.weeks) || []).find(w => Number(w.week_num) === wk) || {};
+  const photos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
+  const removeWhite = Boolean(document.getElementById('wk-card-cutout-toggle')?.checked);
+
+  ctx.fillStyle = '#070A08';
+  ctx.fillRect(0, 0, 1200, 1350);
+  ctx.fillStyle = '#3DFF4F';
+  ctx.fillRect(0, 0, 1200, 10);
+
+  // Header
+  ctx.fillStyle = '#3DFF4F';
+  ctx.font = '800 22px Inter, -apple-system, sans-serif';
+  ctx.fillText('CS FITNESS · 8-WEEK CHALLENGE CHECK-IN', 48, 58);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '900 44px Inter, -apple-system, sans-serif';
+  const wkTitle = wk === 0 ? 'PRE-COACHING PHOTOS & CHECK-IN' : (wk === 1 ? 'WEEK 1 (DAY 1) PHOTOS & CHECK-IN' : `WEEK ${wk} PROGRESS & CHECK-IN`);
+  ctx.fillText(wkTitle, 48, 110);
+  ctx.fillStyle = '#94A3B8';
+  ctx.font = '600 22px Inter, -apple-system, sans-serif';
+  ctx.fillText(`Challenger: ${prof.client_name || 'Ewan t'}   ·   Start: ${prof.start_weight_kg || 84.0} kg → Goal: ${prof.target_weight_kg || 78.3} kg`, 48, 146);
+
+  // 5-Stat Strip
+  const stats = [
+    ['AVG WEIGHT', wkObj.avg_weight_kg ? `${wkObj.avg_weight_kg} kg` : `${prof.start_weight_kg || 84.0} kg`, `Target ${wkObj.target_weight_kg || prof.target_weight_kg || 84.0} kg`],
+    ['AVG STEPS', wkObj.avg_steps ? wkObj.avg_steps.toLocaleString() : '—', `Min ${(wkObj.target_steps || 10000).toLocaleString()}`],
+    ['AVG CALORIES', wkObj.avg_calories ? `${wkObj.avg_calories} kcal` : '—', `Target ${prof.target_calories || 2173}`],
+    ['AVG PROTEIN', wkObj.avg_protein_g ? `${wkObj.avg_protein_g} g` : '—', `Target ${prof.target_protein_g || 150}g`],
+    ['SESSIONS', `${wkObj.gym_sessions || 0} GYM / ${wkObj.cardio_sessions || 0} CARDIO`, `${wkObj.days_logged || 0}/7 days logged`],
+  ];
+  stats.forEach((st, idx) => {
+    const sx = 48 + idx * 224;
+    ctx.fillStyle = '#0F1712';
+    ctx.strokeStyle = '#1E2E23';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(sx, 168, 210, 88, 12); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#94A3B8'; ctx.font = '700 14px Inter, sans-serif'; ctx.fillText(st[0], sx + 16, 194);
+    ctx.fillStyle = '#3DFF4F'; ctx.font = '800 24px Inter, sans-serif'; ctx.fillText(st[1], sx + 16, 224);
+    ctx.fillStyle = '#64748B'; ctx.font = '600 13px Inter, sans-serif'; ctx.fillText(st[2], sx + 16, 244);
+  });
+  await _drawThreePosesAndWriteupOnCard(ctx, wk, photos, removeWhite, wkObj);
+};
+
+async function _drawThreePosesAndWriteupOnCard(ctx, wk, photos, removeWhite, wkObj) {
+  const poses = ['Side', 'Front', 'Back'];
+  for (let i = 0; i < poses.length; i++) {
+    const pose = poses[i];
+    const px = 48 + i * 376, py = 278, pw = 352, ph = 640;
+    const grad = ctx.createRadialGradient(px + pw / 2, py + ph * 0.55, 20, px + pw / 2, py + ph * 0.55, 260);
+    grad.addColorStop(0, 'rgba(61, 255, 79, 0.16)');
+    grad.addColorStop(1, 'rgba(12, 18, 14, 0.95)');
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = 'rgba(61, 255, 79, 0.45)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(px, py, pw, ph, 18); ctx.fill(); ctx.stroke();
+
+    const rec = photos.find(p => Number(p.week_num) === wk && p.pose === pose);
+    const img = rec && rec.photo_data_url ? await loadImageAsync(rec.photo_data_url) : null;
+    if (img) {
+      const processed = knockOutWhiteBgToCanvas(img, removeWhite);
+      const scale = Math.min((pw - 24) / processed.width, (ph - 76) / processed.height);
+      const dw = processed.width * scale, dh = processed.height * scale;
+      ctx.drawImage(processed, px + (pw - dw) / 2, py + 54 + (ph - 66 - dh) / 2, dw, dh);
+    } else {
+      ctx.fillStyle = '#475569';
+      ctx.font = '700 20px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Upload ${pose} Pose`, px + pw / 2, py + ph / 2 - 10);
+      ctx.font = '500 15px Inter, sans-serif';
+      ctx.fillText('or use Auto-Split 3-Pose Collage', px + pw / 2, py + ph / 2 + 20);
+      ctx.textAlign = 'left';
+    }
+    ctx.fillStyle = 'rgba(7, 10, 8, 0.85)';
+    ctx.beginPath(); ctx.roundRect(px + 14, py + 12, 140, 34, 8); ctx.fill();
+    ctx.fillStyle = '#3DFF4F';
+    ctx.font = '800 16px Inter, sans-serif';
+    ctx.fillText(`${pose.toUpperCase()} POSE`, px + 26, py + 35);
+  }
+  _drawWriteupBoxOnCard(ctx, wk, wkObj);
+}
+
+function _drawWriteupBoxOnCard(ctx, wk, wkObj) {
+  const bx = 48, by = 942, bw = 1104, bh = 368;
+  ctx.fillStyle = '#0D1410';
+  ctx.strokeStyle = '#3DFF4F';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 18); ctx.fill(); ctx.stroke();
+
+  ctx.fillStyle = '#3DFF4F';
+  ctx.font = '800 20px Inter, sans-serif';
+  ctx.fillText(`📝 WEEKLY CHECK-IN WRITE-UP & NOTES (WEEK ${wk})`, bx + 28, by + 42);
+
+  const rawText = (document.getElementById('wk-challenger-comments')?.value || wkObj.challenger_comments || 'Add your weekly write-up above — it renders live onto this Weekly Check-In PNG card!').trim();
+  ctx.fillStyle = '#F8FAFC';
+  ctx.font = '500 25px Inter, -apple-system, sans-serif';
+  const words = rawText.split(/\s+/);
+  let line = '', y = by + 90;
+  for (let i = 0; i < words.length; i++) {
+    const test = line + words[i] + ' ';
+    if (ctx.measureText(test).width > bw - 56 && i > 0) {
+      ctx.fillText(line.trim(), bx + 28, y);
+      line = words[i] + ' ';
+      y += 38;
+      if (y > by + bh - 75) break;
+    } else {
+      line = test;
+    }
+  }
+  if (line.trim() && y <= by + bh - 65) ctx.fillText(line.trim(), bx + 28, y);
+
+  ctx.fillStyle = '#94A3B8';
+  ctx.font = '700 17px Inter, sans-serif';
+  const fb = wkObj.coach_feedback ? `💬 Coach Chris: ${wkObj.coach_feedback}` : '📲 Shared via CS Fitness 8-Week Challenge App · #CSFitness #WinTheDay';
+  ctx.fillText(fb.slice(0, 105), bx + 28, by + bh - 24);
+}
+
+window.downloadWeeklyCheckinPng = async function() {
+  await window.renderWeeklyCheckinCardCanvas();
+  const canvas = document.getElementById('weekly-checkin-card-canvas');
+  if (!canvas) return;
+  const wk = getActiveSheetWeek();
+  const a = document.createElement('a');
+  a.download = `cs-fitness-week-${wk}-checkin.png`;
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+  showToast(`🖼️ Downloaded Stylised Week ${wk} Check-In PNG!`);
+};
+
+window.handleThreePoseCollageUpload = function(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const wk = getActiveSheetWeek();
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const img = new Image();
+    img.onload = async function() {
+      const poses = ['Side', 'Front', 'Back'];
+      const hasBottomCaption = img.height > img.width * 0.72;
+      const topSkip = hasBottomCaption ? Math.round(img.height * 0.08) : 0;
+      const cropH = hasBottomCaption ? Math.round(img.height * 0.56) : img.height;
+      const sliceW = Math.floor(img.width / 3);
+      const c = (STATE.overview && STATE.overview.checkin) || {};
+      for (let i = 0; i < 3; i++) {
+        const sc = document.createElement('canvas');
+        sc.width = 420;
+        sc.height = Math.round(420 * (cropH / sliceW));
+        sc.getContext('2d').drawImage(img, i * sliceW, topSkip, sliceW, cropH, 0, 0, sc.width, sc.height);
+        const res = await fetch('/api/challenge/photos/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ week_num: wk, pose: poses[i], taken_date: STATE.date, weight_kg: c.weight_kg || null, photo_data_url: sc.toDataURL('image/png') })
+        });
+        const data = await res.json();
+        if (data.ok && STATE.overview) STATE.overview.progress_photos = data.photos;
+      }
+      await refreshProgressSummary();
+      showToast(`✂️ Auto-split 3-pose collage into Side, Front & Back for Week ${wk}!`);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+window.promptQuickCoachNote = async function() {
+  const wk = getActiveSheetWeek();
+  const wkObj = ((window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.weeks) || []).find(w => Number(w.week_num) === wk) || {};
+  const fb = window.prompt(`Paste or log Coach Chris's feedback (from Telegram / voice note) for Week ${wk}:`, wkObj.coach_feedback || '');
+  if (fb === null) return;
+  await fetch('/api/challenge/weekly-checkin/review', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ week_num: wk, coach_feedback: fb })
+  });
+  await refreshProgressSummary();
+  showToast(`💬 Saved Coach Chris's feedback for Week ${wk}!`);
+};
+
+window.sendWeeklyTelegram = async function() {
+  const week_num = getActiveSheetWeek();
+  await window.renderWeeklyCheckinCardCanvas();
+  const canvas = document.getElementById('weekly-checkin-card-canvas');
+  const photo_data_url = canvas ? canvas.toDataURL('image/png') : '';
+  const writeup = document.getElementById('wk-challenger-comments')?.value || '';
+  const baseSummary = document.getElementById('tg-summary-box')?.value || '';
+  const custom_message = writeup ? `${baseSummary}\n\n📝 Weekly Write-Up:\n${writeup}` : baseSummary;
+
+  await window.submitWeeklyCheckinInApp();
+  const res = await fetch('/api/challenge/telegram/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ week_num, custom_message, photo_data_url }),
+  });
+  const data = await res.json();
+  if (data.sent_via_api) {
+    showToast(`✈️ Sent Week ${week_num} PNG Card & Summary directly to Telegram!`);
+  } else {
+    await window.downloadWeeklyCheckinPng();
+    try { await navigator.clipboard.writeText(custom_message); } catch (e) {}
+    if (data.deep_link_url) {
+      const linkBtn = document.getElementById('tg-direct-link');
+      if (linkBtn) { linkBtn.href = data.deep_link_url; linkBtn.style.display = 'inline-flex'; }
+    }
+    showToast(`🖼️ Downloaded Week ${week_num} PNG & copied Telegram summary — ready to drop into Telegram!`);
+  }
+};
+
+function renderCoachWowSideBySide() {
+  const panel = document.getElementById('coach-wow-side-by-side-panel');
+  if (!panel || !window.PROGRESS_SUMMARY) return;
+  const weeks = window.PROGRESS_SUMMARY.weeks || [];
+  const photos = (STATE.overview && STATE.overview.progress_photos) || window.PROGRESS_SUMMARY.photos || [];
+  const wkA = Number(document.getElementById('photo-cmp-wk-a')?.value ?? 1);
+  const wkB = Number(document.getElementById('photo-cmp-wk-b')?.value ?? Math.max(2, getActiveSheetWeek()));
+  const wA = weeks.find(w => Number(w.week_num) === wkA) || { week_num: wkA };
+  const wB = weeks.find(w => Number(w.week_num) === wkB) || { week_num: wkB };
+  const poses = ['Side', 'Front', 'Back'];
+
+  const poseRows = poses.map(pose => {
+    const pA = photos.find(p => Number(p.week_num) === wkA && p.pose === pose);
+    const pB = photos.find(p => Number(p.week_num) === wkB && p.pose === pose);
+    const cell = (p, w) => p && p.photo_data_url
+      ? `<img src="${p.photo_data_url}" style="width:100%;height:110px;object-fit:contain;background:#070a08;border-radius:6px;border:1px solid rgba(61,255,79,0.4)"/>`
+      : `<div style="height:110px;border-radius:6px;background:#070a08;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">Wk ${w}: No ${pose}</div>`;
+    return `<div style="padding:6px;border-radius:8px;background:#0b110d;border:1px solid var(--border)">
+      <div style="font-size:0.7rem;font-weight:800;color:var(--green);text-align:center;margin-bottom:4px">${pose.toUpperCase()} POSE</div>
+      <div class="grid-2" style="gap:6px">${cell(pA, wkA)}${cell(pB, wkB)}</div>
+    </div>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+      <div style="font-size:0.78rem;font-weight:800;color:#fff">👁️ COACH VIEW: WEEK-OVER-WEEK SIDE-BY-SIDE (Wk ${wkA} vs Wk ${wkB})</div>
+      <span class="badge badge-green">Coach &amp; Challenger View</span>
+    </div>
+    <div class="grid-2" style="gap:8px;margin-bottom:8px;font-size:0.72rem">
+      <div style="padding:8px;border-radius:8px;background:#0b110d;border:1px solid var(--border)">
+        <strong style="color:var(--green)">Week ${wkA} Summary</strong>
+        <div>Wt: <strong>${wA.avg_weight_kg ?? '—'} kg</strong> · Steps: <strong>${(wA.avg_steps || 0).toLocaleString()}</strong> · Cal: <strong>${wA.avg_calories || 0}</strong></div>
+        <div style="color:#cbd5e1;margin-top:4px;font-size:0.69rem">${wA.challenger_comments || '<em>No write-up saved yet</em>'}</div>
+      </div>
+      <div style="padding:8px;border-radius:8px;background:#0b110d;border:1px solid var(--border)">
+        <strong style="color:var(--green)">Week ${wkB} Summary</strong>
+        <div>Wt: <strong>${wB.avg_weight_kg ?? '—'} kg</strong> · Steps: <strong>${(wB.avg_steps || 0).toLocaleString()}</strong> · Cal: <strong>${wB.avg_calories || 0}</strong></div>
+        <div style="color:#cbd5e1;margin-top:4px;font-size:0.69rem">${wB.challenger_comments || '<em>No write-up saved yet</em>'}</div>
+      </div>
+    </div>
+    <div class="grid-3" style="gap:8px">${poseRows}</div>
+  `;
+}
+
+const _origLoadWeekSheet = window.loadWeekSheet;
+if (typeof _origLoadWeekSheet === 'function') {
+  window.loadWeekSheet = async function(weekNum) {
+    await _origLoadWeekSheet(weekNum);
+    renderThreePhotoSlots();
+    renderWeeklySubmissionState();
+    await renderWeeklyCheckinCardCanvas();
+    renderCoachWowSideBySide();
+  };
+}
+
+window.autoDetectTelegramChatId = async function() {
+  const bot_token = document.getElementById('cfg-tg-token')?.value || '';
+  const box = document.getElementById('sync-connection-report');
+  if (box) box.innerHTML = '🔍 Checking your Telegram Bot for your personal Chat ID...';
+  const res = await fetch('/api/challenge/telegram/detect-chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bot_token }),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    const chatInput = document.getElementById('cfg-tg-chat');
+    if (chatInput) chatInput.value = data.chat_id;
+    if (box) box.innerHTML = `✅ Found your Telegram Chat ID: <strong>${data.chat_id}</strong> (${data.chat_name}). Click <strong>🧪 Test Send Weekly PNG to Me</strong>!`;
+    showToast(`✅ Detected Telegram Chat ID: ${data.chat_id}`);
+  } else {
+    if (box) box.innerHTML = `<span style="color:#f87171">⚠️ ${data.error}</span>`;
+    showToast(`⚠️ ${data.error}`);
+  }
+};
+
+window.testTelegramToSelf = async function() {
+  const bot_token = document.getElementById('cfg-tg-token')?.value || '';
+  const chat_id = document.getElementById('cfg-tg-chat')?.value || '';
+  if (window.renderWeeklyCheckinCardCanvas) await window.renderWeeklyCheckinCardCanvas();
+  const canvas = document.getElementById('weekly-checkin-card-canvas');
+  const photo_data_url = canvas ? canvas.toDataURL('image/png') : '';
+  const res = await fetch('/api/challenge/telegram/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ week_num: getActiveSheetWeek(), bot_token, chat_id, photo_data_url }),
+  });
+  const data = await res.json();
+  const box = document.getElementById('sync-connection-report');
+  if (data.sent_via_api) {
+    if (box) box.innerHTML = `<span style="color:#3DFF4F">✅ Sent Stylised Weekly PNG (${data.photo_sent ? 'Image + Text' : 'Text'}) to your Telegram (Chat ID: ${chat_id})!</span>`;
+    showToast('✈️ Sent Weekly PNG + Summary to your Telegram!');
+  } else {
+    await window.downloadWeeklyCheckinPng();
+    if (box) box.innerHTML = `🖼️ Downloaded Weekly PNG & copied caption! (To send automatically via Bot API, add a @BotFather token & Chat ID above.)`;
+  }
+};
+
+window.triggerAppleHealthSyncModal = function() {
+  if (typeof switchTab === 'function') switchTab('integrations');
+  const el = document.getElementById('apple-health-bridge-panel');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  showToast('🍎 Opened Apple Health + MyFitnessPal HealthKit setup');
+};
+
+window.copyAppleHealthShortcutConfig = async function() {
+  const endpointUrl = `${window.location.origin}/api/challenge/sync/apple-health`;
+  const info = `POST ${endpointUrl}\nFields from Apple Health / MFP HealthKit: step_count, sleep_hours, weight_kg, dietary_energy (kcal), dietary_protein (g), dietary_carbohydrates (g), total_fat (g), dietary_fiber (g), dietary_water (mL), workouts`;
+  try { await navigator.clipboard.writeText(info); } catch (e) {}
+  const box = document.getElementById('sync-connection-report');
+  if (box) {
+    box.style.display = 'block';
+    box.innerHTML = `<span style="color:#3DFF4F">📋 Copied endpoint <code>${endpointUrl}</code> &amp; HealthKit field keys for your iOS Shortcut!</span>`;
+  }
+  showToast('📋 Copied Apple Health + MFP iOS Shortcut endpoint!');
+};
+
+const DAILY_MOMENT_SLOTS = [
+  { key: 'Breakfast', icon: '🍳', tag: '#breakfast' },
+  { key: 'Lunch', icon: '🥗', tag: '#lunch' },
+  { key: 'Dinner', icon: '🍽️', tag: '#dinner' },
+  { key: 'Snack', icon: '🍎', tag: '#snack' },
+  { key: 'Workout / Event', icon: '🏋️', tag: '#workout' },
+];
+
+function renderDailyJourneyMoments() {
+  const grid = document.getElementById('daily-journey-moments-grid');
+  if (!grid) return;
+  const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
+  const allMoments = (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.daily_moments) || [];
+  const dayMoments = allMoments.filter(m => m.date === curDate);
+
+  grid.innerHTML = DAILY_MOMENT_SLOTS.map(s => {
+    const m = dayMoments.find(x => x.slot === s.key) || {};
+    const hasPhoto = Boolean(m.photo_data_url);
+    return `<div style="background:var(--surface-2);border:1px ${hasPhoto ? 'solid var(--green)' : 'dashed var(--border)'};border-radius:10px;padding:0.5rem;text-align:center">
+      <div style="font-size:0.72rem;font-weight:800;color:#fff;margin-bottom:4px">${s.icon} ${s.key}</div>
+      <label style="cursor:pointer;display:block">
+        ${hasPhoto
+          ? `<img src="${m.photo_data_url}" style="width:100%;height:96px;object-fit:cover;border-radius:7px;border:1px solid rgba(61,255,79,0.35)"/>`
+          : `<div style="height:96px;border-radius:7px;background:#070a08;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--muted)">+ Tap to Add Pic</div>`}
+        <input type="file" accept="image/*" style="display:none" onchange="uploadDailyMomentPhoto('${s.key}', event)"/>
+      </label>
+      <input type="text" value="${(m.caption || '').replace(/"/g, '&quot;')}" placeholder="Note (${s.tag})" style="margin-top:5px;font-size:0.68rem;padding:0.3rem 0.45rem" onchange="saveDailyMomentCaption('${s.key}', this.value)"/>
+    </div>`;
+  }).join('');
+
+  const strip = document.getElementById('sc-moments-strip');
+  if (strip) {
+    const withPics = dayMoments.filter(m => m.photo_data_url);
+    strip.style.display = withPics.length ? 'grid' : 'none';
+    strip.style.gridTemplateColumns = `repeat(${Math.min(5, Math.max(1, withPics.length))}, 1fr)`;
+    strip.innerHTML = withPics.map(m => `<div style="text-align:center">
+      <img src="${m.photo_data_url}" style="width:100%;height:68px;object-fit:cover;border-radius:6px;border:1px solid rgba(61,255,79,0.4)"/>
+      <div style="font-size:0.6rem;color:var(--green);font-weight:700;margin-top:2px">${m.slot}</div>
+    </div>`).join('');
+  }
+  renderOnePagerViews();
+}
+
+function renderOnePagerViews() {
+  const c = (typeof STATE !== 'undefined' && STATE.overview && STATE.overview.checkin) || {};
+  const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
+  const dLbl = document.getElementById('op-date-lbl');
+  if (dLbl) dLbl.textContent = curDate;
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = v ?? ''; };
+  setVal('op-weight', c.weight_kg ?? '');
+  setVal('op-steps', c.steps || '');
+  setVal('op-cals', c.calories || '');
+  setVal('op-prot', c.protein_g || '');
+  setVal('op-water', c.water_l || '');
+  setVal('op-sleep', c.sleep_str || (c.sleep_mins ? `${Math.floor(c.sleep_mins / 60)}h ${c.sleep_mins % 60}m` : ''));
+  setVal('op-training', c.training_type || 'REST');
+  setVal('op-notes', c.notes || c.class_attended || '');
+
+  const opMom = document.getElementById('op-moments-row');
+  if (opMom) {
+    const dayMoments = ((window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.daily_moments) || []).filter(m => m.date === curDate);
+    opMom.innerHTML = DAILY_MOMENT_SLOTS.slice(0, 4).map(s => {
+      const m = dayMoments.find(x => x.slot === s.key) || {};
+      return `<label style="cursor:pointer;background:var(--surface-2);border:1px ${m.photo_data_url ? 'solid var(--green)' : 'dashed var(--border)'};border-radius:8px;padding:4px;text-align:center">
+        <div style="font-size:0.64rem;font-weight:700">${s.icon} ${s.key.split('/')[0]}</div>
+        ${m.photo_data_url ? `<img src="${m.photo_data_url}" style="width:100%;height:56px;object-fit:cover;border-radius:5px;margin-top:3px"/>` : `<div style="height:56px;display:flex;align-items:center;justify-content:center;font-size:0.62rem;color:var(--muted)">+ Pic</div>`}
+        <input type="file" accept="image/*" style="display:none" onchange="uploadDailyMomentPhoto('${s.key}', event)"/>
+      </label>`;
+    }).join('');
+  }
+  renderOnePagerWeekly();
+}
+
+window.uploadDailyMomentPhoto = function(slot, event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const img = new Image();
+    img.onload = async function() {
+      const c = document.createElement('canvas');
+      const maxDim = 640;
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else { w = Math.round(w * maxDim / h); h = maxDim; }
+      }
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      await fetch('/api/challenge/daily-moments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: STATE.date, slot, photo_data_url: c.toDataURL('image/jpeg', 0.82) }),
+      });
+      await refreshProgressSummary();
+      showToast(`📸 Added ${slot} photo — synced to Coach app & Daily Snapshot!`);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+window.saveDailyMomentCaption = async function(slot, caption) {
+  await fetch('/api/challenge/daily-moments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ date: STATE.date, slot, caption }),
+  });
+  await refreshProgressSummary();
+  showToast(`💬 Saved ${slot} note!`);
+};
+
+function renderOnePagerWeekly() {
+  const wk = getActiveSheetWeek();
+  const sel = document.getElementById('op-week-select');
+  if (sel) sel.value = String(wk);
+  const wkObj = ((window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.weeks) || []).find(w => Number(w.week_num) === wk) || {};
+  const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setTxt('op-wk-wt', wkObj.avg_weight_kg ? `${wkObj.avg_weight_kg.toFixed(2)}kg` : '—');
+  setTxt('op-wk-steps', (wkObj.avg_steps || 0).toLocaleString());
+  setTxt('op-wk-cals', String(wkObj.avg_calories || 0));
+  setTxt('op-wk-prot', `${wkObj.avg_protein_g || 0}g`);
+  const cm = document.getElementById('op-wk-comments');
+  if (cm && document.activeElement !== cm) cm.value = wkObj.challenger_comments || '';
+  const photos = ((STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || []).filter(p => Number(p.week_num) === wk);
+  const pGrid = document.getElementById('op-wk-photos');
+  if (pGrid) {
+    pGrid.innerHTML = ['Side', 'Front', 'Back'].map(pose => {
+      const p = photos.find(x => x.pose === pose);
+      return `<label style="cursor:pointer;background:var(--surface-2);border:1px ${p && p.photo_data_url ? 'solid var(--green)' : 'dashed var(--border)'};border-radius:8px;padding:5px;text-align:center">
+        <div style="font-size:0.68rem;font-weight:800;color:var(--green)">${pose}</div>
+        ${p && p.photo_data_url ? `<img src="${p.photo_data_url}" style="width:100%;height:88px;object-fit:contain;background:#070a08;border-radius:5px;margin-top:3px"/>` : `<div style="height:88px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;color:var(--muted)">+ Tap Photo</div>`}
+        <input type="file" accept="image/*" style="display:none" onchange="handlePoseFileSelect(event, ${wk}, '${pose}')"/>
+      </label>`;
+    }).join('');
+  }
+}
+
+window.saveOnePagerDaily = async function(withPng) {
+  const payload = {
+    date: STATE.date,
+    weight_kg: document.getElementById('op-weight')?.value ? parseFloat(document.getElementById('op-weight').value) : null,
+    steps: parseInt(document.getElementById('op-steps')?.value || '0', 10),
+    calories: parseInt(document.getElementById('op-cals')?.value || '0', 10),
+    protein_g: parseInt(document.getElementById('op-prot')?.value || '0', 10),
+    water_l: parseFloat(document.getElementById('op-water')?.value || '0'),
+    sleep: document.getElementById('op-sleep')?.value || '',
+    training_type: document.getElementById('op-training')?.value || 'REST',
+    notes: document.getElementById('op-notes')?.value || '',
+  };
+  await window.postCheckinUpdate(payload, '✅ Saved Daily Entry!');
+  await refreshProgressSummary();
+  if (withPng) await window.downloadInstagramScoreboardPng();
+};
+
+window.changeOnePagerWeek = async function(val) {
+  const ciSel = document.getElementById('ci-week-select');
+  if (ciSel) ciSel.value = String(val);
+  if (typeof window.loadWeekSheet === 'function') await window.loadWeekSheet(val);
+  renderOnePagerWeekly();
+};
+
+window.saveOnePagerWeekly = async function(action) {
+  const cm = document.getElementById('op-wk-comments')?.value || '';
+  const wkCm = document.getElementById('wk-challenger-comments');
+  if (wkCm) wkCm.value = cm;
+  await window.submitWeeklyCheckinInApp();
+  if (action === 'png') await window.downloadWeeklyCheckinPng();
+  if (action === 'tg') await window.sendWeeklyTelegram();
+};
+
+window.setOnePagerMode = function(mode) {
+  const dView = document.getElementById('onepager-daily-view');
+  const wView = document.getElementById('onepager-weekly-view');
+  const tabs = document.getElementById('main-tabs');
+  const panels = document.querySelectorAll('.tab-panel');
+  ['daily1p', 'weekly1p', 'full'].forEach(k => {
+    const b = document.getElementById(`btn-mode-${k}`);
+    if (b) b.className = (k === (mode === 'daily' ? 'daily1p' : mode === 'weekly' ? 'weekly1p' : 'full')) ? 'btn btn-green btn-sm' : 'btn btn-sm';
+  });
+  if (mode === 'daily' || mode === 'weekly') {
+    if (tabs) tabs.style.display = 'none';
+    panels.forEach(p => { p.style.display = 'none'; });
+    if (dView) dView.style.display = mode === 'daily' ? 'block' : 'none';
+    if (wView) wView.style.display = mode === 'weekly' ? 'block' : 'none';
+    renderOnePagerViews();
+  } else {
+    if (dView) dView.style.display = 'none';
+    if (wView) wView.style.display = 'none';
+    if (tabs) tabs.style.display = 'grid';
+    panels.forEach(p => { p.style.display = ''; });
+  }
+};
+
+if (window.location.pathname.includes('/mobile') || window.location.search.includes('mode=daily')) {
+  setTimeout(() => window.setOnePagerMode('daily'), 180);
+} else if (window.location.search.includes('mode=weekly')) {
+  setTimeout(() => window.setOnePagerMode('weekly'), 180);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(initRealDataAndProgress, 100);
+  });
+} else {
+  initRealDataAndProgress();
+}
+
