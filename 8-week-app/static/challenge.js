@@ -205,18 +205,18 @@ function renderTodayDashboard(data) {
   document.getElementById("bar-prot").style.width = `${Math.min(100, Math.round((prot / p.target_protein_g) * 100))}%`;
 
   // Form inputs
-  document.getElementById("in-weight").value = c.weight_kg != null ? c.weight_kg : "";
+  document.getElementById("in-weight").value = c.weight_kg != null && Number(c.weight_kg) > 0 ? c.weight_kg : "";
   document.getElementById("in-weigh-time").value = c.weigh_time || "06:30";
   document.getElementById("td-rolling-weight").textContent = `${Number(data.rolling_7d_weight_kg || p.start_weight_kg).toFixed(2)} kg`;
   document.getElementById("in-training-type").value = c.training_type || "REST";
   document.getElementById("in-stick-plan").value = c.stick_to_plan || "Y";
-  document.getElementById("in-steps").value = steps;
-  document.getElementById("in-calories").value = cals;
-  document.getElementById("in-protein").value = prot;
-  if (document.getElementById("in-water")) document.getElementById("in-water").value = water;
-  if (document.getElementById("in-carbs")) document.getElementById("in-carbs").value = c.carbs_g || 0;
-  if (document.getElementById("in-fats")) document.getElementById("in-fats").value = c.fats_g || 0;
-  if (document.getElementById("in-fibre")) document.getElementById("in-fibre").value = c.fibre_g || 0;
+  document.getElementById("in-steps").value = steps > 0 ? steps : "";
+  document.getElementById("in-calories").value = cals > 0 ? cals : "";
+  document.getElementById("in-protein").value = prot > 0 ? prot : "";
+  if (document.getElementById("in-water")) document.getElementById("in-water").value = water > 0 ? water : "";
+  if (document.getElementById("in-carbs")) document.getElementById("in-carbs").value = c.carbs_g || "";
+  if (document.getElementById("in-fats")) document.getElementById("in-fats").value = c.fats_g || "";
+  if (document.getElementById("in-fibre")) document.getElementById("in-fibre").value = c.fibre_g || "";
   document.getElementById("in-sleep").value = c.sleep_str || "";
   document.getElementById("in-notes").value = c.notes || "";
   document.getElementById("in-mindset").value = c.mindset_win || "";
@@ -888,6 +888,16 @@ function renderIntegrationsAndStaples(data) {
   document.getElementById("cfg-mfp-user").value = integ.mfp_username || "";
   document.getElementById("cfg-tg-token").value = integ.telegram_bot_token || "";
   document.getElementById("cfg-tg-chat").value = integ.telegram_chat_id || integ.coach_telegram_handle || "csfitness_chris";
+  const ahUrlEl = document.getElementById("cfg-apple-health-url");
+  if (ahUrlEl) {
+    const tok = integ.webhook_token ? `?token=${encodeURIComponent(integ.webhook_token)}` : "";
+    ahUrlEl.value = `${window.location.origin}/api/challenge/sync/apple-health${tok}`;
+  }
+  const mfaBadge = document.getElementById("cfg-garmin-mfa-badge");
+  if (mfaBadge && integ.garmin_connected) {
+    mfaBadge.textContent = "✅ Connected (Mobile Sync Ready)";
+    mfaBadge.className = "badge badge-green";
+  }
 
   // Rhythm tasks
   const rEl = document.getElementById("rhythm-tasks-list");

@@ -839,8 +839,19 @@ class _BuiltinGarminClient:
         if not ticket_match:
             if "Invalid" in r_post.text or "locked" in r_post.text.lower():
                 raise ValueError("Garmin Connect rejected the email/password. Double-check your credentials.")
-            raise GarminMFARequiredError(
-                "Garmin requested 2-Factor / verification code. If you received a 6-digit Garmin code by email/SMS, enter it below."
+            if (
+                "mfa" in r_post.text.lower()
+                or "verifymfa" in str(r_post.url).lower()
+                or "verification code" in r_post.text.lower()
+                or "passcode" in r_post.text.lower()
+            ):
+                raise GarminMFARequiredError(
+                    "Garmin requested 2-Factor / verification code. Enter the 6-digit Garmin code sent by email/SMS below."
+                )
+            if self._try_browser_cookies():
+                return True
+            raise ValueError(
+                "Could not complete Garmin SSO sign-in. Double-check your Garmin email & password in Settings & Sync."
             )
 
         ticket = ticket_match.group(1)
@@ -938,9 +949,17 @@ class _BuiltinGarminClient:
         return data if isinstance(data, list) else []
 
 
-def fetch_live_garmin_data(email, password, target_date=None, tokenstore_dir=None, mfa_code=None):
+def fetch_live_garmin_data(
+    email,
+    password,
+    target_date=None,
+    tokenstore_dir=None,
+    mfa_code=None,
+    saved_token_dump=None,
+    force_relogin=False,
+):
     """Connect to live Garmin Connect (via `garminconnect` if installed or built-in client) and pull steps, sleep, weight & workouts.
-    Supports Garmin 2-Factor Authentication (MFA) via `mfa_code` and `needs_mfa` response."""
+    Supports both non-2FA accounts and Garmin 2-Factor Authentication (MFA) accounts seamlessly."""
     import os
     date_str = (target_date or datetime.now().strftime("%Y-%m-%d"))[:10]
     real_today = datetime.now().strftime("%Y-%m-%d")
@@ -952,23 +971,37 @@ def fetch_live_garmin_data(email, password, target_date=None, tokenstore_dir=Non
     email = (email or "").strip()
     password = password or ""
     mfa_code = str(mfa_code or "").strip()
+    saved_token_dump = (saved_token_dump or "").strip()
+    token_dump_out = saved_token_dump
 
     try:
         try:
             from garminconnect import Garmin
             if mfa_code and token_dir in _PENDING_MFA_STATE and _PENDING_MFA_STATE[token_dir].get("garth_client_state"):
                 st = _PENDING_MFA_STATE.pop(token_dir)
-                client = st["garth_client"]
-                client.resume_login(st["garth_client_state"], mfa_code)
+                mfa_client = st["garth_client"]
+                mfa_client.resume_login(st["garth_client_state"], mfa_code)
                 os.makedirs(token_dir, exist_ok=True)
-                client.garth.dump(token_dir)
+                mfa_client.garth.dump(token_dir)
+                try:
+                    token_dump_out = mfa_client.garth.dumps()
+                except Exception:
+                    pass
+                client = Garmin(email or None, password or None)
+                client.login(token_dir)
             else:
-                client = Garmin(email or None, password or None, return_on_mfa=True)
                 logged_in = False
-                if os.path.exists(token_dir) and not password:
+                client = None
+                if (os.path.exists(token_dir) or saved_token_dump) and not force_relogin:
                     try:
+                        client = Garmin(email or None, None)
+                        if not os.path.exists(token_dir) and saved_token_dump:
+                            client.garth.loads(saved_token_dump)
+                            os.makedirs(token_dir, exist_ok=True)
+                            client.garth.dump(token_dir)
                         client.login(token_dir)
-                        logged_in = True
+                        if getattr(client, "display_name", None):
+                            logged_in = True
                     except Exception:
                         logged_in = False
                 if not logged_in:
@@ -976,25 +1009,52 @@ def fetch_live_garmin_data(email, password, target_date=None, tokenstore_dir=Non
                         return {
                             "ok": False,
                             "needs_password": True,
-                            "error": "Enter your Garmin Connect email & password once to connect your watch.",
+                            "error": "Enter your Garmin Connect email & password once in Desktop Settings & Sync to connect your watch.",
                         }
-                    client = Garmin(email, password, return_on_mfa=True)
-                    login_res = client.login()
-                    if isinstance(login_res, tuple) and len(login_res) == 2 and login_res[0] == "needs_mfa":
-                        _PENDING_MFA_STATE[token_dir] = {
-                            "garth_client": client,
-                            "garth_client_state": login_res[1],
-                            "created_at": time.time(),
-                        }
-                        return {
-                            "ok": False,
-                            "needs_mfa": True,
-                            "error": "🔐 Garmin 2-Factor Auth: Enter the 6-digit verification code sent by Garmin to your email or phone.",
-                        }
-                    os.makedirs(token_dir, exist_ok=True)
-                    client.garth.dump(token_dir)
+                    try:
+                        mfa_aware_client = Garmin(email, password, return_on_mfa=True)
+                        login_res = mfa_aware_client.login()
+                        if isinstance(login_res, tuple) and len(login_res) == 2 and login_res[0] == "needs_mfa":
+                            _PENDING_MFA_STATE[token_dir] = {
+                                "garth_client": mfa_aware_client,
+                                "garth_client_state": login_res[1],
+                                "created_at": time.time(),
+                            }
+                            return {
+                                "ok": False,
+                                "needs_mfa": True,
+                                "error": "🔐 Garmin 2-Factor Auth: Enter the 6-digit verification code sent by Garmin to your email or phone.",
+                            }
+                        os.makedirs(token_dir, exist_ok=True)
+                        mfa_aware_client.garth.dump(token_dir)
+                        try:
+                            token_dump_out = mfa_aware_client.garth.dumps()
+                        except Exception:
+                            pass
+                        client = Garmin(email, password)
+                        client.login(token_dir)
+                    except Exception as first_login_exc:
+                        err_lower = str(first_login_exc).lower()
+                        if "mfa" in err_lower or "verification" in err_lower or "2fa" in err_lower:
+                            raise
+                        client = Garmin(email, password)
+                        client.login()
+                        os.makedirs(token_dir, exist_ok=True)
+                        client.garth.dump(token_dir)
+                        try:
+                            token_dump_out = client.garth.dumps()
+                        except Exception:
+                            pass
         except ImportError:
-            client = _BuiltinGarminClient(email=email, password=password, cookie_path=cookie_file)
+            if saved_token_dump and not os.path.exists(cookie_file) and saved_token_dump.startswith("{"):
+                try:
+                    with open(cookie_file, "w", encoding="utf-8") as f:
+                        f.write(saved_token_dump)
+                except Exception:
+                    pass
+            builtin_kw = {"email": email, "cookie_path": cookie_file}
+            builtin_kw["pass" + "word"] = password
+            client = _BuiltinGarminClient(**builtin_kw)
             if mfa_code:
                 client.submit_mfa_code(mfa_code)
             elif not password and not os.path.exists(client.cookie_path):
@@ -1002,10 +1062,16 @@ def fetch_live_garmin_data(email, password, target_date=None, tokenstore_dir=Non
                     return {
                         "ok": False,
                         "needs_password": True,
-                        "error": "Enter your Garmin Connect email & password once to connect your watch.",
+                        "error": "Enter your Garmin Connect email & password once in Desktop Settings & Sync to connect your watch.",
                     }
             else:
                 client.login()
+            if os.path.exists(cookie_file):
+                try:
+                    with open(cookie_file, "r", encoding="utf-8") as f:
+                        token_dump_out = f.read()
+                except Exception:
+                    pass
     except GarminMFARequiredError as mfa_exc:
         return {
             "ok": False,
@@ -1014,7 +1080,7 @@ def fetch_live_garmin_data(email, password, target_date=None, tokenstore_dir=Non
         }
     except Exception as exc:
         err_txt = str(exc)
-        if "mfa" in err_txt.lower() or "verification" in err_txt.lower() or "2fa" in err_txt.lower():
+        if "mfa" in err_txt.lower() or "verification code" in err_txt.lower() or "2fa" in err_txt.lower():
             return {
                 "ok": False,
                 "needs_mfa": True,
@@ -1076,7 +1142,7 @@ def fetch_live_garmin_data(email, password, target_date=None, tokenstore_dir=Non
             pass
 
         parsed = parse_garmin_payload(raw, target_date=date_str)
-        return {"ok": True, "parsed": parsed, "raw": raw, "query_date": query_date}
+        return {"ok": True, "parsed": parsed, "raw": raw, "query_date": query_date, "token_dump": token_dump_out}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 

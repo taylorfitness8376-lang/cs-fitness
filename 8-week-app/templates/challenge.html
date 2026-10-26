@@ -97,31 +97,31 @@
         Pulls today's Steps, Sleep, Weight &amp; Workouts from Garmin
       </div>
 
-      <!-- 3. Large-Text Number Inputs -->
+      <!-- 3. Large-Text Number Inputs (Blank until synced or entered) -->
       <div class="grid-2" style="gap:0.65rem;margin-bottom:0.85rem">
         <div class="op-stat-box">
           <label class="op-big-label" for="op-weight">WEIGHT (KG)</label>
-          <input type="number" step="0.1" inputmode="decimal" id="op-weight" class="op-big-input" placeholder="83.5" />
+          <input type="number" step="0.1" inputmode="decimal" id="op-weight" class="op-big-input" placeholder="" />
         </div>
         <div class="op-stat-box">
           <label class="op-big-label" for="op-steps">STEPS</label>
-          <input type="number" step="100" inputmode="numeric" id="op-steps" class="op-big-input" placeholder="10000" />
+          <input type="number" step="100" inputmode="numeric" id="op-steps" class="op-big-input" placeholder="" />
         </div>
         <div class="op-stat-box">
           <label class="op-big-label" for="op-cals">CALORIES (KCAL)</label>
-          <input type="number" step="10" inputmode="numeric" id="op-cals" class="op-big-input" placeholder="2173" />
+          <input type="number" step="10" inputmode="numeric" id="op-cals" class="op-big-input" placeholder="" />
         </div>
         <div class="op-stat-box">
           <label class="op-big-label" for="op-prot">PROTEIN (G)</label>
-          <input type="number" step="1" inputmode="numeric" id="op-prot" class="op-big-input" placeholder="150" />
+          <input type="number" step="1" inputmode="numeric" id="op-prot" class="op-big-input" placeholder="" />
         </div>
         <div class="op-stat-box">
           <label class="op-big-label" for="op-water">WATER (L)</label>
-          <input type="number" step="0.1" inputmode="decimal" id="op-water" class="op-big-input" placeholder="3.66" />
+          <input type="number" step="0.1" inputmode="decimal" id="op-water" class="op-big-input" placeholder="" />
         </div>
         <div class="op-stat-box">
           <label class="op-big-label" for="op-sleep">SLEEP</label>
-          <input type="text" id="op-sleep" class="op-big-input" placeholder="8h 00m" />
+          <input type="text" id="op-sleep" class="op-big-input" placeholder="" />
         </div>
       </div>
 
@@ -268,7 +268,7 @@
       <div class="grid-3" style="margin-bottom:0">
         <div>
           <label class="field-label">Morning Weight (kg)</label>
-          <input type="number" step="0.1" id="in-weight" placeholder="Enter kg (e.g. 84.0)" />
+          <input type="number" step="0.1" id="in-weight" placeholder="" />
         </div>
         <div>
           <label class="field-label">Weigh-In Time</label>
@@ -346,23 +346,23 @@
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:0.55rem;margin-bottom:0.6rem">
         <div>
           <label class="field-label">1. Steps (Garmin)</label>
-          <input type="number" id="in-steps" placeholder="0" />
+          <input type="number" id="in-steps" placeholder="" />
         </div>
         <div>
           <label class="field-label">2. Sleep (Garmin)</label>
-          <input type="text" id="in-sleep" placeholder="e.g. 7h 45m" />
+          <input type="text" id="in-sleep" placeholder="" />
         </div>
         <div>
           <label class="field-label">3. Calories (Add Manually)</label>
-          <input type="number" id="in-calories" placeholder="0" />
+          <input type="number" id="in-calories" placeholder="" />
         </div>
         <div>
           <label class="field-label">4. Protein g (Add Manually)</label>
-          <input type="number" id="in-protein" placeholder="0" />
+          <input type="number" id="in-protein" placeholder="" />
         </div>
         <div>
           <label class="field-label">5. Water L (Add Manually)</label>
-          <input type="number" step="0.1" id="in-water" placeholder="0.0" />
+          <input type="number" step="0.1" id="in-water" placeholder="" />
         </div>
         <div>
           <label class="field-label">6. Training Type</label>
@@ -744,15 +744,15 @@
           </div>
           <div style="grid-column:1 / -1;padding:0.65rem 0.75rem;border-radius:10px;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.35)" id="cfg-garmin-mfa-box">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.35rem">
-              <label class="field-label" for="cfg-garmin-mfa-code" style="color:#38bdf8;margin:0">🔐 Garmin 2-Factor Auth (2FA) Code <span style="font-weight:600;color:var(--muted)">(Only if your Garmin account uses 2FA)</span></label>
-              <span id="cfg-garmin-mfa-badge" class="badge badge-blue" style="font-size:0.66rem">2FA Supported</span>
+              <label class="field-label" for="cfg-garmin-mfa-code" style="color:#38bdf8;margin:0">⌚ Garmin Connect Status &amp; Optional 2FA <span style="font-weight:600;color:var(--muted)">(Works with or without 2FA)</span></label>
+              <span id="cfg-garmin-mfa-badge" class="badge badge-blue" style="font-size:0.66rem">Non-2FA &amp; 2FA Supported</span>
             </div>
             <div id="cfg-garmin-mfa-prompt" style="font-size:0.72rem;color:#cbd5e1;margin-bottom:0.45rem">
-              1️⃣ Enter your Garmin Email &amp; Password above and click <strong>Save &amp; Connect</strong>.<br/>
-              2️⃣ If Garmin sends a 6-digit verification code to your email or phone, enter it below and click <strong>Verify 2FA Code</strong>. Once verified on desktop, mobile 1-tap sync works automatically!
+              • <strong>Standard Garmin (No 2FA):</strong> Enter your Garmin Email &amp; Password above and click <strong>💾 Save &amp; Connect</strong> (leave the 6-digit box blank).<br/>
+              • <strong>Garmin with 2FA enabled:</strong> Click <strong>💾 Save &amp; Connect</strong> first, then enter the 6-digit code Garmin sends you and click <strong>🔐 Verify 2FA Code &amp; Connect</strong>.
             </div>
             <div style="display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap">
-              <input type="text" id="cfg-garmin-mfa-code" inputmode="numeric" maxlength="8" placeholder="6-digit Garmin 2FA code (e.g. 123456)" style="max-width:260px;font-size:1rem;font-weight:800;letter-spacing:0.12em" />
+              <input type="text" id="cfg-garmin-mfa-code" inputmode="numeric" maxlength="8" placeholder="6-digit 2FA code (leave blank if no 2FA)" style="max-width:280px;font-size:0.95rem;font-weight:800;letter-spacing:0.08em" />
               <button type="button" class="btn btn-green btn-sm" onclick="saveIntegrationsConfig(true)">🔐 Verify 2FA Code &amp; Connect</button>
             </div>
           </div>
@@ -786,12 +786,16 @@
             <span style="font-size:0.78rem;font-weight:800;color:#fff">🍎 Apple Health + MyFitnessPal (iOS HealthKit Bridge)</span>
             <span class="badge badge-blue">Full Macros + Steps/Sleep/Workouts</span>
           </div>
-          <div style="font-size:0.71rem;color:var(--muted);line-height:1.45;margin-bottom:0.5rem">
-            <strong>1. In MyFitnessPal (iPhone):</strong> Turn on <em>More → Apps &amp; Devices → Apple Health</em>. Unlike Garmin (which only receives total calories), MFP writes <strong>Calories, Protein (g), Carbs (g), Fat (g), Fibre (g) &amp; Water (mL)</strong> directly into Apple Health.<br/>
-            <strong>2. Push to App:</strong> Send from iPhone via <strong>iOS Shortcut / Health Auto Export</strong> to <code>POST /api/challenge/sync/apple-health</code>, or import an Apple Health JSON/CSV file.
+          <div style="font-size:0.71rem;color:var(--muted);line-height:1.45;margin-bottom:0.45rem">
+            <strong>1. In MyFitnessPal (iPhone):</strong> Turn on <em>More → Apps &amp; Devices → Apple Health</em>. MFP writes <strong>Calories, Protein (g), Carbs (g), Fat (g), Fibre (g) &amp; Water (mL)</strong> directly into Apple Health.<br/>
+            <strong>2. Personal iOS Shortcut URL (Tokenized for your profile):</strong>
+          </div>
+          <div style="margin-bottom:0.5rem">
+            <input type="text" id="cfg-apple-health-url" readonly value="" style="font-size:0.72rem;font-family:monospace;background:var(--surface-3);color:#38bdf8;width:100%" onclick="this.select()" />
           </div>
           <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
-            <button class="btn btn-green btn-sm" onclick="copyAppleHealthShortcutConfig()">📋 Copy iOS Shortcut Endpoint &amp; Fields</button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="testAppleHealthSync()">🧪 Test Apple Health (+ MFP) Sync Now</button>
+            <button type="button" class="btn btn-green btn-sm" onclick="copyAppleHealthShortcutConfig()">📋 Copy My iOS Shortcut URL &amp; JSON</button>
             <label class="btn btn-sm" style="cursor:pointer;margin:0">
               📂 Import Real Apple Health JSON/CSV
               <input type="file" accept=".json,.csv" style="display:none" onchange="importSyncFile(event, 'apple_health')" />
@@ -875,7 +879,7 @@
 </div>
 
 <div class="toast" id="app-toast">Saved!</div>
-<script src="/static/challenge.js?v=12"></script>
-<script src="/static/challenge_progress.js?v=12"></script>
+<script src="/static/challenge.js?v=13"></script>
+<script src="/static/challenge_progress.js?v=13"></script>
 </body>
 </html>

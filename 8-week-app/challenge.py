@@ -190,6 +190,8 @@ def _ensure_user_sync_integrations_table(db):
             garmin_password_set   INTEGER NOT NULL DEFAULT 0,
             garmin_connected      INTEGER NOT NULL DEFAULT 0,
             garmin_last_sync      TEXT NOT NULL DEFAULT '',
+            garmin_token_dump     TEXT NOT NULL DEFAULT '',
+            garmin_password_b64   TEXT NOT NULL DEFAULT '',
             mfp_username          TEXT NOT NULL DEFAULT '',
             nutrition_provider    TEXT NOT NULL DEFAULT 'myfitnesspal',
             nutrition_connected   INTEGER NOT NULL DEFAULT 0,
@@ -201,48 +203,79 @@ def _ensure_user_sync_integrations_table(db):
             webhook_token         TEXT NOT NULL DEFAULT ''
         )"""
     )
+    for col_name, col_def in (
+        ("garmin_token_dump", "TEXT NOT NULL DEFAULT ''"),
+        ("garmin_password_b64", "TEXT NOT NULL DEFAULT ''"),
+    ):
+        try:
+            db.execute(f"ALTER TABLE user_sync_integrations ADD COLUMN {col_name} {col_def}")
+        except Exception:
+            pass
 
 
-def _get_profile_integrations(db, profile_id=1):
+def _encode_secret(plain_str):
+    import base64
+    if not plain_str:
+        return ""
+    return base64.b64encode(str(plain_str).encode("utf-8")).decode("ascii")
+
+
+def _decode_secret(b64_str):
+    import base64
+    if not b64_str:
+        return ""
+    try:
+        return base64.b64decode(str(b64_str).encode("ascii")).decode("utf-8")
+    except Exception:
+        return ""
+
+
+def _get_profile_integrations(db, profile_id=1, include_secrets=False):
     """Return isolated Garmin/Nutrition/Telegram integration settings for a specific profile_id."""
+    import secrets
     _ensure_user_sync_integrations_table(db)
     pid = int(profile_id or 1)
     row = db.execute("SELECT * FROM user_sync_integrations WHERE profile_id=?", (pid,)).fetchone()
-    if row:
-        d = dict(row)
-        d["id"] = pid
-        return d
-    if pid == 1:
-        legacy = db.execute("SELECT * FROM sync_integrations WHERE id=1").fetchone()
-        if legacy:
-            ld = dict(legacy)
-            db.execute(
-                """INSERT OR IGNORE INTO user_sync_integrations (
-                    profile_id, garmin_email, garmin_password_set, garmin_connected, garmin_last_sync,
-                    mfp_username, nutrition_provider, nutrition_connected, nutrition_last_sync,
-                    telegram_bot_token, telegram_chat_id, coach_telegram_handle, coach_whatsapp_phone, webhook_token
-                ) VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (
-                    ld.get("garmin_email", ""), ld.get("garmin_password_set", 0), ld.get("garmin_connected", 0),
-                    ld.get("garmin_last_sync", ""), ld.get("mfp_username", ""), ld.get("nutrition_provider", "myfitnesspal"),
-                    ld.get("nutrition_connected", 0), ld.get("nutrition_last_sync", ""), ld.get("telegram_bot_token", ""),
-                    ld.get("telegram_chat_id", ""), ld.get("coach_telegram_handle", "csfitness_chris"),
-                    ld.get("coach_whatsapp_phone", ""), ld.get("webhook_token", ""),
-                ),
-            )
-            db.commit()
-            return ld
-    db.execute("INSERT OR IGNORE INTO user_sync_integrations (profile_id) VALUES (?)", (pid,))
-    db.commit()
-    row = db.execute("SELECT * FROM user_sync_integrations WHERE profile_id=?", (pid,)).fetchone()
+    if not row:
+        if pid == 1:
+            legacy = db.execute("SELECT * FROM sync_integrations WHERE id=1").fetchone()
+            if legacy:
+                ld = dict(legacy)
+                db.execute(
+                    """INSERT OR IGNORE INTO user_sync_integrations (
+                        profile_id, garmin_email, garmin_password_set, garmin_connected, garmin_last_sync,
+                        mfp_username, nutrition_provider, nutrition_connected, nutrition_last_sync,
+                        telegram_bot_token, telegram_chat_id, coach_telegram_handle, coach_whatsapp_phone, webhook_token
+                    ) VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        ld.get("garmin_email", ""), ld.get("garmin_password_set", 0), ld.get("garmin_connected", 0),
+                        ld.get("garmin_last_sync", ""), ld.get("mfp_username", ""), ld.get("nutrition_provider", "myfitnesspal"),
+                        ld.get("nutrition_connected", 0), ld.get("nutrition_last_sync", ""), ld.get("telegram_bot_token", ""),
+                        ld.get("telegram_chat_id", ""), ld.get("coach_telegram_handle", "csfitness_chris"),
+                        ld.get("coach_whatsapp_phone", ""), ld.get("webhook_token", ""),
+                    ),
+                )
+                db.commit()
+        db.execute("INSERT OR IGNORE INTO user_sync_integrations (profile_id) VALUES (?)", (pid,))
+        db.commit()
+        row = db.execute("SELECT * FROM user_sync_integrations WHERE profile_id=?", (pid,)).fetchone()
+
     d = dict(row)
+    if not d.get("webhook_token"):
+        tok = f"csf-p{pid}-{secrets.token_hex(6)}"
+        db.execute("UPDATE user_sync_integrations SET webhook_token=? WHERE profile_id=?", (tok, pid))
+        db.commit()
+        d["webhook_token"] = tok
     d["id"] = pid
+    if not include_secrets:
+        d.pop("garmin_token_dump", None)
+        d.pop("garmin_password_b64", None)
     return d
 
 
 def _update_profile_integrations(db, profile_id, updates):
     """Update isolated integration settings for profile_id (and keep legacy id=1 in sync for profile 1)."""
-    curr = _get_profile_integrations(db, profile_id)
+    curr = _get_profile_integrations(db, profile_id, include_secrets=True)
     pid = int(profile_id or 1)
     for k, v in (updates or {}).items():
         if k in curr and v is not None:
@@ -250,12 +283,14 @@ def _update_profile_integrations(db, profile_id, updates):
     db.execute(
         """UPDATE user_sync_integrations SET
             garmin_email=?, garmin_password_set=?, garmin_connected=?, garmin_last_sync=?,
+            garmin_token_dump=?, garmin_password_b64=?,
             mfp_username=?, nutrition_provider=?, nutrition_connected=?, nutrition_last_sync=?,
             telegram_bot_token=?, telegram_chat_id=?, coach_telegram_handle=?,
             coach_whatsapp_phone=?, webhook_token=?
            WHERE profile_id=?""",
         (
             curr["garmin_email"], curr["garmin_password_set"], curr["garmin_connected"], curr["garmin_last_sync"],
+            curr.get("garmin_token_dump", ""), curr.get("garmin_password_b64", ""),
             curr["mfp_username"], curr["nutrition_provider"], curr["nutrition_connected"], curr["nutrition_last_sync"],
             curr["telegram_bot_token"], curr["telegram_chat_id"], curr["coach_telegram_handle"],
             curr["coach_whatsapp_phone"], curr["webhook_token"], pid,
@@ -278,6 +313,42 @@ def _update_profile_integrations(db, profile_id, updates):
         )
     db.commit()
     return _get_profile_integrations(db, pid)
+
+
+def _resolve_webhook_or_active_profile(db, data=None):
+    """Resolve challenger profile from ?token=, X-Webhook-Token, payload token/email, or active session."""
+    _ensure_user_sync_integrations_table(db)
+    data = data or {}
+    tok = (
+        request.args.get("token")
+        or request.headers.get("X-Webhook-Token")
+        or data.get("webhook_token")
+        or data.get("token")
+        or ""
+    ).strip()
+    if tok:
+        row = db.execute(
+            "SELECT profile_id FROM user_sync_integrations WHERE webhook_token=?",
+            (tok,),
+        ).fetchone()
+        if row:
+            prof = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (row["profile_id"],)).fetchone()
+            if prof:
+                return dict(prof)
+    email = (data.get("email") or request.args.get("email") or "").strip().lower()
+    if email:
+        try:
+            u_row = db.execute(
+                "SELECT profile_id FROM challenge_user_accounts WHERE lower(email)=?",
+                (email,),
+            ).fetchone()
+            if u_row and u_row["profile_id"]:
+                prof = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (u_row["profile_id"],)).fetchone()
+                if prof:
+                    return dict(prof)
+        except Exception:
+            pass
+    return _get_active_profile(db)
 
 
 def _get_active_profile(db, profile_id=None):
@@ -1139,12 +1210,26 @@ def api_challenge_sync_live():
     profile = _get_active_profile(db)
     pid = int(profile["id"])
     wk_info = _compute_week_and_day(profile["start_date"], date_str)
-    integ = _get_profile_integrations(db, pid)
+    integ = _get_profile_integrations(db, pid, include_secrets=True)
 
     garmin_email = (data.get("garmin_email") or integ.get("garmin_email") or "").strip()
-    garmin_password = data.get("garmin_password") or ""
+    raw_req_password = data.get("garmin_password") or ""
+    saved_password = _decode_secret(integ.get("garmin_password_b64", ""))
+    garmin_password = raw_req_password or saved_password
+    saved_token_dump = integ.get("garmin_token_dump") or ""
     mfa_code = str(data.get("mfa_code") or "").strip()
     mfp_username = (data.get("mfp_username") or integ.get("mfp_username") or "").strip()
+
+    if garmin_email and raw_req_password:
+        _update_profile_integrations(
+            db,
+            pid,
+            {
+                "garmin_email": garmin_email,
+                "garmin_password_set": 1,
+                "garmin_password_b64": _encode_secret(raw_req_password),
+            },
+        )
 
     merged = {}
     messages = []
@@ -1155,13 +1240,21 @@ def api_challenge_sync_live():
 
     # 1. Live Garmin Connect sync (isolated token dir per profile_id)
     token_dir = os.path.expanduser("~/.garminconnect") if pid == 1 else os.path.expanduser(f"~/.garminconnect_p{pid}")
-    if garmin_email or mfa_code or os.path.exists(token_dir) or os.path.exists(f"{token_dir}_session.json"):
+    if (
+        garmin_email
+        or mfa_code
+        or saved_token_dump
+        or os.path.exists(token_dir)
+        or os.path.exists(f"{token_dir}_session.json")
+    ):
         g_res = fetch_live_garmin_data(
             garmin_email,
             garmin_password,
             target_date=date_str,
             tokenstore_dir=token_dir,
             mfa_code=mfa_code,
+            saved_token_dump=saved_token_dump,
+            force_relogin=bool(raw_req_password and not mfa_code),
         )
         if g_res.get("ok"):
             garmin_ok = True
@@ -1169,7 +1262,12 @@ def api_challenge_sync_live():
             for act in g_res["parsed"].get("parsed_activities", []):
                 _save_daily_activity(db, act, pid)
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-            _update_profile_integrations(db, pid, {"garmin_last_sync": now_str, "garmin_connected": 1})
+            integ_upd = {"garmin_last_sync": now_str, "garmin_connected": 1}
+            if garmin_email:
+                integ_upd["garmin_email"] = garmin_email
+            if g_res.get("token_dump"):
+                integ_upd["garmin_token_dump"] = g_res["token_dump"]
+            _update_profile_integrations(db, pid, integ_upd)
             messages.append(f"Garmin Connect synced ({merged.get('steps', 0):,} steps)")
         else:
             needs_mfa = bool(g_res.get("needs_mfa"))
@@ -1273,14 +1371,14 @@ def api_challenge_sync_webhook():
     from sync_service import parse_apple_health_payload
     db = get_db()
     data = request.get_json() or {}
-    profile = _get_active_profile(db)
+    profile = _resolve_webhook_or_active_profile(db, data)
     pid = int(profile["id"])
     date_str = (data.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
     merged = parse_apple_health_payload(data, target_date=date_str)
     for act in merged.get("parsed_activities", []):
         _save_daily_activity(db, act, pid)
     saved = _upsert_checkin(db, date_str, merged, pid)
-    return jsonify({"ok": True, "date": date_str, "checkin": saved})
+    return jsonify({"ok": True, "date": date_str, "checkin": saved, "profile_id": pid})
 
 
 @challenge_bp.route("/api/challenge/integrations", methods=["GET", "PUT"])
@@ -1302,6 +1400,7 @@ def api_challenge_integrations():
     if data.get("garmin_password"):
         updates["garmin_password_set"] = 1
         updates["garmin_connected"] = 1
+        updates["garmin_password_b64"] = _encode_secret(data.get("garmin_password"))
     return jsonify(_update_profile_integrations(db, pid, updates))
 
 

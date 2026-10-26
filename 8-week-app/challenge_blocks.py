@@ -109,6 +109,8 @@ def ensure_blocks_and_auth_tables(db):
     for col_sql in (
         "ALTER TABLE challenge_user_accounts ADD COLUMN invite_token TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE challenge_user_accounts ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'email'",
+        "ALTER TABLE challenge_user_accounts ADD COLUMN reset_code TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE challenge_user_accounts ADD COLUMN reset_expires_at TEXT NOT NULL DEFAULT ''",
     ):
         try:
             db.execute(col_sql)
@@ -454,6 +456,237 @@ def api_challenge_set_password():
     )
     db.commit()
     return jsonify({"ok": True, "profile_id": pid, "message": "Email & password updated!"})
+
+
+@challenge_blocks_bp.route("/api/challenge/auth/forgot-password", methods=["POST"])
+def api_challenge_forgot_password():
+    """Generate a 6-digit password reset code (and send via Email/Telegram when configured)."""
+    import os
+    import smtplib
+    from email.message import EmailMessage
+
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    data = request.get_json() or {}
+    ident = (data.get("email") or data.get("username") or "").strip().lower()
+    if not ident:
+        return jsonify({"ok": False, "error": "Please enter your email address or full name."}), 400
+
+    acct = db.execute(
+        """SELECT a.*, p.client_name FROM challenge_user_accounts a
+           JOIN challenge_profiles p ON p.id = a.profile_id
+           WHERE LOWER(a.email)=? OR LOWER(a.username)=? OR LOWER(p.client_name)=?""",
+        (ident, ident, ident),
+    ).fetchone()
+    if not acct:
+        return jsonify({
+            "ok": False,
+            "error": "No account found with that email or name. Please check your spelling or join using your Block Invite Code.",
+        }), 404
+
+    reset_code = f"{secrets.randbelow(900000) + 100000}"
+    expires_at = (datetime.utcnow() + timedelta(minutes=30)).strftime("%Y-%m-%d %H:%M:%S")
+    db.execute(
+        """UPDATE challenge_user_accounts
+           SET reset_code=?, reset_expires_at=?, updated_at=CURRENT_TIMESTAMP
+           WHERE profile_id=?""",
+        (reset_code, expires_at, acct["profile_id"]),
+    )
+    db.commit()
+
+    delivery = []
+    smtp_host = (os.environ.get("SMTP_HOST") or "").strip()
+    if smtp_host and acct["email"] and "@" in acct["email"]:
+        try:
+            msg = EmailMessage()
+            msg["Subject"] = f"CS Fitness 8-Week Challenge — Password Reset Code ({reset_code})"
+            msg["From"] = os.environ.get("SMTP_FROM") or os.environ.get("SMTP_USER") or "noreply@cs.fitness"
+            msg["To"] = acct["email"]
+            msg.set_content(
+                f"Hi {acct['client_name']},\n\n"
+                f"Your CS Fitness 8-Week Challenge password reset code is: {reset_code}\n"
+                f"(Valid for 30 minutes.)\n\n"
+                f"You can also reset your password anytime on the Sign-In page using your 8-Week Block Invite Code.\n"
+            )
+            smtp_port = int(os.environ.get("SMTP_PORT") or 587)
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=8) as server:
+                server.starttls()
+                if os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASS"):
+                    server.login(os.environ["SMTP_USER"], os.environ["SMTP_PASS"])
+                server.send_message(msg)
+            delivery.append("email")
+        except Exception:
+            pass
+
+    try:
+        intg = db.execute(
+            "SELECT telegram_bot_token, telegram_chat_id FROM sync_integrations WHERE profile_id=?",
+            (acct["profile_id"],),
+        ).fetchone()
+        tg_token = (intg["telegram_bot_token"] if intg and intg["telegram_bot_token"] else os.environ.get("TELEGRAM_BOT_TOKEN", "")).strip()
+        tg_chat = (intg["telegram_chat_id"] if intg and intg["telegram_chat_id"] else "").strip()
+        if tg_token and tg_chat:
+            import urllib.request
+            payload_bytes = json.dumps({
+                "chat_id": tg_chat,
+                "text": f"🔐 *CS Fitness Password Reset*\nHi {acct['client_name']}, your 6-digit password reset code is: `{reset_code}` (valid 30 mins).",
+                "parse_mode": "Markdown",
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                f"https://api.telegram.org/bot{tg_token}/sendMessage",
+                data=payload_bytes,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=5)
+            delivery.append("telegram")
+    except Exception:
+        pass
+
+    if delivery:
+        msg_str = f"6-digit reset code sent via {', '.join(delivery)}! Enter it below (or enter your Block Invite Code, e.g. CS-OCT2026) to set a new password."
+    else:
+        msg_str = "Reset request created! Enter your Cohort Block Invite Code (e.g. CS-OCT2026) or the 6-digit code from your Coach below to set your new password immediately."
+
+    return jsonify({
+        "ok": True,
+        "email": acct["email"],
+        "client_name": acct["client_name"],
+        "delivery": delivery,
+        "message": msg_str,
+    })
+
+
+@challenge_blocks_bp.route("/api/challenge/auth/reset-password", methods=["POST"])
+def api_challenge_reset_password():
+    """Reset a forgotten password using a 6-digit reset code, personal invite token, or Cohort Block Invite Code."""
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    data = request.get_json() or {}
+    ident = (data.get("email") or data.get("username") or "").strip().lower()
+    verification = (
+        data.get("verification_code")
+        or data.get("verification")
+        or data.get("reset_code")
+        or data.get("invite_code")
+        or data.get("code")
+        or ""
+    ).strip()
+    new_pw = str(data.get("new_password") or data.get("password") or "").strip()
+
+    if not ident:
+        return jsonify({"ok": False, "error": "Please enter your email address or full name."}), 400
+    if len(new_pw) < 4:
+        return jsonify({"ok": False, "error": "New password must be at least 4 characters."}), 400
+    if not verification:
+        return jsonify({
+            "ok": False,
+            "error": "Please enter your Block Invite Code (e.g. CS-OCT2026) or 6-digit Reset Code to verify.",
+        }), 400
+
+    acct = db.execute(
+        """SELECT a.*, p.client_name FROM challenge_user_accounts a
+           JOIN challenge_profiles p ON p.id = a.profile_id
+           WHERE LOWER(a.email)=? OR LOWER(a.username)=? OR LOWER(p.client_name)=?""",
+        (ident, ident, ident),
+    ).fetchone()
+    if not acct:
+        return jsonify({"ok": False, "error": "Account not found. Check your email or full name."}), 404
+
+    verified = False
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    saved_code = (acct["reset_code"] or "").strip() if "reset_code" in acct.keys() else ""
+    saved_exp = (acct["reset_expires_at"] or "").strip() if "reset_expires_at" in acct.keys() else ""
+
+    # 1. Check 6-digit reset_code
+    if saved_code and verification == saved_code and (not saved_exp or saved_exp >= now_str):
+        verified = True
+
+    # 2. Check personal invite_token
+    if not verified and acct["invite_token"] and verification == acct["invite_token"]:
+        verified = True
+
+    # 3. Check Cohort Block Invite Code (e.g. CS-OCT2026)
+    if not verified:
+        matching_block = db.execute(
+            """SELECT b.id FROM challenge_blocks b
+               LEFT JOIN challenge_block_enrollments e ON e.block_id = b.id AND e.profile_id = ?
+               WHERE (UPPER(b.invite_code)=UPPER(?) OR UPPER(b.block_code)=UPPER(?))
+                 AND (e.profile_id IS NOT NULL OR b.status='Active')""",
+            (acct["profile_id"], verification, verification),
+        ).fetchone()
+        if matching_block:
+            # Protect admin accounts unless caller is admin or matched their personal token/reset code or exact email
+            is_admin_acct = (acct["role"] or "").lower() == "admin"
+            if not is_admin_acct or ident == (acct["email"] or "").lower():
+                verified = True
+
+    if not verified:
+        return jsonify({
+            "ok": False,
+            "error": "Invalid verification code. Enter your Block Invite Code (e.g. CS-OCT2026) or a valid 6-digit Reset Code.",
+        }), 401
+
+    pw_hash = bcrypt.hashpw(new_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    db.execute(
+        """UPDATE challenge_user_accounts
+           SET password_hash=?, reset_code='', reset_expires_at='', updated_at=CURRENT_TIMESTAMP
+           WHERE profile_id=?""",
+        (pw_hash, acct["profile_id"]),
+    )
+    db.commit()
+
+    if data.get("auto_sign_in", True):
+        session["challenge_profile_id"] = acct["profile_id"]
+        session["challenge_authed"] = True
+
+    return jsonify({
+        "ok": True,
+        "profile_id": acct["profile_id"],
+        "client_name": acct["client_name"],
+        "email": acct["email"],
+        "role": acct["role"],
+        "message": f"Password reset! Signed in as {acct['client_name']}.",
+    })
+
+
+@challenge_blocks_bp.route("/api/challenge/admin/reset-user-password", methods=["POST"])
+def api_admin_reset_user_password():
+    """Allow Coaches & Admins (Chris, Laura, Ewan) to set or clear any challenger's password in 1 click."""
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    if not _is_current_user_admin(db):
+        return jsonify({"ok": False, "error": "Only Coach & Admin accounts can reset user passwords."}), 403
+
+    data = request.get_json() or {}
+    pid = int(data.get("profile_id") or 0)
+    new_pw = str(data.get("new_password") or "").strip()
+    acct = db.execute(
+        """SELECT a.*, p.client_name FROM challenge_user_accounts a
+           JOIN challenge_profiles p ON p.id = a.profile_id
+           WHERE a.profile_id=?""",
+        (pid,),
+    ).fetchone()
+    if not acct:
+        return jsonify({"ok": False, "error": "Challenger account not found."}), 404
+
+    if new_pw:
+        if len(new_pw) < 4:
+            return jsonify({"ok": False, "error": "Temporary password must be at least 4 characters."}), 400
+        pw_hash = bcrypt.hashpw(new_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        msg = f"Password for {acct['client_name']} set to the new temporary password."
+    else:
+        pw_hash = ""
+        msg = f"Password cleared for {acct['client_name']} — their next login will save whatever password they type."
+
+    db.execute(
+        """UPDATE challenge_user_accounts
+           SET password_hash=?, reset_code='', reset_expires_at='', updated_at=CURRENT_TIMESTAMP
+           WHERE profile_id=?""",
+        (pw_hash, pid),
+    )
+    db.commit()
+    return jsonify({"ok": True, "profile_id": pid, "client_name": acct["client_name"], "message": msg})
 
 
 @challenge_blocks_bp.route("/api/challenge/auth/switch-user", methods=["POST"])

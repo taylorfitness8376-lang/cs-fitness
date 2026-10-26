@@ -8,9 +8,12 @@ import re
 from database import get_db
 from challenge import (
     _get_active_profile,
+    _resolve_webhook_or_active_profile,
     _is_current_user_admin,
     _get_profile_integrations,
     _update_profile_integrations,
+    _encode_secret,
+    _decode_secret,
     _compute_week_and_day,
     _upsert_checkin,
     _save_daily_activity,
@@ -533,16 +536,20 @@ def api_sync_connect_and_save():
     profile = _get_active_profile(db)
     pid = int(profile["id"])
     date_str = (data.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
-    curr = _get_profile_integrations(db, pid)
+    curr = _get_profile_integrations(db, pid, include_secrets=True)
 
     for k in ("garmin_email", "mfp_username", "nutrition_provider", "telegram_bot_token", "telegram_chat_id", "coach_telegram_handle"):
         if k in data and data[k] is not None:
             curr[k] = str(data[k]).strip()
 
-    garmin_pass = data.get("garmin_password") or ""
-    mfa_code = str(data.get("mfa_code") or "").strip()
-    if garmin_pass:
+    raw_req_pass = data.get("garmin_password") or ""
+    if raw_req_pass:
         curr["garmin_password_set"] = 1
+        curr["garmin_password_b64"] = _encode_secret(raw_req_pass)
+    saved_pass = _decode_secret(curr.get("garmin_password_b64", ""))
+    garmin_pass = raw_req_pass or saved_pass
+    saved_token_dump = curr.get("garmin_token_dump") or ""
+    mfa_code = str(data.get("mfa_code") or "").strip()
 
     garmin_status = "Not configured — enter Garmin email & password above."
     mfp_status = "Not configured — enter MyFitnessPal username above."
@@ -550,17 +557,27 @@ def api_sync_connect_and_save():
     needs_mfa = False
     needs_password = False
 
-    if curr["garmin_email"] or mfa_code or os.path.exists(token_dir) or os.path.exists(f"{token_dir}_session.json"):
+    if (
+        curr["garmin_email"]
+        or mfa_code
+        or saved_token_dump
+        or os.path.exists(token_dir)
+        or os.path.exists(f"{token_dir}_session.json")
+    ):
         g_res = fetch_live_garmin_data(
             curr["garmin_email"],
             garmin_pass,
             target_date=date_str,
             tokenstore_dir=token_dir,
             mfa_code=mfa_code,
+            saved_token_dump=saved_token_dump,
+            force_relogin=bool(raw_req_pass and not mfa_code),
         )
         if g_res.get("ok"):
             curr["garmin_connected"] = 1
             curr["garmin_last_sync"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            if g_res.get("token_dump"):
+                curr["garmin_token_dump"] = g_res["token_dump"]
             parsed = g_res["parsed"]
             for act in parsed.get("parsed_activities", []):
                 _save_daily_activity(db, act, pid)
@@ -675,13 +692,30 @@ def api_sync_import_data():
 
 @challenge_progress_bp.route("/api/challenge/sync/apple-health", methods=["POST"])
 def api_sync_apple_health():
-    """Receive Apple Health + MyFitnessPal HealthKit payload from iOS Shortcut or Health Auto Export."""
+    """Receive Apple Health + MyFitnessPal HealthKit payload from iOS Shortcut, Health Auto Export, or test simulator."""
     from sync_service import parse_apple_health_payload
     db = get_db()
-    data = request.get_json() or {}
-    profile = _get_active_profile(db)
+    data = request.get_json(silent=True) or {}
+    profile = _resolve_webhook_or_active_profile(db, data)
     pid = int(profile["id"])
     date_str = (data.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
+    if data.get("simulate"):
+        data = {
+            "date": date_str,
+            "steps": data.get("steps") or 11420,
+            "sleep_hours": data.get("sleep_hours") or 7.8,
+            "weight_kg": data.get("weight_kg") or round(float(profile.get("start_weight_kg") or 83.4), 1),
+            " resting_hr": 56,
+            "calories": data.get("calories") or int(profile.get("target_calories") or 2173),
+            "protein_g": data.get("protein_g") or int(profile.get("target_protein_g") or 150),
+            "carbs_g": 215,
+            "fats_g": 68,
+            "water_l": data.get("water_l") or round(float(profile.get("target_water_l") or 3.66), 2),
+            "workouts": data.get("workouts") or [
+                {"type": "TraditionalStrengthTraining", "name": "Apple Watch Strength Session", "duration_mins": 48, "calories": 340}
+            ],
+            "source": "Apple Health + MFP (iOS Shortcut Test)",
+        }
     parsed = parse_apple_health_payload(data, target_date=date_str)
     for act in parsed.get("parsed_activities", []):
         _save_daily_activity(db, act, pid)
@@ -695,8 +729,9 @@ def api_sync_apple_health():
     db.commit()
     return jsonify({
         "ok": True,
-        "source": "Apple Health (+ MFP HealthKit)",
+        "source": data.get("source") or "Apple Health (+ MFP HealthKit)",
         "date": date_str,
+        "profile_id": pid,
         "parsed": parsed,
         "checkin": saved,
     })

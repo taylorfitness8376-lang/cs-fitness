@@ -1206,15 +1206,54 @@ window.triggerAppleHealthSyncModal = function() {
 };
 
 window.copyAppleHealthShortcutConfig = async function() {
-  const endpointUrl = `${window.location.origin}/api/challenge/sync/apple-health`;
-  const info = `POST ${endpointUrl}\nFields from Apple Health / MFP HealthKit: step_count, sleep_hours, weight_kg, dietary_energy (kcal), dietary_protein (g), dietary_carbohydrates (g), total_fat (g), dietary_fiber (g), dietary_water (mL), workouts`;
+  const urlInput = document.getElementById('cfg-apple-health-url');
+  const endpointUrl = (urlInput && urlInput.value) || `${window.location.origin}/api/challenge/sync/apple-health`;
+  const samplePayload = JSON.stringify({
+    date: STATE.date,
+    steps: 11500,
+    sleep_hours: 7.8,
+    weight_kg: 83.2,
+    calories: 2150,
+    protein_g: 152,
+    water_l: 3.7,
+    workouts: [{ type: 'TraditionalStrengthTraining', name: 'Gym Session', duration_mins: 45 }]
+  }, null, 2);
+  const info = `POST ${endpointUrl}\nContent-Type: application/json\n\n${samplePayload}`;
   try { await navigator.clipboard.writeText(info); } catch (e) {}
   const box = document.getElementById('sync-connection-report');
   if (box) {
     box.style.display = 'block';
-    box.innerHTML = `<span style="color:#3DFF4F">📋 Copied endpoint <code>${endpointUrl}</code> &amp; HealthKit field keys for your iOS Shortcut!</span>`;
+    box.innerHTML = `<span style="color:#3DFF4F">📋 Copied your personal iOS Shortcut URL (<code>${endpointUrl}</code>) &amp; JSON template to clipboard!</span>`;
   }
-  showToast('📋 Copied Apple Health + MFP iOS Shortcut endpoint!');
+  showToast('📋 Copied personal Apple Health iOS Shortcut URL & JSON!');
+};
+
+window.testAppleHealthSync = async function() {
+  const box = document.getElementById('sync-connection-report');
+  if (box) {
+    box.style.display = 'block';
+    box.innerHTML = '🍎 Testing Apple Health + MyFitnessPal HealthKit sync workflow...';
+  }
+  const res = await fetch('/api/challenge/sync/apple-health', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ simulate: true, date: STATE.date }),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    await loadOverview(STATE.date);
+    await refreshProgressSummary();
+    const c = data.checkin || {};
+    if (box) {
+      box.style.display = 'block';
+      box.innerHTML = `
+        <div style="color:var(--green);font-weight:800;margin-bottom:4px">🍎 Apple Health + MFP Workflow Verified (${data.date})!</div>
+        <div>• <strong>Steps:</strong> ${(c.steps || 0).toLocaleString()} · <strong>Sleep:</strong> ${c.sleep_str || '7h 48m'} · <strong>Weight:</strong> ${c.weight_kg || '—'} kg</div>
+        <div>• <strong>Nutrition (MFP HealthKit):</strong> ${c.calories || 0} kcal · ${c.protein_g || 0}g Protein · ${c.water_l || 0}L Water · <strong>Training:</strong> ${c.training_type || 'GYM'}</div>
+      `;
+    }
+    showToast(`🍎 Apple Health + MFP test synced for ${data.date}!`);
+  }
 };
 
 const DAILY_MOMENT_SLOTS = [
@@ -1356,7 +1395,7 @@ function renderOnePagerViews() {
   }
   const wkBadgeEl = document.getElementById('op-week-badge');
   if (wkBadgeEl) {
-    wkBadgeEl.textContent = `${wkInfo.phase_label || '8-Week Challenge'} · Step Target: ${(wkInfo.step_target || 10000).toLocaleString()}`;
+    wkBadgeEl.textContent = wkInfo.phase_label || '8-Week Challenge';
   }
   const adminBtn = document.getElementById('op-admin-btn');
   if (adminBtn) {
@@ -1390,13 +1429,19 @@ function renderOnePagerViews() {
     }
   }
 
-  const setVal = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = v ?? ''; };
-  setVal('op-weight', c.weight_kg ?? '');
-  setVal('op-steps', c.steps || '');
-  setVal('op-cals', c.calories || '');
-  setVal('op-prot', c.protein_g || '');
-  setVal('op-water', c.water_l || '');
-  setVal('op-sleep', c.sleep_str || (c.sleep_mins ? `${Math.floor(c.sleep_mins / 60)}h ${c.sleep_mins % 60}m` : ''));
+  const setVal = (id, v) => {
+    const el = document.getElementById(id);
+    if (el && document.activeElement !== el) {
+      el.value = v ?? '';
+      el.placeholder = '';
+    }
+  };
+  setVal('op-weight', c.weight_kg != null && Number(c.weight_kg) > 0 ? c.weight_kg : '');
+  setVal('op-steps', c.steps && Number(c.steps) > 0 ? c.steps : '');
+  setVal('op-cals', c.calories && Number(c.calories) > 0 ? c.calories : '');
+  setVal('op-prot', c.protein_g && Number(c.protein_g) > 0 ? c.protein_g : '');
+  setVal('op-water', c.water_l && Number(c.water_l) > 0 ? c.water_l : '');
+  setVal('op-sleep', c.sleep_mins && Number(c.sleep_mins) > 0 ? (c.sleep_str || `${Math.floor(c.sleep_mins / 60)}h ${c.sleep_mins % 60}m`) : (c.sleep_str || ''));
   window.selectOnePagerTraining(c.training_type || 'REST');
   setVal('op-notes', c.notes || c.class_attended || '');
 

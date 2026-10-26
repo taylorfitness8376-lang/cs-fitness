@@ -6,58 +6,58 @@
 
 ---
 
-## PART 1: Challenger Guide (For Everyone on the 8-Week Challenge)
+## PART 1: Challenger Guide (3 Simple Steps)
 
-### 1. First-Time Sign-In & Adding to Your Phone Home Screen
-1. Open **`https://cs-fitness.onrender.com/challenge`** on your phone (Safari on iPhone or Chrome on Android).
-2. **Add to Home Screen:** Tap the Share icon in Safari (or browser menu in Chrome) → **Add to Home Screen** so it opens like a native app in 1 tap.
-3. Tap **🔑 Sign In / Switch User** in the top bar:
-   - **Already added by Coach?** Enter your email address and choose a password (your first sign-in sets your password).
-   - **Joining with a Block Invite Code?** Switch to the **🎟️ Join Block** tab, enter the invite code from Chris (e.g., `CS-OCT2026`), and enter your starting weight & body fat %. The app automatically calculates your personal **Calories, Protein, Carbs, Fats, Water (L), and Weekly Step Minimums**.
-
----
-
-### 2. Daily Routine — Tab 1: `1. Morning Check-In` (Takes 60 Seconds)
-- **Step 1 — Morning Weigh-In (Fasted):**
-  - Weigh yourself first thing in the morning after using the toilet.
-  - Enter your weight (`kg`) and tap **💾 Save Weight**.
-  - The app automatically calculates your **7-Day Rolling Average** so normal daily water fluctuations don't cause stress.
-- **Step 2 — Verify Garmin + Log Nutrition:**
-  - Tap **⌚ Sync Garmin** to pull your **Steps, Sleep, Resting HR, Body Battery, and Garmin Runs/Workouts** automatically.
-  - Enter your daily **Calories, Protein (g), and Water (L)** from MyFitnessPal / Yazio and tap **💾 Save Day**.
-  - *Tip:* Tap **◀ Verify Yesterday** anytime in the morning to finalize yesterday's completed numbers.
-- **Workouts & Deleting Mistaken Entries:**
-  - Log a CS Fitness class, Strength workout, or Garmin run under **Today's Workouts**.
-  - **Need to delete a workout?** If a workout was added by mistake or double-synced from Garmin, click the red **🗑️ Delete** button next to that workout. It removes the workout, prevents Garmin from re-importing that deleted activity, and updates your daily training status (`GYM`, `CARDIO`, `GYM & CARDIO`, or `REST`).
-- **Step 3 — Daily Scoreboard PNG (Optional):**
-  - Tap **🖼️ Download Story PNG** to save a shareable summary card of your day for WhatsApp or Instagram.
+### 1. Set Up & Initial Work on Desktop App (Do Once at the Start)
+1. **Sign In or Join Your 8-Week Block:**
+   - Open **`https://cs-fitness.onrender.com/challenge/login`** on your laptop or desktop browser.
+   - **New Challengers:** Click **🎟️ Join with Block Invite**, enter your Block Invite Code from Coach Chris (e.g., `CS-OCT2026`), your name, email, password, starting weight (`kg`), target weight, and body fat %. The app automatically calculates your personal **Calories, Protein, Carbs, Fats, Water (L), and Weekly Step Minimums**.
+   - **Existing Challengers:** Sign in with your email address and password.
+   - **Forgot Password?** Click **Forgot password?** on the sign-in screen (or the **🔑 Forgot / Set Password** tab) to reset your password using your Cohort Block Invite Code (`CS-OCT2026`) or a 6-digit Reset Code.
+2. **Link Garmin Connect (Non-2FA & 2FA Supported) or Apple Health on Desktop:**
+   - Click **⚙️ Settings** in the top bar to open **Settings & Sync**.
+   - **Garmin Users WITHOUT 2FA:** Enter your **Garmin Connect Email & Password** and click **💾 Save & Connect** (leave the 6-digit 2FA box blank — you do **not** need to enable 2FA).
+   - **Garmin Users WITH 2FA:** Click **💾 Save & Connect** first, then enter the 6-digit verification code sent by Garmin in the **🔐 Garmin 2-Factor Auth (2FA) Code** box and click **🔐 Verify 2FA Code & Connect**.
+   - **Apple Watch / Apple Health Users:** In **Settings & Sync → 🍎 Apple Health + MyFitnessPal**, click **🧪 Test Apple Health (+ MFP) Sync Now** to test the workflow in 1 click, or click **📋 Copy My iOS Shortcut URL & JSON** to copy your personal tokenized webhook URL (`/api/challenge/sync/apple-health?token=...`) for an iPhone Shortcut.
+   - Once connected on Desktop, your session is saved in the database — on your phone, you only ever need to tap **⌚ Sync with Garmin**!
+3. **Day 1 Monday — Starting Weight & 3 Starting Photos:**
+   - On the very first **Monday (Day 1)** of the block, open **📊 Weekly Check-In** on Desktop (selected on `Start Check-In · Day 1 Mon`), log your fasted starting weight, and upload your **3 Starting Photos** (`Side`, `Front`, `Back`).
 
 ---
 
-### 3. Logging Strength Sessions — Tab 2: `2. Workouts`
-- Select **Workout 1, 2, 3, or 4** and your current **Week (1–8)**.
-- Enter your weights and reps for each exercise (e.g., `60kg x8, 8`) and tap **Save**.
-- Your previous weeks' numbers (`W1`, `W2`, etc.) appear right beside each exercise so you can progressively overload every week.
-- Every saved set automatically rolls up into Today's Workouts and marks your day as `GYM`. Tap **🗑️** next to any exercise row to clear a logged set.
+### 2. Mobile Daily (Capturing Your Day-to-Day on Your Phone — Takes 30 Seconds)
+1. **Open on Your Phone (Add to Home Screen):**
+   - Open **`https://cs-fitness.onrender.com/challenge`** on your phone (in Safari tap **Share → Add to Home Screen**; in Chrome tap **Menu → Add to Home Screen**).
+   - When you sign on, the screen is cleared of everything else and opens straight into your **Daily Update** screen (you can also use **📱 Daily Update** on the desktop web app).
+2. **Tap `⌚ Sync with Garmin`:**
+   - Tap the big blue **⌚ Sync with Garmin** button at the top to pull today's **Steps, Sleep, Weight, and Garmin Workouts** automatically.
+3. **Update Your Daily Numbers (Large Text):**
+   - Check or type your daily numbers in the large-text boxes:
+     - **Weight (kg)** · **Steps**
+     - **Calories (kcal)** · **Protein (g)** (from MyFitnessPal / Yazio)
+     - **Water (L)** · **Sleep** (e.g., `8h 00m`)
+4. **Select Training (`GYM`, `CARDIO`, `BOTH`, or `REST`) + Quick Note:**
+   - No need to log every individual exercise at the gym — just tap **🏋️ GYM**, **🏃 CARDIO**, **🔥 BOTH**, or **🛋️ REST**.
+   - In the **Workout / Training Note** box underneath, write a quick note if you trained (e.g., `3 x 5k at 5 min miles`).
+5. **Tap Submit (`"Monday saved"` + Auto-Collated Weekly Round-Up):**
+   - Tap the big green **✅ Submit Monday** button (dynamically matches the day of the week).
+   - You'll get a confirmation message back saying **`✅ Monday saved`**, and your stats automatically collate into your **📊 Weekly Round-Up** card at the bottom of the screen!
 
 ---
 
-### 4. Check-In & Photo Schedule — Tab 3: `3. Weekly Check-In`
-> **📅 IMPORTANT CHECK-IN & PHOTO SCHEDULE:**
-> - **Day 1 MONDAY (Start Check-In):** Log your **Starting Weight**, body measurements, and upload your **3 Starting Photos** (`Side`, `Front`, `Back`).
-> - **Week 1 FRIDAY Check-In (NO Photos):** Log your Friday morning weight and submit your Week 1 review write-up. **No photos are required on the first Friday** because you submitted your starting photos on Monday of the same week!
-> - **Weeks 2–8 EVERY FRIDAY (+ 3 Photos):** Every Friday morning from Week 2 to Week 8:
->   1. Log your fasted **Friday morning weight**.
->   2. Upload your **3 Friday Progress Photos** (`Side`, `Front`, `Back` — or tap **✂️ Split 3-Pose Collage** to automatically split a 3-pose collage into Side, Front, and Back).
->   3. Add your weekly reflection note and tap **✅ Submit Weekly Check-In to Coach (In-App)**.
-
-- **Viewing Coach Feedback:** When Chris or Laura reviews your check-in, their feedback and any updated calorie/protein targets appear right inside Tab 3.
-
----
-
-### 5. Connecting Garmin — Tab 4: `4. Settings & Sync`
-- Enter your **Garmin Connect email & password** and tap **💾 Save & Connect Accounts**.
-- Prefer a stripped-back mobile view? Use the top-right toggle to switch between **📱 Daily 1-Pager**, **📅 Weekly 1-Pager**, and **🖥️ Full App**.
+### 3. Weekly Check-In on Desktop (Every Friday — Photos & Commentary)
+1. **Open `📊 Weekly Check-In` on Desktop:**
+   - Every **Friday**, open the app on your laptop/desktop and click **📊 Weekly Check-In**.
+   - All of your daily entries from the week are already **auto-collated** into your Weekly Round-Up (Average Weight & % Loss, Average Steps, Average Calories, Average Protein, and your 7-day Mon–Sun table).
+2. **Check-In & Photo Schedule:**
+   - **Day 1 MONDAY (Start Check-In):** Upload your **3 Starting Photos** (`Side`, `Front`, `Back`) and starting weight.
+   - **Week 1 FRIDAY Check-In (🚫 NO Photos Required):** Submit your Week 1 Friday weight and weekly commentary — **no photos are required on the first Friday** because you uploaded starting photos on Monday of the same week!
+   - **Weeks 2–8 EVERY FRIDAY (+ 3 Photos):** Upload your **3 Friday Progress Photos** (`Side`, `Front`, `Back` — or click **✂️ Auto-Split 3-Pose Collage** to slice a single 3-pose image automatically).
+3. **Add Your Weekly Commentary & Submit:**
+   - Write how your week went in the **Your Weekly Write-Up / Reflection for Chris** box (wins, how training felt, schedule notes, or questions).
+   - Click **✅ Submit Weekly Check-In to Coach (In-App)**.
+4. **Coach Feedback:**
+   - When Chris or Laura reviews your Friday check-in, their feedback and any updated Calorie/Protein targets appear right inside your **Weekly Check-In** view!
 
 ---
 

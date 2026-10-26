@@ -617,7 +617,7 @@ def test_simplified_daily_mobile_and_garmin_2fa(client, monkeypatch):
     # 3. Verify Garmin 2FA challenge propagation via /api/challenge/sync/connect
     import challenge_progress
 
-    def fake_fetch_garmin(email, pw, target_date=None, tokenstore_dir=None, mfa_code=None):
+    def fake_fetch_garmin(email, pw, target_date=None, tokenstore_dir=None, mfa_code=None, **kwargs):
         if not mfa_code:
             return {
                 "ok": False,
@@ -654,6 +654,144 @@ def test_simplified_daily_mobile_and_garmin_2fa(client, monkeypatch):
     assert r_verified["ok"] is True
     assert r_verified["needs_mfa"] is False
     assert "11,800 steps" in r_verified["garmin_status"]
+
+
+def test_blank_fields_forgot_password_garmin_non2fa_and_apple_health(client, monkeypatch, tmp_path):
+    """Verify blank daily inputs, forgot password flow, Garmin non-2FA + 2FA login, and Apple Health workflow."""
+    # 1. Daily fields in /challenge have blank placeholders (no target numbers pre-populated)
+    ch_html = client.get("/challenge").get_data(as_text=True)
+    assert 'id="op-steps" class="op-big-input" placeholder=""' in ch_html
+    assert 'id="op-cals" class="op-big-input" placeholder=""' in ch_html
+    assert 'id="op-prot" class="op-big-input" placeholder=""' in ch_html
+    assert 'id="op-water" class="op-big-input" placeholder=""' in ch_html
+
+    # 2. Forgot password & reset password flow (via Cohort Invite Code & via 6-digit reset_code)
+    join_res = client.post("/api/challenge/blocks/join", json={
+        "invite_code": "CS-OCT2026",
+        "client_name": "Sarah",
+        "email": "sarah@example.com",
+        "password": "oldpassword123",
+    }).get_json()
+    assert join_res["ok"] is True
+
+    fp_res = client.post("/api/challenge/auth/forgot-password", json={
+        "email": "sarah@example.com",
+    }).get_json()
+    assert fp_res["ok"] is True
+
+    # Reset using cohort block invite code CS-OCT2026
+    rst_res = client.post("/api/challenge/auth/reset-password", json={
+        "email": "sarah@example.com",
+        "verification": "CS-OCT2026",
+        "new_password": "newpassword456",
+    }).get_json()
+    assert rst_res["ok"] is True
+
+    # Login with old password fails; login with new password succeeds
+    bad_login = client.post("/api/challenge/auth/login", json={
+        "email": "sarah@example.com",
+        "password": "oldpassword123",
+    })
+    assert bad_login.status_code == 401
+    good_login = client.post("/api/challenge/auth/login", json={
+        "email": "sarah@example.com",
+        "password": "newpassword456",
+    }).get_json()
+    assert good_login["ok"] is True
+
+    # 3. Apple Health workflow: tokenized webhook URL & 1-click simulate test
+    integ_res = client.get("/api/challenge/integrations").get_json()
+    webhook_token = integ_res["webhook_token"]
+    assert webhook_token.startswith("csf-p")
+
+    # Simulate Apple Health + MFP HealthKit sync
+    ah_sim = client.post("/api/challenge/sync/apple-health", json={
+        "simulate": True,
+        "date": "2026-10-20",
+    }).get_json()
+    assert ah_sim["ok"] is True
+    assert ah_sim["checkin"]["steps"] == 11420
+    assert ah_sim["checkin"]["protein_g"] > 0
+
+    # Unauthenticated iOS Shortcut call using ?token=<webhook_token> updates Sarah's profile
+    with client.session_transaction() as sess:
+        sess.clear()
+        sess["challenge_force_unauthed"] = True
+    ah_tok = client.post(
+        f"/api/challenge/sync/apple-health?token={webhook_token}",
+        json={
+            "date": "2026-10-21",
+            "steps": 13850,
+            "sleep_hours": 8.2,
+            "weight_kg": 71.4,
+            "calories": 1950,
+            "protein_g": 148,
+            "water_l": 3.5,
+        },
+    ).get_json()
+    assert ah_tok["ok"] is True
+    assert ah_tok["profile_id"] == join_res["profile_id"]
+    assert ah_tok["checkin"]["steps"] == 13850
+    assert ah_tok["checkin"]["calories"] == 1950
+
+    # 4. Garmin non-2FA login works even when return_on_mfa=True is used
+    import sys
+    import types
+    from sync_service import fetch_live_garmin_data
+
+    class FakeGarth:
+        profile = {"displayName": "ewan_garmin", "fullName": "Ewan Taylor"}
+        def dump(self, path):
+            import os
+            os.makedirs(path, exist_ok=True)
+            with open(os.path.join(path, "oauth1_token.json"), "w") as f:
+                f.write("{}")
+        def dumps(self):
+            return '{"oauth1":"ok"}'
+        def loads(self, s):
+            pass
+
+    class FakeGarmin:
+        def __init__(self, email=None, pw=None, return_on_mfa=False):
+            self.email = email
+            self.pw = pw
+            self.return_on_mfa = return_on_mfa
+            self.display_name = None
+            self.garth = FakeGarth()
+        def login(self, tokenstore=None):
+            if tokenstore:
+                self.display_name = "ewan_garmin"
+                return True
+            if self.return_on_mfa:
+                # Simulate garminconnect returning early without setting self.display_name
+                return ("oauth1_tok", "oauth2_tok")
+            self.display_name = "ewan_garmin"
+            return True
+        def get_stats(self, d):
+            assert self.display_name == "ewan_garmin", "display_name must be initialized!"
+            return {"totalSteps": 12345, "restingHeartRate": 54, "bodyBatteryMostRecentValue": 82}
+        def get_sleep_data(self, d):
+            return {"dailySleepDTO": {"sleepTimeSeconds": 28800, "sleepScores": {"overall": {"value": 86}}}}
+        def get_body_composition(self, d):
+            return {"totalAverage": {"weight": 83200}}
+        def get_activities_by_date(self, s, e):
+            return []
+
+    fake_mod = types.ModuleType("garminconnect")
+    fake_mod.Garmin = FakeGarmin
+    monkeypatch.setitem(sys.modules, "garminconnect", fake_mod)
+
+    g_res = fetch_live_garmin_data(
+        "taylor.ewan@gmail.com",
+        "mygarminpass",
+        target_date="2026-10-20",
+        tokenstore_dir=str(tmp_path / "garmin_tok"),
+        force_relogin=True,
+    )
+    assert g_res["ok"] is True
+    assert g_res["parsed"]["steps"] == 12345
+    assert g_res["parsed"]["weight_kg"] == 83.2
+    assert g_res["token_dump"] == '{"oauth1":"ok"}'
 
 
 

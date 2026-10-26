@@ -1193,10 +1193,31 @@ function renderAdminsAndUsersDirectory() {
       <td>${c.target_protein_g}g P / ${c.target_fats_g}g F / ${c.target_carbs_g}g C</td>
       <td>${c.target_water_l}L</td>
       <td>
-        <button class="btn btn-green btn-sm" onclick="inspectSubmission(${c.id}, ${ADMIN_STATE.selectedWeek})">📊 Inspect Data &amp; Photos</button>
+        <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
+          <button class="btn btn-green btn-sm" onclick="inspectSubmission(${c.id}, ${ADMIN_STATE.selectedWeek})">📊 Inspect</button>
+          <button class="btn btn-sm" onclick="adminResetChallengerPassword(${c.id}, '${(c.client_name || '').replace(/'/g, "\\'")}')" title="Reset or clear challenger password">🔑 Reset PW</button>
+        </div>
       </td>
     </tr>
   `).join('');
+}
+
+async function adminResetChallengerPassword(profileId, clientName) {
+  const newPw = window.prompt(
+    `Reset password for ${clientName}:\n• Type a new temporary password (4+ chars), OR\n• Leave blank and press OK to clear their password so their next sign-in sets a new password:`,
+    ''
+  );
+  if (newPw === null) return;
+  const res = await fetch('/api/challenge/admin/reset-user-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile_id: profileId, new_password: newPw.trim() }),
+  }).then(r => r.json());
+  if (res.ok) {
+    showAdminToast(`✅ ${res.message}`);
+  } else {
+    showAdminToast(`⚠️ ${res.error || 'Could not reset password'}`);
+  }
 }
 
 async function saveAdminAccountRow(profileId) {
