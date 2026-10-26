@@ -927,7 +927,7 @@ def api_challenge_admin_challenger_detail():
             acts = [
                 dict(a)
                 for a in db.execute(
-                    "SELECT title, category, duration_mins, distance_km, calories FROM daily_activities WHERE profile_id=? AND date=?",
+                    "SELECT id, source, title, category, duration_mins, distance_km, calories FROM daily_activities WHERE profile_id=? AND date=?",
                     (profile["id"], row["date"]),
                 ).fetchall()
             ]
@@ -1076,6 +1076,9 @@ def api_challenge_admin_cohort_summary():
             "avg_protein_g": int(round(float(agg["avg_p"] or 0))) if agg else 0,
             "avg_water_l": round(float(agg["avg_wat"] or 0.0), 2) if agg else 0.0,
             "photos_count": int(photos_map.get(pid, 0)),
+            "photos_required": (week_num != 1),
+            "checkin_day": "Monday (Day 1 Start)" if week_num == 0 else "Friday",
+            "checkin_date": start_dt.strftime("%Y-%m-%d") if week_num == 0 else (wk_start + timedelta(days=4)).strftime("%Y-%m-%d"),
             "submission_status": status,
             "challenger_comments": sub.get("challenger_comments") or "",
             "coach_feedback": sub.get("coach_feedback") or "",

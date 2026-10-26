@@ -303,8 +303,8 @@ function renderDailyActivities(activities, checkin) {
       if (a.calories) stats.push(`🔥 ${a.calories} kcal`);
       if (a.elevation_m) stats.push(`⛰️ +${a.elevation_m}m`);
       if (a.steps) stats.push(`👟 ${Number(a.steps).toLocaleString()} steps`);
-      return `<div class="habit-item done" style="cursor:default;margin-bottom:0.35rem">
-        <div>
+      return `<div class="habit-item done" style="cursor:default;margin-bottom:0.35rem;display:flex;justify-content:space-between;align-items:center;gap:0.65rem">
+        <div style="flex:1">
           <div style="font-size:0.8rem;font-weight:700;color:#fff">
             <span class="badge ${a.category === "GYM" ? "badge-green" : "badge-blue"}">${a.category}</span>
             <span class="badge" style="margin-left:0.25rem">${a.source}</span>
@@ -312,10 +312,32 @@ function renderDailyActivities(activities, checkin) {
           </div>
           <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem">${stats.join(" · ")}${a.notes ? " — " + a.notes : ""}</div>
         </div>
+        <button class="btn btn-sm" style="background:rgba(248,113,113,0.14);color:#f87171;border:1px solid rgba(248,113,113,0.4);padding:0.25rem 0.55rem;font-size:0.72rem;flex-shrink:0" onclick="deleteDailyActivity(${a.id})" title="Delete this workout / Garmin activity">🗑️ Delete</button>
       </div>`;
     })
     .join("");
 }
+
+async function deleteDailyActivity(activityId) {
+  if (!activityId) return;
+  const res = await fetch(`/api/challenge/activities/${encodeURIComponent(activityId)}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+  });
+  const out = await res.json();
+  if (!res.ok || !out.ok) {
+    showToast(`⚠️ Could not delete workout: ${out.error || "Unknown error"}`);
+    return;
+  }
+  await loadOverview(STATE.date);
+  if (typeof window.loadProgressSummary === "function") {
+    await window.loadProgressSummary();
+  }
+  const sel = document.getElementById("ci-week-select");
+  if (sel) await loadWeekSheet(sel.value || "0");
+  showToast(`🗑️ Deleted "${out.deleted.title}" (${out.training_type || "REST"})`);
+}
+window.deleteDailyActivity = deleteDailyActivity;
 
 async function postCheckinUpdate(payload, toastMsg) {
   payload.date = STATE.date;
@@ -576,9 +598,10 @@ function renderActiveWorkout() {
         <button class="btn btn-sm" onclick="startRestTimer(${row.rest})">⏱️ ${row.rest}s</button>
       </td>
       <td>
-        <div style="display:flex;gap:0.35rem;min-width:190px">
+        <div style="display:flex;gap:0.35rem;min-width:215px">
           <input type="text" id="wlog-${row.row_key}" value="${currVal}" placeholder="${row.example || "e.g. 60kg x8"}" />
           <button class="btn btn-green btn-sm" onclick="saveWorkoutRow('${row.row_key}', '${row.order}', '${row.exercise.replace(/'/g, "")}', ${row.sets}, '${row.reps}')">Save</button>
+          ${currVal ? `<button class="btn btn-sm" style="background:rgba(248,113,113,0.14);color:#f87171;border:1px solid rgba(248,113,113,0.4);padding:0.25rem 0.45rem" onclick="clearWorkoutRow('${row.row_key}', '${row.order}', '${row.exercise.replace(/'/g, "")}', ${row.sets}, '${row.reps}')" title="Delete / clear logged set">🗑️</button>` : ""}
         </div>
       </td>
       <td style="white-space:normal;min-width:180px">${histBadges || '<span style="color:var(--muted);font-size:0.72rem">No sets logged yet</span>'}</td>
@@ -613,8 +636,15 @@ async function saveWorkoutRow(rowKey, order, exercise, sets, reps) {
   });
   await loadWorkouts();
   await loadOverview(STATE.date);
-  showToast(`🏋️ Logged ${exercise} (${weight_reps}) & marked GYM!`);
+  showToast(weight_reps ? `🏋️ Logged ${exercise} (${weight_reps}) & marked GYM!` : `🗑️ Cleared ${exercise}`);
 }
+
+async function clearWorkoutRow(rowKey, order, exercise, sets, reps) {
+  const input = document.getElementById(`wlog-${rowKey}`);
+  if (input) input.value = "";
+  await saveWorkoutRow(rowKey, order, exercise, sets, reps);
+}
+window.clearWorkoutRow = clearWorkoutRow;
 
 async function markTodayWorkoutComplete() {
   const numSel = document.getElementById("wo-num-select");
@@ -652,6 +682,23 @@ function renderWeekSheetData(sheet) {
   const weekNum = sheet.week_num;
   const avg = sheet.averages || {};
 
+  const schedBanner = document.getElementById("ci-checkin-schedule-banner");
+  if (schedBanner) {
+    if (Number(weekNum) === 1) {
+      schedBanner.style.background = "rgba(56,189,248,0.10)";
+      schedBanner.style.borderColor = "rgba(56,189,248,0.4)";
+      schedBanner.innerHTML = `📅 <strong>Week 1 Friday Check-In (${sheet.checkin_date || ""}):</strong> Log your Friday weigh-in &amp; submit your weekly review. <strong>🚫 No photos required this Friday</strong> (starting photos were sent on Day 1 Monday).`;
+    } else if (Number(weekNum) === 0) {
+      schedBanner.style.background = "rgba(61,255,79,0.09)";
+      schedBanner.style.borderColor = "rgba(61,255,79,0.35)";
+      schedBanner.innerHTML = `📸 <strong>Start Check-In · Day 1 Monday (${sheet.checkin_date || ""}):</strong> Submit your <strong>Starting Weight, Measurements &amp; 3 Starting Photos</strong> (Front · Side · Back) on Monday Day 1.`;
+    } else {
+      schedBanner.style.background = "rgba(61,255,79,0.09)";
+      schedBanner.style.borderColor = "rgba(61,255,79,0.35)";
+      schedBanner.innerHTML = `📸 <strong>Week ${weekNum} Friday Check-In (${sheet.checkin_date || ""}):</strong> Log your Friday weigh-in, weekly review &amp; <strong>3 Friday Progress Photos</strong> (Front · Side · Back).`;
+    }
+  }
+
   document.getElementById("ci-avg-cals").textContent = `${Math.round(avg.avg_calories || 0).toLocaleString()} kcal`;
   document.getElementById("ci-avg-prot").textContent = `Avg Protein: ${Math.round(avg.avg_protein_g || 0)}g / 150g`;
   document.getElementById("ci-avg-steps").textContent = Math.round(avg.avg_steps || 0).toLocaleString();
@@ -666,6 +713,8 @@ function renderWeekSheetData(sheet) {
     const isActive = r.date === STATE.date;
     if (isActive) {
       tr.style.background = "rgba(61, 255, 79, 0.08)";
+    } else if (r.is_friday_checkin || r.is_start_checkin_day) {
+      tr.style.background = "rgba(56, 189, 248, 0.05)";
     }
     const todayIso = getTodayIsoDate();
     const yestIso = getOffsetIsoDate(todayIso, -1);
@@ -675,6 +724,14 @@ function renderWeekSheetData(sheet) {
         : r.date === yestIso
         ? ' <span class="badge badge-blue">YESTERDAY</span>'
         : "";
+    let checkinBadge = "";
+    if (r.is_start_checkin_day) {
+      checkinBadge = ' <span class="badge badge-green" style="font-size:0.62rem">📸 START CHECK-IN (MON)</span>';
+    } else if (r.is_friday_checkin && Number(weekNum) === 1) {
+      checkinBadge = ' <span class="badge badge-blue" style="font-size:0.62rem">📅 FRI CHECK-IN (NO PHOTOS)</span>';
+    } else if (r.is_friday_checkin && Number(weekNum) >= 2) {
+      checkinBadge = ' <span class="badge badge-green" style="font-size:0.62rem">📸 FRI CHECK-IN (+3 PHOTOS)</span>';
+    }
     const stepClass = r.steps > 0 ? (r.step_green ? "cell-green" : "cell-red") : "";
     const protClass = r.protein_g > 0 ? (r.protein_green ? "cell-green" : "cell-red") : "";
     const calClass = r.calories > 0 ? (r.calories_green ? "cell-green" : "cell-red") : "";
@@ -682,7 +739,7 @@ function renderWeekSheetData(sheet) {
 
     tr.innerHTML = `
       <td>
-        <a href="#today" onclick="jumpToDate('${r.date}');return false;" style="color:var(--green);text-decoration:none;font-weight:700">${r.date}</a>${dayTag}
+        <a href="#today" onclick="jumpToDate('${r.date}');return false;" style="color:var(--green);text-decoration:none;font-weight:700">${r.date}</a>${dayTag}${checkinBadge}
       </td>
       <td><strong>${r.day_initial}</strong> (${r.day_short})</td>
       <td><input type="number" step="0.1" id="ci-w-${r.date}" value="${r.weight_kg != null ? r.weight_kg : ""}" placeholder="kg" style="width:68px;padding:0.25rem 0.35rem;font-size:0.76rem" onchange="saveSheetRow('${r.date}')" /></td>

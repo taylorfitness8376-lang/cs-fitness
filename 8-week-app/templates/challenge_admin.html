@@ -74,6 +74,7 @@
     </div>
     <div class="header-actions">
       <span class="badge badge-green" id="admin-signed-in-pill">🛡️ Admin View</span>
+      <a href="/challenge/guide" class="btn btn-sm" style="text-decoration:none" title="Open Quick Start Guide">📖 Guide</a>
       <a href="/challenge" class="btn btn-green btn-sm" style="text-decoration:none">🏋️ Challenger App View</a>
       <a href="/challenge/login" class="btn btn-sm" style="text-decoration:none">🔐 Switch Admin / User</a>
       <a href="/" class="btn btn-sm" style="text-decoration:none">🏠 Hub</a>
@@ -90,17 +91,17 @@
       <span style="font-size:0.75rem;color:#cbd5e1" id="admin-challenger-quick-stats">Loading challenger stats...</span>
     </div>
     <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap">
-      <label style="font-size:0.74rem;color:var(--muted);font-weight:700">Week:</label>
+      <label style="font-size:0.74rem;color:var(--muted);font-weight:700">Check-In Week:</label>
       <select id="admin-week-select" style="width:auto;font-weight:800" onchange="changeAdminWeek(this.value)">
-        <option value="0">Week 0 (Pre-Coaching)</option>
-        <option value="1" selected>Week 1</option>
-        <option value="2">Week 2</option>
-        <option value="3">Week 3</option>
-        <option value="4">Week 4</option>
-        <option value="5">Week 5</option>
-        <option value="6">Week 6</option>
-        <option value="7">Week 7</option>
-        <option value="8">Week 8</option>
+        <option value="0">Start · Day 1 Mon (Start Photos + Wt)</option>
+        <option value="1" selected>Week 1 · Fri Check-In (No Photos)</option>
+        <option value="2">Week 2 · Fri Check-In (+ 3 Photos)</option>
+        <option value="3">Week 3 · Fri Check-In (+ 3 Photos)</option>
+        <option value="4">Week 4 · Fri Check-In (+ 3 Photos)</option>
+        <option value="5">Week 5 · Fri Check-In (+ 3 Photos)</option>
+        <option value="6">Week 6 · Fri Check-In (+ 3 Photos)</option>
+        <option value="7">Week 7 · Fri Check-In (+ 3 Photos)</option>
+        <option value="8">Week 8 · Fri Check-In (Final Photos)</option>
       </select>
       <button class="btn btn-sm" onclick="openChallengerInMainApp()">👁️ Open in Challenger App</button>
     </div>
@@ -303,28 +304,28 @@
         <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
           <label style="font-size:0.74rem;color:var(--muted);font-weight:700">Baseline (Week A):</label>
           <select id="cmp-week-a" style="width:auto;font-weight:800" onchange="renderPhotoComparison()">
-            <option value="0" selected>Week 0 (Pre-Coaching)</option>
-            <option value="1">Week 1</option>
-            <option value="2">Week 2</option>
-            <option value="3">Week 3</option>
-            <option value="4">Week 4</option>
-            <option value="5">Week 5</option>
-            <option value="6">Week 6</option>
-            <option value="7">Week 7</option>
-            <option value="8">Week 8</option>
+            <option value="0" selected>Start · Day 1 Mon (Start Photos)</option>
+            <option value="1">Week 1 · Fri (No Photos)</option>
+            <option value="2">Week 2 · Fri (+ Photos)</option>
+            <option value="3">Week 3 · Fri (+ Photos)</option>
+            <option value="4">Week 4 · Fri (+ Photos)</option>
+            <option value="5">Week 5 · Fri (+ Photos)</option>
+            <option value="6">Week 6 · Fri (+ Photos)</option>
+            <option value="7">Week 7 · Fri (+ Photos)</option>
+            <option value="8">Week 8 · Fri (Final Photos)</option>
           </select>
           <span style="color:var(--green);font-weight:900">VS</span>
           <label style="font-size:0.74rem;color:var(--muted);font-weight:700">Compare (Week B):</label>
           <select id="cmp-week-b" style="width:auto;font-weight:800" onchange="renderPhotoComparison()">
-            <option value="0">Week 0 (Pre-Coaching)</option>
-            <option value="1" selected>Week 1</option>
-            <option value="2">Week 2</option>
-            <option value="3">Week 3</option>
-            <option value="4">Week 4</option>
-            <option value="5">Week 5</option>
-            <option value="6">Week 6</option>
-            <option value="7">Week 7</option>
-            <option value="8">Week 8</option>
+            <option value="0">Start · Day 1 Mon (Start Photos)</option>
+            <option value="1">Week 1 · Fri (No Photos)</option>
+            <option value="2" selected>Week 2 · Fri (+ Photos)</option>
+            <option value="3">Week 3 · Fri (+ Photos)</option>
+            <option value="4">Week 4 · Fri (+ Photos)</option>
+            <option value="5">Week 5 · Fri (+ Photos)</option>
+            <option value="6">Week 6 · Fri (+ Photos)</option>
+            <option value="7">Week 7 · Fri (+ Photos)</option>
+            <option value="8">Week 8 · Fri (Final Photos)</option>
           </select>
         </div>
       </div>
@@ -637,7 +638,11 @@ function setRosterStatusFilter(filterVal) {
 function renderCohortSummaryTable() {
   const k = ADMIN_STATE.rosterKpis || {};
   const wk = ADMIN_STATE.selectedWeek;
-  const wkLabel = wk === 0 ? 'Week 0 (Pre-Coaching)' : `Week ${wk}`;
+  const wkLabel = wk === 0
+    ? 'Start Check-In · Day 1 Monday (Photos + Start Wt)'
+    : wk === 1
+    ? 'Week 1 · Friday Check-In (No Photos Required)'
+    : `Week ${wk} · Friday Check-In (+ 3 Photos)`;
   const titleEl = document.getElementById('roster-card-title');
   if (titleEl) {
     titleEl.textContent = `🏆 Cohort Summary Roster — ${wkLabel} (${k.total_challengers || 0} Challengers · Click Any Row for Details)`;
@@ -727,7 +732,7 @@ function renderCohortSummaryTable() {
       </td>
       <td><strong>${r.avg_calories || 0}</strong> <span style="font-size:0.68rem;color:var(--muted)">/ ${r.target_calories}</span></td>
       <td style="color:var(--green);font-weight:700">${r.avg_protein_g || 0}g <span style="font-size:0.68rem;color:var(--muted)">/ ${r.target_protein_g}g</span></td>
-      <td><span class="badge ${r.photos_count >= 3 ? 'badge-green' : r.photos_count > 0 ? 'badge-blue' : ''}">📸 ${r.photos_count}/3</span></td>
+      <td>${r.photos_required === false && !r.photos_count ? '<span class="badge badge-blue">🚫 No Pic (Wk 1 Fri)</span>' : `<span class="badge ${r.photos_count >= 3 ? 'badge-green' : r.photos_count > 0 ? 'badge-blue' : ''}">📸 ${r.photos_count}/3</span>`}</td>
       <td><span class="badge ${stBadge}">${r.submission_status}</span></td>
       <td onclick="event.stopPropagation()">
         <div style="display:flex;gap:0.3rem;flex-wrap:wrap">
@@ -815,15 +820,17 @@ function renderDirectFeedbackCard() {
   document.getElementById('direct-fb-prot').value = p.target_protein_g || 150;
 
   // Render the 3 photos for the selected week
-  const weekPhotos = (d.photos || []).filter(ph => Number(ph.week_num) === wk);
-  document.getElementById('review-photos-title').textContent = `📸 ${p.client_name} — ${wk === 0 ? 'Pre-Coaching Wk 0' : 'Week ' + wk} Photos (${weekPhotos.length}/3)`;
+  const weekPhotos = (d.photos || []).filter(ph => Number(ph.week_num) === wk || (wk === 0 && Number(ph.week_num) === 1));
+  document.getElementById('review-photos-title').textContent = wk === 1 && !weekPhotos.length
+    ? `📸 ${p.client_name} — Week 1 Friday Check-In (🚫 No Photos Required on Wk 1 Fri)`
+    : `📸 ${p.client_name} — ${wk === 0 ? 'Start Check-In (Day 1 Mon)' : 'Week ' + wk + ' Friday'} Photos (${weekPhotos.length}/3)`;
   document.getElementById('review-week-photos-grid').innerHTML = ['Side', 'Front', 'Back'].map(pose => {
     const rec = weekPhotos.find(x => x.pose === pose);
     return `<div class="pose-img-box">
       <div style="font-size:0.72rem;font-weight:800;color:var(--green);margin-bottom:4px">${pose.toUpperCase()}</div>
       ${rec && rec.photo_data_url
         ? `<img src="${rec.photo_data_url}" onclick="window.open(this.src,'_blank')" title="Click to view full size" />`
-        : `<div style="height:200px;display:flex;align-items:center;justify-content:center;font-size:0.72rem;color:var(--muted)">No ${pose} photo</div>`}
+        : `<div style="height:200px;display:flex;align-items:center;justify-content:center;font-size:0.72rem;color:${wk === 1 ? 'var(--blue)' : 'var(--muted)'};padding:0.4rem">${wk === 1 ? '🚫 No photo needed on Wk 1 Fri (Sent Day 1 Mon)' : 'No ' + pose + ' photo'}</div>`}
     </div>`;
   }).join('');
 }
@@ -940,10 +947,23 @@ function renderWeeklySheetSection() {
 
   const tbody = document.getElementById('admin-week-sheet-tbody');
   tbody.innerHTML = (ws.days || []).map(day => {
-    const acts = (day.activities || []).map(a => `<span class="badge badge-green" style="margin-right:3px">${a.title} (${a.duration_mins || 0}m)</span>`).join('');
-    return `<tr>
+    const acts = (day.activities || []).map(a =>
+      `<span class="badge badge-green" style="margin-right:3px;display:inline-flex;align-items:center;gap:4px">
+        ${a.title} (${a.duration_mins || 0}m)
+        ${a.id ? `<button onclick="deleteAdminActivity(${a.id})" style="background:none;border:none;color:#f87171;cursor:pointer;font-weight:900;padding:0 2px;font-size:0.78rem" title="Delete workout / activity">×</button>` : ''}
+      </span>`
+    ).join('');
+    const isCheckinDay = (d.selected_week === 0 && day.day_short === 'Mon') || (d.selected_week >= 1 && day.day_short === 'Fri');
+    const checkinTag = d.selected_week === 0 && day.day_short === 'Mon'
+      ? ' <span class="badge badge-green" style="font-size:0.6rem">📸 START CHECK-IN</span>'
+      : (d.selected_week === 1 && day.day_short === 'Fri')
+      ? ' <span class="badge badge-blue" style="font-size:0.6rem">📅 FRI CHECK-IN (NO PIC)</span>'
+      : (d.selected_week >= 2 && day.day_short === 'Fri')
+      ? ' <span class="badge badge-green" style="font-size:0.6rem">📸 FRI CHECK-IN (+3 PICS)</span>'
+      : '';
+    return `<tr style="${isCheckinDay ? 'background:rgba(56,189,248,0.06)' : ''}">
       <td><strong>${day.day_short}</strong></td>
-      <td>${day.date}</td>
+      <td>${day.date}${checkinTag}</td>
       <td>${day.weight_kg ? `<strong>${day.weight_kg} kg</strong> <span style="color:var(--muted);font-size:0.66rem">${day.weigh_time || ''}</span>` : '—'}</td>
       <td><span class="badge ${day.training_type !== 'REST' ? 'badge-green' : ''}">${day.training_type || 'REST'}</span></td>
       <td style="color:${(day.steps || 0) >= (ws.target_steps || 10000) ? 'var(--green)' : '#fff'};font-weight:700">${(day.steps || 0).toLocaleString()}</td>
@@ -957,7 +977,7 @@ function renderWeeklySheetSection() {
     </tr>`;
   }).join('');
 
-  const weekPhotos = (d.photos || []).filter(ph => Number(ph.week_num) === d.selected_week);
+  const weekPhotos = (d.photos || []).filter(ph => Number(ph.week_num) === d.selected_week || (d.selected_week === 0 && Number(ph.week_num) === 1));
   document.getElementById('weekly-tab-photos-grid').innerHTML = ['Side', 'Front', 'Back'].map(pose => {
     const rec = weekPhotos.find(x => x.pose === pose);
     return `<div class="pose-img-box">
@@ -965,9 +985,20 @@ function renderWeeklySheetSection() {
       ${rec && rec.photo_data_url
         ? `<img src="${rec.photo_data_url}" style="height:290px" onclick="window.open(this.src,'_blank')" />
            <div style="font-size:0.68rem;color:var(--muted);margin-top:4px">${rec.taken_date || ''} ${rec.weight_kg ? '· ' + rec.weight_kg + ' kg' : ''}</div>`
-        : `<div style="height:240px;display:flex;align-items:center;justify-content:center;font-size:0.75rem;color:var(--muted)">No ${pose} photo uploaded for ${wkLbl}</div>`}
+        : `<div style="height:240px;display:flex;align-items:center;justify-content:center;font-size:0.75rem;color:${d.selected_week === 1 ? 'var(--blue)' : 'var(--muted)'};padding:0.5rem">${d.selected_week === 1 ? '🚫 No photo required on Week 1 Friday (Sent Day 1 Monday)' : `No ${pose} photo uploaded for ${wkLbl}`}</div>`}
     </div>`;
   }).join('');
+}
+
+async function deleteAdminActivity(activityId) {
+  if (!activityId) return;
+  const res = await fetch(`/api/challenge/activities/${encodeURIComponent(activityId)}`, { method: 'DELETE' });
+  const out = await res.json();
+  if (out.ok) {
+    showAdminToast(`🗑️ Deleted workout "${out.deleted.title}" (${out.training_type})`);
+    await loadChallengerDetail(ADMIN_STATE.selectedProfileId, ADMIN_STATE.selectedWeek);
+    await loadCohortSummaryRoster();
+  }
 }
 
 function renderPhotoComparison() {
@@ -997,17 +1028,17 @@ function renderPhotoComparison() {
   `;
 
   document.getElementById('photo-compare-poses-grid').innerHTML = ['Side', 'Front', 'Back'].map(pose => {
-    const pA = photos.find(x => Number(x.week_num) === wkA && x.pose === pose);
+    const pA = photos.find(x => Number(x.week_num) === wkA && x.pose === pose) || (wkA === 0 ? photos.find(x => Number(x.week_num) === 1 && x.pose === pose) : null);
     const pB = photos.find(x => Number(x.week_num) === wkB && x.pose === pose);
     const cell = (rec, w) => rec && rec.photo_data_url
       ? `<div class="pose-img-box">
-          <div style="font-size:0.68rem;font-weight:800;color:#cbd5e1;margin-bottom:3px">${w === 0 ? 'Wk 0 (Pre)' : 'Week ' + w}</div>
+          <div style="font-size:0.68rem;font-weight:800;color:#cbd5e1;margin-bottom:3px">${w === 0 ? 'Start (Mon Day 1)' : 'Week ' + w + ' (Fri)'}</div>
           <img src="${rec.photo_data_url}" onclick="window.open(this.src,'_blank')" title="Click to enlarge" />
           <div style="font-size:0.65rem;color:var(--muted);margin-top:3px">${rec.taken_date || ''} ${rec.weight_kg ? '· ' + rec.weight_kg + 'kg' : ''}</div>
         </div>`
       : `<div class="pose-img-box" style="display:flex;flex-direction:column;justify-content:center;min-height:260px">
-          <div style="font-size:0.68rem;font-weight:800;color:var(--muted)">${w === 0 ? 'Wk 0 (Pre)' : 'Week ' + w}</div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.5rem">No ${pose} photo</div>
+          <div style="font-size:0.68rem;font-weight:800;color:var(--muted)">${w === 0 ? 'Start (Mon Day 1)' : 'Week ' + w + ' (Fri)'}</div>
+          <div style="font-size:0.72rem;color:${w === 1 ? 'var(--blue)' : 'var(--muted)'};margin-top:0.5rem">${w === 1 ? '🚫 No photo needed on Wk 1 Fri' : `No ${pose} photo`}</div>
         </div>`;
     return `<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:11px;padding:0.6rem">
       <div style="font-size:0.8rem;font-weight:900;color:var(--green);text-align:center;margin-bottom:0.45rem">${pose.toUpperCase()} POSE COMPARISON</div>
@@ -1050,7 +1081,7 @@ function renderTrajectoryTable() {
       <td>${w.avg_water_l || 0}L</td>
       <td>${w.avg_sleep_str || '—'}</td>
       <td>${w.gym_sessions || 0}G / ${w.cardio_sessions || 0}C · ${(w.workout_volume_kg || 0).toLocaleString()} kg</td>
-      <td><span class="badge ${w.photos_uploaded >= 3 ? 'badge-green' : ''}">${w.photos_uploaded || 0}/3</span></td>
+      <td>${w.week_num === 1 && !w.photos_uploaded ? '<span class="badge badge-blue">🚫 No Pic (Wk 1 Fri)</span>' : `<span class="badge ${w.photos_uploaded >= 3 ? 'badge-green' : ''}">${w.photos_uploaded || 0}/3</span>`}</td>
       <td>
         <span class="badge ${w.submission_status === 'Reviewed' ? 'badge-green' : w.submission_status === 'Submitted' ? 'badge-blue' : ''}">${w.submission_status}</span>
         <button class="btn btn-sm" style="margin-left:4px;padding:0.15rem 0.45rem;font-size:0.66rem" onclick="inspectSubmission(${p.id}, ${w.week_num})">Open</button>

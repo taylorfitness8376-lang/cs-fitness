@@ -374,6 +374,91 @@ def test_coach_admin_portal_and_three_admins(client):
     assert any(r["client_name"] == "Ewan t" for r in ros["roster"])
 
 
+def test_monday_start_friday_checkin_and_workout_delete(client):
+    # 1. Verify Check-In Schedule:
+    #    - Week 0 = Day 1 Monday Start (photos_required=True)
+    #    - Week 1 = First Friday Check-In (photos_required=False)
+    #    - Week 2..8 = Friday Check-Ins (photos_required=True)
+    wk0 = client.get("/api/challenge/week/0").get_json()
+    assert wk0["checkin_day"] == "Monday (Day 1 Start)"
+    assert wk0["photos_required"] is True
+
+    wk1 = client.get("/api/challenge/week/1").get_json()
+    assert wk1["checkin_day"] == "Friday"
+    assert wk1["checkin_date"] == "2026-10-23"
+    assert wk1["photos_required"] is False
+
+    wk2 = client.get("/api/challenge/week/2").get_json()
+    assert wk2["checkin_day"] == "Friday"
+    assert wk2["checkin_date"] == "2026-10-30"
+    assert wk2["photos_required"] is True
+
+    # 2. Add a manual gym workout and a Garmin-synced run on the same day, then delete both
+    d = "2026-10-22"
+    add_gym = client.post("/api/challenge/activities", json={
+        "date": d,
+        "activity_type": "strength",
+        "category": "GYM",
+        "title": "Men's Club",
+        "duration_mins": 45,
+        "calories": 380,
+    }).get_json()
+    assert add_gym["ok"] is True
+    assert add_gym["checkin"]["training_type"] == "GYM"
+    gym_act_id = add_gym["daily_activities"][0]["id"]
+
+    # Simulate a Garmin-synced run activity
+    garmin_webhook = client.post("/api/challenge/sync/garmin", json={
+        "date": d,
+        "steps": 12400,
+        "activities": [
+            {
+                "activityId": "garmin_run_999",
+                "activityName": "Morning 5k Run",
+                "activityType": "running",
+                "durationInSeconds": 1500,
+                "distanceInMeters": 5000,
+                "ActiveKilocalories": 340,
+            }
+        ],
+    }).get_json()
+    assert garmin_webhook["ok"] is True
+    ov = client.get(f"/api/challenge/overview?date={d}").get_json()
+    assert ov["checkin"]["training_type"] == "GYM & CARDIO"
+    assert len(ov["daily_activities"]) == 2
+    run_act = [a for a in ov["daily_activities"] if a["garmin_activity_id"] == "garmin_run_999"][0]
+
+    # Delete the Garmin-synced run
+    del_run = client.delete(f"/api/challenge/activities/{run_act['id']}").get_json()
+    assert del_run["ok"] is True
+    assert del_run["training_type"] == "GYM"
+    assert len(del_run["daily_activities"]) == 1
+
+    # Re-syncing the same Garmin run should NOT re-import it because it was deleted (tombstoned)
+    client.post("/api/challenge/sync/garmin", json={
+        "date": d,
+        "steps": 12500,
+        "activities": [
+            {
+                "activityId": "garmin_run_999",
+                "activityName": "Morning 5k Run",
+                "activityType": "running",
+                "durationInSeconds": 1500,
+                "distanceInMeters": 5000,
+            }
+        ],
+    })
+    ov_after_resync = client.get(f"/api/challenge/overview?date={d}").get_json()
+    assert len(ov_after_resync["daily_activities"]) == 1
+
+    # Delete the remaining manual gym workout -> training_type resets to REST
+    del_gym = client.delete(f"/api/challenge/activities/{gym_act_id}").get_json()
+    assert del_gym["ok"] is True
+    assert del_gym["training_type"] == "REST"
+    assert len(del_gym["daily_activities"]) == 0
+
+
+
 
 
 

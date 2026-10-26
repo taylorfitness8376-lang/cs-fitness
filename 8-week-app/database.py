@@ -475,9 +475,9 @@ def init_challenge_tables(db):
     # Seed Weekly Rhythm & Life App tasks
     rhythm = [
         ("Sunday", "Sunday Meal Prep (1.5–2 hrs) + Big Food Shop", "Nutrition Prep", "Cook 2 main proteins (chicken breast + 2% turkey mince), portion carbs & veg so Mon–Wed lunches/dinners are grab-and-go.", 0),
-        ("Sunday", "Send Weekly Check-In Sheet + Voice Note to Chris on Telegram", "Coaching", "Complete all 7 days on Check-In Sheet, review weekly averages, and send to Chris via Telegram.", 0),
-        ("Monday", "Fasted Morning Weigh-In & Baseline Progress Photos", "Check-In", "First thing Monday morning after toilet, bright lighting, tripod at waist height (Front, Side, Back).", 0),
+        ("Monday", "Start Check-In (Day 1 Monday): Starting Weight & 3 Baseline Photos", "Check-In", "On Day 1 Monday of the block: log fasted starting weight, measurements & 3 starting photos (Side, Front, Back).", 0),
         ("Wednesday", "Wednesday Mini Food Shop (Fruit, Veg, Yogurt, Lean Meat)", "Nutrition Prep", "Restock fresh berries, Skyr/Kvarg, salad & lean protein so Friday/Saturday fridge isn't empty.", 0),
+        ("Friday", "Friday Weekly Check-In (Wk 1 Fri = No Photos · Wk 2–8 Fri = + 3 Photos)", "Check-In", "Check-ins are every Friday! First Friday of Week 1 is weight & review only (no photos). Weeks 2–8 Fridays include 3 progress photos (Side, Front, Back).", 0),
         ("Friday", "Weekend Social & Football Gameplan", "Lifestyle Balance", "Bank 6,000+ steps before midday, high-protein lunch, pick lighter drink choices or zero-cal mixers, log honestly.", 0),
         ("Sunday", "Sunday H2O + Electrolytes Recovery Protocol", "Recovery", "Even if horizontal on Sunday: 3.66L water + electrolytes, hit 150g protein, and get outside for fresh-air steps.", 0),
     ]

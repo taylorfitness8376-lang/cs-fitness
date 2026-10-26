@@ -367,11 +367,41 @@ def _upsert_checkin(db, date_str, data, profile_id=1):
     return dict(db.execute("SELECT * FROM daily_checkins WHERE date=? AND profile_id=?", (date_str, profile_id)).fetchone())
 
 
+def _ensure_deleted_activities_table(db):
+    db.execute(
+        """CREATE TABLE IF NOT EXISTS deleted_garmin_activities (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id         INTEGER NOT NULL DEFAULT 1,
+            date               TEXT NOT NULL,
+            garmin_activity_id TEXT NOT NULL DEFAULT '',
+            title              TEXT NOT NULL DEFAULT '',
+            created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(profile_id, date, title)
+        )"""
+    )
+
+
 def _save_daily_activity(db, act_dict, profile_id=1):
     """Insert or update a daily workout/class/Garmin run in daily_activities."""
+    _ensure_deleted_activities_table(db)
     norm = parse_garmin_activity_details(act_dict, target_date=act_dict.get("date"))
     date_str = norm["date"]
     gid = norm.get("garmin_activity_id") or ""
+    manual_add = bool(act_dict.get("manual_add"))
+
+    if manual_add:
+        db.execute(
+            "DELETE FROM deleted_garmin_activities WHERE profile_id=? AND date=? AND (title=? OR (garmin_activity_id != '' AND garmin_activity_id=?))",
+            (profile_id, date_str, norm["title"], gid),
+        )
+    else:
+        tombstone = db.execute(
+            "SELECT id FROM deleted_garmin_activities WHERE profile_id=? AND date=? AND (title=? OR (garmin_activity_id != '' AND garmin_activity_id=?))",
+            (profile_id, date_str, norm["title"], gid),
+        ).fetchone()
+        if tombstone:
+            return
+
     existing = db.execute(
         "SELECT id FROM daily_activities WHERE profile_id=? AND date=? AND title=?",
         (profile_id, date_str, norm["title"]),
@@ -478,6 +508,8 @@ def _build_week_sheet(db, profile, week_num):
             }
         r["day_short"] = day_names[i]
         r["day_initial"] = day_initials[i]
+        r["is_friday_checkin"] = (int(week_num) >= 1 and i == 4)
+        r["is_start_checkin_day"] = (d_str == start_str)
         r["step_green"] = (r.get("steps") or 0) >= step_target
         r["protein_green"] = (r.get("protein_g") or 0) >= (profile.get("target_protein_g", 150) - 5)
         r["calories_green"] = 0 < (r.get("calories") or 0) <= (profile.get("target_calories", 2173) + 100)
@@ -492,10 +524,31 @@ def _build_week_sheet(db, profile, week_num):
     ref_weight = weights_list[0] if weights_list else float(profile.get("start_weight_kg", 84.0))
     weight_loss_pct = round((1.0 - (avg_weight / ref_weight)) * 100.0, 2) if (avg_weight > 0 and ref_weight > 0) else 0.0
 
+    wk_int = int(week_num)
+    if wk_int == 0:
+        checkin_day = "Monday (Day 1 Start)"
+        checkin_date = start_str
+        photos_required = True
+        checkin_schedule_note = "Start Check-In on Day 1 Monday: Send 3 Starting Photos (Side, Front, Back) & Starting Weight"
+    elif wk_int == 1:
+        checkin_day = "Friday"
+        checkin_date = (wk_Monday + timedelta(days=4)).strftime("%Y-%m-%d")
+        photos_required = False
+        checkin_schedule_note = "Week 1 Friday Check-In: Send Friday Weight & Weekly Review — NO photos required this Friday (starting photos sent Monday)"
+    else:
+        checkin_day = "Friday"
+        checkin_date = (wk_Monday + timedelta(days=4)).strftime("%Y-%m-%d")
+        photos_required = True
+        checkin_schedule_note = f"Week {wk_int} Friday Check-In: Send 3 Progress Photos (Side, Front, Back), Friday Weight & Weekly Review"
+
     return {
-        "week_num": int(week_num),
+        "week_num": wk_int,
         "start_date": wk_Monday.strftime("%Y-%m-%d"),
         "end_date": (wk_Monday + timedelta(days=6)).strftime("%Y-%m-%d"),
+        "checkin_day": checkin_day,
+        "checkin_date": checkin_date,
+        "photos_required": photos_required,
+        "checkin_schedule_note": checkin_schedule_note,
         "step_target": step_target,
         "target_weight_kg": target_w,
         "rows": rows,
@@ -514,6 +567,11 @@ def _build_week_sheet(db, profile, week_num):
 @challenge_bp.route("/challenge")
 def challenge_page():
     return render_template("challenge.html")
+
+
+@challenge_bp.route("/challenge/guide")
+def challenge_guide_page():
+    return render_template("challenge_guide.html")
 
 
 @challenge_bp.route("/challenge/manifest.json")
@@ -826,7 +884,7 @@ def api_challenge_workout_log():
         (profile["id"], track, workout_num, week_num, row_key, exercise_order, exercise_name, target_sets, target_reps, weight_reps, logged_date),
     )
 
-    if data.get("mark_checkin_gym"):
+    if data.get("mark_checkin_gym") and weight_reps:
         _save_daily_activity(
             db,
             {
@@ -837,9 +895,22 @@ def api_challenge_workout_log():
                 "title": f"{track.title()} Workout {workout_num}",
                 "duration_mins": 50,
                 "notes": f"{exercise_name}: {weight_reps}",
+                "manual_add": True,
             },
+            profile["id"],
         )
-        _sync_checkin_from_activities(db, logged_date)
+        _sync_checkin_from_activities(db, logged_date, profile["id"])
+    elif not weight_reps:
+        rem = db.execute(
+            "SELECT COUNT(*) AS c FROM workout_logs WHERE profile_id=? AND track=? AND workout_num=? AND week_num=? AND weight_reps != ''",
+            (profile["id"], track, workout_num, week_num),
+        ).fetchone()["c"]
+        if rem == 0:
+            db.execute(
+                "DELETE FROM daily_activities WHERE profile_id=? AND date=? AND title=?",
+                (profile["id"], logged_date, f"{track.title()} Workout {workout_num}"),
+            )
+            _sync_checkin_from_activities(db, logged_date, profile["id"])
 
     db.commit()
     return jsonify({"ok": True, "row_key": row_key, "week_num": week_num, "weight_reps": weight_reps})
@@ -855,6 +926,14 @@ def api_challenge_activities():
         return jsonify([dict(r) for r in rows])
     data = request.get_json() or {}
     d = (data.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
+    if data.get("class_id"):
+        for cls in CS_CLASS_TIMETABLE:
+            if cls["id"] == data["class_id"]:
+                data.setdefault("title", cls["name"])
+                data.setdefault("category", cls["training_type"])
+                data.setdefault("source", "CS Timetable")
+                break
+    data["manual_add"] = True
     _save_daily_activity(db, data, pid)
     if data.get("add_steps_to_daily") and data.get("steps"):
         r = db.execute("SELECT steps FROM daily_checkins WHERE profile_id=? AND date=?", (pid, d)).fetchone()
@@ -862,6 +941,52 @@ def api_challenge_activities():
     saved = _sync_checkin_from_activities(db, d, pid)
     acts = [dict(r) for r in db.execute("SELECT * FROM daily_activities WHERE profile_id=? AND date=? ORDER BY start_time, id", (pid, d)).fetchall()]
     return jsonify({"ok": True, "date": d, "daily_activities": acts, "checkin": saved})
+
+
+@challenge_bp.route("/api/challenge/activities/<int:activity_id>", methods=["DELETE"])
+@challenge_bp.route("/api/challenge/activities/delete", methods=["POST", "DELETE"])
+def api_challenge_delete_activity(activity_id=None):
+    """Delete a workout/activity that was added manually, rolled up from Strength Logger, or synced from Garmin/Apple Health."""
+    db = get_db()
+    _ensure_deleted_activities_table(db)
+    data = request.get_json(silent=True) or {}
+    act_id = int(activity_id or data.get("id") or data.get("activity_id") or 0)
+    if not act_id:
+        return jsonify({"ok": False, "error": "activity_id is required"}), 400
+
+    row = db.execute("SELECT * FROM daily_activities WHERE id=?", (act_id,)).fetchone()
+    if not row:
+        return jsonify({"ok": False, "error": "Workout activity not found"}), 404
+
+    act = dict(row)
+    pid = act["profile_id"]
+    d = act["date"]
+    db.execute(
+        """INSERT OR REPLACE INTO deleted_garmin_activities (profile_id, date, garmin_activity_id, title)
+           VALUES (?,?,?,?)""",
+        (pid, d, act.get("garmin_activity_id") or "", act.get("title") or ""),
+    )
+    db.execute("DELETE FROM daily_activities WHERE id=?", (act_id,))
+    db.commit()
+
+    saved = _sync_checkin_from_activities(db, d, pid)
+    acts = [
+        dict(r)
+        for r in db.execute(
+            "SELECT * FROM daily_activities WHERE profile_id=? AND date=? ORDER BY start_time, id",
+            (pid, d),
+        ).fetchall()
+    ]
+    return jsonify({
+        "ok": True,
+        "deleted_id": act_id,
+        "deleted_title": act.get("title"),
+        "deleted": act,
+        "training_type": (saved or {}).get("training_type", "REST"),
+        "date": d,
+        "daily_activities": acts,
+        "checkin": saved,
+    })
 
 
 @challenge_bp.route("/api/challenge/sync/live", methods=["POST"])

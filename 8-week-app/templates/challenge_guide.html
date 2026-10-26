@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CS Fitness — 8-Week Challenge Quick Guide</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/challenge.css" />
+  <style>
+    .guide-wrap { max-width: 920px; margin: 0 auto; padding: 1.25rem; }
+    .guide-hero {
+      background: linear-gradient(135deg, rgba(61,255,79,0.14), rgba(56,189,248,0.08));
+      border: 1px solid rgba(61,255,79,0.45);
+      border-radius: 14px;
+      padding: 1.2rem 1.4rem;
+      margin-bottom: 1.1rem;
+    }
+    .step-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--green);
+      color: #050806;
+      font-weight: 900;
+      font-size: 0.78rem;
+      margin-right: 0.45rem;
+    }
+    .guide-list { list-style: none; padding: 0; margin: 0; }
+    .guide-list li {
+      padding: 0.55rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.84rem;
+      line-height: 1.5;
+      color: #e2e8f0;
+    }
+    .guide-list li:last-child { border-bottom: none; }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #fff; color: #000; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-shell guide-wrap">
+  <header class="top-header no-print" style="margin-bottom:1rem">
+    <div class="brand-row">
+      <img src="/static/logo.jpg" alt="CS Fitness" class="brand-logo" onerror="this.style.display='none'" />
+      <div>
+        <div class="brand-title">CS FITNESS · QUICK START GUIDE</div>
+        <div class="brand-sub">How to Use the 8-Week Challenge App (Challengers &amp; Coaches)</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-sm" onclick="window.print()">🖨️ Print / Save PDF</button>
+      <a href="/challenge/admin" class="btn btn-blue btn-sm" style="text-decoration:none">🛡️ Coach Portal</a>
+      <a href="/challenge" class="btn btn-green btn-sm" style="text-decoration:none">🏋️ Open Challenge App</a>
+    </div>
+  </header>
+
+  <div class="guide-hero">
+    <h1 style="margin:0 0 0.35rem 0;font-size:1.35rem;color:#fff">📲 Welcome to the CS Fitness 8-Week Challenge App</h1>
+    <p style="margin:0;font-size:0.86rem;color:#cbd5e1;line-height:1.5">
+      Your all-in-one daily tracker for <strong>Morning Weight, Steps, Macros, Water, Sleep, Strength Workouts, and Weekly Progress Photos</strong>.
+      Save the app to your phone's Home Screen (`Add to Home Screen` in Safari/Chrome) for 1-tap daily access.
+    </p>
+    <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-top:0.75rem;font-size:0.78rem">
+      <span class="badge badge-green">🌐 App URL: cs-fitness.onrender.com/challenge</span>
+      <span class="badge badge-blue">🛡️ Coach Portal: cs-fitness.onrender.com/challenge/admin</span>
+    </div>
+  </div>
+
+  <!-- 1. SIGNING IN & JOINING YOUR BLOCK -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><span class="step-badge">1</span>Getting Started &amp; Signing In</span>
+      <span class="badge badge-green">First Time Setup</span>
+    </div>
+    <ul class="guide-list">
+      <li><strong>Open the App:</strong> Visit <a href="/challenge" style="color:var(--green)">/challenge</a> and tap <strong>🔑 Sign In / Switch User</strong> in the top bar.</li>
+      <li><strong>Sign In with Your Email:</strong> Enter your email address and password. On your very first sign-in, the password you type will be saved as your account password.</li>
+      <li><strong>Joining an 8-Week Block (New Challengers):</strong> Switch to the <strong>🎟️ Join Block (Invite Code)</strong> tab in the Sign-In modal, enter the Block Invite Code from Coach Chris (e.g. <code>CS-OCT2026</code>), and enter your starting weight &amp; body fat % — the app automatically calculates your daily <strong>Calories, Protein, Carbs, Fats, Water, and Weekly Step Minimums</strong>.</li>
+    </ul>
+  </div>
+
+  <!-- 2. DAILY ROUTINE (MORNING CHECK-IN) -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><span class="step-badge">2</span>Daily Routine — Tab 1: Morning Check-In (Takes 60 Seconds)</span>
+      <span class="badge badge-green">Every Morning</span>
+    </div>
+    <ul class="guide-list">
+      <li><strong>⚖️ Step 1 — Morning Weigh-In (Fasted):</strong> Weigh yourself first thing in the morning after using the toilet. Enter your weight in kg and tap <strong>💾 Save Weight</strong>. The app tracks your <strong>7-Day Rolling Average</strong> so normal daily water fluctuations never cause panic.</li>
+      <li><strong>⌚ Step 2 — Sync Garmin / Apple Health + Log Nutrition:</strong>
+        <br>• Tap <strong>⌚ Sync Garmin</strong> (or use the Apple Health iOS Shortcut) to pull your <strong>Steps, Sleep, Resting HR, Body Battery, and Garmin Runs/Workouts</strong> automatically.
+        <br>• Enter your daily <strong>Calories, Protein (g), and Water (L)</strong> from MyFitnessPal / Yazio and tap <strong>💾 Save Day</strong>.
+        <br>• Use the <strong>◀ Verify Yesterday</strong> button anytime to finalize yesterday's full-day totals.
+      </li>
+      <li><strong>🏋️ Today's Workouts &amp; Deleting Mistaken Workouts:</strong> Log a CS Fitness class, Strength session, or Garmin run. Need to remove a duplicate or accidental workout synced from Garmin? Just tap the red <strong>🗑️ Delete</strong> button next to any workout — it removes it and updates your day's training status (`GYM`, `CARDIO`, or `REST`) automatically.</li>
+      <li><strong>📸 Step 3 — Daily Scoreboard PNG:</strong> Tap <strong>🖼️ Download Story PNG</strong> to save a clean summary card of your day for WhatsApp/Instagram.</li>
+    </ul>
+  </div>
+
+  <!-- 3. LOGGING WORKOUTS -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><span class="step-badge">3</span>Strength Workouts — Tab 2: Workouts 1–4</span>
+      <span class="badge badge-blue">3x Strength + 2–3x Cardio/Wk</span>
+    </div>
+    <ul class="guide-list">
+      <li><strong>Select Your Workout (1–4) &amp; Week (1–8):</strong> Choose Men's or Ladies' Workouts 1–4.</li>
+      <li><strong>Log Your Working Sets:</strong> Enter your weight &amp; reps (e.g. <code>60kg x8, 8</code>) and tap <strong>Save</strong>. Your previous weeks' badges (`W1`, `W2`, etc.) stay visible right beside each exercise so you can beat your numbers every week.</li>
+      <li><strong>Automatic Roll-Up &amp; Clear (`🗑️`):</strong> Saving sets automatically marks your day as <code>GYM</code> and calculates total weekly volume. Tap <strong>🗑️</strong> next to any exercise row to clear a set.</li>
+    </ul>
+  </div>
+
+  <!-- 4. CHECK-IN & PHOTO SCHEDULE (MONDAY START + FRIDAY WEEKLY CHECK-INS) -->
+  <div class="card" style="border-color:rgba(61,255,79,0.5)">
+    <div class="card-header">
+      <span class="card-title"><span class="step-badge">4</span>Check-In &amp; Photo Schedule — Tab 3: Weekly Check-In</span>
+      <span class="badge badge-green">Important Schedule</span>
+    </div>
+    <ul class="guide-list">
+      <li><strong>📸 Start Check-In — Day 1 MONDAY:</strong> On the very first Monday of the block, log your <strong>Starting Weight, Body Measurements, and upload your 3 Starting Photos</strong> (<code>Side</code>, <code>Front</code>, <code>Back</code>).</li>
+      <li><strong>🚫 Week 1 FRIDAY Check-In (NO Photos Required):</strong> Your first weekly check-in is on <strong>Friday of Week 1</strong>. Log your Friday weight and submit your Weekly Check-In write-up to Coach Chris &amp; Laura — <strong>no photos are needed on the first Friday</strong> since you just took starting photos on Monday!</li>
+      <li><strong>📸 Weeks 2 to 8 — Every FRIDAY Check-In (+ 3 Photos):</strong> Every Friday from Week 2 through Week 8:
+        <br>1. Weigh in fasted on Friday morning.
+        <br>2. Upload your <strong>3 Friday Progress Photos</strong> (<code>Side</code>, <code>Front</code>, <code>Back</code> — or use <strong>✂️ Split 3-Pose Collage</strong> to slice a single 3-photo collage automatically).
+        <br>3. Write a quick note on how your week went and tap <strong>✅ Submit Weekly Check-In to Coach (In-App)</strong>.
+      </li>
+      <li><strong>💬 Coach Feedback:</strong> Once Chris or Laura reviews your Friday check-in, their feedback and any macro adjustments appear directly inside Tab 3 of your app!</li>
+    </ul>
+  </div>
+
+  <!-- 5. SETTINGS, GARMIN LINK & BACKUP -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><span class="step-badge">5</span>Connecting Garmin &amp; Backing Up Data — Tab 4: Settings &amp; Sync</span>
+      <span class="badge">One-Time Setup</span>
+    </div>
+    <ul class="guide-list">
+      <li><strong>⌚ Connect Garmin Connect:</strong> Open <strong>Tab 4 (Settings &amp; Sync)</strong>, enter your Garmin email &amp; password, and tap <strong>💾 Save &amp; Connect Accounts</strong>.</li>
+      <li><strong>📱 Quick Mode Switcher (Top Right):</strong> Prefer an ultra-simple mobile screen? Tap <strong>📱 Daily 1-Pager</strong> or <strong>📅 Weekly 1-Pager</strong> in the top header.</li>
+    </ul>
+  </div>
+
+  <!-- 6. FOR COACHES (CHRIS, LAURA & EWAN) -->
+  <div class="card" style="border-color:rgba(56,189,248,0.45)">
+    <div class="card-header">
+      <span class="card-title">🛡️ Quick Guide for Coaches &amp; Admins (Chris · Laura · Ewan)</span>
+      <span class="badge badge-blue">Coach Portal (/challenge/admin)</span>
+    </div>
+    <ul class="guide-list">
+      <li><strong>Accessing the Coach Portal:</strong> Sign in with your Admin email (Chris, Laura, or Ewan) or visit <a href="/challenge/admin" style="color:var(--blue)">/challenge/admin</a>.</li>
+      <li><strong>1. Cohort Summary Roster (~100+ Challengers):</strong> See everyone in one scannable table with clickable KPI filters (<em>All Challengers, Needs Coach Review, Reviewed, Has Weekly Photos, Low Logging &lt;3d</em>). Click any challenger row to drill straight into their week.</li>
+      <li><strong>2. Review &amp; Feedback:</strong> Read the challenger's Friday write-up, inspect their weekly averages &amp; 3 photos, type your coach feedback, adjust Calories/Protein if needed, and click <strong>💬 Publish Feedback to App</strong>.</li>
+      <li><strong>3. Side-by-Side Photo Comparison:</strong> Compare <strong>Start (Day 1 Monday)</strong> vs any <strong>Friday (Weeks 2–8)</strong> across all 3 poses (`Side`, `Front`, `Back`) with automatic scale weight delta.</li>
+      <li><strong>4. Manage Blocks &amp; Users:</strong> Create sequential 8-week cohort blocks, onboard new challengers, or roll returning members into the next block (automatically sets their step minimum to 14,000/day).</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

@@ -34,6 +34,7 @@
         ⌚ Sync Garmin
       </button>
       <div class="score-pill" id="hdr-score">Win the Day: --/100</div>
+      <a href="/challenge/guide" class="btn btn-sm" style="text-decoration:none" title="Open Quick Start Guide">📖 Guide</a>
       <a href="/challenge/admin" class="btn btn-green btn-sm" id="hdr-admin-btn" style="text-decoration:none;display:none" title="Open Coach &amp; Admin Portal (Chris · Laura · Ewan)">🛡️ Coach Admin</a>
       <a href="/challenge/login" class="btn btn-sm" id="hdr-auth-btn" style="text-decoration:none" title="Sign in or manage account">🔐 Sign In</a>
       <a href="/" class="btn btn-sm" style="text-decoration:none">🏠 Home</a>
@@ -92,9 +93,9 @@
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.65rem">
         <span class="card-title" style="font-size:1.1rem">📅 Weekly Summary &amp; Photos</span>
         <select id="op-week-select" style="width:auto;font-weight:700" onchange="changeOnePagerWeek(this.value)">
-          <option value="0">Pre-Coaching</option><option value="1" selected>Week 1</option><option value="2">Week 2</option>
-          <option value="3">Week 3</option><option value="4">Week 4</option><option value="5">Week 5</option>
-          <option value="6">Week 6</option><option value="7">Week 7</option><option value="8">Week 8</option>
+          <option value="0">Start · Day 1 Mon (Photos + Wt)</option><option value="1" selected>Week 1 · Fri (No Photos)</option><option value="2">Week 2 · Fri (+ Photos)</option>
+          <option value="3">Week 3 · Fri (+ Photos)</option><option value="4">Week 4 · Fri (+ Photos)</option><option value="5">Week 5 · Fri (+ Photos)</option>
+          <option value="6">Week 6 · Fri (+ Photos)</option><option value="7">Week 7 · Fri (+ Photos)</option><option value="8">Week 8 · Fri (Final Photos)</option>
         </select>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.4rem;text-align:center;margin-bottom:0.7rem">
@@ -166,7 +167,7 @@
           <span class="badge badge-green" style="margin-left:0.4rem">Fasted · First Thing After Toilet</span>
         </div>
         <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
-          <button class="btn btn-sm" onclick="switchTab('checkin');setTimeout(()=>document.getElementById('three-photo-slots')?.scrollIntoView({behavior:'smooth'}),100)">📸 Start-of-Week 3 Photos (Front · Side · Back)</button>
+          <button class="btn btn-sm" onclick="switchTab('checkin');setTimeout(()=>document.getElementById('three-photo-slots')?.scrollIntoView({behavior:'smooth'}),100)">📸 Check-In Photos (Day 1 Mon Start &amp; Fridays Wk 2–8)</button>
           <button class="btn btn-green btn-sm" onclick="saveTodayCheckin()">💾 Save Weight</button>
         </div>
       </div>
@@ -489,16 +490,16 @@
       <div class="card-header" style="flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
           <span class="card-title">📊 WEEKLY CHECK-IN SHEET &amp; ROLL-UP</span>
-          <select id="ci-week-select" style="width:185px" onchange="loadWeekSheet(this.value)">
-            <option value="0" selected>Pre-Coaching (w/c 12 Oct)</option>
-            <option value="1">WEEK 1 (w/c 19 Oct)</option>
-            <option value="2">WEEK 2 (w/c 26 Oct)</option>
-            <option value="3">WEEK 3 (w/c 02 Nov)</option>
-            <option value="4">WEEK 4 (w/c 09 Nov)</option>
-            <option value="5">WEEK 5 (w/c 16 Nov)</option>
-            <option value="6">WEEK 6 (w/c 23 Nov)</option>
-            <option value="7">WEEK 7 (w/c 30 Nov)</option>
-            <option value="8">WEEK 8 (w/c 07 Dec)</option>
+          <select id="ci-week-select" style="width:270px" onchange="loadWeekSheet(this.value)">
+            <option value="0" selected>Start Check-In · Day 1 Mon (19 Oct · Photos + Start Wt)</option>
+            <option value="1">WEEK 1 · Fri Check-In (23 Oct · No Photos)</option>
+            <option value="2">WEEK 2 · Fri Check-In (30 Oct · + 3 Photos)</option>
+            <option value="3">WEEK 3 · Fri Check-In (06 Nov · + 3 Photos)</option>
+            <option value="4">WEEK 4 · Fri Check-In (13 Nov · + 3 Photos)</option>
+            <option value="5">WEEK 5 · Fri Check-In (20 Nov · + 3 Photos)</option>
+            <option value="6">WEEK 6 · Fri Check-In (27 Nov · + 3 Photos)</option>
+            <option value="7">WEEK 7 · Fri Check-In (04 Dec · + 3 Photos)</option>
+            <option value="8">WEEK 8 · Fri Check-In (11 Dec · Final Photos)</option>
           </select>
         </div>
         <div style="display:flex;gap:0.45rem;flex-wrap:wrap">
@@ -506,6 +507,10 @@
           <button class="btn btn-sm" onclick="sendWeeklyTelegram()" title="Temporary bridge while Chris uses Telegram">✈️ Also Send / Copy for Telegram</button>
           <a id="tg-direct-link" href="#" target="_blank" class="btn btn-blue btn-sm" style="text-decoration:none;display:none">Open Telegram</a>
         </div>
+      </div>
+
+      <div id="ci-checkin-schedule-banner" style="margin-bottom:0.75rem;padding:0.55rem 0.75rem;border-radius:9px;background:rgba(61,255,79,0.09);border:1px solid rgba(61,255,79,0.35);font-size:0.76rem;color:#e2e8f0">
+        📅 <strong>Check-In Schedule:</strong> Start Check-In is on <strong>Day 1 Monday</strong> (Starting Photos + Starting Weight). Weekly Check-Ins are every <strong>Friday</strong> — <strong>Week 1 Friday has NO photos</strong> (sent Monday), then <strong>3 Progress Photos every Friday from Week 2–8</strong>.
       </div>
 
       <!-- Weekly Averages Box -->

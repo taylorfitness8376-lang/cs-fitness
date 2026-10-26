@@ -156,9 +156,13 @@ def compute_week_over_week(db, profile):
 
         weeks.append({
             "week_num": wk,
-            "label": "Pre-Coaching" if wk == 0 else f"Week {wk}",
+            "label": "Start (Mon Day 1)" if wk == 0 else ("Week 1 (Fri · No Photos)" if wk == 1 else f"Week {wk} (Fri)"),
             "start_date": d0,
             "end_date": d1,
+            "checkin_day": sheet.get("checkin_day", "Monday (Day 1 Start)" if wk == 0 else "Friday"),
+            "checkin_date": sheet.get("checkin_date", d0),
+            "photos_required": bool(sheet.get("photos_required", wk != 1)),
+            "checkin_schedule_note": sheet.get("checkin_schedule_note", ""),
             "days_logged": len(real_rows),
             "days_on_plan": days_on_plan,
             "avg_weight_kg": avg_w if avg_w > 0 else None,
@@ -459,8 +463,15 @@ def api_workout_rollup():
         "SELECT exercise_name, weight_reps, target_sets FROM workout_logs WHERE profile_id=? AND track=? AND workout_num=? AND week_num=? AND weight_reps != ''",
         (pid, track, workout_num, week_num),
     ).fetchall()
+    title = f"{track.title()} Workout {workout_num}"
     if not rows:
-        return jsonify({"ok": True, "rolled_up": False})
+        db.execute(
+            "DELETE FROM daily_activities WHERE profile_id=? AND date=? AND title=?",
+            (pid, date_str, title),
+        )
+        db.commit()
+        checkin = _sync_checkin_from_activities(db, date_str, pid)
+        return jsonify({"ok": True, "rolled_up": False, "checkin": checkin})
 
     tot_sets, tot_vol = 0, 0.0
     lifts = []
@@ -470,7 +481,6 @@ def api_workout_rollup():
         tot_vol += vol
         lifts.append(f"{r['exercise_name']} ({r['weight_reps']})")
 
-    title = f"{track.title()} Workout {workout_num}"
     notes = f"Wk {week_num}: {len(rows)} exercises · {tot_sets} sets · {int(tot_vol):,} kg volume — " + ", ".join(lifts[:3])
     _save_daily_activity(
         db,
@@ -482,6 +492,7 @@ def api_workout_rollup():
             "title": title,
             "duration_mins": 50,
             "notes": notes,
+            "manual_add": True,
         },
         pid,
     )

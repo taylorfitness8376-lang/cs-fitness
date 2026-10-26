@@ -298,10 +298,12 @@ window.saveWorkoutRow = async function(rowKey, order, exercise, sets, reps) {
     body: JSON.stringify({ track, workout_num, week_num, date: STATE.date })
   });
   const data = await res.json();
-  if (data.ok && data.rolled_up) {
+  if (data.ok) {
     await loadOverview(STATE.date);
     await refreshProgressSummary();
-    showToast(`💪 Rolled up ${data.sets} sets (${data.volume_kg.toLocaleString()} kg) → Today & Check-In Sheet!`);
+    if (data.rolled_up) {
+      showToast(`💪 Rolled up ${data.sets} sets (${data.volume_kg.toLocaleString()} kg) → Today & Check-In Sheet!`);
+    }
   }
 };
 
@@ -328,9 +330,18 @@ function renderWeekOverWeekTable() {
     const stepsStr = w.avg_steps > 0 ? `${w.avg_steps.toLocaleString()} / ${(w.target_steps/1000).toFixed(0)}k` : '—';
     const calStr = w.avg_calories > 0 ? `${w.avg_calories} kcal · ${w.avg_protein_g}g P` : '—';
     const volStr = w.workout_volume_kg > 0 ? `${w.workout_volume_kg.toLocaleString()} kg (${w.workout_sets_logged}s)` : '—';
-    const pBadge = w.photos_count >= 3 ? `✅ 3/3` : `${w.photos_count}/3 (${w.poses_logged.join(',') || 'none'})`;
+    const pBadge = w.photos_count >= 3
+      ? `✅ 3/3`
+      : (w.week_num === 1 && w.photos_count === 0)
+      ? `<span style="color:#38bdf8;font-weight:700">🚫 No Photos (Wk 1 Fri)</span>`
+      : `${w.photos_count}/3 (${w.poses_logged.join(',') || 'none'})`;
+    const wkLabel = w.week_num === 0
+      ? `Start (Mon Day 1)`
+      : w.week_num === 1
+      ? `Week 1 (Fri · No Photos)`
+      : `Week ${w.week_num} (Fri)`;
     return `<tr style="${isCur ? 'background:rgba(61,255,79,0.1);font-weight:700;' : ''}cursor:pointer" onclick="document.getElementById('ci-week-select').value='${w.week_num}';loadWeekSheet('${w.week_num}')">
-      <td><strong>${w.label.split('(')[0].trim()}</strong></td>
+      <td><strong>${wkLabel}</strong></td>
       <td>${w.days_logged}/7</td>
       <td>${wtStr} <small style="color:var(--muted)">(T:${w.target_weight_kg})</small></td>
       <td>${deltaStr}</td>
@@ -374,14 +385,25 @@ function upgradeThreePhotoWeeklyVault() {
           <input type="file" accept="image/*" style="display:none" onchange="handleThreePoseCollageUpload(event)" />
         </label>
         <span>Compare:</span>
-        <select id="photo-cmp-wk-a" onchange="renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:82px"><option value="0">Wk 0</option><option value="1" selected>Wk 1</option><option value="2">Wk 2</option><option value="3">Wk 3</option><option value="4">Wk 4</option><option value="5">Wk 5</option><option value="6">Wk 6</option><option value="7">Wk 7</option><option value="8">Wk 8</option></select>
+        <select id="photo-cmp-wk-a" onchange="renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:115px"><option value="0" selected>Start (Mon Day 1)</option><option value="1">Wk 1 (Fri · No Pic)</option><option value="2">Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
         <span>vs</span>
-        <select id="photo-cmp-wk-b" onchange="renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:82px"><option value="0">Wk 0</option><option value="1">Wk 1</option><option value="2" selected>Wk 2</option><option value="3">Wk 3</option><option value="4">Wk 4</option><option value="5">Wk 5</option><option value="6">Wk 6</option><option value="7">Wk 7</option><option value="8">Wk 8</option></select>
+        <select id="photo-cmp-wk-b" onchange="renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:115px"><option value="0">Start (Mon Day 1)</option><option value="1">Wk 1 (Fri · No Pic)</option><option value="2" selected>Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
       </div>
     </div>
+    <div id="photo-schedule-rule-banner" style="margin-bottom:0.65rem;padding:0.5rem 0.7rem;border-radius:8px;font-size:0.74rem"></div>
     <div id="three-photo-slots" class="grid-3" style="margin-bottom:0.75rem"></div>
     <div id="three-photo-comparison"></div>
   `;
+}
+
+function _findPhotoForWeekAndPose(photos, wk, pose) {
+  const exact = photos.find(p => Number(p.week_num) === Number(wk) && p.pose === pose);
+  if (exact) return exact;
+  // If viewing Start Check-In (wk=0) and baseline photos were uploaded under wk=1 on Monday start, show them:
+  if (Number(wk) === 0) {
+    return photos.find(p => Number(p.week_num) === 1 && p.pose === pose) || null;
+  }
+  return null;
 }
 
 function renderThreePhotoSlots() {
@@ -389,21 +411,47 @@ function renderThreePhotoSlots() {
   if (!slotsEl) return;
   const wk = getActiveSheetWeek();
   const lbl = document.getElementById('photo-active-wk-label');
-  if (lbl) lbl.textContent = wk === 0 ? 'Pre-Coaching (Wk 0)' : `Week ${wk}`;
+  if (lbl) {
+    lbl.textContent = wk === 0
+      ? 'Start Check-In · Day 1 Monday'
+      : wk === 1
+      ? 'Week 1 · Friday Check-In (No Photos Needed)'
+      : `Week ${wk} · Friday Check-In`;
+  }
+  const ruleBanner = document.getElementById('photo-schedule-rule-banner');
+  if (ruleBanner) {
+    if (wk === 1) {
+      ruleBanner.style.background = 'rgba(56,189,248,0.12)';
+      ruleBanner.style.border = '1px solid rgba(56,189,248,0.4)';
+      ruleBanner.style.color = '#e0f2fe';
+      ruleBanner.innerHTML = '🚫 <strong>First Friday Check-In (Week 1): No photos required this Friday!</strong> You already submitted your starting photos on Day 1 Monday. Weekly Friday progress photos resume on <strong>Week 2 Friday</strong>.';
+    } else if (wk === 0) {
+      ruleBanner.style.background = 'rgba(61,255,79,0.10)';
+      ruleBanner.style.border = '1px solid rgba(61,255,79,0.35)';
+      ruleBanner.style.color = '#dcfce7';
+      ruleBanner.innerHTML = '📸 <strong>Start Check-In (Day 1 Monday):</strong> Upload your 3 Starting Photos (Side · Front · Back) &amp; log your fasted Starting Weight.';
+    } else {
+      ruleBanner.style.background = 'rgba(61,255,79,0.10)';
+      ruleBanner.style.border = '1px solid rgba(61,255,79,0.35)';
+      ruleBanner.style.color = '#dcfce7';
+      ruleBanner.innerHTML = `📸 <strong>Week ${wk} Friday Check-In:</strong> Upload your 3 Friday Progress Photos (Side · Front · Back) alongside your Friday weigh-in.`;
+    }
+  }
   const photos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
   const poses = ['Side', 'Front', 'Back'];
 
   slotsEl.innerHTML = poses.map(pose => {
-    const rec = photos.find(p => Number(p.week_num) === wk && p.pose === pose);
+    const rec = _findPhotoForWeekAndPose(photos, wk, pose);
+    const noPhotoNeededWk1 = wk === 1 && !rec;
     const imgHtml = rec && rec.photo_data_url
       ? `<img src="${rec.photo_data_url}" style="width:100%;height:130px;object-fit:contain;background:#070a08;border-radius:8px;margin-bottom:6px;border:1px solid var(--green)"/>`
-      : `<div style="width:100%;height:130px;border-radius:8px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.72rem;margin-bottom:6px">${rec ? '✅ Logged' : `No ${pose} photo`}</div>`;
+      : `<div style="width:100%;height:130px;border-radius:8px;border:1px dashed ${noPhotoNeededWk1 ? 'rgba(56,189,248,0.45)' : 'var(--border)'};display:flex;align-items:center;justify-content:center;color:${noPhotoNeededWk1 ? '#38bdf8' : 'var(--muted)'};font-size:0.72rem;padding:0.4rem;margin-bottom:6px">${noPhotoNeededWk1 ? '🚫 No photo needed on Week 1 Friday (Sent Monday)' : rec ? '✅ Logged' : `No ${pose} photo`}</div>`;
     return `<div style="padding:0.6rem;border-radius:10px;background:var(--surface-2);border:1px solid ${rec ? 'var(--green)' : 'var(--border)'};text-align:center">
-      <div style="font-weight:700;font-size:0.78rem;margin-bottom:4px">${rec ? '✅' : '📷'} ${pose} Pose (Wk ${wk})</div>
+      <div style="font-weight:700;font-size:0.78rem;margin-bottom:4px">${rec ? '✅' : (noPhotoNeededWk1 ? '🚫' : '📷')} ${pose} Pose (${wk === 0 ? 'Start Mon' : 'Wk ' + wk + ' Fri'})</div>
       ${imgHtml}
-      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:6px">${rec ? `${rec.taken_date}${rec.weight_kg ? ' · ' + rec.weight_kg + 'kg' : ''}` : 'Fasted morning'}</div>
-      <label class="btn btn-green btn-sm" style="cursor:pointer;display:inline-block">
-        📤 ${rec ? 'Update' : 'Record'} ${pose}
+      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:6px">${rec ? `${rec.taken_date}${rec.weight_kg ? ' · ' + rec.weight_kg + 'kg' : ''}` : (noPhotoNeededWk1 ? 'Optional on Wk 1 Fri' : 'Fasted morning')}</div>
+      <label class="btn ${noPhotoNeededWk1 ? '' : 'btn-green'} btn-sm" style="cursor:pointer;display:inline-block">
+        📤 ${rec ? 'Update' : (noPhotoNeededWk1 ? 'Optional' : 'Record')} ${pose}
         <input type="file" accept="image/*" style="display:none" onchange="handlePoseFileSelect(event, ${wk}, '${pose}')"/>
       </label>
     </div>`;
@@ -413,13 +461,13 @@ function renderThreePhotoSlots() {
   const wkA = Number(document.getElementById('photo-cmp-wk-a')?.value ?? 0);
   const wkB = Number(document.getElementById('photo-cmp-wk-b')?.value ?? wk);
   if (cmpEl) {
-    cmpEl.innerHTML = `<div style="font-size:0.74rem;font-weight:700;margin-bottom:6px;color:var(--muted)">🔍 Side-by-Side Comparison: Wk ${wkA} vs Wk ${wkB} (Front · Side · Back)</div>
+    cmpEl.innerHTML = `<div style="font-size:0.74rem;font-weight:700;margin-bottom:6px;color:var(--muted)">🔍 Side-by-Side Comparison: ${wkA === 0 ? 'Start (Mon)' : 'Wk ' + wkA + ' (Fri)'} vs ${wkB === 0 ? 'Start (Mon)' : 'Wk ' + wkB + ' (Fri)'} (Side · Front · Back)</div>
       <div class="grid-3">${poses.map(pose => {
-        const pA = photos.find(p => Number(p.week_num) === wkA && p.pose === pose);
-        const pB = photos.find(p => Number(p.week_num) === wkB && p.pose === pose);
+        const pA = _findPhotoForWeekAndPose(photos, wkA, pose);
+        const pB = _findPhotoForWeekAndPose(photos, wkB, pose);
         const box = (p, w) => p && p.photo_data_url
           ? `<img src="${p.photo_data_url}" style="width:100%;height:85px;object-fit:cover;border-radius:6px"/>`
-          : `<div style="height:85px;border-radius:6px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">Wk ${w}: ${p ? 'Logged' : 'Empty'}</div>`;
+          : `<div style="height:85px;border-radius:6px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">${w === 0 ? 'Start' : 'Wk ' + w}: ${w === 1 ? 'No Pic (Fri)' : (p ? 'Logged' : 'Empty')}</div>`;
         return `<div style="padding:6px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border)"><div style="font-size:0.7rem;font-weight:700;text-align:center;margin-bottom:4px">${pose}</div><div class="grid-2">${box(pA, wkA)}${box(pB, wkB)}</div></div>`;
       }).join('')}</div>`;
   }
@@ -1018,11 +1066,11 @@ function renderCoachWowSideBySide() {
   const poses = ['Side', 'Front', 'Back'];
 
   const poseRows = poses.map(pose => {
-    const pA = photos.find(p => Number(p.week_num) === wkA && p.pose === pose);
-    const pB = photos.find(p => Number(p.week_num) === wkB && p.pose === pose);
+    const pA = _findPhotoForWeekAndPose(photos, wkA, pose);
+    const pB = _findPhotoForWeekAndPose(photos, wkB, pose);
     const cell = (p, w) => p && p.photo_data_url
       ? `<img src="${p.photo_data_url}" style="width:100%;height:110px;object-fit:contain;background:#070a08;border-radius:6px;border:1px solid rgba(61,255,79,0.4)"/>`
-      : `<div style="height:110px;border-radius:6px;background:#070a08;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">Wk ${w}: No ${pose}</div>`;
+      : `<div style="height:110px;border-radius:6px;background:#070a08;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">${w === 0 ? 'Start Mon' : 'Wk ' + w + ' Fri'}: ${w === 1 ? 'No Pic Needed' : 'No ' + pose}</div>`;
     return `<div style="padding:6px;border-radius:8px;background:#0b110d;border:1px solid var(--border)">
       <div style="font-size:0.7rem;font-weight:800;color:var(--green);text-align:center;margin-bottom:4px">${pose.toUpperCase()} POSE</div>
       <div class="grid-2" style="gap:6px">${cell(pA, wkA)}${cell(pB, wkB)}</div>
@@ -1247,14 +1295,17 @@ function renderOnePagerWeekly() {
   setTxt('op-wk-prot', `${wkObj.avg_protein_g || 0}g`);
   const cm = document.getElementById('op-wk-comments');
   if (cm && document.activeElement !== cm) cm.value = wkObj.challenger_comments || '';
-  const photos = ((STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || []).filter(p => Number(p.week_num) === wk);
+  const allPhotos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
   const pGrid = document.getElementById('op-wk-photos');
   if (pGrid) {
     pGrid.innerHTML = ['Side', 'Front', 'Back'].map(pose => {
-      const p = photos.find(x => x.pose === pose);
-      return `<label style="cursor:pointer;background:var(--surface-2);border:1px ${p && p.photo_data_url ? 'solid var(--green)' : 'dashed var(--border)'};border-radius:8px;padding:5px;text-align:center">
-        <div style="font-size:0.68rem;font-weight:800;color:var(--green)">${pose}</div>
-        ${p && p.photo_data_url ? `<img src="${p.photo_data_url}" style="width:100%;height:88px;object-fit:contain;background:#070a08;border-radius:5px;margin-top:3px"/>` : `<div style="height:88px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;color:var(--muted)">+ Tap Photo</div>`}
+      const p = _findPhotoForWeekAndPose(allPhotos, wk, pose);
+      const noPicWk1 = wk === 1 && !(p && p.photo_data_url);
+      return `<label style="cursor:pointer;background:var(--surface-2);border:1px ${p && p.photo_data_url ? 'solid var(--green)' : (noPicWk1 ? 'dashed rgba(56,189,248,0.45)' : 'dashed var(--border)')};border-radius:8px;padding:5px;text-align:center">
+        <div style="font-size:0.68rem;font-weight:800;color:${noPicWk1 ? '#38bdf8' : 'var(--green)'}">${pose}</div>
+        ${p && p.photo_data_url
+          ? `<img src="${p.photo_data_url}" style="width:100%;height:88px;object-fit:contain;background:#070a08;border-radius:5px;margin-top:3px"/>`
+          : `<div style="height:88px;display:flex;align-items:center;justify-content:center;font-size:0.62rem;color:${noPicWk1 ? '#38bdf8' : 'var(--muted)'};padding:4px">${noPicWk1 ? '🚫 No Pic on Wk 1 Fri' : '+ Tap Photo'}</div>`}
         <input type="file" accept="image/*" style="display:none" onchange="handlePoseFileSelect(event, ${wk}, '${pose}')"/>
       </label>`;
     }).join('');
