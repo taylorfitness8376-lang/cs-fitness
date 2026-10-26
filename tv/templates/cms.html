@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CS Fitness CMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #000; color: #ccc; font-family: Inter, sans-serif; }
+    body { display: flex; flex-direction: column; }
+
+    /* Top bar */
+    .topbar { background: #111; padding: 0.6rem 1.2rem; display: flex;
+              align-items: center; justify-content: space-between;
+              border-bottom: 1px solid #222; flex-shrink: 0; }
+    .topbar-brand { display: flex; align-items: center; gap: 0.7rem; }
+    .topbar-logo { width: 28px; height: 28px; object-fit: contain;
+                   filter: drop-shadow(0 0 4px #3DFF4F88); }
+    .topbar-name { color: #fff; font-weight: 700; font-size: 0.9rem; }
+    .logout-btn { background: none; border: 1px solid #333; border-radius: 4px;
+                  color: #666; font-size: 0.75rem; padding: 0.3rem 0.7rem; cursor: pointer; }
+    .logout-btn:hover { color: #3DFF4F; border-color: #3DFF4F44; }
+
+    /* Tabs */
+    .tabs { display: flex; background: #0a0a0a; border-bottom: 1px solid #1a1a1a; flex-shrink: 0; }
+    .tab { padding: 0.7rem 1.3rem; color: #555; font-size: 0.82rem; cursor: pointer;
+           border-bottom: 2px solid transparent; user-select: none; }
+    .tab.active { color: #3DFF4F; border-bottom-color: #3DFF4F; }
+    .tab:hover:not(.active) { color: #aaa; }
+
+    /* Panels */
+    .panel { display: none; padding: 1.2rem; overflow-y: auto; flex: 1; }
+    .panel.active { display: flex; flex-direction: column; }
+
+    /* Buttons */
+    .btn { border: none; border-radius: 5px; padding: 0.38rem 0.8rem;
+           font-size: 0.78rem; cursor: pointer; font-weight: 600; }
+    .btn-green { background: #3DFF4F; color: #000; }
+    .btn-dark { background: #1a1a1a; border: 1px solid #2a2a2a; color: #ccc; }
+    .btn-red { background: #1a1a1a; border: 1px solid #2a2a2a; color: #f66; }
+    .btn-accent { background: #1a1a1a; border: 1px solid #2a2a2a; color: #3DFF4F; }
+
+    /* Inputs */
+    input, textarea, select {
+      background: #111; border: 1px solid #2a2a2a; border-radius: 5px;
+      padding: 0.45rem 0.7rem; color: #ccc; font-size: 0.83rem; font-family: Inter, sans-serif; }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: #3DFF4F; }
+    label { color: #666; font-size: 0.72rem; text-transform: uppercase;
+            letter-spacing: 0.06em; display: block; margin-bottom: 0.3rem; }
+
+    /* ── Library ── */
+    .lib-toolbar { display: flex; gap: 0.7rem; margin-bottom: 1rem; }
+    .lib-toolbar input { flex: 1; }
+    .session-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+                    gap: 0.8rem; }
+    .session-card { background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 8px;
+                    padding: 0.9rem; }
+    .session-card-name { color: #fff; font-weight: 700; font-size: 0.88rem; margin-bottom: 0.2rem; }
+    .session-card-meta { color: #444; font-size: 0.75rem; margin-bottom: 0.8rem; }
+    .session-card-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+    /* ── Editor ── */
+    .editor-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem; flex: 1; }
+    .form-row { margin-bottom: 0.9rem; }
+    .form-row input, .form-row textarea, .form-row select { width: 100%; }
+    .form-row textarea { height: 80px; resize: vertical; }
+    .block-card { background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 8px;
+                  padding: 0.9rem; margin-bottom: 0.7rem; }
+    .block-card-header { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.7rem; }
+    .block-label-badge { background: #3DFF4F; color: #000; font-weight: 800;
+                         font-size: 0.75rem; border-radius: 3px; padding: 0.2rem 0.5rem; }
+    .block-card-header input { flex: 1; }
+    .ex-row { display: grid; grid-template-columns: 52px 1fr 80px 26px;
+              gap: 0.4rem; margin-bottom: 0.4rem; align-items: center; }
+    .ex-row.cardio { grid-template-columns: 1fr 100px 26px; }
+    .ex-row input { font-size: 0.78rem; }
+    .add-exercise-btn { width: 100%; background: none; border: 1px dashed #1a3a1a;
+                        border-radius: 4px; color: #3DFF4F55; font-size: 0.75rem;
+                        padding: 0.3rem; cursor: pointer; margin-top: 0.3rem; }
+    .add-exercise-btn:hover { color: #3DFF4F; border-color: #3DFF4F44; }
+    .add-block-btn { width: 100%; background: none; border: 1px dashed #222;
+                     border-radius: 6px; color: #333; font-size: 0.8rem;
+                     padding: 0.5rem; cursor: pointer; }
+    .add-block-btn:hover { color: #3DFF4F; border-color: #3DFF4F44; }
+    .editor-actions { display: flex; gap: 0.6rem; margin-top: 1rem;
+                      grid-column: 1 / -1; align-items: center; }
+    .editor-actions .editor-title { color: #fff; font-weight: 700; font-size: 0.9rem; flex: 1; }
+
+    /* ── Calendar ── */
+    .cal-header { display:flex; align-items:center; gap:1rem; margin-bottom:1rem; flex-shrink:0; }
+    .cal-nav { background:none; border:1px solid #2a2a2a; color:#ccc; font-size:1.3rem;
+               width:32px; height:32px; cursor:pointer; border-radius:4px; display:flex;
+               align-items:center; justify-content:center; }
+    .cal-nav:hover { border-color:#3DFF4F; color:#3DFF4F; }
+    .cal-month-label { color:#fff; font-weight:700; font-size:1rem; min-width:160px; text-align:center; }
+    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:0.5rem;
+                overflow-x:auto; flex:1; align-items:start; }
+    .cal-col { display:flex; flex-direction:column; min-width:140px; }
+    .cal-head { text-align:center; padding:0.4rem 0.2rem 0.6rem; }
+    .cal-day-name { display:block; color:#444; font-size:0.62rem; font-weight:700;
+                    text-transform:uppercase; letter-spacing:0.08em; }
+    .cal-day-num { display:inline-flex; align-items:center; justify-content:center;
+                   color:#666; font-size:1rem; font-weight:700; margin-top:0.2rem;
+                   width:28px; height:28px; border-radius:50%; }
+    .cal-day-num.today { background:#3DFF4F; color:#000; }
+    .cal-cell { border-radius:6px; padding:0.7rem; min-height:120px; }
+    .cal-cell.assigned { background:#0d1f0d; border:1px solid #2a4a2a;
+                         border-left:3px solid #3DFF4F; }
+    .cal-cell.empty { background:#0a0a0a; border:1px dashed #1a1a1a;
+                      display:flex; align-items:flex-start; }
+    .cal-session-name { color:#fff; font-weight:700; font-size:0.76rem;
+                        margin-bottom:0.25rem; line-height:1.3; }
+    .cal-coach-note { color:#3DFF4F99; font-size:0.68rem; margin-bottom:0.5rem; font-style:italic; }
+    .cal-exercises { margin-bottom:0.6rem; }
+    .cal-exercise { display:flex; gap:0.3rem; align-items:baseline; margin-bottom:0.18rem; }
+    .cal-ex-code { color:#3DFF4F; font-size:0.62rem; font-weight:800; min-width:18px; }
+    .cal-ex-name { color:#bbb; font-size:0.7rem; flex:1; line-height:1.3; }
+    .cal-ex-sets { color:#555; font-size:0.66rem; white-space:nowrap; }
+    .cal-cell-actions { display:flex; flex-direction:column; gap:0.3rem;
+                        padding-top:0.5rem; border-top:1px solid #1a3a1a; }
+    .cal-change-select { width:100%; background:#0a0a0a; border:1px solid #1a3a1a;
+                         color:#3DFF4F; font-size:0.68rem; border-radius:3px; padding:0.2rem; }
+    .cal-remove-btn { background:none; border:none; color:#333; font-size:0.66rem;
+                      cursor:pointer; text-align:left; padding:0; }
+    .cal-remove-btn:hover { color:#f66; }
+    .cal-publish-btn { background:#0d1f0d; border:1px solid #2a4a2a; color:#3DFF4F;
+                        font-size:0.66rem; font-weight:700; text-transform:uppercase;
+                        letter-spacing:0.04em; border-radius:4px; padding:0.35rem 0;
+                        cursor:pointer; }
+    .cal-publish-btn:hover { background:#123312; }
+    .cal-assign-select { width:100%; background:transparent; border:1px dashed #1a3a1a;
+                         color:#3DFF4F66; font-size:0.72rem; border-radius:4px;
+                         padding:0.35rem; cursor:pointer; }
+    .cal-assign-select:hover, .cal-assign-select:focus { color:#3DFF4F; border-color:#3DFF4F44; outline:none; }
+
+    /* ── Quick Entry ── */
+    .qe-toolbar { display:flex; justify-content:space-between; align-items:center;
+                  margin-bottom:1rem; }
+    .qe-footer  { margin-top:0.8rem; }
+
+    .qe-session { margin-bottom:1.2rem; }
+
+    .qe-session-row { display:grid;
+      grid-template-columns:5rem 1fr 8rem 1fr 2rem;
+      gap:0.4rem; align-items:center;
+      background:#0a0a0a; border-top:2px solid #2a2a2a;
+      padding:0.5rem 0.6rem; }
+    .qe-session-label { color:#3DFF4F; font-size:0.7rem; font-weight:800;
+                        text-transform:uppercase; letter-spacing:0.08em; }
+
+    .qe-block { margin-left:1.5rem; }
+    .qe-block-row { display:grid;
+      grid-template-columns:5rem 1fr 2rem;
+      gap:0.4rem; align-items:center;
+      background:#0d0d0d; border-top:1px solid #1a1a1a;
+      padding:0.4rem 0.6rem; }
+    .qe-block-label { color:#666; font-size:0.7rem; font-weight:700;
+                      text-transform:uppercase; letter-spacing:0.06em; }
+
+    .qe-exercise { display:grid;
+      grid-template-columns:3.5rem 1fr 6rem 2rem;
+      gap:0.4rem; align-items:center;
+      margin-left:3rem; padding:0.3rem 0.6rem; }
+    .qe-exercise.cardio { grid-template-columns:1fr 6rem 2rem; }
+
+    .qe-add-ex { display:block; margin-left:3rem; margin-top:0.2rem;
+                 background:none; border:1px dashed #1a3a1a; border-radius:4px;
+                 color:#3DFF4F55; font-size:0.72rem; padding:0.25rem 0.6rem;
+                 cursor:pointer; text-align:left; }
+    .qe-add-ex:hover { color:#3DFF4F; border-color:#3DFF4F44; }
+    .qe-add-block { display:block; margin-left:1.5rem; margin-top:0.3rem;
+                    background:none; border:1px dashed #222; border-radius:4px;
+                    color:#444; font-size:0.75rem; padding:0.3rem 0.6rem;
+                    cursor:pointer; text-align:left; }
+    .qe-add-block:hover { color:#3DFF4F; border-color:#3DFF4F44; }
+    .qe-remove { padding:0.2rem 0.45rem; font-size:0.8rem; line-height:1; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-brand">
+    <img class="topbar-logo" src="/static/logo.jpg" alt="CS" />
+    <span class="topbar-name">CS Fitness CMS</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:0.6rem">
+    <a href="/challenge" class="btn btn-accent" style="text-decoration:none">⚡ 8-Week Challenge App</a>
+    <form method="post" action="/logout" style="display:inline">
+      <button class="logout-btn" type="submit">Logout</button>
+    </form>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="library">Library</div>
+  <div class="tab" data-tab="editor">Editor</div>
+  <div class="tab" data-tab="schedule">Schedule</div>
+  <div class="tab" data-tab="nowplaying">Now Playing</div>
+  <div class="tab" data-tab="quickentry">Quick Entry</div>
+</div>
+
+<!-- ── LIBRARY ── -->
+<div class="panel active" id="panel-library">
+  <div class="lib-toolbar">
+    <input type="text" id="lib-search" placeholder="Search sessions..." oninput="filterSessions()" />
+    <button class="btn btn-dark" onclick="exportSessions()" title="Download all sessions as a JSON file">↓ Export</button>
+    <button class="btn btn-dark" onclick="document.getElementById('import-file').click()" title="Import sessions from a JSON file">↑ Import</button>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importSessions(this)" />
+    <button class="btn btn-green" onclick="openNewSession()">+ New Session</button>
+  </div>
+  <div class="session-grid" id="session-grid"></div>
+</div>
+
+<!-- ── EDITOR ── -->
+<div class="panel" id="panel-editor">
+  <div class="editor-layout">
+    <div>
+      <div class="form-row">
+        <label>Session Name</label>
+        <input type="text" id="ed-name" placeholder="e.g. Full Body Strength" />
+      </div>
+      <div class="form-row">
+        <label>Format</label>
+        <select id="ed-format" onchange="sessionFormat=this.value; rerenderBlocks()">
+          <option value="strength">Strength</option>
+          <option value="cardio">Cardio / Class</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Coach's Notes</label>
+        <textarea id="ed-notes" placeholder="Instructions for the class..."></textarea>
+      </div>
+    </div>
+    <div>
+      <label style="margin-bottom:0.6rem;">Blocks</label>
+      <div id="blocks-container"></div>
+      <button class="add-block-btn" onclick="addBlock()">+ Add Block</button>
+    </div>
+    <div class="editor-actions">
+      <span class="editor-title" id="editor-title">New Session</span>
+      <button class="btn btn-dark" onclick="switchTab('library')">Cancel</button>
+      <button class="btn btn-accent" onclick="saveSession(true)">Save &amp; Publish Now</button>
+      <button class="btn btn-green" onclick="saveSession(false)">Save Session</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── SCHEDULE (Calendar) ── -->
+<div class="panel" id="panel-schedule">
+  <div class="cal-header">
+    <button class="cal-nav" onclick="calPrevWeek()">&#8249;</button>
+    <span id="cal-month" class="cal-month-label"></span>
+    <button class="cal-nav" onclick="calNextWeek()">&#8250;</button>
+  </div>
+  <div class="cal-grid" id="cal-grid">
+    <!-- columns rendered by JS -->
+  </div>
+</div>
+
+<!-- ── NOW PLAYING ── -->
+<div class="panel" id="panel-nowplaying">
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; max-width:800px;">
+    <div style="background:#0d1f0d; border:1px solid #2a4a2a; border-radius:10px; padding:1.2rem;">
+      <div style="color:#3DFF4F; font-size:0.7rem; font-weight:800; text-transform:uppercase;
+                  letter-spacing:0.08em; margin-bottom:0.4rem;">On Screen Now</div>
+      <div id="np-name" style="color:#fff; font-size:1.1rem; font-weight:700; margin-bottom:0.3rem;">-</div>
+      <div id="np-meta" style="color:#555; font-size:0.78rem; margin-bottom:1rem;"></div>
+      <a href="/display" target="_blank"
+         style="color:#3DFF4F; font-size:0.78rem; text-decoration:none;">View on TV</a>
+    </div>
+    <div style="background:#111; border:1px solid #222; border-radius:10px; padding:1.2rem;">
+      <div style="color:#666; font-size:0.7rem; font-weight:800; text-transform:uppercase;
+                  letter-spacing:0.08em; margin-bottom:0.4rem;">Up Next</div>
+      <div id="np-next-name" style="color:#aaa; font-size:0.95rem; font-weight:700; margin-bottom:0.3rem;">-</div>
+      <div id="np-next-time" style="color:#444; font-size:0.78rem;"></div>
+    </div>
+    <div style="grid-column:1/-1; background:#111; border:1px solid #1a1a1a;
+                border-radius:10px; padding:1.2rem;">
+      <div style="color:#666; font-size:0.7rem; font-weight:800; text-transform:uppercase;
+                  letter-spacing:0.08em; margin-bottom:0.8rem;">Manual Override</div>
+      <div style="display:flex; gap:0.7rem; align-items:flex-end;">
+        <div style="flex:1;">
+          <label>Choose session</label>
+          <select id="np-override-select" style="width:100%;"></select>
+        </div>
+        <button class="btn btn-green" onclick="publishOverride()">Publish Now</button>
+        <button class="btn btn-dark" onclick="clearOverride()">Clear Override</button>
+      </div>
+      <p style="color:#333; font-size:0.72rem; margin-top:0.6rem;">
+        Override stays active until cleared or the next scheduled slot kicks in.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── QUICK ENTRY ── -->
+<div class="panel" id="panel-quickentry">
+  <div class="qe-toolbar">
+    <button class="btn btn-dark" onclick="addQESession()">+ Add Session</button>
+    <button class="btn btn-green" id="qe-save-btn" onclick="saveAllQESessions()">Save All</button>
+  </div>
+  <div id="qe-container"></div>
+  <div class="qe-footer">
+    <button class="btn btn-dark" onclick="addQESession()">+ Add Session</button>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────
+let allSessions = [];
+let editingId = null;
+let blockCount = 0;
+let sessionFormat = 'strength';
+
+// ── Tab switching ──────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach(t =>
+    t.classList.toggle("active", t.dataset.tab === name));
+  document.querySelectorAll(".panel").forEach(p =>
+    p.classList.toggle("active", p.id === "panel-" + name));
+  if (name === "library") loadSessions();
+  if (name === "schedule") loadScheduleTab();
+  if (name === "nowplaying") loadNowPlayingTab();
+}
+document.querySelectorAll(".tab").forEach(t =>
+  t.addEventListener("click", () => switchTab(t.dataset.tab)));
+
+// ── Library ───────────────────────────────────────────────
+async function loadSessions() {
+  const r = await fetch("/api/sessions");
+  allSessions = await r.json();
+  renderSessions(allSessions);
+}
+
+function renderSessions(sessions) {
+  const grid = document.getElementById("session-grid");
+  if (!sessions.length) {
+    grid.innerHTML = `<p style="color:#333;font-size:0.85rem;">No sessions yet. Click + New Session to create one.</p>`;
+    return;
+  }
+  grid.innerHTML = sessions.map(s => `
+    <div class="session-card" id="card-${s.id}">
+      <div class="session-card-name">${esc(s.name)}</div>
+      <div class="session-card-meta">${s.block_count} block${s.block_count !== 1 ? "s" : ""} · ${s.exercise_count} exercise${s.exercise_count !== 1 ? "s" : ""}</div>
+      <div class="session-card-actions">
+        <button class="btn btn-dark" onclick="editSession(${s.id})">Edit</button>
+        <button class="btn btn-accent" onclick="publishSession(${s.id})">Publish Now</button>
+        <button class="btn btn-red" onclick="deleteSession(${s.id})">Delete</button>
+      </div>
+    </div>`).join("");
+}
+
+function filterSessions() {
+  const q = document.getElementById("lib-search").value.toLowerCase();
+  renderSessions(allSessions.filter(s => s.name.toLowerCase().includes(q)));
+}
+
+async function deleteSession(id) {
+  if (!confirm("Delete this session?")) return;
+  await fetch("/api/sessions/" + id, { method: "DELETE" });
+  loadSessions();
+}
+
+async function publishSession(id) {
+  await fetch("/api/publish", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ session_id: id })
+  });
+  alert("Published!");
+}
+
+// ── Editor ────────────────────────────────────────────────
+function openNewSession() {
+  editingId = null;
+  blockCount = 0;
+  sessionFormat = 'strength';
+  document.getElementById("ed-name").value = "";
+  document.getElementById("ed-format").value = "strength";
+  document.getElementById("ed-notes").value = "";
+  document.getElementById("blocks-container").innerHTML = "";
+  document.getElementById("editor-title").textContent = "New Session";
+  switchTab("editor");
+}
+
+async function editSession(id) {
+  try {
+    const r = await fetch("/api/sessions/" + id);
+    if (!r.ok) { alert("Could not load session — try refreshing the page."); return; }
+    const data = await r.json();
+    editingId = id;
+    blockCount = 0;
+    sessionFormat = data.session_type || 'strength';
+    document.getElementById("ed-name").value = data.name;
+    document.getElementById("ed-format").value = sessionFormat;
+    document.getElementById("ed-notes").value = data.coach_notes;
+    document.getElementById("blocks-container").innerHTML = "";
+    document.getElementById("editor-title").textContent = "Editing: " + data.name;
+    (data.blocks || []).forEach(b => addBlock(b));
+    switchTab("editor");
+  } catch(e) {
+    alert("Could not load session — try refreshing the page.");
+  }
+}
+
+const BLOCK_LABELS = ["A","B","C","D","E","F","G","H"];
+
+function addBlock(data) {
+  const idx = blockCount++;
+  const label = data?.label || BLOCK_LABELS[idx] || String.fromCharCode(65 + idx);
+  const container = document.getElementById("blocks-container");
+  const div = document.createElement("div");
+  div.className = "block-card";
+  div.dataset.blockIdx = idx;
+  div.innerHTML = `
+    <div class="block-card-header">
+      <span class="block-label-badge">${esc(label)}</span>
+      <input type="text" class="block-focus" placeholder="Block focus, e.g. Strength / Power"
+             value="${esc(data?.focus || "")}" />
+      <button class="btn btn-red" style="padding:0.2rem 0.5rem;"
+              onclick="this.closest('.block-card').remove()">x</button>
+    </div>
+    <div class="exercises-container"></div>
+    <button class="add-exercise-btn" onclick="addExercise(this)">+ Add Exercise</button>`;
+  container.appendChild(div);
+  (data?.exercises || []).forEach(e => addExercise(div.querySelector(".add-exercise-btn"), e));
+}
+
+function addExercise(btn, data) {
+  const container = btn.previousElementSibling;
+  const div = document.createElement("div");
+  const isCardio = sessionFormat === 'cardio';
+  div.className = "ex-row" + (isCardio ? " cardio" : "");
+  div.innerHTML = isCardio ? `
+    <input type="text" class="ex-name" placeholder="e.g. Ski Erg" value="${esc(data?.name || "")}" />
+    <input type="text" class="ex-sets" placeholder="200 cal" value="${esc(data?.sets_reps || "")}" />
+    <button class="btn btn-red" style="padding:0.2rem;"
+            onclick="this.closest('.ex-row').remove()">x</button>` : `
+    <input type="text" class="ex-code" placeholder="A1" value="${esc(data?.code || "")}" />
+    <input type="text" class="ex-name" placeholder="Exercise name" value="${esc(data?.name || "")}" />
+    <input type="text" class="ex-sets" placeholder="4x8" value="${esc(data?.sets_reps || "")}" />
+    <button class="btn btn-red" style="padding:0.2rem;"
+            onclick="this.closest('.ex-row').remove()">x</button>`;
+  container.appendChild(div);
+}
+
+function rerenderBlocks() {
+  const blocks = [];
+  document.querySelectorAll("#blocks-container .block-card").forEach((bc, i) => {
+    const label = BLOCK_LABELS[i] || String.fromCharCode(65 + i);
+    const focus = bc.querySelector(".block-focus").value;
+    const exercises = [];
+    bc.querySelectorAll(".ex-row").forEach(er => {
+      exercises.push({
+        code: er.querySelector(".ex-code")?.value || "",
+        name: er.querySelector(".ex-name")?.value || "",
+        sets_reps: er.querySelector(".ex-sets")?.value || ""
+      });
+    });
+    blocks.push({ label, focus, exercises });
+  });
+  blockCount = 0;
+  document.getElementById("blocks-container").innerHTML = "";
+  blocks.forEach(b => addBlock(b));
+}
+
+async function saveSession(andPublish) {
+  const name = document.getElementById("ed-name").value.trim();
+  if (!name) { alert("Session name is required."); return; }
+
+  const blocks = [];
+  document.querySelectorAll("#blocks-container .block-card").forEach((bc, i) => {
+    const label = BLOCK_LABELS[i] || String.fromCharCode(65 + i);
+    const focus = bc.querySelector(".block-focus").value.trim();
+    const exercises = [];
+    bc.querySelectorAll(".ex-row").forEach(er => {
+      const exName = er.querySelector(".ex-name").value.trim();
+      if (exName) exercises.push({
+        code: er.querySelector(".ex-code")?.value.trim() || "",
+        name: exName,
+        sets_reps: er.querySelector(".ex-sets")?.value.trim() || ""
+      });
+    });
+    blocks.push({ label, focus, exercises });
+  });
+
+  const payload = {
+    name,
+    coach_notes: document.getElementById("ed-notes").value.trim(),
+    session_type: sessionFormat,
+    blocks
+  };
+
+  let r;
+  if (editingId) {
+    r = await fetch("/api/sessions/" + editingId, {
+      method: "PUT", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+  } else {
+    r = await fetch("/api/sessions", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+  }
+  const saved = await r.json();
+  editingId = saved.id;
+
+  if (andPublish) {
+    await fetch("/api/publish", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ session_id: saved.id })
+    });
+  }
+  switchTab("library");
+}
+
+// ── Calendar tab ──────────────────────────────────────────
+let calWeekStart = null;
+
+const CAL_MONTHS = ["January","February","March","April","May","June",
+                    "July","August","September","October","November","December"];
+const CAL_DAYS   = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+
+function calDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function calGetWeekStart(date) {
+  const d = new Date(date);
+  d.setDate(d.getDate() - d.getDay());
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+async function loadScheduleTab() {
+  if (!calWeekStart) calWeekStart = calGetWeekStart(new Date());
+  // Build column scaffolding once
+  const grid = document.getElementById("cal-grid");
+  if (!grid.querySelector(".cal-col")) {
+    grid.innerHTML = Array.from({length:7}, (_,i) => `
+      <div class="cal-col">
+        <div class="cal-head" id="cal-head-${i}"></div>
+        <div class="cal-cell empty" id="cal-cell-${i}"></div>
+      </div>`).join("");
+  }
+  await renderCalendar();
+}
+
+async function renderCalendar() {
+  const end = new Date(calWeekStart);
+  end.setDate(end.getDate() + 6);
+  const startStr = calDateStr(calWeekStart);
+  const endStr   = calDateStr(end);
+
+  const r = await fetch(`/api/calendar?start=${startStr}&end=${endStr}`);
+  const data = await r.json();
+  const byDate = {};
+  data.forEach(s => { byDate[s.date] = s; });
+
+  document.getElementById("cal-month").textContent =
+    CAL_MONTHS[calWeekStart.getMonth()] + " " + calWeekStart.getFullYear();
+
+  const today = calDateStr(new Date());
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(calWeekStart);
+    d.setDate(d.getDate() + i);
+    const dateStr = calDateStr(d);
+    const isToday = dateStr === today;
+    const session = byDate[dateStr];
+
+    document.getElementById(`cal-head-${i}`).innerHTML = `
+      <span class="cal-day-name">${CAL_DAYS[i]}</span><br>
+      <span class="cal-day-num${isToday ? " today" : ""}">${d.getDate()}</span>`;
+
+    const cell = document.getElementById(`cal-cell-${i}`);
+    if (session) {
+      cell.className = "cal-cell assigned";
+      const exLines = (session.blocks || []).flatMap(b =>
+        (b.exercises || []).map(e => `
+          <div class="cal-exercise">
+            <span class="cal-ex-code">${esc(b.label)}</span>
+            <span class="cal-ex-name">${esc(e.name)}</span>
+            ${e.sets_reps ? `<span class="cal-ex-sets">${esc(e.sets_reps)}</span>` : ""}
+          </div>`)
+      ).join("");
+      cell.innerHTML = `
+        <div class="cal-session-name">${esc(session.name)}</div>
+        ${session.coach_notes ? `<div class="cal-coach-note">${esc(session.coach_notes)}</div>` : ""}
+        <div class="cal-exercises">${exLines}</div>
+        <div class="cal-cell-actions">
+          <select class="cal-change-select"
+                  onchange="if(this.value) calAssign('${dateStr}', parseInt(this.value))">
+            <option value="">Change...</option>
+            ${allSessions.map(s =>
+              `<option value="${s.id}">${esc(s.name)}</option>`).join("")}
+          </select>
+          <button class="cal-publish-btn" onclick="publishSession(${session.id})">Publish Now</button>
+          <button class="cal-remove-btn" onclick="calRemove('${dateStr}')">Remove</button>
+        </div>`;
+    } else {
+      cell.className = "cal-cell empty";
+      cell.innerHTML = `
+        <select class="cal-assign-select"
+                onchange="if(this.value) calAssign('${dateStr}', parseInt(this.value))">
+          <option value="">+ Assign session</option>
+          ${allSessions.map(s =>
+            `<option value="${s.id}">${esc(s.name)}</option>`).join("")}
+        </select>`;
+    }
+  }
+}
+
+async function calAssign(date, sessionId) {
+  await fetch("/api/calendar", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ date, session_id: sessionId })
+  });
+  renderCalendar();
+}
+
+async function calRemove(date) {
+  await fetch("/api/calendar/" + date, { method: "DELETE" });
+  renderCalendar();
+}
+
+function calPrevWeek() {
+  calWeekStart.setDate(calWeekStart.getDate() - 7);
+  renderCalendar();
+}
+
+function calNextWeek() {
+  calWeekStart.setDate(calWeekStart.getDate() + 7);
+  renderCalendar();
+}
+
+// ── Now Playing tab ───────────────────────────────────────
+async function loadNowPlayingTab() {
+  // Populate override dropdown
+  const sel = document.getElementById("np-override-select");
+  sel.innerHTML = allSessions.map(s =>
+    `<option value="${s.id}">${esc(s.name)}</option>`).join("");
+
+  // Current session
+  const r = await fetch("/api/session");
+  const data = await r.json();
+  document.getElementById("np-name").textContent = data.name || "Nothing scheduled";
+  document.getElementById("np-meta").textContent = data.name ? `${data.blocks?.length || 0} blocks` : "";
+
+  // Next slot (simple: scan schedule for next slot after now)
+  const sched = await (await fetch("/api/schedule")).json();
+  const now = new Date();
+  const currentDay = now.getDay() === 0 ? 6 : now.getDay() - 1;
+  const currentTime = now.toTimeString().slice(0, 5);
+
+  const future = sched.filter(s =>
+    s.day_of_week > currentDay ||
+    (s.day_of_week === currentDay && s.start_time > currentTime)
+  ).sort((a, b) => a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time));
+
+  const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  if (future.length) {
+    document.getElementById("np-next-name").textContent = future[0].session_name;
+    document.getElementById("np-next-time").textContent =
+      DAYS[future[0].day_of_week] + " · " + future[0].start_time;
+  } else {
+    document.getElementById("np-next-name").textContent = "No upcoming slots";
+    document.getElementById("np-next-time").textContent = "";
+  }
+}
+
+async function publishOverride() {
+  const sid = parseInt(document.getElementById("np-override-select").value);
+  await fetch("/api/publish", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ session_id: sid })
+  });
+  loadNowPlayingTab();
+}
+
+async function clearOverride() {
+  await fetch("/api/publish/clear", { method: "POST" });
+  loadNowPlayingTab();
+}
+
+function esc(s) {
+  return String(s || "")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// ── Export / Import ───────────────────────────────────────
+async function exportSessions() {
+  const r = await fetch("/api/sessions/export");
+  const data = await r.json();
+  if (!data.length) { alert("No sessions to export."); return; }
+  const date = new Date().toISOString().slice(0, 10);
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `cs-fitness-sessions-${date}.json`;
+  a.click();
+}
+
+async function importSessions(input) {
+  const file = input.files[0]; if (!file) return;
+  const text = await file.text();
+  try {
+    const data = JSON.parse(text);
+    if (!Array.isArray(data)) throw new Error("bad format");
+    const r = await fetch("/api/sessions/import", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+    const result = await r.json();
+    alert(`Imported ${result.added} new session${result.added !== 1 ? "s" : ""}${result.skipped ? ` (${result.skipped} already existed)` : ""}.`);
+    loadSessions();
+  } catch { alert("Import failed — select a valid cs-fitness JSON file."); }
+  input.value = "";
+}
+
+// ── Quick Entry ───────────────────────────────────────────
+function addQESession() {
+  const container = document.getElementById('qe-container');
+  const div = document.createElement('div');
+  div.className = 'qe-session';
+  div.innerHTML = `
+    <div class="qe-session-row">
+      <span class="qe-session-label">Session</span>
+      <input type="text" class="qe-session-name" placeholder="e.g. Monday S&amp;C" />
+      <select class="qe-session-format">
+        <option value="strength">Strength</option>
+        <option value="cardio">Cardio / Class</option>
+      </select>
+      <input type="text" class="qe-session-notes" placeholder="Coach notes..." />
+      <button class="btn btn-red qe-remove"
+              onclick="this.closest('.qe-session').remove()">×</button>
+    </div>
+    <div class="qe-blocks"></div>
+    <button class="qe-add-block" onclick="addQEBlock(this)">+ add block</button>
+  `;
+  container.appendChild(div);
+  div.querySelector('.qe-session-name').focus();
+  addQEBlock(div.querySelector('.qe-add-block'));
+}
+
+function addQEBlock(btn) {
+  const session = btn.closest('.qe-session');
+  const blocksContainer = session.querySelector('.qe-blocks');
+  const idx = blocksContainer.querySelectorAll('.qe-block').length;
+  const label = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[idx] || String.fromCharCode(65 + idx);
+  const div = document.createElement('div');
+  div.className = 'qe-block';
+  div.innerHTML = `
+    <div class="qe-block-row">
+      <span class="qe-block-label">Block ${label}</span>
+      <input type="text" class="qe-block-focus"
+             placeholder="Block focus e.g. Strength / Power" />
+      <button class="btn btn-red qe-remove"
+              onclick="const s=this.closest('.qe-session');
+                       this.closest('.qe-block').remove();
+                       updateQEBlockLabels(s);">×</button>
+    </div>
+    <div class="qe-exercises"></div>
+    <button class="qe-add-ex" onclick="addQEExercise(this)">+ add exercise</button>
+  `;
+  blocksContainer.appendChild(div);
+  addQEExercise(div.querySelector('.qe-add-ex'));
+}
+
+function updateQEBlockLabels(sessionEl) {
+  const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  sessionEl.querySelectorAll('.qe-block').forEach((block, i) => {
+    block.querySelector('.qe-block-label').textContent =
+      'Block ' + (ALPHA[i] || String.fromCharCode(65 + i));
+  });
+}
+
+function addQEExercise(btn) {
+  const block = btn.closest('.qe-block');
+  const exContainer = block.querySelector('.qe-exercises');
+  const isCardio = btn.closest('.qe-session')
+                      .querySelector('.qe-session-format').value === 'cardio';
+  const div = document.createElement('div');
+  div.className = 'qe-exercise' + (isCardio ? ' cardio' : '');
+  if (isCardio) {
+    div.innerHTML = `
+      <input type="text" class="qe-ex-name" placeholder="e.g. Ski Erg"
+             onkeydown="qeEnterNext(event,this)" />
+      <input type="text" class="qe-ex-sets" placeholder="200 cal"
+             onkeydown="qeTabNext(event,this)" />
+      <button class="btn btn-red qe-remove"
+              onclick="this.closest('.qe-exercise').remove()">×</button>
+    `;
+  } else {
+    div.innerHTML = `
+      <input type="text" class="qe-ex-code" placeholder="A1" />
+      <input type="text" class="qe-ex-name" placeholder="Exercise name"
+             onkeydown="qeEnterNext(event,this)" />
+      <input type="text" class="qe-ex-sets" placeholder="4×8"
+             onkeydown="qeTabNext(event,this)" />
+      <button class="btn btn-red qe-remove"
+              onclick="this.closest('.qe-exercise').remove()">×</button>
+    `;
+  }
+  exContainer.appendChild(div);
+  return div;
+}
+
+function qeEnterNext(e, input) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const newRow = addQEExercise(input.closest('.qe-block').querySelector('.qe-add-ex'));
+  newRow.querySelector('.qe-ex-name').focus();
+}
+
+function qeTabNext(e, input) {
+  if (e.key !== 'Tab' || e.shiftKey) return;
+  e.preventDefault();
+  const newRow = addQEExercise(input.closest('.qe-block').querySelector('.qe-add-ex'));
+  newRow.querySelector('.qe-ex-name').focus();
+}
+
+async function saveAllQESessions() {
+  const sessionEls = document.querySelectorAll('#qe-container .qe-session');
+  const toSave = [];
+
+  sessionEls.forEach(sessionEl => {
+    const name = sessionEl.querySelector('.qe-session-name').value.trim();
+    if (!name) return;
+
+    const blocks = [];
+    const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    sessionEl.querySelectorAll('.qe-block').forEach((blockEl, i) => {
+      const label = ALPHA[i] || String.fromCharCode(65 + i);
+      const focus = blockEl.querySelector('.qe-block-focus').value.trim();
+      const exercises = [];
+      blockEl.querySelectorAll('.qe-exercise').forEach(exEl => {
+        const exName = exEl.querySelector('.qe-ex-name').value.trim();
+        if (!exName) return;
+        exercises.push({
+          code:      exEl.querySelector('.qe-ex-code')?.value.trim() || '',
+          name:      exName,
+          sets_reps: exEl.querySelector('.qe-ex-sets')?.value.trim() || ''
+        });
+      });
+      if (exercises.length) blocks.push({ label, focus, exercises });
+    });
+
+    toSave.push({
+      name,
+      coach_notes:  sessionEl.querySelector('.qe-session-notes').value.trim(),
+      session_type: sessionEl.querySelector('.qe-session-format').value,
+      blocks
+    });
+  });
+
+  if (!toSave.length) {
+    alert('No sessions to save — add at least one session with a name.');
+    return;
+  }
+
+  const btn = document.getElementById('qe-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  let saved = 0;
+  for (const payload of toSave) {
+    const r = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (r.ok) saved++;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Save All';
+  document.getElementById('qe-container').innerHTML = '';
+  loadSessions();
+  switchTab('library');
+  alert(`${saved} session${saved !== 1 ? 's' : ''} saved.`);
+}
+
+// Load library on start
+loadSessions();
+</script>
+</body>
+</html>

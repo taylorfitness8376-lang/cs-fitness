@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Taylor Fitness — Performance, Coaching &amp; Gym Systems</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #050806;
+      --surface: #0b120d;
+      --surface-2: #111b14;
+      --border: rgba(61, 255, 79, 0.22);
+      --green: #3DFF4F;
+      --blue: #38bdf8;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(circle at top, #0f2014 0%, var(--bg) 65%);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 2rem 1.25rem;
+    }
+    .container {
+      max-width: 980px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .hero {
+      text-align: center;
+      padding: 2.5rem 1rem 2.25rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      margin-bottom: 2.25rem;
+    }
+    .brand-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(61, 255, 79, 0.1);
+      border: 1px solid var(--border);
+      color: var(--green);
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      margin-bottom: 1rem;
+    }
+    h1 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: clamp(2.6rem, 6vw, 4.2rem);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      line-height: 1;
+      margin-bottom: 0.75rem;
+    }
+    h1 span { color: var(--green); }
+    .hero p {
+      color: var(--muted);
+      font-size: 1rem;
+      max-width: 580px;
+      margin: 0 auto;
+      line-height: 1.5;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+    }
+    .app-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.75rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+    .app-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--green);
+    }
+    .card-badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 0.25rem 0.65rem;
+      border-radius: 6px;
+      margin-bottom: 0.9rem;
+      width: fit-content;
+    }
+    .badge-green { background: rgba(61, 255, 79, 0.15); color: var(--green); }
+    .badge-blue { background: rgba(56, 189, 248, 0.15); color: var(--blue); }
+    .app-card h2 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-size: 2rem;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+    .app-card p {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.55;
+      margin-bottom: 1.35rem;
+    }
+    .feature-list {
+      list-style: none;
+      margin-bottom: 1.5rem;
+      display: grid;
+      gap: 0.45rem;
+      font-size: 0.84rem;
+      color: #cbd5e1;
+    }
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.7rem 1.1rem;
+      border-radius: 10px;
+      font-weight: 800;
+      font-size: 0.85rem;
+      text-decoration: none;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: var(--surface-2);
+      color: var(--text);
+      transition: opacity 0.15s ease;
+    }
+    .btn:hover { opacity: 0.92; }
+    .btn-primary {
+      background: var(--green);
+      color: #041006;
+      border-color: var(--green);
+      flex: 1;
+    }
+    .btn-blue {
+      background: var(--blue);
+      color: #04131d;
+      border-color: var(--blue);
+      flex: 1;
+    }
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.78rem;
+      margin-top: 3rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="hero">
+      <div class="brand-pill">⚡ TAYLORFITNESS.CO.UK</div>
+      <h1>TAYLOR <span>FITNESS</span> HUB</h1>
+      <p>Select your application below — Daily 8-Week Challenge Tracking, Mobile 1-Pagers, or the CS Fitness Gym TV Display &amp; Schedule CMS.</p>
+    </header>
+
+    <main class="grid">
+      <!-- Sub-App 1: 8-Week Challenge & Life App -->
+      <section class="app-card">
+        <div>
+          <span class="card-badge badge-green">Sub-App 1 · /8-week-app</span>
+          <h2>CS Fitness 8-Week Challenge</h2>
+          <p>Daily accountability, Garmin &amp; Apple Health sync, workouts logger, daily &amp; weekly PNG collage generator, and Coach Chris review portal.</p>
+          <ul class="feature-list">
+            <li>✅ Morning Check-In, Steps, Sleep, Macros &amp; Water</li>
+            <li>📱 Stripped-back Mobile Daily &amp; Weekly 1-Pagers</li>
+            <li>📸 End-of-Day Snapshot PNG &amp; 3-Photo Weekly Check-In</li>
+          </ul>
+        </div>
+        <div class="btn-row">
+          <a href="/challenge" class="btn btn-primary">🚀 Open 8-Week App</a>
+          <a href="/challenge?mode=daily" class="btn">☀️ Daily 1-Pager</a>
+          <a href="/challenge?mode=weekly" class="btn">📅 Weekly 1-Pager</a>
+        </div>
+      </section>
+
+      <!-- Sub-App 2: CS Fitness TV Display & CMS -->
+      <section class="app-card">
+        <div>
+          <span class="card-badge badge-blue">Sub-App 2 · /tv</span>
+          <h2>CS Fitness Gym TV &amp; CMS</h2>
+          <p>Live studio workout screen display and coach schedule management system for CS Fitness classes, blocks, and session overrides.</p>
+          <ul class="feature-list">
+            <li>📺 Fullscreen Live Gym TV Workout Display</li>
+            <li>🗓️ Weekly Class Schedule &amp; Calendar Override CMS</li>
+            <li>⚡ Instant Session Publishing &amp; TV Controls</li>
+          </ul>
+        </div>
+        <div class="btn-row">
+          <a href="/cms" class="btn btn-blue">⚙️ Open TV CMS</a>
+          <a href="/display" class="btn">📺 Live TV Display</a>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    Taylor Fitness (`taylorfitness.co.uk`) · CS Fitness 8-Week Challenge &amp; Gym TV Platform
+  </footer>
+</body>
+</html>

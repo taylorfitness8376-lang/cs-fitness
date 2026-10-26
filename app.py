@@ -29,6 +29,16 @@ def require_auth(f):
 
 @app.route("/")
 def index():
+    return render_template("index.html")
+
+
+@app.route("/tv")
+def tv_subpage():
+    return redirect(url_for("cms"))
+
+
+@app.route("/8-week-app")
+def challenge_subpage():
     return redirect("/challenge")
 
 
