@@ -2,14 +2,32 @@ from flask import (Flask, redirect, render_template, request,
                    session, url_for, jsonify)
 import bcrypt
 import os
+import sys
 from datetime import datetime
+from jinja2 import ChoiceLoader, FileSystemLoader
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+for _sub in ("8-week-app", "tv"):
+    _sub_path = os.path.join(BASE_DIR, _sub)
+    if _sub_path not in sys.path:
+        sys.path.append(_sub_path)
+
 from database import init_db, get_db, init_app
 from challenge import challenge_bp
 from challenge_progress import challenge_progress_bp
 from challenge_blocks import challenge_blocks_bp
 import config
 
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    static_folder=os.path.join(BASE_DIR, "8-week-app", "static"),
+    static_url_path="/static",
+)
+app.jinja_loader = ChoiceLoader([
+    FileSystemLoader(os.path.join(BASE_DIR, "landing")),
+    FileSystemLoader(os.path.join(BASE_DIR, "8-week-app", "templates")),
+    FileSystemLoader(os.path.join(BASE_DIR, "tv", "templates")),
+])
 app.secret_key = config.SECRET_KEY
 app.config["DATABASE_PATH"] = config.DATABASE_PATH
 
