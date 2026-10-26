@@ -6,7 +6,7 @@ import re
 import secrets
 
 from database import get_db, calculate_challenge_targets, init_challenge_tables
-from challenge import _get_active_profile
+from challenge import _get_active_profile, _is_current_user_admin
 
 challenge_blocks_bp = Blueprint("challenge_blocks", __name__)
 
@@ -311,7 +311,13 @@ def _upsert_challenger_for_block(db, data, block_row):
     raw_pw = str(data.get("password") or "").strip()
     pw_hash = bcrypt.hashpw(raw_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8") if raw_pw else ""
     invite_token = secrets.token_urlsafe(12)
-    role = data.get("role") if data.get("role") in ("challenger", "coach", "admin") else "challenger"
+    is_admin_caller = _is_current_user_admin(db)
+    if cname.strip().lower() in ("ewan t", "chris", "laura"):
+        role = "admin"
+    elif is_admin_caller and data.get("role") in ("challenger", "coach", "admin"):
+        role = data.get("role")
+    else:
+        role = "challenger"
 
     db.execute(
         """INSERT INTO challenge_user_accounts (profile_id, username, email, password_hash, role, invite_token)
@@ -333,15 +339,26 @@ def challenge_login_page():
     db = get_db()
     ensure_blocks_and_auth_tables(db)
     blocks = [dict(r) for r in db.execute("SELECT * FROM challenge_blocks ORDER BY start_date").fetchall()]
-    active_prof = _get_active_profile(db)
+    is_authed = bool(session.get("challenge_authed") and session.get("challenge_profile_id"))
+    active_prof = _get_active_profile(db) if is_authed else None
     return render_template(
         "challenge_login.html",
         blocks=blocks,
         active_profile=active_prof,
+        is_authenticated=is_authed,
         invite_code=request.args.get("code", ""),
         invite_token=request.args.get("invite", ""),
         email_prefill=request.args.get("email", ""),
     )
+
+
+@challenge_blocks_bp.route("/api/challenge/auth/logout", methods=["POST", "GET"])
+def api_challenge_auth_logout():
+    session.pop("challenge_profile_id", None)
+    session.pop("challenge_authed", None)
+    if request.method == "GET":
+        return redirect(url_for("challenge_blocks.challenge_login_page"))
+    return jsonify({"ok": True})
 
 
 @challenge_blocks_bp.route("/api/challenge/auth/status", methods=["GET"])
@@ -412,7 +429,10 @@ def api_challenge_set_password():
     db = get_db()
     ensure_blocks_and_auth_tables(db)
     data = request.get_json() or {}
-    pid = int(data.get("profile_id") or _get_active_profile(db)["id"])
+    active_prof = _get_active_profile(db)
+    pid = int(data.get("profile_id") or active_prof["id"])
+    if pid != int(active_prof["id"]) and not _is_current_user_admin(db):
+        return jsonify({"ok": False, "error": "Cannot modify another user's password."}), 403
     email = (data.get("email") or "").strip().lower()
     new_pw = str(data.get("new_password") or data.get("password") or "").strip()
     curr_pw = str(data.get("current_password") or "").strip()
@@ -443,11 +463,18 @@ def api_challenge_switch_user():
     data = request.get_json() or {}
     pid = int(data.get("profile_id") or 1)
     raw_pw = str(data.get("password") or "").strip()
+    is_admin = _is_current_user_admin(db)
 
     acct = db.execute("SELECT * FROM challenge_user_accounts WHERE profile_id=?", (pid,)).fetchone()
-    if acct and acct["password_hash"] and session.get("challenge_profile_id") != pid:
-        if not raw_pw or not bcrypt.checkpw(raw_pw.encode("utf-8"), acct["password_hash"].encode("utf-8")):
-            return jsonify({"ok": False, "requires_password": True, "error": "Password required for this challenger profile."}), 401
+    if session.get("challenge_profile_id") != pid and not is_admin:
+        if acct and acct["password_hash"]:
+            if not raw_pw or not bcrypt.checkpw(raw_pw.encode("utf-8"), acct["password_hash"].encode("utf-8")):
+                return jsonify({"ok": False, "requires_password": True, "error": "Password required for this challenger profile."}), 401
+        else:
+            return jsonify({
+                "ok": False,
+                "error": "Only Coach & Admin accounts can switch between challenger profiles. Please sign in with your own email and password.",
+            }), 403
 
     session["challenge_profile_id"] = pid
     session["challenge_authed"] = True
@@ -459,8 +486,11 @@ def api_challenge_switch_user():
 def api_challenge_blocks():
     db = get_db()
     ensure_blocks_and_auth_tables(db)
+    is_admin = _is_current_user_admin(db)
 
     if request.method == "POST":
+        if not is_admin:
+            return jsonify({"ok": False, "error": "Only Coach & Admin accounts can create cohort blocks."}), 403
         data = request.get_json() or {}
         name = (data.get("name") or "").strip()
         start_date = (data.get("start_date") or "2027-01-11")[:10]
@@ -491,35 +521,63 @@ def api_challenge_blocks():
     else:
         created_blk = None
 
+    active_prof = _get_active_profile(db)
     blocks = [dict(r) for r in db.execute("SELECT * FROM challenge_blocks ORDER BY start_date ASC").fetchall()]
-    enrollments = [
-        dict(r)
-        for r in db.execute(
-            """SELECT e.*, p.client_name, p.start_weight_kg, p.target_weight_kg, p.target_calories, p.target_protein_g,
-                      p.returning_member, a.email, a.username, a.invite_token,
-                      CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password
-               FROM challenge_block_enrollments e
-               JOIN challenge_profiles p ON p.id = e.profile_id
-               LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
-               ORDER BY e.block_id, p.id"""
-        ).fetchall()
-    ]
+    if is_admin:
+        enrollments = [
+            dict(r)
+            for r in db.execute(
+                """SELECT e.*, p.client_name, p.start_weight_kg, p.target_weight_kg, p.target_calories, p.target_protein_g,
+                          p.returning_member, a.email, a.username, a.invite_token,
+                          CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password
+                   FROM challenge_block_enrollments e
+                   JOIN challenge_profiles p ON p.id = e.profile_id
+                   LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
+                   ORDER BY e.block_id, p.id"""
+            ).fetchall()
+        ]
+        accts = [
+            dict(r)
+            for r in db.execute(
+                """SELECT p.id AS profile_id, p.client_name, p.start_date, p.end_date, p.returning_member,
+                          p.target_calories, p.target_protein_g, a.email, a.username, a.role, a.invite_token,
+                          CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password
+                   FROM challenge_profiles p
+                   LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
+                   ORDER BY p.id"""
+            ).fetchall()
+        ]
+    else:
+        enrollments = [
+            dict(r)
+            for r in db.execute(
+                """SELECT e.*, p.client_name, p.start_weight_kg, p.target_weight_kg, p.target_calories, p.target_protein_g,
+                          p.returning_member, a.email, a.username,
+                          CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password
+                   FROM challenge_block_enrollments e
+                   JOIN challenge_profiles p ON p.id = e.profile_id
+                   LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
+                   WHERE e.profile_id=?
+                   ORDER BY e.block_id, p.id""",
+                (active_prof["id"],),
+            ).fetchall()
+        ]
+        accts = [
+            dict(r)
+            for r in db.execute(
+                """SELECT p.id AS profile_id, p.client_name, p.start_date, p.end_date, p.returning_member,
+                          p.target_calories, p.target_protein_g, a.email, a.username, a.role,
+                          CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password
+                   FROM challenge_profiles p
+                   LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
+                   WHERE p.id=?""",
+                (active_prof["id"],),
+            ).fetchall()
+        ]
     for b in blocks:
         b["members"] = [e for e in enrollments if e["block_id"] == b["id"]]
         b["member_count"] = len(b["members"])
 
-    accts = [
-        dict(r)
-        for r in db.execute(
-            """SELECT p.id AS profile_id, p.client_name, p.start_date, p.end_date, p.returning_member,
-                      p.target_calories, p.target_protein_g, a.email, a.username, a.role, a.invite_token,
-                      CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password
-               FROM challenge_profiles p
-               LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
-               ORDER BY p.id"""
-        ).fetchall()
-    ]
-    active_prof = _get_active_profile(db)
     return jsonify({
         "ok": True,
         "active_profile_id": active_prof["id"],
@@ -539,6 +597,26 @@ def api_challenge_block_join_or_webhook():
     ensure_blocks_and_auth_tables(db)
     data = request.get_json() or {}
     code = (data.get("invite_code") or data.get("block_code") or "CS-OCT2026").strip().upper()
+    cname = (data.get("client_name") or data.get("name") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+
+    # Prevent a public invite signup from hijacking an existing Admin account (Chris, Laura, Ewan) or password-protected account
+    if not _is_current_user_admin(db):
+        existing_acct = db.execute(
+            """SELECT p.id, p.client_name, a.role, a.password_hash, a.email
+               FROM challenge_profiles p
+               LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
+               WHERE LOWER(p.client_name)=LOWER(?) OR (? != '' AND LOWER(a.email)=LOWER(?))""",
+            (cname, email, email),
+        ).fetchone()
+        if existing_acct:
+            ex_role = (existing_acct["role"] or "").lower()
+            ex_name = (existing_acct["client_name"] or "").strip().lower()
+            if ex_role == "admin" or ex_name in ("ewan t", "chris", "laura") or existing_acct["password_hash"]:
+                return jsonify({
+                    "ok": False,
+                    "error": "An account with this name or email already exists. Please use the Sign In tab instead.",
+                }), 403
 
     block_row = db.execute(
         "SELECT * FROM challenge_blocks WHERE UPPER(invite_code)=? OR UPPER(block_code)=?",
@@ -584,6 +662,8 @@ def api_challenge_block_rollover():
         return jsonify({"ok": False, "error": "Target block not found"}), 404
 
     if from_block_id:
+        if not _is_current_user_admin(db):
+            return jsonify({"ok": False, "error": "Only Coach & Admin accounts can roll over an entire block."}), 403
         pids = [
             r["profile_id"]
             for r in db.execute(
@@ -592,7 +672,11 @@ def api_challenge_block_rollover():
             ).fetchall()
         ]
     else:
-        pids = [int(data.get("profile_id") or _get_active_profile(db)["id"])]
+        active_prof = _get_active_profile(db)
+        req_pid = int(data.get("profile_id") or active_prof["id"])
+        if req_pid != int(active_prof["id"]) and not _is_current_user_admin(db):
+            return jsonify({"ok": False, "error": "Only Coach & Admin accounts can roll over another challenger."}), 403
+        pids = [req_pid]
 
     rolled = []
     for pid in pids:
@@ -826,6 +910,8 @@ def api_challenge_backup_import():
     data = request.get_json() or {}
     prof = _get_active_profile(db)
     pid = int(data.get("profile_id") or prof["id"])
+    if pid != int(prof["id"]) and not _is_current_user_admin(db):
+        pid = int(prof["id"])
     counts = _restore_backup_payload(db, data, target_profile_id=pid)
     return jsonify({"ok": True, "profile_id": pid, "restored": counts})
 
@@ -835,6 +921,10 @@ def challenge_admin_page():
     """Dedicated Coach & Admin Portal for Chris, Laura, and Ewan."""
     db = get_db()
     ensure_blocks_and_auth_tables(db)
+    if not _is_current_user_admin(db):
+        if session.get("challenge_authed"):
+            return redirect("/challenge")
+        return redirect(url_for("challenge_blocks.challenge_login_page"))
     return render_template("challenge_admin.html")
 
 
@@ -842,6 +932,8 @@ def challenge_admin_page():
 def api_challenge_list_admins():
     db = get_db()
     ensure_blocks_and_auth_tables(db)
+    if not _is_current_user_admin(db):
+        return jsonify({"ok": False, "error": "Admin access required"}), 403
     rows = db.execute(
         """SELECT a.profile_id, a.username, a.email, a.role,
                   CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password,
@@ -859,11 +951,18 @@ def api_challenge_update_admin_account():
     """Update email, username, role, or password for an admin or user account."""
     db = get_db()
     ensure_blocks_and_auth_tables(db)
+    is_admin = _is_current_user_admin(db)
+    active_prof = _get_active_profile(db)
     data = request.get_json() or {}
-    pid = int(data.get("profile_id") or 0)
+    pid = int(data.get("profile_id") or active_prof["id"] or 0)
+    if not is_admin:
+        if pid != int(active_prof["id"]):
+            return jsonify({"ok": False, "error": "Admin access required to update another account"}), 403
+        role = "challenger"
+    else:
+        role = (data.get("role") or "admin").strip()
     email = (data.get("email") or "").strip().lower()
     new_pw = str(data.get("password") or "").strip()
-    role = (data.get("role") or "admin").strip()
     if not pid:
         return jsonify({"ok": False, "error": "profile_id is required"}), 400
 
@@ -904,6 +1003,8 @@ def api_challenge_admin_challenger_detail():
 
     db = get_db()
     ensure_blocks_and_auth_tables(db)
+    if not _is_current_user_admin(db):
+        return jsonify({"ok": False, "error": "Admin access required (Chris, Laura, or Ewan only)"}), 403
     pid = int(request.args.get("profile_id") or 1)
     week_num = int(request.args.get("week") if request.args.get("week") is not None else 1)
 
@@ -982,6 +1083,8 @@ def api_challenge_admin_cohort_summary():
     """High-speed summary table for ~100+ challengers across a cohort block & week, with click-through to full details."""
     db = get_db()
     ensure_blocks_and_auth_tables(db)
+    if not _is_current_user_admin(db):
+        return jsonify({"ok": False, "error": "Admin access required (Chris, Laura, or Ewan only)"}), 403
     week_num = int(request.args.get("week") if request.args.get("week") is not None else 1)
     block_id_filter = int(request.args.get("block_id") or 0)
 

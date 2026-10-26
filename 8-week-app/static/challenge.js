@@ -511,7 +511,7 @@ function downloadDailySummaryPng() {
   ctx.fillText("CS FITNESS · 8-WEEK CHALLENGE", 38, 62);
   ctx.fillStyle = "#F3F6F4";
   ctx.font = "bold 20px sans-serif";
-  ctx.fillText(`${p.client_name || "Ewan t"} · ${STATE.date} (${wk.phase || "Week 1"})`, 38, 96);
+  ctx.fillText(`${p.client_name || "Challenger"} · ${STATE.date} (${wk.phase || "Week 1"})`, 38, 96);
 
   const boxes = [
     ["STEPS", `${(c.steps || 0).toLocaleString()} / ${(wk.step_target || 10000).toLocaleString()}`],
@@ -538,7 +538,8 @@ function downloadDailySummaryPng() {
 
   ctx.fillStyle = "#3DFF4F";
   ctx.font = "bold 18px sans-serif";
-  ctx.fillText("#Ewan #steps #macros #dinner #snack #winTheDay", 38, 405);
+  const tagHandle = (p.client_name || "Challenger").split(" ")[0].replace(/[^A-Za-z0-9]/g, "") || "Challenger";
+  ctx.fillText(`#${tagHandle} #steps #macros #dinner #snack #winTheDay`, 38, 405);
 
   const link = document.createElement("a");
   link.download = `cs-fitness-${STATE.date}.png`;
@@ -884,7 +885,7 @@ function renderIntegrationsAndStaples(data) {
   const integ = data.integrations || {};
   document.getElementById("cfg-garmin-email").value = integ.garmin_email || "";
   document.getElementById("cfg-nutri-provider").value = integ.nutrition_provider || "myfitnesspal";
-  document.getElementById("cfg-mfp-user").value = integ.mfp_username || "ewantaylor";
+  document.getElementById("cfg-mfp-user").value = integ.mfp_username || "";
   document.getElementById("cfg-tg-token").value = integ.telegram_bot_token || "";
   document.getElementById("cfg-tg-chat").value = integ.telegram_chat_id || integ.coach_telegram_handle || "csfitness_chris";
 
@@ -1040,7 +1041,9 @@ async function runCoachCalculator(saveProfile) {
 
 async function loadCohortBoard() {
   const res = await fetch("/api/challenge/coach/cohort");
+  if (!res.ok) return;
   const data = await res.json();
+  if (!data || !data.challengers) return;
   document.getElementById("cohort-count-badge").textContent = `${data.challenger_count} Challengers Active`;
   const tbody = document.getElementById("cohort-tbody");
   tbody.innerHTML = (data.challengers || [])

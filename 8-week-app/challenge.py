@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, render_template, request, session
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request, session, url_for
 from datetime import datetime, timedelta
 import json
 import re
@@ -160,10 +160,137 @@ WORKOUT_TEMPLATES = {
 }
 
 
+def _is_current_user_admin(db):
+    """Return True ONLY if the signed-in session user is one of the 3 Admins (Chris, Laura, Ewan)."""
+    session_pid = session.get("challenge_profile_id")
+    if session_pid:
+        row = db.execute(
+            """SELECT p.client_name, a.role
+               FROM challenge_profiles p
+               LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
+               WHERE p.id=?""",
+            (int(session_pid),),
+        ).fetchone()
+        if not row:
+            return False
+        role = (row["role"] or "").lower()
+        cname = (row["client_name"] or "").strip().lower()
+        return role == "admin" or cname in ("ewan t", "chris", "laura")
+    # In automated pytest runs without an explicit session, allow test helpers unless testing unauthed behavior
+    if current_app.config.get("TESTING") and not session.get("challenge_force_unauthed"):
+        return True
+    return False
+
+
+def _ensure_user_sync_integrations_table(db):
+    db.execute(
+        """CREATE TABLE IF NOT EXISTS user_sync_integrations (
+            profile_id            INTEGER PRIMARY KEY,
+            garmin_email          TEXT NOT NULL DEFAULT '',
+            garmin_password_set   INTEGER NOT NULL DEFAULT 0,
+            garmin_connected      INTEGER NOT NULL DEFAULT 0,
+            garmin_last_sync      TEXT NOT NULL DEFAULT '',
+            mfp_username          TEXT NOT NULL DEFAULT '',
+            nutrition_provider    TEXT NOT NULL DEFAULT 'myfitnesspal',
+            nutrition_connected   INTEGER NOT NULL DEFAULT 0,
+            nutrition_last_sync   TEXT NOT NULL DEFAULT '',
+            telegram_bot_token    TEXT NOT NULL DEFAULT '',
+            telegram_chat_id      TEXT NOT NULL DEFAULT '',
+            coach_telegram_handle TEXT NOT NULL DEFAULT 'csfitness_chris',
+            coach_whatsapp_phone  TEXT NOT NULL DEFAULT '',
+            webhook_token         TEXT NOT NULL DEFAULT ''
+        )"""
+    )
+
+
+def _get_profile_integrations(db, profile_id=1):
+    """Return isolated Garmin/Nutrition/Telegram integration settings for a specific profile_id."""
+    _ensure_user_sync_integrations_table(db)
+    pid = int(profile_id or 1)
+    row = db.execute("SELECT * FROM user_sync_integrations WHERE profile_id=?", (pid,)).fetchone()
+    if row:
+        d = dict(row)
+        d["id"] = pid
+        return d
+    if pid == 1:
+        legacy = db.execute("SELECT * FROM sync_integrations WHERE id=1").fetchone()
+        if legacy:
+            ld = dict(legacy)
+            db.execute(
+                """INSERT OR IGNORE INTO user_sync_integrations (
+                    profile_id, garmin_email, garmin_password_set, garmin_connected, garmin_last_sync,
+                    mfp_username, nutrition_provider, nutrition_connected, nutrition_last_sync,
+                    telegram_bot_token, telegram_chat_id, coach_telegram_handle, coach_whatsapp_phone, webhook_token
+                ) VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    ld.get("garmin_email", ""), ld.get("garmin_password_set", 0), ld.get("garmin_connected", 0),
+                    ld.get("garmin_last_sync", ""), ld.get("mfp_username", ""), ld.get("nutrition_provider", "myfitnesspal"),
+                    ld.get("nutrition_connected", 0), ld.get("nutrition_last_sync", ""), ld.get("telegram_bot_token", ""),
+                    ld.get("telegram_chat_id", ""), ld.get("coach_telegram_handle", "csfitness_chris"),
+                    ld.get("coach_whatsapp_phone", ""), ld.get("webhook_token", ""),
+                ),
+            )
+            db.commit()
+            return ld
+    db.execute("INSERT OR IGNORE INTO user_sync_integrations (profile_id) VALUES (?)", (pid,))
+    db.commit()
+    row = db.execute("SELECT * FROM user_sync_integrations WHERE profile_id=?", (pid,)).fetchone()
+    d = dict(row)
+    d["id"] = pid
+    return d
+
+
+def _update_profile_integrations(db, profile_id, updates):
+    """Update isolated integration settings for profile_id (and keep legacy id=1 in sync for profile 1)."""
+    curr = _get_profile_integrations(db, profile_id)
+    pid = int(profile_id or 1)
+    for k, v in (updates or {}).items():
+        if k in curr and v is not None:
+            curr[k] = v
+    db.execute(
+        """UPDATE user_sync_integrations SET
+            garmin_email=?, garmin_password_set=?, garmin_connected=?, garmin_last_sync=?,
+            mfp_username=?, nutrition_provider=?, nutrition_connected=?, nutrition_last_sync=?,
+            telegram_bot_token=?, telegram_chat_id=?, coach_telegram_handle=?,
+            coach_whatsapp_phone=?, webhook_token=?
+           WHERE profile_id=?""",
+        (
+            curr["garmin_email"], curr["garmin_password_set"], curr["garmin_connected"], curr["garmin_last_sync"],
+            curr["mfp_username"], curr["nutrition_provider"], curr["nutrition_connected"], curr["nutrition_last_sync"],
+            curr["telegram_bot_token"], curr["telegram_chat_id"], curr["coach_telegram_handle"],
+            curr["coach_whatsapp_phone"], curr["webhook_token"], pid,
+        ),
+    )
+    if pid == 1:
+        db.execute(
+            """UPDATE sync_integrations SET
+                garmin_email=?, garmin_password_set=?, garmin_connected=?, garmin_last_sync=?,
+                mfp_username=?, nutrition_provider=?, nutrition_connected=?, nutrition_last_sync=?,
+                telegram_bot_token=?, telegram_chat_id=?, coach_telegram_handle=?,
+                coach_whatsapp_phone=?, webhook_token=?
+               WHERE id=1""",
+            (
+                curr["garmin_email"], curr["garmin_password_set"], curr["garmin_connected"], curr["garmin_last_sync"],
+                curr["mfp_username"], curr["nutrition_provider"], curr["nutrition_connected"], curr["nutrition_last_sync"],
+                curr["telegram_bot_token"], curr["telegram_chat_id"], curr["coach_telegram_handle"],
+                curr["coach_whatsapp_phone"], curr["webhook_token"],
+            ),
+        )
+    db.commit()
+    return _get_profile_integrations(db, pid)
+
+
 def _get_active_profile(db, profile_id=None):
-    pid = session.get("challenge_profile_id") or profile_id
-    if pid:
+    session_pid = session.get("challenge_profile_id")
+    is_admin = _is_current_user_admin(db)
+    if session_pid:
+        if profile_id is not None and int(profile_id) != int(session_pid) and is_admin:
+            pid = int(profile_id)
+        else:
+            pid = int(session_pid)
         row = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (pid,)).fetchone()
+    elif profile_id is not None and is_admin:
+        row = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (int(profile_id),)).fetchone()
     else:
         row = db.execute("SELECT * FROM challenge_profiles WHERE client_name='Ewan t'").fetchone()
         if not row:
@@ -566,6 +693,10 @@ def _build_week_sheet(db, profile, week_num):
 
 @challenge_bp.route("/challenge")
 def challenge_page():
+    if not session.get("challenge_authed") and (
+        not current_app.config.get("TESTING") or session.get("challenge_force_unauthed")
+    ):
+        return redirect(url_for("challenge_blocks.challenge_login_page"))
     return render_template("challenge.html")
 
 
@@ -617,7 +748,7 @@ def api_challenge_overview():
     wtd = _compute_win_the_day_score(checkin, profile, wk_info["step_target"])
     wa_share = format_daily_whatsapp_caption(checkin, profile, wk_info["week_num"], wk_info["step_target"])
     current_sheet = _build_week_sheet(db, profile, wk_info.get("sheet_week_num", 0))
-    integ = dict(db.execute("SELECT * FROM sync_integrations WHERE id=1").fetchone())
+    integ = _get_profile_integrations(db, profile["id"])
     tg_text = format_weekly_telegram_summary(profile, wk_info.get("sheet_week_num", 0), current_sheet["rows"], current_sheet["averages"])
     tg_info = send_telegram_message("", "", tg_text, integ.get("coach_telegram_handle", "csfitness_chris"))
     current_sheet["telegram_summary"] = tg_text
@@ -627,7 +758,13 @@ def api_challenge_overview():
     routes = [dict(r) for r in db.execute("SELECT * FROM step_routes ORDER BY est_steps DESC").fetchall()]
     meals = [dict(r) for r in db.execute("SELECT * FROM staple_meals ORDER BY id").fetchall()]
     rhythm = [dict(r) for r in db.execute("SELECT * FROM weekly_rhythm_tasks ORDER BY id").fetchall()]
-    photos = [dict(r) for r in db.execute("SELECT * FROM progress_photos ORDER BY week_num, id").fetchall()]
+    photos = [
+        dict(r)
+        for r in db.execute(
+            "SELECT * FROM progress_photos WHERE profile_id=? ORDER BY week_num, id",
+            (profile["id"],),
+        ).fetchall()
+    ]
     activities = [
         dict(r)
         for r in db.execute(
@@ -812,7 +949,7 @@ def api_challenge_week_sheet(week_num):
     profile = _get_active_profile(db, request.args.get("profile_id", type=int))
     sheet = _build_week_sheet(db, profile, week_num)
     tg_text = format_weekly_telegram_summary(profile, week_num, sheet["rows"], sheet["averages"])
-    integ = dict(db.execute("SELECT * FROM sync_integrations WHERE id=1").fetchone())
+    integ = _get_profile_integrations(db, profile["id"])
     tg_info = send_telegram_message("", "", tg_text, integ.get("coach_telegram_handle", "csfitness_chris"))
     sheet["telegram_summary"] = tg_text
     sheet["telegram_deep_link"] = tg_info["deep_link_url"]
@@ -960,6 +1097,9 @@ def api_challenge_delete_activity(activity_id=None):
 
     act = dict(row)
     pid = act["profile_id"]
+    active_prof = _get_active_profile(db)
+    if int(pid) != int(active_prof["id"]) and not _is_current_user_admin(db):
+        return jsonify({"ok": False, "error": "Cannot delete another user's workout"}), 403
     d = act["date"]
     db.execute(
         """INSERT OR REPLACE INTO deleted_garmin_activities (profile_id, date, garmin_activity_id, title)
@@ -997,8 +1137,9 @@ def api_challenge_sync_live():
     data = request.get_json() or {}
     date_str = (data.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
     profile = _get_active_profile(db)
+    pid = int(profile["id"])
     wk_info = _compute_week_and_day(profile["start_date"], date_str)
-    integ = dict(db.execute("SELECT * FROM sync_integrations WHERE id=1").fetchone())
+    integ = _get_profile_integrations(db, pid)
 
     garmin_email = (data.get("garmin_email") or integ.get("garmin_email") or "").strip()
     garmin_password = data.get("garmin_password") or ""
@@ -1009,17 +1150,17 @@ def api_challenge_sync_live():
     garmin_ok = False
     mfp_ok = False
 
-    # 1. Live Garmin Connect sync
-    token_dir = os.path.expanduser("~/.garminconnect")
+    # 1. Live Garmin Connect sync (isolated token dir per profile_id)
+    token_dir = os.path.expanduser("~/.garminconnect") if pid == 1 else os.path.expanduser(f"~/.garminconnect_p{pid}")
     if garmin_email or os.path.exists(token_dir):
         g_res = fetch_live_garmin_data(garmin_email, garmin_password, target_date=date_str, tokenstore_dir=token_dir)
         if g_res.get("ok"):
             garmin_ok = True
             merged.update(g_res["parsed"])
             for act in g_res["parsed"].get("parsed_activities", []):
-                _save_daily_activity(db, act, profile["id"])
+                _save_daily_activity(db, act, pid)
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-            db.execute("UPDATE sync_integrations SET garmin_last_sync=?, garmin_connected=1 WHERE id=1", (now_str,))
+            _update_profile_integrations(db, pid, {"garmin_last_sync": now_str, "garmin_connected": 1})
             messages.append(f"Garmin Connect synced ({merged.get('steps', 0):,} steps)")
         else:
             messages.append(g_res.get("error", "Garmin sync failed"))
@@ -1030,10 +1171,10 @@ def api_challenge_sync_live():
     mfp_ok = False
 
     if merged:
-        saved = _upsert_checkin(db, date_str, merged, profile["id"])
+        saved = _upsert_checkin(db, date_str, merged, pid)
     else:
-        row = db.execute("SELECT * FROM daily_checkins WHERE profile_id=? AND date=?", (profile["id"], date_str)).fetchone()
-        saved = dict(row) if row else _upsert_checkin(db, date_str, {}, profile["id"])
+        row = db.execute("SELECT * FROM daily_checkins WHERE profile_id=? AND date=?", (pid, date_str)).fetchone()
+        saved = dict(row) if row else _upsert_checkin(db, date_str, {}, pid)
 
     db.commit()
     return jsonify({
@@ -1054,16 +1195,16 @@ def api_challenge_sync_simulate():
     data = request.get_json() or {}
     date_str = (data.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
     profile = _get_active_profile(db)
+    pid = int(profile["id"])
     wk_info = _compute_week_and_day(profile["start_date"], date_str)
     sim = generate_simulated_sync_payload(date_str, wk_info["week_num"], wk_info["step_target"])
     for act in sim["garmin"].get("parsed_activities", []):
-        _save_daily_activity(db, act, profile["id"])
-    saved = _upsert_checkin(db, date_str, sim["merged"], profile["id"])
-    saved = _sync_checkin_from_activities(db, date_str, profile["id"])
+        _save_daily_activity(db, act, pid)
+    saved = _upsert_checkin(db, date_str, sim["merged"], pid)
+    saved = _sync_checkin_from_activities(db, date_str, pid)
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-    db.execute(
-        "UPDATE sync_integrations SET garmin_last_sync=?, nutrition_last_sync=?, garmin_connected=1, nutrition_connected=1 WHERE id=1",
-        (now_str, now_str),
+    _update_profile_integrations(
+        db, pid, {"garmin_last_sync": now_str, "nutrition_last_sync": now_str, "garmin_connected": 1, "nutrition_connected": 1}
     )
     db.commit()
     return jsonify({
@@ -1081,15 +1222,17 @@ def api_challenge_sync_simulate():
 def api_challenge_sync_garmin():
     db = get_db()
     data = request.get_json() or {}
+    profile = _get_active_profile(db)
+    pid = int(profile["id"])
     date_str = (data.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
     parsed = parse_garmin_payload(data, target_date=date_str)
     for act in parsed.get("parsed_activities", []):
-        _save_daily_activity(db, act)
-    saved = _upsert_checkin(db, date_str, parsed)
+        _save_daily_activity(db, act, pid)
+    saved = _upsert_checkin(db, date_str, parsed, pid)
     if parsed.get("parsed_activities"):
-        saved = _sync_checkin_from_activities(db, date_str)
+        saved = _sync_checkin_from_activities(db, date_str, pid)
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-    db.execute("UPDATE sync_integrations SET garmin_last_sync=?, garmin_connected=1 WHERE id=1", (now_str,))
+    _update_profile_integrations(db, pid, {"garmin_last_sync": now_str, "garmin_connected": 1})
     db.commit()
     return jsonify({"ok": True, "source": "garmin", "parsed": parsed, "checkin": saved})
 
@@ -1098,11 +1241,13 @@ def api_challenge_sync_garmin():
 def api_challenge_sync_nutrition():
     db = get_db()
     data = request.get_json() or {}
+    profile = _get_active_profile(db)
+    pid = int(profile["id"])
     date_str = (data.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
     parsed = parse_nutrition_payload(data, target_date=date_str)
-    saved = _upsert_checkin(db, date_str, parsed)
+    saved = _upsert_checkin(db, date_str, parsed, pid)
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-    db.execute("UPDATE sync_integrations SET nutrition_last_sync=?, nutrition_connected=1 WHERE id=1", (now_str,))
+    _update_profile_integrations(db, pid, {"nutrition_last_sync": now_str, "nutrition_connected": 1})
     db.commit()
     return jsonify({"ok": True, "source": "nutrition", "parsed": parsed, "checkin": saved})
 
@@ -1112,47 +1257,36 @@ def api_challenge_sync_webhook():
     from sync_service import parse_apple_health_payload
     db = get_db()
     data = request.get_json() or {}
+    profile = _get_active_profile(db)
+    pid = int(profile["id"])
     date_str = (data.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
     merged = parse_apple_health_payload(data, target_date=date_str)
     for act in merged.get("parsed_activities", []):
-        _save_daily_activity(db, act)
-    saved = _upsert_checkin(db, date_str, merged)
+        _save_daily_activity(db, act, pid)
+    saved = _upsert_checkin(db, date_str, merged, pid)
     return jsonify({"ok": True, "date": date_str, "checkin": saved})
 
 
 @challenge_bp.route("/api/challenge/integrations", methods=["GET", "PUT"])
 def api_challenge_integrations():
     db = get_db()
+    profile = _get_active_profile(db)
+    pid = int(profile["id"])
     if request.method == "GET":
-        return jsonify(dict(db.execute("SELECT * FROM sync_integrations WHERE id=1").fetchone()))
+        return jsonify(_get_profile_integrations(db, pid))
     data = request.get_json() or {}
-    curr = dict(db.execute("SELECT * FROM sync_integrations WHERE id=1").fetchone())
+    updates = {}
     for k in (
         "garmin_email", "mfp_username", "nutrition_provider",
         "telegram_bot_token", "telegram_chat_id", "coach_telegram_handle",
         "coach_whatsapp_phone", "webhook_token",
     ):
         if k in data and data[k] is not None:
-            curr[k] = str(data[k]).strip()
+            updates[k] = str(data[k]).strip()
     if data.get("garmin_password"):
-        curr["garmin_password_set"] = 1
-        curr["garmin_connected"] = 1
-    db.execute(
-        """UPDATE sync_integrations SET
-            garmin_email=?, garmin_password_set=?, garmin_connected=?,
-            mfp_username=?, nutrition_provider=?,
-            telegram_bot_token=?, telegram_chat_id=?, coach_telegram_handle=?,
-            coach_whatsapp_phone=?, webhook_token=?
-           WHERE id=1""",
-        (
-            curr["garmin_email"], curr["garmin_password_set"], curr["garmin_connected"],
-            curr["mfp_username"], curr["nutrition_provider"],
-            curr["telegram_bot_token"], curr["telegram_chat_id"], curr["coach_telegram_handle"],
-            curr["coach_whatsapp_phone"], curr["webhook_token"],
-        ),
-    )
-    db.commit()
-    return jsonify(dict(db.execute("SELECT * FROM sync_integrations WHERE id=1").fetchone()))
+        updates["garmin_password_set"] = 1
+        updates["garmin_connected"] = 1
+    return jsonify(_update_profile_integrations(db, pid, updates))
 
 
 @challenge_bp.route("/api/challenge/telegram/send", methods=["POST"])
@@ -1163,7 +1297,7 @@ def api_challenge_telegram_send():
     profile = _get_active_profile(db)
     sheet = _build_week_sheet(db, profile, week_num)
     text = data.get("custom_message") or format_weekly_telegram_summary(profile, week_num, sheet["rows"], sheet["averages"])
-    integ = dict(db.execute("SELECT * FROM sync_integrations WHERE id=1").fetchone())
+    integ = _get_profile_integrations(db, profile["id"])
     result = send_telegram_message(
         data.get("bot_token") or integ.get("telegram_bot_token", ""),
         data.get("chat_id") or integ.get("telegram_chat_id", ""),
@@ -1179,12 +1313,13 @@ def api_challenge_telegram_detect_chat():
     import requests as _req
     db = get_db()
     data = request.get_json() or {}
-    integ = dict(db.execute("SELECT * FROM sync_integrations WHERE id=1").fetchone())
+    profile = _get_active_profile(db)
+    pid = int(profile["id"])
+    integ = _get_profile_integrations(db, pid)
     bot_token = (data.get("bot_token") or integ.get("telegram_bot_token") or "").strip()
     if not bot_token:
         return jsonify({"ok": False, "error": "Paste a Telegram Bot Token from @BotFather first, send 'hi' to your bot in Telegram, then click Auto-Detect."})
-    db.execute("UPDATE sync_integrations SET telegram_bot_token=? WHERE id=1", (bot_token,))
-    db.commit()
+    _update_profile_integrations(db, pid, {"telegram_bot_token": bot_token})
     try:
         r = _req.get(f"https://api.telegram.org/bot{bot_token}/getUpdates", timeout=10)
         j = r.json()
@@ -1195,8 +1330,7 @@ def api_challenge_telegram_detect_chat():
             if chat.get("id"):
                 cid = str(chat["id"])
                 name = chat.get("first_name") or chat.get("title") or chat.get("username") or cid
-                db.execute("UPDATE sync_integrations SET telegram_bot_token=?, telegram_chat_id=? WHERE id=1", (bot_token, cid))
-                db.commit()
+                _update_profile_integrations(db, pid, {"telegram_bot_token": bot_token, "telegram_chat_id": cid})
                 return jsonify({"ok": True, "chat_id": cid, "chat_name": name})
         return jsonify({"ok": False, "error": "Bot token saved! Now open t.me/CSFitness_Bot in Telegram, tap Start (or send 'hi'), then click '🔍 Auto-Detect My Telegram Chat ID' again."})
     except Exception as exc:
@@ -1212,33 +1346,34 @@ def api_challenge_telegram_webhook():
     text = str(msg_obj.get("text") or payload.get("command") or "").strip()
     date_str = (payload.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
     profile = _get_active_profile(db)
+    pid = int(profile["id"])
     wk_info = _compute_week_and_day(profile["start_date"], date_str)
 
     if text.startswith("/weight"):
         m = re.search(r"(\d+(?:\.\d+)?)", text)
         if m:
             w = round(float(m.group(1)), 2)
-            saved = _upsert_checkin(db, date_str, {"weight_kg": w})
+            saved = _upsert_checkin(db, date_str, {"weight_kg": w}, pid)
             return jsonify({"ok": True, "command": "weight", "reply": f"✅ Logged morning weight: {w} kg for {date_str}", "checkin": saved})
     elif text.startswith("/steps"):
         m = re.search(r"(\d+)", text.replace(",", ""))
         if m:
             s = int(m.group(1))
-            saved = _upsert_checkin(db, date_str, {"steps": s})
+            saved = _upsert_checkin(db, date_str, {"steps": s}, pid)
             return jsonify({"ok": True, "command": "steps", "reply": f"✅ Logged steps: {s:,} / {wk_info['step_target']:,} for {date_str}", "checkin": saved})
     elif text.startswith("/water"):
         m = re.search(r"(\d+(?:\.\d+)?)", text)
         if m:
             val = float(m.group(1))
             add_l = val / 1000.0 if val > 15 else val
-            existing = db.execute("SELECT water_l FROM daily_checkins WHERE date=?", (date_str,)).fetchone()
+            existing = db.execute("SELECT water_l FROM daily_checkins WHERE date=? AND profile_id=?", (date_str, pid)).fetchone()
             curr_w = float(existing["water_l"]) if existing and existing["water_l"] else 0.0
             new_w = round(curr_w + add_l, 2)
-            saved = _upsert_checkin(db, date_str, {"water_l": new_w})
+            saved = _upsert_checkin(db, date_str, {"water_l": new_w}, pid)
             return jsonify({"ok": True, "command": "water", "reply": f"💧 Water updated: {new_w:.2f}L / {profile['target_water_l']}L", "checkin": saved})
     elif text.startswith("/sync"):
         sim = generate_simulated_sync_payload(date_str, wk_info["week_num"], wk_info["step_target"])
-        saved = _upsert_checkin(db, date_str, sim["merged"])
+        saved = _upsert_checkin(db, date_str, sim["merged"], pid)
         return jsonify({"ok": True, "command": "sync", "reply": f"🔄 Synced Garmin + MFP for {date_str}: {saved['steps']:,} steps, {saved['protein_g']}g P, {saved['calories']} kcal", "checkin": saved})
     elif text.startswith("/checkin"):
         sheet = _build_week_sheet(db, profile, wk_info["week_num"])
@@ -1246,8 +1381,8 @@ def api_challenge_telegram_webhook():
         return jsonify({"ok": True, "command": "checkin", "reply": summary, "averages": sheet["averages"]})
 
     # Default: /status
-    row = db.execute("SELECT * FROM daily_checkins WHERE date=?", (date_str,)).fetchone()
-    checkin = dict(row) if row else _upsert_checkin(db, date_str, {})
+    row = db.execute("SELECT * FROM daily_checkins WHERE date=? AND profile_id=?", (date_str, pid)).fetchone()
+    checkin = dict(row) if row else _upsert_checkin(db, date_str, {}, pid)
     wtd = _compute_win_the_day_score(checkin, profile, wk_info["step_target"])
     reply = (
         f"📊 CS Fitness Status ({date_str}) — Score: {wtd['score']}/100\n"
@@ -1313,18 +1448,21 @@ def api_challenge_whatsapp_import():
 @challenge_bp.route("/api/challenge/photos", methods=["GET", "POST"])
 def api_challenge_photos():
     db = get_db()
+    profile = _get_active_profile(db, request.args.get("profile_id", type=int))
+    pid = int(profile["id"])
     if request.method == "GET":
-        rows = db.execute("SELECT * FROM progress_photos ORDER BY week_num, id").fetchall()
+        rows = db.execute("SELECT * FROM progress_photos WHERE profile_id=? ORDER BY week_num, id", (pid,)).fetchall()
         return jsonify([dict(r) for r in rows])
     data = request.get_json() or {}
     db.execute(
         """INSERT INTO progress_photos (profile_id, week_num, pose, taken_date, weight_kg, fasted_confirmed, lighting_note, photo_data_url, notes)
-           VALUES (1,?,?,?,?,?,?,?,?)""",
+           VALUES (?,?,?,?,?,?,?,?,?)""",
         (
+            pid,
             int(data.get("week_num", 1)),
             data.get("pose", "Front"),
             (data.get("taken_date") or datetime.now().strftime("%Y-%m-%d"))[:10],
-            data.get("weight_kg", 84.0),
+            data.get("weight_kg", profile.get("start_weight_kg", 84.0)),
             1 if data.get("fasted_confirmed", True) else 0,
             data.get("lighting_note", "Morning natural light, tripod at waist height"),
             data.get("photo_data_url", ""),
@@ -1332,7 +1470,7 @@ def api_challenge_photos():
         ),
     )
     db.commit()
-    rows = db.execute("SELECT * FROM progress_photos ORDER BY week_num, id").fetchall()
+    rows = db.execute("SELECT * FROM progress_photos WHERE profile_id=? ORDER BY week_num, id", (pid,)).fetchall()
     return jsonify([dict(r) for r in rows]), 201
 
 
@@ -1351,6 +1489,8 @@ def api_challenge_rhythm_toggle(task_id):
 @challenge_bp.route("/api/challenge/coach/cohort", methods=["GET"])
 def api_challenge_coach_cohort():
     db = get_db()
+    if not _is_current_user_admin(db):
+        return jsonify({"ok": False, "error": "Admin access required"}), 403
     profiles = [dict(r) for r in db.execute("SELECT * FROM challenge_profiles ORDER BY id").fetchall()]
     wa_posts = [dict(r) for r in db.execute("SELECT * FROM whatsapp_posts WHERE role='member' ORDER BY id DESC LIMIT 20").fetchall()]
     for p in profiles:

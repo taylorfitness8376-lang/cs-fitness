@@ -322,7 +322,14 @@ def test_cohort_blocks_enroll_rollover_and_auth(client):
     assert login_res["ok"] is True
     assert login_res["profile_id"] == james_pid
 
-    # 5. Rollover active block members to the next sequential 8-week block (sets returning = 1 -> 14k steps)
+    # 5. Non-admin challenger cannot roll over an entire block; Admin (Ewan) performs the block rollover
+    non_admin_roll = client.post("/api/challenge/blocks/rollover", json={
+        "from_block_id": active_block["id"],
+        "to_block_id": upcoming_block["id"],
+    })
+    assert non_admin_roll.status_code == 403
+
+    client.post("/api/challenge/auth/login", json={"email": "taylor.ewan@gmail.com"})
     roll_res = client.post("/api/challenge/blocks/rollover", json={
         "from_block_id": active_block["id"],
         "to_block_id": upcoming_block["id"],
@@ -456,6 +463,121 @@ def test_monday_start_friday_checkin_and_workout_delete(client):
     assert del_gym["ok"] is True
     assert del_gym["training_type"] == "REST"
     assert len(del_gym["daily_activities"]) == 0
+
+
+def test_multi_user_data_isolation_for_alan_vs_ewan(client):
+    """Challengers signing up via invite (e.g. Alan) must NEVER see Ewan's data, photos, Garmin config, or admin endpoints."""
+    # 1. Seed Ewan's data (profile_id=1) with a check-in, photo, Garmin email, and weekly submission
+    client.post("/api/challenge/checkin", json={
+        "date": "2026-10-19",
+        "weight_kg": 84.0,
+        "steps": 14200,
+        "calories": 2150,
+        "protein_g": 155,
+    })
+    client.post("/api/challenge/photos/upload", json={
+        "week_num": 0,
+        "pose": "Front",
+        "taken_date": "2026-10-19",
+        "weight_kg": 84.0,
+        "photo_data_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    })
+    client.post("/api/challenge/integrations", json={
+        "garmin_email": "taylor.ewan@gmail.com",
+        "mfp_username": "ewantaylor",
+    })
+    client.post("/api/challenge/weekly-checkin/submit", json={
+        "week_num": 1,
+        "challenger_comments": "Ewan private week 1 notes",
+    })
+
+    # 2. Unauthenticated visitor with challenge_force_unauthed is redirected to /challenge/login
+    with client.session_transaction() as sess:
+        sess.clear()
+        sess["challenge_force_unauthed"] = True
+    unauth_resp = client.get("/challenge")
+    assert unauth_resp.status_code in (301, 302)
+    assert "/challenge/login" in unauth_resp.headers["Location"]
+
+    # 3. Attempting to hijack Ewan's admin account via public /api/challenge/blocks/join is blocked (403)
+    hijack_resp = client.post("/api/challenge/blocks/join", json={
+        "invite_code": "CS-OCT2026",
+        "client_name": "Ewan t",
+        "email": "taylor.ewan@gmail.com",
+    })
+    assert hijack_resp.status_code == 403
+
+    # 4. Alan signs up via the invite code CS-OCT2026
+    join_resp = client.post("/api/challenge/blocks/join", json={
+        "invite_code": "CS-OCT2026",
+        "client_name": "Alan",
+        "email": "alan@example.com",
+        "password": "alanpassword",
+        "start_weight_kg": 90.0,
+        "target_weight_kg": 83.0,
+        "start_body_fat_pct": 20.0,
+        "protein_g": 160,
+    })
+    assert join_resp.status_code == 200
+    join_data = join_resp.get_json()
+    assert join_data["ok"] is True
+    alan_pid = join_data["profile_id"]
+    assert alan_pid != 1
+
+    # 5. Alan fetches /api/challenge/overview -> sees ONLY Alan's empty data, 0 of Ewan's photos, and blank Garmin email
+    alan_ov = client.get("/api/challenge/overview?date=2026-10-19").get_json()
+    assert alan_ov["profile"]["id"] == alan_pid
+    assert alan_ov["profile"]["client_name"] == "Alan"
+    assert alan_ov["checkin"]["steps"] == 0
+    assert alan_ov["checkin"]["weight_kg"] is None
+    assert len(alan_ov["progress_photos"]) == 0
+    assert alan_ov["integrations"]["garmin_email"] == ""
+    assert alan_ov["integrations"]["mfp_username"] == ""
+
+    # 6. Even if Alan passes ?profile_id=1 on API endpoints, server ignores it and keeps Alan isolated
+    spoof_ov = client.get("/api/challenge/overview?date=2026-10-19&profile_id=1").get_json()
+    assert spoof_ov["profile"]["id"] == alan_pid
+    assert len(spoof_ov["progress_photos"]) == 0
+
+    spoof_photos = client.get("/api/challenge/photos?profile_id=1").get_json()
+    assert len(spoof_photos) == 0
+
+    alan_prog = client.get("/api/challenge/progress/summary?profile_id=1").get_json()
+    assert alan_prog["profile"]["id"] == alan_pid
+    assert len(alan_prog["all_profiles"]) == 1
+    assert alan_prog["all_profiles"][0]["id"] == alan_pid
+    assert len(alan_prog["weekly_submissions"]) == 0
+
+    # 7. Alan cannot switch user to Ewan (403) or access Coach Admin endpoints (403)
+    sw_resp = client.post("/api/challenge/auth/switch-user", json={"profile_id": 1})
+    assert sw_resp.status_code in (401, 403)
+
+    assert client.get("/api/challenge/coach/cohort").status_code == 403
+    assert client.get("/api/challenge/admin/cohort-summary").status_code == 403
+    assert client.get("/api/challenge/admin/challenger-detail?profile_id=1").status_code == 403
+    assert client.get("/api/challenge/admin/admins").status_code == 403
+    admin_page_resp = client.get("/challenge/admin")
+    assert admin_page_resp.status_code in (301, 302)
+
+    # 8. Alan's /api/challenge/blocks only lists Alan, never Ewan or other challengers
+    alan_blocks = client.get("/api/challenge/blocks").get_json()
+    assert len(alan_blocks["users"]) == 1
+    assert alan_blocks["users"][0]["profile_id"] == alan_pid
+
+    # 9. Admin (Ewan) signs in and CAN access Admin endpoints and view both Ewan & Alan
+    login_ewan = client.post("/api/challenge/auth/login", json={
+        "email": "taylor.ewan@gmail.com",
+        "password": "ewanadminpassword",
+    }).get_json()
+    assert login_ewan["ok"] is True
+    assert login_ewan["role"] == "admin"
+
+    cohort_sum = client.get("/api/challenge/admin/cohort-summary?week=1").get_json()
+    assert cohort_sum["ok"] is True
+    names = [r["client_name"] for r in cohort_sum["roster"]]
+    assert "Ewan t" in names
+    assert "Alan" in names
+
 
 
 

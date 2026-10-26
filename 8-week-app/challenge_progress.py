@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, render_template
+from flask import Blueprint, current_app, jsonify, redirect, request, render_template, session, url_for
 from datetime import datetime, timedelta
 import csv
 import io
@@ -8,6 +8,9 @@ import re
 from database import get_db
 from challenge import (
     _get_active_profile,
+    _is_current_user_admin,
+    _get_profile_integrations,
+    _update_profile_integrations,
     _compute_week_and_day,
     _upsert_checkin,
     _save_daily_activity,
@@ -221,17 +224,32 @@ def api_progress_summary():
         tot_sets += sc
         tot_vol += vol
 
-    all_subs = [
-        dict(r) for r in db.execute(
-            """SELECT ws.*, cp.client_name, cp.target_calories, cp.target_protein_g, cp.target_water_l
-               FROM weekly_submissions ws
-               LEFT JOIN challenge_profiles cp ON cp.id = ws.profile_id
-               ORDER BY ws.updated_at DESC, ws.week_num DESC"""
-        ).fetchall()
-    ]
-    all_profiles = [
-        dict(r) for r in db.execute("SELECT * FROM challenge_profiles ORDER BY id").fetchall()
-    ]
+    is_admin = _is_current_user_admin(db)
+    if is_admin:
+        all_subs = [
+            dict(r) for r in db.execute(
+                """SELECT ws.*, cp.client_name, cp.target_calories, cp.target_protein_g, cp.target_water_l
+                   FROM weekly_submissions ws
+                   LEFT JOIN challenge_profiles cp ON cp.id = ws.profile_id
+                   ORDER BY ws.updated_at DESC, ws.week_num DESC"""
+            ).fetchall()
+        ]
+        all_profiles = [
+            dict(r) for r in db.execute("SELECT * FROM challenge_profiles ORDER BY id").fetchall()
+        ]
+    else:
+        all_subs = [
+            dict(r) for r in db.execute(
+                """SELECT ws.*, cp.client_name, cp.target_calories, cp.target_protein_g, cp.target_water_l
+                   FROM weekly_submissions ws
+                   LEFT JOIN challenge_profiles cp ON cp.id = ws.profile_id
+                   WHERE ws.profile_id=?
+                   ORDER BY ws.updated_at DESC, ws.week_num DESC""",
+                (profile["id"],),
+            ).fetchall()
+        ]
+        all_profiles = [profile]
+
     daily_moments = [
         dict(r) for r in db.execute(
             "SELECT * FROM daily_journey_moments WHERE profile_id=? ORDER BY date DESC, id ASC LIMIT 60",
@@ -313,7 +331,10 @@ def api_review_weekly_checkin():
     db = get_db()
     _ensure_weekly_submissions_table(db)
     data = request.get_json() or {}
-    pid = int(data.get("profile_id") or _get_active_profile(db)["id"])
+    active_prof = _get_active_profile(db)
+    pid = int(data.get("profile_id") or active_prof["id"])
+    if pid != int(active_prof["id"]) and not _is_current_user_admin(db):
+        return jsonify({"ok": False, "error": "Only Admin coaches can review another challenger's check-in"}), 403
     week_num = int(data.get("week_num", 1))
     feedback = (data.get("coach_feedback") or "").strip()
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -354,7 +375,10 @@ def api_update_profile_settings():
     from database import calculate_challenge_targets
     db = get_db()
     data = request.get_json() or {}
-    pid = int(data.get("profile_id") or _get_active_profile(db)["id"])
+    active_prof = _get_active_profile(db)
+    pid = int(data.get("profile_id") or active_prof["id"])
+    if pid != int(active_prof["id"]) and not _is_current_user_admin(db):
+        pid = int(active_prof["id"])
     prof = dict(db.execute("SELECT * FROM challenge_profiles WHERE id=?", (pid,)).fetchone())
 
     start_w = float(data.get("start_weight_kg") or prof["start_weight_kg"])
@@ -506,8 +530,10 @@ def api_sync_connect_and_save():
     import os
     db = get_db()
     data = request.get_json() or {}
+    profile = _get_active_profile(db)
+    pid = int(profile["id"])
     date_str = (data.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
-    curr = dict(db.execute("SELECT * FROM sync_integrations WHERE id=1").fetchone())
+    curr = _get_profile_integrations(db, pid)
 
     for k in ("garmin_email", "mfp_username", "nutrition_provider", "telegram_bot_token", "telegram_chat_id", "coach_telegram_handle"):
         if k in data and data[k] is not None:
@@ -519,7 +545,7 @@ def api_sync_connect_and_save():
 
     garmin_status = "Not configured — enter Garmin email & password above."
     mfp_status = "Not configured — enter MyFitnessPal username above."
-    token_dir = os.path.expanduser("~/.garminconnect")
+    token_dir = os.path.expanduser("~/.garminconnect") if pid == 1 else os.path.expanduser(f"~/.garminconnect_p{pid}")
 
     if curr["garmin_email"] or os.path.exists(token_dir):
         g_res = fetch_live_garmin_data(curr["garmin_email"], garmin_pass, target_date=date_str, tokenstore_dir=token_dir)
@@ -528,30 +554,18 @@ def api_sync_connect_and_save():
             curr["garmin_last_sync"] = datetime.now().strftime("%Y-%m-%d %H:%M")
             parsed = g_res["parsed"]
             for act in parsed.get("parsed_activities", []):
-                _save_daily_activity(db, act)
-            _upsert_checkin(db, date_str, parsed)
+                _save_daily_activity(db, act, pid)
+            _upsert_checkin(db, date_str, parsed, pid)
             garmin_status = f"✅ Connected & synced ({parsed.get('steps', 0):,} steps pulled for {date_str})"
         else:
             garmin_status = f"⚠️ Saved email ({curr['garmin_email']}), live pull note: {g_res.get('error')}"
 
     mfp_status = "✍️ Add manually in Tab 1 Step 2 (Calories, Protein & Water)"
 
-    db.execute(
-        """UPDATE sync_integrations SET
-            garmin_email=?, garmin_password_set=?, garmin_connected=?, garmin_last_sync=?,
-            mfp_username=?, nutrition_provider=?, nutrition_connected=?, nutrition_last_sync=?,
-            telegram_bot_token=?, telegram_chat_id=?, coach_telegram_handle=?
-           WHERE id=1""",
-        (
-            curr["garmin_email"], curr["garmin_password_set"], curr["garmin_connected"], curr["garmin_last_sync"],
-            curr["mfp_username"], curr["nutrition_provider"], curr["nutrition_connected"], curr["nutrition_last_sync"],
-            curr["telegram_bot_token"], curr["telegram_chat_id"], curr["coach_telegram_handle"],
-        ),
-    )
-    db.commit()
+    saved_integ = _update_profile_integrations(db, pid, curr)
     return jsonify({
         "ok": True,
-        "integrations": dict(db.execute("SELECT * FROM sync_integrations WHERE id=1").fetchone()),
+        "integrations": saved_integ,
         "garmin_status": garmin_status,
         "mfp_status": mfp_status,
     })
@@ -563,6 +577,8 @@ def api_sync_import_data():
     import csv
     import io
     db = get_db()
+    profile = _get_active_profile(db)
+    pid = int(profile["id"])
     data = request.get_json() or {}
     source = data.get("source", "garmin")
     raw_text = (data.get("content") or "").strip()
@@ -580,18 +596,18 @@ def api_sync_import_data():
                 from sync_service import parse_garmin_payload
                 parsed = parse_garmin_payload(item)
                 for act in parsed.get("parsed_activities", []):
-                    _save_daily_activity(db, act)
-                _upsert_checkin(db, d, parsed)
+                    _save_daily_activity(db, act, pid)
+                _upsert_checkin(db, d, parsed, pid)
             elif source == "apple_health":
                 from sync_service import parse_apple_health_payload
                 parsed = parse_apple_health_payload(item, target_date=d)
                 for act in parsed.get("parsed_activities", []):
-                    _save_daily_activity(db, act)
-                _upsert_checkin(db, d, parsed)
+                    _save_daily_activity(db, act, pid)
+                _upsert_checkin(db, d, parsed, pid)
             else:
                 from sync_service import parse_nutrition_payload
                 item["provider"] = "MyFitnessPal CSV"
-                _upsert_checkin(db, d, parse_nutrition_payload(item))
+                _upsert_checkin(db, d, parse_nutrition_payload(item), pid)
             imported_dates.append(d)
     else:
         reader = csv.DictReader(io.StringIO(raw_text))
@@ -606,7 +622,7 @@ def api_sync_import_data():
                     "weight_kg": float(norm["weight"]) if norm.get("weight") else None,
                     "resting_hr": int(float(norm["resting heart rate"])) if norm.get("resting heart rate") else None,
                 })
-                _upsert_checkin(db, d, parsed)
+                _upsert_checkin(db, d, parsed, pid)
             elif source == "apple_health":
                 from sync_service import parse_apple_health_payload
                 parsed = parse_apple_health_payload({
@@ -621,7 +637,7 @@ def api_sync_import_data():
                     "fibre_g": int(float(norm.get("fiber") or norm.get("fibre") or 0)) if any(norm.get(k) for k in ("fiber", "fibre")) else None,
                     "water_l": float(norm.get("dietary water") or norm.get("water") or 0) if any(norm.get(k) for k in ("dietary water", "water")) else None,
                 }, target_date=d)
-                _upsert_checkin(db, d, parsed)
+                _upsert_checkin(db, d, parsed, pid)
             else:
                 from sync_service import parse_nutrition_payload
                 parsed = parse_nutrition_payload({
@@ -633,7 +649,7 @@ def api_sync_import_data():
                     "fats_g": int(float(norm.get("fat (g)") or norm.get("fat") or 0)),
                     "fibre_g": int(float(norm.get("fiber") or norm.get("fibre") or 0)),
                 })
-                _upsert_checkin(db, d, parsed)
+                _upsert_checkin(db, d, parsed, pid)
             imported_dates.append(d)
 
     return jsonify({"ok": True, "imported_count": len(imported_dates), "dates": imported_dates})
@@ -646,17 +662,17 @@ def api_sync_apple_health():
     db = get_db()
     data = request.get_json() or {}
     profile = _get_active_profile(db)
+    pid = int(profile["id"])
     date_str = (data.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
     parsed = parse_apple_health_payload(data, target_date=date_str)
     for act in parsed.get("parsed_activities", []):
-        _save_daily_activity(db, act, profile["id"])
-    saved = _upsert_checkin(db, date_str, parsed, profile["id"])
+        _save_daily_activity(db, act, pid)
+    saved = _upsert_checkin(db, date_str, parsed, pid)
     if parsed.get("parsed_activities"):
-        saved = _sync_checkin_from_activities(db, date_str, profile["id"])
+        saved = _sync_checkin_from_activities(db, date_str, pid)
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-    db.execute(
-        "UPDATE sync_integrations SET garmin_last_sync=?, nutrition_last_sync=?, nutrition_connected=1 WHERE id=1",
-        (now_str, now_str),
+    _update_profile_integrations(
+        db, pid, {"garmin_last_sync": now_str, "nutrition_last_sync": now_str, "nutrition_connected": 1}
     )
     db.commit()
     return jsonify({
@@ -671,6 +687,10 @@ def api_sync_apple_health():
 @challenge_progress_bp.route("/challenge/mobile")
 def challenge_mobile_page():
     """Super clean 1-page mobile web app for Daily (Meal Pics, Stats, Workouts, Events) & Weekly Check-In."""
+    if not session.get("challenge_authed") and (
+        not current_app.config.get("TESTING") or session.get("challenge_force_unauthed")
+    ):
+        return redirect(url_for("challenge_blocks.challenge_login_page"))
     return render_template("challenge.html")
 
 

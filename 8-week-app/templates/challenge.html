@@ -147,7 +147,7 @@
   <section class="tab-panel active" id="panel-today">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem">
       <div style="font-size:0.78rem;color:var(--muted)">
-        Challenger: <strong style="color:#fff" id="td-client-name">Ewan t</strong> ·
+        Challenger: <strong style="color:#fff" id="td-client-name">Challenger</strong> ·
         Start: <strong style="color:#fff" id="td-start-weight">84.0kg (16% BF)</strong> →
         Target: <strong style="color:var(--green)" id="td-target-weight">78.3kg (14% BF)</strong>
         <span style="display:none" id="td-lbm">70.56kg</span>
@@ -724,7 +724,7 @@
         </div>
         <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">
           <button class="btn btn-green btn-sm" onclick="saveMyAccountSettings()">💾 Save Email &amp; Password</button>
-          <a href="/challenge/login" class="btn btn-sm" style="text-decoration:none">🔄 Switch Account / Sign Out</a>
+          <a href="/api/challenge/auth/logout" class="btn btn-sm" style="text-decoration:none">🔄 Switch Account / Sign Out</a>
         </div>
 
         <div id="admin-portal-callout" style="display:none;margin-top:0.85rem;padding:0.75rem;background:rgba(61,255,79,0.08);border:1px solid rgba(61,255,79,0.4);border-radius:10px">
@@ -743,7 +743,7 @@
 
     <!-- Hidden legacy containers (Coach tools moved to dedicated /challenge/admin portal) -->
     <div style="display:none">
-      <input type="text" id="calc-name" value="Ewan t" />
+      <input type="text" id="calc-name" value="" />
       <input type="number" id="calc-sw" value="84.0" />
       <input type="number" id="calc-tw" value="78.3" />
       <input type="number" id="calc-sbf" value="16.0" />

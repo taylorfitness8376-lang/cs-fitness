@@ -115,7 +115,8 @@ window.renderTodayDashboard = function(data) {
       data.win_the_day = { score: 0, checks: {} };
       data.rolling_weight = { current_7d_avg: null, points: [] };
       if (data.whatsapp_share) {
-        data.whatsapp_share.caption = `${data.date || STATE.date} Check-In · 0 steps · 0 kcal · 0g P · 0.0L H2O #Ewan #steps #macros #winTheDay`;
+        const handle = ((data.profile && data.profile.client_name) || 'Challenger').split(' ')[0].replace(/[^A-Za-z0-9]/g, '') || 'Challenger';
+        data.whatsapp_share.caption = `${data.date || STATE.date} Check-In · 0 steps · 0 kcal · 0g P · 0.0L H2O #${handle} #steps #macros #winTheDay`;
       }
     }
   }
@@ -848,7 +849,7 @@ window.renderWeeklyCheckinCardCanvas = async function() {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const wk = getActiveSheetWeek();
-  const prof = (STATE.overview && STATE.overview.profile) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.profile) || { client_name: 'Ewan t', start_weight_kg: 84.0, target_weight_kg: 78.3, target_calories: 2173, target_protein_g: 150 };
+  const prof = (STATE.overview && STATE.overview.profile) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.profile) || { client_name: 'Challenger', start_weight_kg: 80.0, target_weight_kg: 74.5, target_calories: 2173, target_protein_g: 150 };
   const wkObj = ((window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.weeks) || []).find(w => Number(w.week_num) === wk) || {};
   const photos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
   const removeWhite = Boolean(document.getElementById('wk-card-cutout-toggle')?.checked);
@@ -868,7 +869,7 @@ window.renderWeeklyCheckinCardCanvas = async function() {
   ctx.fillText(wkTitle, 48, 110);
   ctx.fillStyle = '#94A3B8';
   ctx.font = '600 22px Inter, -apple-system, sans-serif';
-  ctx.fillText(`Challenger: ${prof.client_name || 'Ewan t'}   ·   Start: ${prof.start_weight_kg || 84.0} kg → Goal: ${prof.target_weight_kg || 78.3} kg`, 48, 146);
+  ctx.fillText(`Challenger: ${prof.client_name || 'Challenger'}   ·   Start: ${prof.start_weight_kg || 80.0} kg → Goal: ${prof.target_weight_kg || 74.5} kg`, 48, 146);
 
   // 5-Stat Strip
   const stats = [

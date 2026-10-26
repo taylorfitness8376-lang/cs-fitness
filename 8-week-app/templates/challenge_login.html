@@ -50,7 +50,12 @@
           <div style="font-size:0.74rem;color:var(--muted)">Challenger Sign-In, Cohort Block Invite &amp; Password Setup</div>
         </div>
       </div>
-      <a href="/challenge" class="btn btn-sm" style="text-decoration:none">← Back to App</a>
+      {% if is_authenticated %}
+      <div style="display:flex;gap:0.4rem">
+        <a href="/challenge" class="btn btn-sm" style="text-decoration:none">← Back to App</a>
+        <a href="/api/challenge/auth/logout" class="btn btn-sm" style="text-decoration:none;border-color:rgba(248,113,113,0.4);color:#f87171">Sign Out</a>
+      </div>
+      {% endif %}
     </div>
 
     <div class="auth-tabs">
@@ -63,18 +68,16 @@
     <div class="card" id="auth-panel-signin">
       <div class="card-header">
         <span class="card-title">🔐 Sign In to Your 8-Week Block</span>
-        <span class="badge badge-green">Active: {{ active_profile.client_name }}</span>
+        {% if is_authenticated and active_profile %}
+        <span class="badge badge-green">Signed in: {{ active_profile.client_name }}</span>
+        {% else %}
+        <span class="badge badge-blue">Private Challenger Login</span>
+        {% endif %}
       </div>
       <div style="display:grid;gap:0.65rem;margin-bottom:0.85rem">
         <div>
-          <label class="field-label">Email Address or Challenger / Coach Name</label>
-          <input type="text" id="login-email" value="{{ email_prefill or 'taylor.ewan@gmail.com' }}" placeholder="you@example.com, Chris, Laura, or Ewan t" />
-          <div style="display:flex;gap:0.35rem;flex-wrap:wrap;margin-top:0.4rem;align-items:center">
-            <span style="font-size:0.68rem;color:var(--muted);font-weight:700">Quick Select Admin:</span>
-            <button type="button" class="btn btn-sm" style="padding:0.18rem 0.45rem;font-size:0.68rem" onclick="document.getElementById('login-email').value='chris@cs.fitness'">🛡️ Chris</button>
-            <button type="button" class="btn btn-sm" style="padding:0.18rem 0.45rem;font-size:0.68rem" onclick="document.getElementById('login-email').value='laura@cs.fitness'">🛡️ Laura</button>
-            <button type="button" class="btn btn-sm" style="padding:0.18rem 0.45rem;font-size:0.68rem" onclick="document.getElementById('login-email').value='taylor.ewan@gmail.com'">🛡️ Ewan</button>
-          </div>
+          <label class="field-label">Email Address or Full Name</label>
+          <input type="text" id="login-email" value="{{ email_prefill }}" placeholder="Enter your email address or full name..." />
         </div>
         <div>
           <label class="field-label">Password (If no password set yet, enter one to save it)</label>
@@ -82,7 +85,7 @@
         </div>
         <div class="grid-2" style="margin-bottom:0;gap:0.45rem">
           <button class="btn btn-green" onclick="submitEmailLogin(false)">🚀 Sign In to 8-Week App</button>
-          <button class="btn btn-primary" onclick="submitEmailLogin(true)">🛡️ Coach &amp; Admin Portal</button>
+          <button class="btn btn-primary" onclick="submitEmailLogin(true)">🛡️ Coach &amp; Admin Sign In</button>
         </div>
       </div>
       <div style="font-size:0.7rem;color:var(--muted);text-align:center;margin-bottom:0.5rem">— OR SOCIAL SIGN-IN (READY FOR OAUTH CLIENT ID) —</div>
@@ -165,12 +168,14 @@
     <div class="card" id="auth-panel-password" style="display:none">
       <div class="card-header">
         <span class="card-title">🔑 Email &amp; Password Management</span>
+        {% if is_authenticated and active_profile %}
         <span class="badge badge-green">{{ active_profile.client_name }}</span>
+        {% endif %}
       </div>
       <div style="display:grid;gap:0.6rem">
         <div>
           <label class="field-label">Email Address</label>
-          <input type="email" id="pw-email" value="{{ email_prefill or 'taylor.ewan@gmail.com' }}" />
+          <input type="email" id="pw-email" value="{{ email_prefill }}" placeholder="you@example.com" />
         </div>
         <div>
           <label class="field-label">Current Password (leave blank if setting for the first time)</label>
@@ -209,6 +214,12 @@
       if (!data.ok) {
         msg.style.color = '#f87171';
         msg.textContent = data.error || 'Sign-in failed';
+        return;
+      }
+      if (forceAdminView && data.role !== 'admin') {
+        msg.style.color = '#fbbf24';
+        msg.textContent = '⚠️ Coach & Admin Portal is restricted to Coaches (Chris, Laura, Ewan). Opening your personal tracker...';
+        setTimeout(() => { window.location.href = '/challenge'; }, 800);
         return;
       }
       const isCoachOnly = ['chris', 'laura'].includes((data.client_name || '').toLowerCase());
