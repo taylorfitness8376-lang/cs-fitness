@@ -6,6 +6,7 @@ from datetime import datetime
 from database import init_db, get_db, init_app
 from challenge import challenge_bp
 from challenge_progress import challenge_progress_bp
+from challenge_blocks import challenge_blocks_bp
 import config
 
 app = Flask(__name__)
@@ -15,6 +16,7 @@ app.config["DATABASE_PATH"] = config.DATABASE_PATH
 init_app(app)
 app.register_blueprint(challenge_bp)
 app.register_blueprint(challenge_progress_bp)
+app.register_blueprint(challenge_blocks_bp)
 
 
 def require_auth(f):

@@ -280,6 +280,58 @@ def test_garmin_oauth1_signature_and_client(tmp_path):
     assert gc.session.headers.get("DI-Backend") == "connectapi.garmin.com"
 
 
+def test_cohort_blocks_enroll_rollover_and_auth(client):
+    # 1. List 5 annual 8-week cohort blocks
+    blocks_res = client.get("/api/challenge/blocks").get_json()
+    assert blocks_res["ok"] is True
+    assert len(blocks_res["blocks"]) >= 5
+    active_block = [b for b in blocks_res["blocks"] if b["status"] == "Active"][0]
+    upcoming_block = [b for b in blocks_res["blocks"] if b["status"] == "Upcoming"][0]
+    assert active_block["invite_code"] == "CS-OCT2026"
+
+    # 2. Create a new 8-week block
+    new_blk = client.post("/api/challenge/blocks", json={
+        "name": "Block 4 · Late Summer 2027",
+        "start_date": "2027-08-16",
+        "invite_code": "CS-AUG2027",
+        "gap_weeks_after": 2,
+    }).get_json()
+    assert new_blk["ok"] is True
+    assert new_blk["block"]["end_date"] == "2027-10-11"
+    assert new_blk["block"]["pre_coaching_date"] == "2027-08-09"
+
+    # 3. Payment / Signup form webhook enrolls a new challenger into the active block
+    enroll_res = client.post("/api/challenge/blocks/webhook/enroll", json={
+        "invite_code": active_block["invite_code"],
+        "client_name": "James Miller",
+        "email": "james@example.com",
+        "start_weight_kg": 92.0,
+        "target_weight_kg": 85.0,
+        "start_body_fat_pct": 20.0,
+        "protein_g": 170,
+        "payment_reference": "stripe_pi_998877",
+    }).get_json()
+    assert enroll_res["ok"] is True
+    assert enroll_res["block"]["invite_code"] == "CS-OCT2026"
+    james_pid = enroll_res["profile_id"]
+
+    # 4. Sign in with James's email (sets password on first login)
+    login_res = client.post("/api/challenge/auth/login", json={
+        "email": "james@example.com",
+    }).get_json()
+    assert login_res["ok"] is True
+    assert login_res["profile_id"] == james_pid
+
+    # 5. Rollover active block members to the next sequential 8-week block (sets returning = 1 -> 14k steps)
+    roll_res = client.post("/api/challenge/blocks/rollover", json={
+        "from_block_id": active_block["id"],
+        "to_block_id": upcoming_block["id"],
+    }).get_json()
+    assert roll_res["ok"] is True
+    assert roll_res["rolled_over_count"] >= 2
+
+
+
 
 
 

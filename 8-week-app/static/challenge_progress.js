@@ -40,6 +40,7 @@ async function refreshProgressSummary() {
       renderDailyJourneyMoments();
       renderDataSourceBadges();
       renderSavedIntegrationStatus();
+      loadCohortBlocks();
     }
   } catch (e) {
     console.warn('Progress summary fetch error:', e);
@@ -1344,4 +1345,144 @@ if (document.readyState === 'loading') {
 } else {
   initRealDataAndProgress();
 }
+
+window.loadCohortBlocks = async function() {
+  try {
+    const res = await fetch('/api/challenge/blocks');
+    const data = await res.json();
+    if (!data.ok) return;
+    const authBtn = document.getElementById('hdr-auth-btn');
+    if (authBtn && data.active_profile) {
+      authBtn.textContent = `👤 ${data.active_profile.client_name} · Sign In / Block`;
+    }
+    const box = document.getElementById('cohort-blocks-manager-box');
+    if (!box) return;
+    const blocks = data.blocks || [];
+    const activeBlock = blocks.find(b => b.status === 'Active') || blocks[0];
+    const upcomingBlock = blocks.find(b => b.status === 'Upcoming') || blocks[blocks.length - 1];
+    box.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0.6rem;margin-bottom:0.85rem">
+        ${blocks.map(b => `
+          <div style="padding:0.65rem;border-radius:10px;background:var(--surface-2);border:1px solid ${b.status === 'Active' ? 'var(--green)' : 'var(--border)'}">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:0.35rem;margin-bottom:0.3rem">
+              <strong style="font-size:0.8rem;color:#fff">${b.name}</strong>
+              <span class="badge ${b.status === 'Active' ? 'badge-green' : b.status === 'Upcoming' ? 'badge-blue' : 'badge-amber'}">${b.status}</span>
+            </div>
+            <div style="font-size:0.71rem;color:#cbd5e1;margin-bottom:0.25rem">
+              🗓️ Pre-Coach: <strong>${b.pre_coaching_date}</strong> · Wk 1–8: <strong>${b.start_date} → ${b.end_date}</strong>
+            </div>
+            <div style="font-size:0.68rem;color:var(--muted);margin-bottom:0.4rem">
+              ⏸️ Gap / Break: ${b.gap_weeks_after || 2} wk(s) · ${b.notes || ''}
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:0.35rem;flex-wrap:wrap">
+              <span class="badge badge-green">🎟️ Code: ${b.invite_code} (${b.member_count || 0}/${b.max_members || 40})</span>
+              <button class="btn btn-sm" onclick="copyBlockInvite('${b.invite_code}')">📋 Copy Invite URL</button>
+            </div>
+            ${(b.members && b.members.length) ? `
+              <div style="margin-top:0.45rem;padding-top:0.4rem;border-top:1px solid var(--border);font-size:0.7rem;color:#cbd5e1">
+                ${b.members.map(m => `
+                  <span style="display:inline-flex;align-items:center;gap:0.25rem;background:#080b09;border:1px solid var(--border);border-radius:6px;padding:0.15rem 0.4rem;margin:0.1rem">
+                    <strong>${m.client_name}</strong> ${m.is_returning_block ? '🔁14k' : '🆕10k'}
+                    <button class="btn btn-sm" style="padding:0.05rem 0.3rem;font-size:0.62rem" onclick="quickSwitchChallenger(${m.profile_id})">View</button>
+                  </span>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="grid-2" style="margin-bottom:0.5rem">
+        <div style="padding:0.65rem;border-radius:10px;background:#080b09;border:1px solid var(--border)">
+          <div style="font-size:0.78rem;font-weight:800;color:var(--green);margin-bottom:0.45rem">➕ Create New 8-Week Cohort Block</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:0.45rem">
+            <input type="text" id="new-block-name" placeholder="e.g. Block 4 · Autumn 2027" style="font-size:0.74rem" />
+            <input type="date" id="new-block-start" value="2027-08-16" title="Week 1 Monday Start Date" style="font-size:0.74rem" />
+            <input type="text" id="new-block-code" placeholder="Invite Code (e.g. CS-AUG2027)" style="font-size:0.74rem" />
+            <select id="new-block-status" style="font-size:0.74rem">
+              <option value="Upcoming">Upcoming</option>
+              <option value="Active">Active</option>
+            </select>
+          </div>
+          <button class="btn btn-green btn-sm" onclick="createNewCohortBlock()">🗓️ Create 8-Week Block</button>
+        </div>
+
+        <div style="padding:0.65rem;border-radius:10px;background:#080b09;border:1px solid var(--border)">
+          <div style="font-size:0.78rem;font-weight:800;color:var(--blue);margin-bottom:0.45rem">🔁 Rollover Returning Members to Next Block</div>
+          <p style="font-size:0.7rem;color:var(--muted);margin-bottom:0.45rem">
+            Carries continuing members into the next 8-week cohort block and automatically upgrades their step target to <strong>14,000 steps/day</strong>.
+          </p>
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:0.35rem;align-items:center">
+            <select id="roll-from-block" style="font-size:0.72rem">
+              ${blocks.map(b => `<option value="${b.id}" ${activeBlock && b.id === activeBlock.id ? 'selected' : ''}>From: ${b.name}</option>`).join('')}
+            </select>
+            <select id="roll-to-block" style="font-size:0.72rem">
+              ${blocks.map(b => `<option value="${b.id}" ${upcomingBlock && b.id === upcomingBlock.id ? 'selected' : ''}>To: ${b.name}</option>`).join('')}
+            </select>
+            <button class="btn btn-green btn-sm" onclick="rolloverBlockMembers()">🔁 Rollover</button>
+          </div>
+          <div style="margin-top:0.45rem;font-size:0.68rem;color:var(--muted)">
+            💳 <strong>Signup / Payment Form Webhook:</strong> <code>POST /api/challenge/blocks/webhook/enroll</code> (auto-creates challenger + sets invite code).
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    console.warn('loadCohortBlocks error:', e);
+  }
+};
+
+window.copyBlockInvite = function(code) {
+  const url = `${window.location.origin}/challenge/login?code=${encodeURIComponent(code)}`;
+  if (navigator.clipboard) navigator.clipboard.writeText(url);
+  showToast(`📋 Copied Invite Link: ${url}`);
+};
+
+window.createNewCohortBlock = async function() {
+  const name = document.getElementById('new-block-name')?.value || 'New 8-Week Block';
+  const start_date = document.getElementById('new-block-start')?.value || '2027-08-16';
+  const invite_code = document.getElementById('new-block-code')?.value || '';
+  const status = document.getElementById('new-block-status')?.value || 'Upcoming';
+  const res = await fetch('/api/challenge/blocks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, start_date, invite_code, status })
+  });
+  const data = await res.json();
+  if (data.ok) {
+    showToast(`✅ Created ${data.block.name} (${data.block.invite_code})`);
+    loadCohortBlocks();
+  }
+};
+
+window.rolloverBlockMembers = async function() {
+  const from_block_id = Number(document.getElementById('roll-from-block')?.value || 0);
+  const to_block_id = Number(document.getElementById('roll-to-block')?.value || 0);
+  const res = await fetch('/api/challenge/blocks/rollover', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from_block_id, to_block_id })
+  });
+  const data = await res.json();
+  if (data.ok) {
+    showToast(`🔁 Rolled over ${data.rolled_over_count} member(s) into next block (14k steps/day)!`);
+    loadCohortBlocks();
+    if (typeof loadCohortBoard === 'function') loadCohortBoard();
+  }
+};
+
+window.quickSwitchChallenger = async function(profileId) {
+  const res = await fetch('/api/challenge/auth/switch-user', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile_id: profileId })
+  });
+  const data = await res.json();
+  if (data.ok) {
+    showToast(`👤 Switched active challenger to ${data.client_name}`);
+    if (typeof loadOverview === 'function') await loadOverview(STATE.date);
+    await refreshProgressSummary();
+  }
+};
+
 

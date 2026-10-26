@@ -34,6 +34,7 @@
         ⌚ Sync Garmin
       </button>
       <div class="score-pill" id="hdr-score">Win the Day: --/100</div>
+      <a href="/challenge/login" class="btn btn-sm" id="hdr-auth-btn" style="text-decoration:none" title="Sign in, switch challenger, or join an 8-week block">🔐 Sign In / Block</a>
       <a href="/" class="btn btn-sm" style="text-decoration:none">🏠 Home</a>
       <a href="/cms" class="btn btn-sm" style="text-decoration:none">TV CMS</a>
     </div>
@@ -768,6 +769,21 @@
           <tbody id="cohort-tbody"></tbody>
         </table>
       </div>
+    </div>
+
+    <!-- 5. 8-Week Cohort Block Manager, Invites & Payment Form Webhook -->
+    <div class="card" style="border-color:rgba(61,255,79,0.4)">
+      <div class="card-header">
+        <span class="card-title">🗓️ 5. 8-Week Cohort Block Manager, Invites &amp; Payment Auto-Enroll</span>
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+          <a href="/challenge/login?code=CS-OCT2026" class="btn btn-sm" style="text-decoration:none">🎟️ Open Invite / Sign-In Page</a>
+          <button class="btn btn-green btn-sm" onclick="loadCohortBlocks()">🔄 Refresh Blocks</button>
+        </div>
+      </div>
+      <p style="font-size:0.75rem;color:var(--muted);margin-bottom:0.75rem">
+        Manage Chris's ~5 annual <strong>8-Week Cohort Blocks</strong> (with break/recovery weeks between blocks), copy invite links, auto-enroll new challengers from a Stripe/Typeform payment webhook, and roll returning members into the next block (auto-setting 14,000 steps/day).
+      </p>
+      <div id="cohort-blocks-manager-box"></div>
     </div>
 
     <!-- Hidden legacy containers -->

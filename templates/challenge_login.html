@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In &amp; Join Block — CS Fitness 8-Week Challenge</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/challenge.css" />
+  <style>
+    .auth-shell {
+      max-width: 520px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    .auth-tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.4rem;
+      margin-bottom: 1rem;
+    }
+    .oauth-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      margin-bottom: 0.9rem;
+    }
+    .oauth-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.55rem 0.75rem;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: #0d1510;
+      color: #cbd5e1;
+      font-size: 0.76rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-shell">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <div style="display:flex;align-items:center;gap:0.6rem">
+        <img src="/static/logo.jpg" alt="CS Fitness" style="width:40px;height:40px;border-radius:9px;border:1px solid var(--green)" />
+        <div>
+          <div class="brand-title" style="font-size:1.35rem">CS FITNESS · 8-WEEK BLOCK ACCESS</div>
+          <div style="font-size:0.74rem;color:var(--muted)">Challenger Sign-In, Cohort Block Invite &amp; Password Setup</div>
+        </div>
+      </div>
+      <a href="/challenge" class="btn btn-sm" style="text-decoration:none">← Back to App</a>
+    </div>
+
+    <div class="auth-tabs">
+      <button class="btn btn-green btn-sm" id="tab-btn-signin" onclick="showAuthTab('signin')">🔐 Sign In</button>
+      <button class="btn btn-sm" id="tab-btn-invite" onclick="showAuthTab('invite')">🎟️ Join Block (Invite)</button>
+      <button class="btn btn-sm" id="tab-btn-password" onclick="showAuthTab('password')">🔑 Set Password</button>
+    </div>
+
+    <!-- 1. Sign In Panel -->
+    <div class="card" id="auth-panel-signin">
+      <div class="card-header">
+        <span class="card-title">🔐 Sign In to Your 8-Week Block</span>
+        <span class="badge badge-green">Active: {{ active_profile.client_name }}</span>
+      </div>
+      <div style="display:grid;gap:0.65rem;margin-bottom:0.85rem">
+        <div>
+          <label class="field-label">Email Address or Challenger Name</label>
+          <input type="text" id="login-email" value="{{ email_prefill or 'taylor.ewan@gmail.com' }}" placeholder="you@example.com or Ewan t" />
+        </div>
+        <div>
+          <label class="field-label">Password (If no password set yet, enter one to save it)</label>
+          <input type="password" id="login-password" placeholder="Enter your password..." />
+        </div>
+        <button class="btn btn-green" onclick="submitEmailLogin()">🚀 Sign In to 8-Week App</button>
+      </div>
+      <div style="font-size:0.7rem;color:var(--muted);text-align:center;margin-bottom:0.5rem">— OR SOCIAL SIGN-IN (READY FOR OAUTH CLIENT ID) —</div>
+      <div class="oauth-row">
+        <button class="oauth-btn" onclick="alert('Google Sign-In slot ready: set GOOGLE_CLIENT_ID in Railway variables when ready, or use Email + Password above.')">🌐 Continue with Google</button>
+        <button class="oauth-btn" onclick="alert('Apple Sign-In slot ready: set APPLE_CLIENT_ID in Railway variables when ready, or use Email + Password above.')">🍎 Continue with Apple</button>
+      </div>
+      <div id="login-msg" style="font-size:0.76rem;color:var(--green)"></div>
+    </div>
+
+    <!-- 2. Join Block via Invite Code Panel -->
+    <div class="card" id="auth-panel-invite" style="display:none">
+      <div class="card-header">
+        <span class="card-title">🎟️ Join an 8-Week Cohort Block</span>
+        <span class="badge badge-blue">Auto-Calculates Targets</span>
+      </div>
+      <div style="display:grid;gap:0.6rem">
+        <div>
+          <label class="field-label">Select 8-Week Cohort Block (or Enter Invite Code)</label>
+          <select id="join-block-code">
+            {% for b in blocks %}
+            <option value="{{ b.invite_code }}" {% if b.status == 'Active' or b.invite_code == invite_code %}selected{% endif %}>
+              {{ b.name }} ({{ b.start_date }} → {{ b.end_date }}) · Code: {{ b.invite_code }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="grid-2" style="margin-bottom:0">
+          <div>
+            <label class="field-label">Full Name</label>
+            <input type="text" id="join-name" placeholder="e.g. Sarah Jenkins" />
+          </div>
+          <div>
+            <label class="field-label">Email Address</label>
+            <input type="email" id="join-email" value="{{ email_prefill }}" placeholder="sarah@example.com" />
+          </div>
+        </div>
+        <div class="grid-2" style="margin-bottom:0">
+          <div>
+            <label class="field-label">Create Password</label>
+            <input type="password" id="join-password" placeholder="Create password..." />
+          </div>
+          <div>
+            <label class="field-label">Workout Track</label>
+            <select id="join-track">
+              <option value="mens">Men's Workouts 1–4</option>
+              <option value="ladies">Ladies' Workouts 1–4</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid-2" style="margin-bottom:0">
+          <div>
+            <label class="field-label">Start Weight (kg)</label>
+            <input type="number" step="0.1" id="join-sw" value="80.0" />
+          </div>
+          <div>
+            <label class="field-label">Target Weight (kg)</label>
+            <input type="number" step="0.1" id="join-tw" value="74.5" />
+          </div>
+        </div>
+        <div class="grid-2" style="margin-bottom:0">
+          <div>
+            <label class="field-label">Start Body Fat (%)</label>
+            <input type="number" step="0.5" id="join-sbf" value="18.0" />
+          </div>
+          <div>
+            <label class="field-label">Protein Target (g)</label>
+            <input type="number" id="join-prot" value="150" />
+          </div>
+        </div>
+        <label style="font-size:0.76rem;display:flex;align-items:center;gap:0.4rem;cursor:pointer">
+          <input type="checkbox" id="join-returning" style="width:auto" /> Returning Block Challenger (Starts at 14,000 steps/day)
+        </label>
+        <button class="btn btn-green" onclick="submitBlockJoin()">✅ Accept Invite &amp; Join 8-Week Block</button>
+        <div id="join-msg" style="font-size:0.76rem;color:var(--green)"></div>
+      </div>
+    </div>
+
+    <!-- 3. Set / Update Password Panel -->
+    <div class="card" id="auth-panel-password" style="display:none">
+      <div class="card-header">
+        <span class="card-title">🔑 Email &amp; Password Management</span>
+        <span class="badge badge-green">{{ active_profile.client_name }}</span>
+      </div>
+      <div style="display:grid;gap:0.6rem">
+        <div>
+          <label class="field-label">Email Address</label>
+          <input type="email" id="pw-email" value="{{ email_prefill or 'taylor.ewan@gmail.com' }}" />
+        </div>
+        <div>
+          <label class="field-label">Current Password (leave blank if setting for the first time)</label>
+          <input type="password" id="pw-current" placeholder="Current password (if set)" />
+        </div>
+        <div>
+          <label class="field-label">New Password</label>
+          <input type="password" id="pw-new" placeholder="At least 4 characters" />
+        </div>
+        <button class="btn btn-green" onclick="submitPasswordUpdate()">💾 Save Email &amp; Password</button>
+        <div id="pw-msg" style="font-size:0.76rem;color:var(--green)"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showAuthTab(tab) {
+      ['signin', 'invite', 'password'].forEach(k => {
+        document.getElementById('auth-panel-' + k).style.display = (k === tab) ? 'block' : 'none';
+        document.getElementById('tab-btn-' + k).className = (k === tab) ? 'btn btn-green btn-sm' : 'btn btn-sm';
+      });
+    }
+    if (window.location.search.includes('code=') || window.location.search.includes('invite=')) {
+      showAuthTab('invite');
+    }
+    async function submitEmailLogin() {
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      const res = await fetch('/api/challenge/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      const msg = document.getElementById('login-msg');
+      if (!data.ok) {
+        msg.style.color = '#f87171';
+        msg.textContent = data.error || 'Sign-in failed';
+        return;
+      }
+      msg.style.color = 'var(--green)';
+      msg.textContent = '✅ Signed in as ' + data.client_name + '! Redirecting...';
+      setTimeout(() => { window.location.href = '/challenge'; }, 500);
+    }
+    async function submitBlockJoin() {
+      const payload = {
+        invite_code: document.getElementById('join-block-code').value,
+        client_name: document.getElementById('join-name').value,
+        email: document.getElementById('join-email').value,
+        password: document.getElementById('join-password').value,
+        workout_track: document.getElementById('join-track').value,
+        start_weight_kg: parseFloat(document.getElementById('join-sw').value || '80'),
+        target_weight_kg: parseFloat(document.getElementById('join-tw').value || '74.5'),
+        start_body_fat_pct: parseFloat(document.getElementById('join-sbf').value || '18'),
+        protein_g: parseInt(document.getElementById('join-prot').value || '150', 10),
+        returning_member: document.getElementById('join-returning').checked,
+        auto_sign_in: true
+      };
+      const res = await fetch('/api/challenge/blocks/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      const msg = document.getElementById('join-msg');
+      if (!data.ok) {
+        msg.style.color = '#f87171';
+        msg.textContent = data.error || 'Could not join block';
+        return;
+      }
+      msg.style.color = 'var(--green)';
+      msg.textContent = '🎉 Joined ' + data.block.name + '! Redirecting to your dashboard...';
+      setTimeout(() => { window.location.href = '/challenge'; }, 600);
+    }
+    async function submitPasswordUpdate() {
+      const res = await fetch('/api/challenge/auth/set-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: document.getElementById('pw-email').value,
+          current_password: document.getElementById('pw-current').value,
+          new_password: document.getElementById('pw-new').value
+        })
+      });
+      const data = await res.json();
+      const msg = document.getElementById('pw-msg');
+      msg.style.color = data.ok ? 'var(--green)' : '#f87171';
+      msg.textContent = data.ok ? '✅ ' + data.message : (data.error || 'Failed to update password');
+    }
+  </script>
+</body>
+</html>
