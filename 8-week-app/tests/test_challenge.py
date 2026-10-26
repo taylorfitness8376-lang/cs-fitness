@@ -579,6 +579,84 @@ def test_multi_user_data_isolation_for_alan_vs_ewan(client):
     assert "Alan" in names
 
 
+def test_simplified_daily_mobile_and_garmin_2fa(client, monkeypatch):
+    # 1. Verify /challenge contains the simplified mobile-first Daily view + Desktop Garmin 2FA input
+    res = client.get("/challenge")
+    assert res.status_code == 200
+    html = res.get_data(as_text=True)
+    assert "op-btn-sync-garmin" in html
+    assert "op-training-btns" in html
+    assert "e.g. 3 x 5k at 5 min miles" in html
+    assert "Submit Monday" in html
+    assert "Weekly Round-Up (Auto-Collated)" in html
+    assert "cfg-garmin-mfa-code" in html
+    assert "Verify 2FA Code" in html
+
+    # 2. Save Monday daily entry with BOTH (GYM & CARDIO) and workout note, verify weekly round-up collation
+    save_res = client.post("/api/challenge/checkins", json={
+        "date": "2026-10-19",
+        "weight_kg": 83.4,
+        "steps": 12450,
+        "calories": 2160,
+        "protein_g": 155,
+        "water_l": 3.8,
+        "sleep": "8h 15m",
+        "training_type": "GYM & CARDIO",
+        "notes": "3 x 5k at 5 min miles",
+    }).get_json()
+    assert "checkin" in save_res
+    assert save_res["checkin"]["training_type"] == "GYM & CARDIO"
+    assert save_res["checkin"]["notes"] == "3 x 5k at 5 min miles"
+    assert save_res["checkin"]["sleep_mins"] == 495
+
+    ov = client.get("/api/challenge/overview?date=2026-10-19").get_json()
+    avgs = ov["current_week_sheet"]["averages"]
+    assert avgs["days_logged"] >= 1
+    assert avgs["avg_steps"] >= 12450
+
+    # 3. Verify Garmin 2FA challenge propagation via /api/challenge/sync/connect
+    import challenge_progress
+
+    def fake_fetch_garmin(email, pw, target_date=None, tokenstore_dir=None, mfa_code=None):
+        if not mfa_code:
+            return {
+                "ok": False,
+                "needs_mfa": True,
+                "error": "🔐 Garmin 2-Factor Auth: Enter the 6-digit verification code sent by Garmin.",
+            }
+        return {
+            "ok": True,
+            "parsed": {
+                "steps": 11800,
+                "sleep_mins": 480,
+                "sleep_str": "8h 00m",
+                "parsed_activities": [],
+            },
+        }
+
+    monkeypatch.setattr(challenge_progress, "fetch_live_garmin_data", fake_fetch_garmin)
+
+    r_mfa = client.post("/api/challenge/sync/connect", json={
+        "date": "2026-10-19",
+        "garmin_email": "ewan@example.com",
+        "garmin_password": "secret",
+    }).get_json()
+    assert r_mfa["ok"] is True
+    assert r_mfa["needs_mfa"] is True
+    assert "6-digit" in r_mfa["garmin_status"]
+
+    r_verified = client.post("/api/challenge/sync/connect", json={
+        "date": "2026-10-19",
+        "garmin_email": "ewan@example.com",
+        "garmin_password": "secret",
+        "mfa_code": "654321",
+    }).get_json()
+    assert r_verified["ok"] is True
+    assert r_verified["needs_mfa"] is False
+    assert "11,800 steps" in r_verified["garmin_status"]
+
+
+
 
 
 

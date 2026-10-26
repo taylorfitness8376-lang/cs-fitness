@@ -540,15 +540,24 @@ def api_sync_connect_and_save():
             curr[k] = str(data[k]).strip()
 
     garmin_pass = data.get("garmin_password") or ""
+    mfa_code = str(data.get("mfa_code") or "").strip()
     if garmin_pass:
         curr["garmin_password_set"] = 1
 
     garmin_status = "Not configured — enter Garmin email & password above."
     mfp_status = "Not configured — enter MyFitnessPal username above."
     token_dir = os.path.expanduser("~/.garminconnect") if pid == 1 else os.path.expanduser(f"~/.garminconnect_p{pid}")
+    needs_mfa = False
+    needs_password = False
 
-    if curr["garmin_email"] or os.path.exists(token_dir):
-        g_res = fetch_live_garmin_data(curr["garmin_email"], garmin_pass, target_date=date_str, tokenstore_dir=token_dir)
+    if curr["garmin_email"] or mfa_code or os.path.exists(token_dir) or os.path.exists(f"{token_dir}_session.json"):
+        g_res = fetch_live_garmin_data(
+            curr["garmin_email"],
+            garmin_pass,
+            target_date=date_str,
+            tokenstore_dir=token_dir,
+            mfa_code=mfa_code,
+        )
         if g_res.get("ok"):
             curr["garmin_connected"] = 1
             curr["garmin_last_sync"] = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -556,15 +565,24 @@ def api_sync_connect_and_save():
             for act in parsed.get("parsed_activities", []):
                 _save_daily_activity(db, act, pid)
             _upsert_checkin(db, date_str, parsed, pid)
+            if parsed.get("parsed_activities"):
+                _sync_checkin_from_activities(db, date_str, pid)
             garmin_status = f"✅ Connected & synced ({parsed.get('steps', 0):,} steps pulled for {date_str})"
         else:
-            garmin_status = f"⚠️ Saved email ({curr['garmin_email']}), live pull note: {g_res.get('error')}"
+            needs_mfa = bool(g_res.get("needs_mfa"))
+            needs_password = bool(g_res.get("needs_password"))
+            if needs_mfa:
+                garmin_status = g_res.get("error") or "🔐 Enter your 6-digit Garmin 2FA verification code below."
+            else:
+                garmin_status = f"⚠️ Saved email ({curr['garmin_email']}), live pull note: {g_res.get('error')}"
 
-    mfp_status = "✍️ Add manually in Tab 1 Step 2 (Calories, Protein & Water)"
+    mfp_status = "✍️ Add manually in Daily View (Calories, Protein & Water)"
 
     saved_integ = _update_profile_integrations(db, pid, curr)
     return jsonify({
         "ok": True,
+        "needs_mfa": needs_mfa,
+        "needs_password": needs_password,
         "integrations": saved_integ,
         "garmin_status": garmin_status,
         "mfp_status": mfp_status,

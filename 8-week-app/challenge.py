@@ -1143,17 +1143,26 @@ def api_challenge_sync_live():
 
     garmin_email = (data.get("garmin_email") or integ.get("garmin_email") or "").strip()
     garmin_password = data.get("garmin_password") or ""
+    mfa_code = str(data.get("mfa_code") or "").strip()
     mfp_username = (data.get("mfp_username") or integ.get("mfp_username") or "").strip()
 
     merged = {}
     messages = []
     garmin_ok = False
     mfp_ok = False
+    needs_mfa = False
+    needs_password = False
 
     # 1. Live Garmin Connect sync (isolated token dir per profile_id)
     token_dir = os.path.expanduser("~/.garminconnect") if pid == 1 else os.path.expanduser(f"~/.garminconnect_p{pid}")
-    if garmin_email or os.path.exists(token_dir):
-        g_res = fetch_live_garmin_data(garmin_email, garmin_password, target_date=date_str, tokenstore_dir=token_dir)
+    if garmin_email or mfa_code or os.path.exists(token_dir) or os.path.exists(f"{token_dir}_session.json"):
+        g_res = fetch_live_garmin_data(
+            garmin_email,
+            garmin_password,
+            target_date=date_str,
+            tokenstore_dir=token_dir,
+            mfa_code=mfa_code,
+        )
         if g_res.get("ok"):
             garmin_ok = True
             merged.update(g_res["parsed"])
@@ -1163,15 +1172,20 @@ def api_challenge_sync_live():
             _update_profile_integrations(db, pid, {"garmin_last_sync": now_str, "garmin_connected": 1})
             messages.append(f"Garmin Connect synced ({merged.get('steps', 0):,} steps)")
         else:
+            needs_mfa = bool(g_res.get("needs_mfa"))
+            needs_password = bool(g_res.get("needs_password"))
             messages.append(g_res.get("error", "Garmin sync failed"))
     else:
-        messages.append("Garmin credentials not configured yet (open Tab 4 → Sync & Staples to enter Garmin email & password, or push via iOS Shortcut)")
+        needs_password = True
+        messages.append("Garmin credentials not configured yet (open Desktop → Settings & Sync to connect Garmin)")
 
     # 2. Nutrition is entered manually in Tab 1 Step 2 (MFP live sync removed)
     mfp_ok = False
 
     if merged:
         saved = _upsert_checkin(db, date_str, merged, pid)
+        if g_res.get("parsed", {}).get("parsed_activities"):
+            saved = _sync_checkin_from_activities(db, date_str, pid)
     else:
         row = db.execute("SELECT * FROM daily_checkins WHERE profile_id=? AND date=?", (pid, date_str)).fetchone()
         saved = dict(row) if row else _upsert_checkin(db, date_str, {}, pid)
@@ -1181,7 +1195,9 @@ def api_challenge_sync_live():
         "ok": garmin_ok or mfp_ok,
         "garmin_ok": garmin_ok,
         "mfp_ok": mfp_ok,
-        "needs_setup": not (garmin_email or os.path.exists(token_dir) or mfp_username),
+        "needs_mfa": needs_mfa,
+        "needs_password": needs_password,
+        "needs_setup": not (garmin_email or os.path.exists(token_dir) or os.path.exists(f"{token_dir}_session.json") or mfp_username),
         "messages": messages,
         "date": date_str,
         "checkin": saved,

@@ -543,13 +543,25 @@ function renderSavedIntegrationStatus() {
   `;
 }
 
-window.saveIntegrationsConfig = async function() {
+window.saveIntegrationsConfig = async function(isMfaVerify) {
   const box = document.getElementById('sync-connection-report');
-  if (box) box.innerHTML = `⏳ Saving account details & testing live sync for ${STATE.date}...`;
+  const mfaInput = document.getElementById('cfg-garmin-mfa-code');
+  const mfaBox = document.getElementById('cfg-garmin-mfa-box');
+  const mfaPrompt = document.getElementById('cfg-garmin-mfa-prompt');
+  const mfaBadge = document.getElementById('cfg-garmin-mfa-badge');
+  const mfaCode = (mfaInput?.value || '').trim();
+
+  if (box) {
+    box.style.display = 'block';
+    box.innerHTML = isMfaVerify
+      ? `⏳ Verifying Garmin 2FA code & completing connection...`
+      : `⏳ Saving account details & testing live Garmin sync for ${STATE.date}...`;
+  }
   const payload = {
     date: STATE.date,
     garmin_email: document.getElementById('cfg-garmin-email')?.value || '',
     garmin_password: document.getElementById('cfg-garmin-pass')?.value || '',
+    mfa_code: mfaCode,
     nutrition_provider: document.getElementById('cfg-nutri-provider')?.value || 'myfitnesspal',
     mfp_username: document.getElementById('cfg-mfp-user')?.value || '',
     telegram_bot_token: document.getElementById('cfg-tg-token')?.value || '',
@@ -563,6 +575,39 @@ window.saveIntegrationsConfig = async function() {
   const data = await res.json();
   await loadOverview(STATE.date);
   await refreshProgressSummary();
+
+  if (data.needs_mfa) {
+    if (mfaBox) {
+      mfaBox.style.borderColor = '#fbbf24';
+      mfaBox.style.background = 'rgba(251,191,36,0.14)';
+    }
+    if (mfaBadge) {
+      mfaBadge.textContent = '🔐 Enter 6-Digit Code';
+      mfaBadge.className = 'badge badge-amber';
+    }
+    if (mfaPrompt) {
+      mfaPrompt.innerHTML = `<strong style="color:#fbbf24">${data.garmin_status || '🔐 Garmin sent a 6-digit verification code to your email or phone. Enter it below and click Verify 2FA Code & Connect.'}</strong>`;
+    }
+    if (mfaInput) mfaInput.focus();
+    if (box) {
+      box.style.display = 'block';
+      box.innerHTML = `<div style="color:#fbbf24;font-weight:800">🔐 Garmin 2-Factor Auth Required — enter the 6-digit code above and click "Verify 2FA Code &amp; Connect".</div>`;
+    }
+    showToast('🔐 Enter the 6-digit Garmin 2FA code sent to your email/phone!');
+    return;
+  }
+
+  if (mfaInput) mfaInput.value = '';
+  if (data.integrations && data.integrations.garmin_connected) {
+    if (mfaBox) {
+      mfaBox.style.borderColor = 'rgba(61,255,79,0.45)';
+      mfaBox.style.background = 'rgba(61,255,79,0.08)';
+    }
+    if (mfaBadge) {
+      mfaBadge.textContent = '✅ Connected (Mobile Sync Ready)';
+      mfaBadge.className = 'badge badge-green';
+    }
+  }
   if (box) {
     box.style.display = 'block';
     box.innerHTML = `
@@ -1181,6 +1226,7 @@ const DAILY_MOMENT_SLOTS = [
 ];
 
 function renderDailyJourneyMoments() {
+  renderOnePagerViews();
   const grid = document.getElementById('daily-journey-moments-grid');
   if (!grid) return;
   const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
@@ -1215,11 +1261,135 @@ function renderDailyJourneyMoments() {
   renderOnePagerViews();
 }
 
+function getWeekdayNameForDate(dateStr) {
+  try {
+    const dt = new Date((dateStr || new Date().toISOString().slice(0, 10)) + 'T12:00:00');
+    return dt.toLocaleDateString('en-GB', { weekday: 'long' });
+  } catch (e) {
+    return 'Today';
+  }
+}
+
+function getFormattedShortDate(dateStr) {
+  try {
+    const dt = new Date((dateStr || new Date().toISOString().slice(0, 10)) + 'T12:00:00');
+    return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch (e) {
+    return dateStr || '';
+  }
+}
+
+window.selectOnePagerTraining = function(val) {
+  const trainVal = val || 'REST';
+  const hidden = document.getElementById('op-training');
+  if (hidden) hidden.value = trainVal;
+  document.querySelectorAll('#op-training-btns .op-train-btn').forEach(btn => {
+    const bVal = btn.getAttribute('data-train');
+    if (bVal === trainVal) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+};
+
+window.triggerMobileGarminSync = async function() {
+  const btn = document.getElementById('op-btn-sync-garmin');
+  const statusEl = document.getElementById('op-sync-status');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Syncing with Garmin...';
+  }
+  if (statusEl) {
+    statusEl.style.color = '#38bdf8';
+    statusEl.textContent = 'Connecting to Garmin Connect...';
+  }
+  try {
+    const res = await fetch('/api/challenge/sync/live', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: STATE.date }),
+    });
+    const data = await res.json();
+    await loadOverview(STATE.date);
+    await refreshProgressSummary();
+    renderOnePagerViews();
+    const msg = (data.messages && data.messages.join(' · ')) || 'Garmin sync completed';
+    if (data.ok) {
+      if (statusEl) {
+        statusEl.style.color = 'var(--green)';
+        statusEl.textContent = `✅ ${msg}`;
+      }
+      showToast(`⌚ ${msg}`);
+    } else {
+      if (statusEl) {
+        statusEl.style.color = '#fbbf24';
+        statusEl.innerHTML = `ℹ️ ${msg} · <a href="#" onclick="openDesktopTab('integrations');return false;" style="color:var(--green);font-weight:800">Configure Garmin on Desktop</a>`;
+      }
+      showToast(`ℹ️ ${msg}`);
+    }
+  } catch (err) {
+    if (statusEl) {
+      statusEl.style.color = '#f87171';
+      statusEl.textContent = 'Could not reach Garmin sync service.';
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '⌚ Sync with Garmin';
+    }
+  }
+};
+
 function renderOnePagerViews() {
-  const c = (typeof STATE !== 'undefined' && STATE.overview && STATE.overview.checkin) || {};
+  const ov = (typeof STATE !== 'undefined' && STATE.overview) || {};
+  const c = ov.checkin || {};
+  const prof = ov.profile || {};
+  const intg = ov.integrations || {};
+  const wkInfo = ov.week_info || {};
   const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
+  const dayName = getWeekdayNameForDate(curDate);
+
+  const clientNameEl = document.getElementById('op-client-name');
+  if (clientNameEl && prof.client_name) {
+    clientNameEl.textContent = `${prof.client_name.toUpperCase()} · DAILY`;
+  }
+  const wkBadgeEl = document.getElementById('op-week-badge');
+  if (wkBadgeEl) {
+    wkBadgeEl.textContent = `${wkInfo.phase_label || '8-Week Challenge'} · Step Target: ${(wkInfo.step_target || 10000).toLocaleString()}`;
+  }
+  const adminBtn = document.getElementById('op-admin-btn');
+  if (adminBtn) {
+    adminBtn.style.display = ov.is_admin ? 'inline-flex' : 'none';
+  }
+
+  const dayHeading = document.getElementById('op-weekday-heading');
+  if (dayHeading) dayHeading.textContent = dayName;
   const dLbl = document.getElementById('op-date-lbl');
-  if (dLbl) dLbl.textContent = curDate;
+  if (dLbl) dLbl.textContent = getFormattedShortDate(curDate);
+
+  const submitBtn = document.getElementById('op-submit-btn');
+  if (submitBtn) submitBtn.textContent = `✅ Submit ${dayName}`;
+
+  const saveBanner = document.getElementById('op-save-banner');
+  if (saveBanner && saveBanner.getAttribute('data-saved-date') !== curDate) {
+    saveBanner.style.display = 'none';
+  }
+
+  const syncStatus = document.getElementById('op-sync-status');
+  if (syncStatus && !syncStatus.textContent.startsWith('⏳')) {
+    if (intg.garmin_last_sync) {
+      syncStatus.style.color = '#94a3b8';
+      syncStatus.textContent = `Last Garmin sync: ${intg.garmin_last_sync}`;
+    } else if (intg.garmin_email) {
+      syncStatus.style.color = '#94a3b8';
+      syncStatus.textContent = `Garmin linked (${intg.garmin_email}) · Tap above to pull today's stats`;
+    } else {
+      syncStatus.style.color = 'var(--muted)';
+      syncStatus.innerHTML = `Set up Garmin once on <a href="#" onclick="openDesktopTab('integrations');return false;" style="color:var(--green);font-weight:700">Desktop Settings</a>, then tap Sync daily`;
+    }
+  }
+
   const setVal = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = v ?? ''; };
   setVal('op-weight', c.weight_kg ?? '');
   setVal('op-steps', c.steps || '');
@@ -1227,95 +1397,59 @@ function renderOnePagerViews() {
   setVal('op-prot', c.protein_g || '');
   setVal('op-water', c.water_l || '');
   setVal('op-sleep', c.sleep_str || (c.sleep_mins ? `${Math.floor(c.sleep_mins / 60)}h ${c.sleep_mins % 60}m` : ''));
-  setVal('op-training', c.training_type || 'REST');
+  window.selectOnePagerTraining(c.training_type || 'REST');
   setVal('op-notes', c.notes || c.class_attended || '');
 
-  const opMom = document.getElementById('op-moments-row');
-  if (opMom) {
-    const dayMoments = ((window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.daily_moments) || []).filter(m => m.date === curDate);
-    opMom.innerHTML = DAILY_MOMENT_SLOTS.slice(0, 4).map(s => {
-      const m = dayMoments.find(x => x.slot === s.key) || {};
-      return `<label style="cursor:pointer;background:var(--surface-2);border:1px ${m.photo_data_url ? 'solid var(--green)' : 'dashed var(--border)'};border-radius:8px;padding:4px;text-align:center">
-        <div style="font-size:0.64rem;font-weight:700">${s.icon} ${s.key.split('/')[0]}</div>
-        ${m.photo_data_url ? `<img src="${m.photo_data_url}" style="width:100%;height:56px;object-fit:cover;border-radius:5px;margin-top:3px"/>` : `<div style="height:56px;display:flex;align-items:center;justify-content:center;font-size:0.62rem;color:var(--muted)">+ Pic</div>`}
-        <input type="file" accept="image/*" style="display:none" onchange="uploadDailyMomentPhoto('${s.key}', event)"/>
-      </label>`;
-    }).join('');
-  }
   renderOnePagerWeekly();
 }
 
-window.uploadDailyMomentPhoto = function(slot, event) {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(ev) {
-    const img = new Image();
-    img.onload = async function() {
-      const c = document.createElement('canvas');
-      const maxDim = 640;
-      let w = img.width, h = img.height;
-      if (w > maxDim || h > maxDim) {
-        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
-        else { w = Math.round(w * maxDim / h); h = maxDim; }
-      }
-      c.width = w; c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      await fetch('/api/challenge/daily-moments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: STATE.date, slot, photo_data_url: c.toDataURL('image/jpeg', 0.82) }),
-      });
-      await refreshProgressSummary();
-      showToast(`📸 Added ${slot} photo — synced to Coach app & Daily Snapshot!`);
-    };
-    img.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
-};
-
-window.saveDailyMomentCaption = async function(slot, caption) {
-  await fetch('/api/challenge/daily-moments', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ date: STATE.date, slot, caption }),
-  });
-  await refreshProgressSummary();
-  showToast(`💬 Saved ${slot} note!`);
-};
-
 function renderOnePagerWeekly() {
+  const ov = (typeof STATE !== 'undefined' && STATE.overview) || {};
+  const sheet = ov.current_week_sheet || {};
+  const avgs = sheet.averages || {};
+  const rows = sheet.rows || [];
   const wk = getActiveSheetWeek();
   const sel = document.getElementById('op-week-select');
   if (sel) sel.value = String(wk);
   const wkObj = ((window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.weeks) || []).find(w => Number(w.week_num) === wk) || {};
+
+  const avgWt = avgs.avg_weight_kg || wkObj.avg_weight_kg;
+  const avgSteps = avgs.avg_steps ?? wkObj.avg_steps ?? 0;
+  const avgCals = avgs.avg_calories ?? wkObj.avg_calories ?? 0;
+  const avgProt = avgs.avg_protein_g ?? wkObj.avg_protein_g ?? 0;
+  const daysLogged = avgs.days_logged ?? wkObj.days_logged ?? 0;
+
   const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  setTxt('op-wk-wt', wkObj.avg_weight_kg ? `${wkObj.avg_weight_kg.toFixed(2)}kg` : '—');
-  setTxt('op-wk-steps', (wkObj.avg_steps || 0).toLocaleString());
-  setTxt('op-wk-cals', String(wkObj.avg_calories || 0));
-  setTxt('op-wk-prot', `${wkObj.avg_protein_g || 0}g`);
-  const cm = document.getElementById('op-wk-comments');
-  if (cm && document.activeElement !== cm) cm.value = wkObj.challenger_comments || '';
-  const allPhotos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
-  const pGrid = document.getElementById('op-wk-photos');
-  if (pGrid) {
-    pGrid.innerHTML = ['Side', 'Front', 'Back'].map(pose => {
-      const p = _findPhotoForWeekAndPose(allPhotos, wk, pose);
-      const noPicWk1 = wk === 1 && !(p && p.photo_data_url);
-      return `<label style="cursor:pointer;background:var(--surface-2);border:1px ${p && p.photo_data_url ? 'solid var(--green)' : (noPicWk1 ? 'dashed rgba(56,189,248,0.45)' : 'dashed var(--border)')};border-radius:8px;padding:5px;text-align:center">
-        <div style="font-size:0.68rem;font-weight:800;color:${noPicWk1 ? '#38bdf8' : 'var(--green)'}">${pose}</div>
-        ${p && p.photo_data_url
-          ? `<img src="${p.photo_data_url}" style="width:100%;height:88px;object-fit:contain;background:#070a08;border-radius:5px;margin-top:3px"/>`
-          : `<div style="height:88px;display:flex;align-items:center;justify-content:center;font-size:0.62rem;color:${noPicWk1 ? '#38bdf8' : 'var(--muted)'};padding:4px">${noPicWk1 ? '🚫 No Pic on Wk 1 Fri' : '+ Tap Photo'}</div>`}
-        <input type="file" accept="image/*" style="display:none" onchange="handlePoseFileSelect(event, ${wk}, '${pose}')"/>
-      </label>`;
+  setTxt('op-wk-wt', avgWt ? `${Number(avgWt).toFixed(1)}kg` : '—');
+  setTxt('op-wk-steps', Number(avgSteps).toLocaleString());
+  setTxt('op-wk-cals', String(avgCals));
+  setTxt('op-wk-prot', `${avgProt}g`);
+  setTxt('op-rollup-days-badge', `${daysLogged} / 7 Days Logged`);
+
+  const stripEl = document.getElementById('op-weekly-days-strip');
+  if (stripEl && rows.length) {
+    stripEl.innerHTML = rows.map(r => {
+      const hasData = Boolean(r.weight_kg || r.steps || r.calories || r.protein_g || (r.notes && r.notes.trim()));
+      const isSelected = r.date === STATE.date;
+      const shortDay = (r.day_name || '').slice(0, 3);
+      return `<button type="button" onclick="loadOverview('${r.date}')" style="padding:0.35rem 0.15rem;border-radius:8px;cursor:pointer;background:${isSelected ? 'rgba(61,255,79,0.22)' : (hasData ? 'rgba(61,255,79,0.08)' : 'var(--surface-2)')};border:1.5px solid ${isSelected ? 'var(--green)' : (hasData ? 'rgba(61,255,79,0.4)' : 'var(--border)')};color:#fff;text-align:center">
+        <div style="font-size:0.65rem;font-weight:800;color:${hasData ? 'var(--green)' : 'var(--muted)'}">${shortDay}</div>
+        <div style="font-size:0.75rem;font-weight:900;margin-top:1px">${hasData ? '✓' : '·'}</div>
+      </button>`;
     }).join('');
   }
 }
 
 window.saveOnePagerDaily = async function(withPng) {
+  const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
+  const dayName = getWeekdayNameForDate(curDate);
+  const submitBtn = document.getElementById('op-submit-btn');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = `⏳ Saving ${dayName}...`;
+  }
   const payload = {
-    date: STATE.date,
+    date: curDate,
     weight_kg: document.getElementById('op-weight')?.value ? parseFloat(document.getElementById('op-weight').value) : null,
     steps: parseInt(document.getElementById('op-steps')?.value || '0', 10),
     calories: parseInt(document.getElementById('op-cals')?.value || '0', 10),
@@ -1325,8 +1459,29 @@ window.saveOnePagerDaily = async function(withPng) {
     training_type: document.getElementById('op-training')?.value || 'REST',
     notes: document.getElementById('op-notes')?.value || '',
   };
-  await window.postCheckinUpdate(payload, '✅ Saved Daily Entry!');
+  await window.postCheckinUpdate(payload, `${dayName} saved`);
   await refreshProgressSummary();
+  renderOnePagerViews();
+
+  const banner = document.getElementById('op-save-banner');
+  const bannerTitle = document.getElementById('op-save-banner-title');
+  const bannerSub = document.getElementById('op-save-banner-sub');
+  if (banner) {
+    banner.setAttribute('data-saved-date', curDate);
+    banner.style.display = 'block';
+  }
+  if (bannerTitle) {
+    bannerTitle.textContent = `✅ ${dayName} saved`;
+  }
+  const sheet = (STATE.overview && STATE.overview.current_week_sheet) || {};
+  const daysLogged = (sheet.averages && sheet.averages.days_logged) || 1;
+  if (bannerSub) {
+    bannerSub.textContent = `Your ${dayName} stats are saved and collated into your Weekly Round-Up below (${daysLogged}/7 days logged this week).`;
+  }
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = `✅ ${dayName} saved`;
+  }
   if (withPng) await window.downloadInstagramScoreboardPng();
 };
 
@@ -1346,22 +1501,49 @@ window.saveOnePagerWeekly = async function(action) {
   if (action === 'tg') await window.sendWeeklyTelegram();
 };
 
+window.openDesktopTab = function(tabName) {
+  window.setOnePagerMode('full');
+  if (typeof window.switchTab === 'function') {
+    window.switchTab(tabName || 'checkin');
+  }
+  const bCheckin = document.getElementById('btn-mode-checkin-desk');
+  const bSettings = document.getElementById('btn-mode-settings-desk');
+  const bDaily = document.getElementById('btn-mode-daily1p');
+  if (bDaily) bDaily.className = 'btn btn-sm';
+  if (bCheckin) bCheckin.className = (tabName === 'checkin') ? 'btn btn-green btn-sm' : 'btn btn-sm';
+  if (bSettings) bSettings.className = (tabName === 'integrations') ? 'btn btn-green btn-sm' : 'btn btn-sm';
+};
+
 window.setOnePagerMode = function(mode) {
   const dView = document.getElementById('onepager-daily-view');
   const wView = document.getElementById('onepager-weekly-view');
+  const topHeader = document.querySelector('.top-header');
+  const weekStrip = document.getElementById('hdr-week-strip');
+  const modeBar = document.getElementById('mobile-onepager-bar');
   const tabs = document.getElementById('main-tabs');
   const panels = document.querySelectorAll('.tab-panel');
-  ['daily1p', 'weekly1p', 'full'].forEach(k => {
-    const b = document.getElementById(`btn-mode-${k}`);
-    if (b) b.className = (k === (mode === 'daily' ? 'daily1p' : mode === 'weekly' ? 'weekly1p' : 'full')) ? 'btn btn-green btn-sm' : 'btn btn-sm';
-  });
-  if (mode === 'daily' || mode === 'weekly') {
+
+  if (mode === 'daily') {
+    // Clear the screen of everything else — show ONLY the Daily Mobile-First view
+    if (topHeader) topHeader.style.display = 'none';
+    if (weekStrip) weekStrip.style.display = 'none';
+    if (modeBar) modeBar.style.display = 'none';
     if (tabs) tabs.style.display = 'none';
     panels.forEach(p => { p.style.display = 'none'; });
-    if (dView) dView.style.display = mode === 'daily' ? 'block' : 'none';
-    if (wView) wView.style.display = mode === 'weekly' ? 'block' : 'none';
+    if (wView) wView.style.display = 'none';
+    if (dView) dView.style.display = 'block';
+    renderOnePagerViews();
+  } else if (mode === 'weekly') {
+    if (tabs) tabs.style.display = 'none';
+    panels.forEach(p => { p.style.display = 'none'; });
+    if (dView) dView.style.display = 'none';
+    if (wView) wView.style.display = 'block';
     renderOnePagerViews();
   } else {
+    // Desktop View: Weekly Check-In (Photos & Commentary) + Settings & Sync (Garmin + 2FA)
+    if (topHeader) topHeader.style.display = '';
+    if (weekStrip) weekStrip.style.display = 'grid';
+    if (modeBar) modeBar.style.display = 'flex';
     if (dView) dView.style.display = 'none';
     if (wView) wView.style.display = 'none';
     if (tabs) tabs.style.display = 'grid';
@@ -1369,10 +1551,15 @@ window.setOnePagerMode = function(mode) {
   }
 };
 
-if (window.location.pathname.includes('/mobile') || window.location.search.includes('mode=daily')) {
-  setTimeout(() => window.setOnePagerMode('daily'), 180);
+if (window.location.search.includes('mode=desktop') || window.location.search.includes('mode=full') || window.location.search.includes('mode=checkin')) {
+  setTimeout(() => window.openDesktopTab('checkin'), 120);
+} else if (window.location.search.includes('mode=settings')) {
+  setTimeout(() => window.openDesktopTab('integrations'), 120);
 } else if (window.location.search.includes('mode=weekly')) {
-  setTimeout(() => window.setOnePagerMode('weekly'), 180);
+  setTimeout(() => window.setOnePagerMode('weekly'), 120);
+} else {
+  // Mobile-first default: open the clean, cleared-screen Daily Update view (with 1-click switch to Desktop Weekly Check-In & Settings)
+  setTimeout(() => window.setOnePagerMode('daily'), 120);
 }
 
 if (document.readyState === 'loading') {

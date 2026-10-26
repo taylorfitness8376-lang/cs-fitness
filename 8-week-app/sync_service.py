@@ -499,6 +499,11 @@ def parse_apple_health_payload(data, target_date=None):
 _PENDING_MFA_STATE = {}
 
 
+class GarminMFARequiredError(Exception):
+    """Raised when Garmin SSO requires a 6-digit 2FA/MFA verification code."""
+    pass
+
+
 def _oauth1_auth_header(method, base_url, params_dict, consumer_key, consumer_secret, token_key="", token_secret=""):
     """Build RFC 5849 OAuth 1.0a Authorization header (HMAC-SHA1) using Python stdlib."""
     def _pct(val):
@@ -782,6 +787,24 @@ class _BuiltinGarminClient:
             timeout=15,
         )
         ticket_match = re.search(r'ticket=([A-Za-z0-9\-]+)', r_post.text)
+        if not ticket_match and (
+            "mfa" in r_post.text.lower()
+            or "verifymfa" in str(r_post.url).lower()
+            or "verification code" in r_post.text.lower()
+            or "passcode" in r_post.text.lower()
+        ):
+            mfa_csrf_match = re.search(r'name="_csrf"\s+value="([^"]+)"', r_post.text)
+            _PENDING_MFA_STATE[self.cookie_path] = {
+                "client": self,
+                "sso_params": dict(sso_params),
+                "csrf_token": mfa_csrf_match.group(1) if mfa_csrf_match else csrf_token,
+                "referer": r_post.url,
+                "created_at": time.time(),
+            }
+            raise GarminMFARequiredError(
+                "Garmin 2-Factor Auth required: enter the 6-digit code sent by Garmin to your email or phone."
+            )
+
         if not ticket_match:
             sso_params["service"] = "https://connect.garmin.com/modern/"
             sso_params["redirectAfterAccountLoginUrl"] = "https://connect.garmin.com/modern/"
@@ -796,14 +819,34 @@ class _BuiltinGarminClient:
                 timeout=15,
             )
             ticket_match = re.search(r'ticket=([A-Za-z0-9\-]+)', r_post.text)
+            if not ticket_match and (
+                "mfa" in r_post.text.lower()
+                or "verifymfa" in str(r_post.url).lower()
+                or "verification code" in r_post.text.lower()
+            ):
+                mfa_csrf_match = re.search(r'name="_csrf"\s+value="([^"]+)"', r_post.text)
+                _PENDING_MFA_STATE[self.cookie_path] = {
+                    "client": self,
+                    "sso_params": dict(sso_params),
+                    "csrf_token": mfa_csrf_match.group(1) if mfa_csrf_match else (csrf2.group(1) if csrf2 else csrf_token),
+                    "referer": r_post.url,
+                    "created_at": time.time(),
+                }
+                raise GarminMFARequiredError(
+                    "Garmin 2-Factor Auth required: enter the 6-digit code sent by Garmin to your email or phone."
+                )
+
         if not ticket_match:
             if "Invalid" in r_post.text or "locked" in r_post.text.lower():
-                raise ValueError("Garmin Connect rejected the email/password. Double-check your credentials in Tab 4.")
-            raise ValueError(
-                "Garmin SSO requested browser verification/MFA. Sign in to connect.garmin.com in your browser (Chrome/Safari) on this Mac and click Sync again, or use Import Garmin CSV/JSON in Tab 4."
+                raise ValueError("Garmin Connect rejected the email/password. Double-check your credentials.")
+            raise GarminMFARequiredError(
+                "Garmin requested 2-Factor / verification code. If you received a 6-digit Garmin code by email/SMS, enter it below."
             )
 
         ticket = ticket_match.group(1)
+        return self._finalize_ticket_login(ticket, sso_params)
+
+    def _finalize_ticket_login(self, ticket, sso_params):
         if self._exchange_ticket_for_oauth(ticket, preferred_login_url=sso_params.get("service")):
             if self._check_profile():
                 self._save_cookies()
@@ -812,7 +855,41 @@ class _BuiltinGarminClient:
         if self._check_profile():
             self._save_cookies()
             return True
-        raise ValueError("Logged in to Garmin SSO, but could not establish Garmin Connect session. Sign into connect.garmin.com in your browser or import CSV/JSON.")
+        raise ValueError("Logged in to Garmin SSO, but could not establish Garmin Connect session.")
+
+    def submit_mfa_code(self, mfa_code):
+        code = re.sub(r"\s+", "", str(mfa_code or ""))
+        if not code:
+            raise ValueError("Please enter the 6-digit Garmin 2FA verification code.")
+        state = _PENDING_MFA_STATE.get(self.cookie_path)
+        if not state:
+            raise ValueError("2FA session expired — please click Connect / Sync Garmin again to request a fresh code.")
+        self.session = state["client"].session
+        sso_params = state["sso_params"]
+        csrf_token = state["csrf_token"]
+        referer_url = state.get("referer") or "https://sso.garmin.com/sso/verifyMFA/loginEnterMfaCode"
+
+        r_mfa = self.session.post(
+            "https://sso.garmin.com/sso/verifyMFA/loginEnterMfaCode",
+            params=sso_params,
+            data={
+                "mfa-code": code,
+                "embed": sso_params.get("embedWidget", "true"),
+                "fromPage": "setupEnterMfaCode",
+                "_csrf": csrf_token,
+            },
+            headers={
+                "Origin": "https://sso.garmin.com",
+                "Referer": referer_url,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            timeout=15,
+        )
+        ticket_match = re.search(r'ticket=([A-Za-z0-9\-]+)', r_mfa.text)
+        if not ticket_match:
+            raise ValueError("Invalid or expired Garmin 2FA code. Please check the code and try again.")
+        _PENDING_MFA_STATE.pop(self.cookie_path, None)
+        return self._finalize_ticket_login(ticket_match.group(1), sso_params)
 
     def _get_json(self, path, params=None):
         for prefix in ("https://connectapi.garmin.com", "https://connect.garmin.com/gc-api", "https://connect.garmin.com/modern/proxy"):
@@ -861,58 +938,91 @@ class _BuiltinGarminClient:
         return data if isinstance(data, list) else []
 
 
-def fetch_live_garmin_data(email, password, target_date=None, tokenstore_dir=None):
-    """Connect to live Garmin Connect (via `garminconnect` if installed or built-in client) and pull steps, sleep, weight & workouts."""
+def fetch_live_garmin_data(email, password, target_date=None, tokenstore_dir=None, mfa_code=None):
+    """Connect to live Garmin Connect (via `garminconnect` if installed or built-in client) and pull steps, sleep, weight & workouts.
+    Supports Garmin 2-Factor Authentication (MFA) via `mfa_code` and `needs_mfa` response."""
     import os
     date_str = (target_date or datetime.now().strftime("%Y-%m-%d"))[:10]
     real_today = datetime.now().strftime("%Y-%m-%d")
     # If viewing a future pre-coaching/challenge date (e.g. Oct 2026), pull today's live watch stats
     query_date = real_today if date_str > real_today else date_str
     token_dir = tokenstore_dir or os.path.expanduser("~/.garminconnect")
+    cookie_file = f"{token_dir}_session.json"
 
     email = (email or "").strip()
     password = password or ""
+    mfa_code = str(mfa_code or "").strip()
 
     try:
         try:
             from garminconnect import Garmin
-            client = Garmin(email or None, password or None)
-            if os.path.exists(token_dir):
-                try:
-                    client.login(token_dir)
-                except Exception:
+            if mfa_code and token_dir in _PENDING_MFA_STATE and _PENDING_MFA_STATE[token_dir].get("garth_client_state"):
+                st = _PENDING_MFA_STATE.pop(token_dir)
+                client = st["garth_client"]
+                client.resume_login(st["garth_client_state"], mfa_code)
+                os.makedirs(token_dir, exist_ok=True)
+                client.garth.dump(token_dir)
+            else:
+                client = Garmin(email or None, password or None, return_on_mfa=True)
+                logged_in = False
+                if os.path.exists(token_dir) and not password:
+                    try:
+                        client.login(token_dir)
+                        logged_in = True
+                    except Exception:
+                        logged_in = False
+                if not logged_in:
                     if not email or not password:
                         return {
                             "ok": False,
                             "needs_password": True,
-                            "error": "Please enter your Garmin Connect password once in Tab 4 (Sync & Staples) and click Save Configuration.",
+                            "error": "Enter your Garmin Connect email & password once to connect your watch.",
                         }
-                    client = Garmin(email, password)
-                    client.login()
+                    client = Garmin(email, password, return_on_mfa=True)
+                    login_res = client.login()
+                    if isinstance(login_res, tuple) and len(login_res) == 2 and login_res[0] == "needs_mfa":
+                        _PENDING_MFA_STATE[token_dir] = {
+                            "garth_client": client,
+                            "garth_client_state": login_res[1],
+                            "created_at": time.time(),
+                        }
+                        return {
+                            "ok": False,
+                            "needs_mfa": True,
+                            "error": "🔐 Garmin 2-Factor Auth: Enter the 6-digit verification code sent by Garmin to your email or phone.",
+                        }
                     os.makedirs(token_dir, exist_ok=True)
                     client.garth.dump(token_dir)
-            else:
-                if not email or not password:
-                    return {
-                        "ok": False,
-                        "needs_password": True,
-                        "error": "Please enter your Garmin Connect password once in Tab 4 (Sync & Staples) and click Save Configuration.",
-                    }
-                client.login()
-                os.makedirs(token_dir, exist_ok=True)
-                client.garth.dump(token_dir)
         except ImportError:
-            client = _BuiltinGarminClient(email=email, password=password)
-            if not password and not os.path.exists(client.cookie_path):
+            client = _BuiltinGarminClient(email=email, password=password, cookie_path=cookie_file)
+            if mfa_code:
+                client.submit_mfa_code(mfa_code)
+            elif not password and not os.path.exists(client.cookie_path):
                 if not client._try_browser_cookies():
                     return {
                         "ok": False,
                         "needs_password": True,
-                        "error": "Enter your Garmin Connect email & password in Tab 4 (Sync & Staples) and click Save Configuration (or sign into connect.garmin.com in your browser).",
+                        "error": "Enter your Garmin Connect email & password once to connect your watch.",
                     }
             else:
                 client.login()
+    except GarminMFARequiredError as mfa_exc:
+        return {
+            "ok": False,
+            "needs_mfa": True,
+            "error": f"🔐 {mfa_exc}",
+        }
+    except Exception as exc:
+        err_txt = str(exc)
+        if "mfa" in err_txt.lower() or "verification" in err_txt.lower() or "2fa" in err_txt.lower():
+            return {
+                "ok": False,
+                "needs_mfa": True,
+                "error": f"🔐 {err_txt}",
+            }
+        return {"ok": False, "error": err_txt}
 
+    try:
         raw = {"date": date_str, "source": f"Garmin Connect (Live {query_date})"}
 
         # 1. Daily summary stats (steps, resting HR, body battery)

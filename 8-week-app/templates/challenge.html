@@ -44,46 +44,142 @@
   <!-- Live 7-Day Week Strip (Mon – Sun) -->
   <div id="hdr-week-strip" style="display:grid;grid-template-columns:repeat(7,1fr);gap:0.3rem;margin-bottom:0.55rem"></div>
 
-  <!-- Mobile 1-Pager Quick Switcher (Daily 1-Pager / Weekly 1-Pager / Full 4-Tab App) -->
-  <div id="mobile-onepager-bar" style="display:flex;justify-content:space-between;align-items:center;gap:0.45rem;flex-wrap:wrap;padding:0.5rem 0.75rem;margin-bottom:0.55rem;background:#09110b;border:1px solid rgba(61,255,79,0.3);border-radius:12px">
-    <div style="font-size:0.74rem;font-weight:800;color:var(--green)">📱 1-PAGE MOBILE VIEWS · <span style="color:#cbd5e1;font-weight:600">Meals, Stats, Workouts &amp; Weekly Photos (Live Syncs for Chris &amp; Laura)</span></div>
-    <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
-      <button class="btn btn-sm" id="btn-mode-daily1p" onclick="setOnePagerMode('daily')">☀️ Daily 1-Pager (Meals + Stats)</button>
-      <button class="btn btn-sm" id="btn-mode-weekly1p" onclick="setOnePagerMode('weekly')">📅 Weekly 1-Pager (Summary + 3 Photos)</button>
-      <button class="btn btn-green btn-sm" id="btn-mode-full" onclick="setOnePagerMode('full')">🖥️ Full 4-Tab View</button>
+  <!-- Desktop Mode Bar (Daily Mobile-First / Weekly Check-In / Desktop Settings & Sync) -->
+  <div id="mobile-onepager-bar" style="display:flex;justify-content:space-between;align-items:center;gap:0.45rem;flex-wrap:wrap;padding:0.55rem 0.85rem;margin-bottom:0.55rem;background:#09110b;border:1px solid rgba(61,255,79,0.3);border-radius:12px">
+    <div style="font-size:0.78rem;font-weight:800;color:var(--green)">🖥️ DESKTOP &amp; MOBILE VIEWS · <span style="color:#cbd5e1;font-weight:600">Configure Garmin on Desktop → Capture Daily on Mobile → Weekly Check-In (Photos &amp; Commentary) on Desktop</span></div>
+    <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+      <button class="btn btn-sm" id="btn-mode-daily1p" onclick="setOnePagerMode('daily')">📱 Daily Update (Mobile-First)</button>
+      <button class="btn btn-green btn-sm" id="btn-mode-checkin-desk" onclick="openDesktopTab('checkin')">📊 Weekly Check-In (Photos &amp; Commentary)</button>
+      <button class="btn btn-sm" id="btn-mode-settings-desk" onclick="openDesktopTab('integrations')">⚙️ Settings &amp; Sync (Garmin + 2FA)</button>
     </div>
   </div>
 
-  <!-- Stripped-Back 1-Page Mobile Views (Daily 1-Pager & Weekly 1-Pager) -->
-  <div id="onepager-daily-view" style="display:none;max-width:480px;margin:0 auto">
-    <div class="card" style="padding:0.9rem">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.65rem">
-        <div style="display:flex;align-items:center;gap:0.3rem">
-          <button class="btn btn-sm" onclick="stepActiveDate(-1)" title="Previous Day">◀</button>
-          <span class="card-title" style="font-size:1.02rem">☀️ <span id="op-date-lbl" style="color:var(--green)">Today</span></span>
-          <button class="btn btn-sm" onclick="stepActiveDate(1)" title="Next Day">▶</button>
-          <button class="btn btn-sm" onclick="goToToday()">Today</button>
-        </div>
-        <button class="btn btn-blue btn-sm" onclick="triggerLiveSync()">⌚ Sync Garmin</button>
-      </div>
-      <div class="grid-2" style="gap:0.5rem;margin-bottom:0.55rem">
-        <div><label class="field-label">Weight (kg) 🔒</label><input type="number" step="0.1" id="op-weight" placeholder="83.5" /></div>
-        <div><label class="field-label">Steps</label><input type="number" id="op-steps" placeholder="10000" /></div>
-        <div><label class="field-label">Calories (kcal)</label><input type="number" id="op-cals" placeholder="2173" /></div>
-        <div><label class="field-label">Protein (g)</label><input type="number" id="op-prot" placeholder="150" /></div>
-        <div><label class="field-label">Water (L)</label><input type="number" step="0.1" id="op-water" placeholder="3.66" /></div>
-        <div><label class="field-label">Sleep</label><input type="text" id="op-sleep" placeholder="8h 00m" /></div>
+  <!-- ========================================================= -->
+  <!-- SIMPLIFIED MOBILE-FIRST DAILY VIEW (CLEARED SCREEN)       -->
+  <!-- ========================================================= -->
+  <div id="onepager-daily-view" style="display:none;max-width:480px;margin:0 auto;padding:0.2rem 0">
+    <!-- Minimal Top Bar: Challenger Name + Desktop / Admin / Sign Out -->
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.65rem;padding:0.45rem 0.65rem;background:#09110b;border:1px solid var(--border);border-radius:12px">
+      <div style="display:flex;align-items:center;gap:0.45rem">
+        <img src="/static/logo.jpg" alt="CS" style="width:28px;height:28px;border-radius:6px;object-fit:cover" />
         <div>
-          <label class="field-label">Training</label>
-          <select id="op-training"><option value="REST">REST</option><option value="GYM">GYM</option><option value="CARDIO">CARDIO</option><option value="GYM & CARDIO">GYM &amp; CARDIO</option></select>
+          <div style="font-size:0.78rem;font-weight:900;color:#fff;letter-spacing:0.03em" id="op-client-name">CS FITNESS DAILY</div>
+          <div style="font-size:0.66rem;color:var(--green);font-weight:700" id="op-week-badge">8-Week Challenge</div>
         </div>
-        <div><label class="field-label">Note / Workout</label><input type="text" id="op-notes" placeholder="Workout or daily win..." /></div>
       </div>
-      <div style="font-size:0.7rem;font-weight:700;color:var(--muted);margin-bottom:4px">📸 TAP TO ADD MEAL / WORKOUT PICS (OPTIONAL)</div>
-      <div id="op-moments-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.4rem;margin-bottom:0.7rem"></div>
-      <div class="grid-2" style="gap:0.5rem">
-        <button class="btn btn-green" onclick="saveOnePagerDaily()">✅ Save Daily</button>
-        <button class="btn btn-blue" onclick="saveOnePagerDaily(true)">📸 Save &amp; Get PNG</button>
+      <div style="display:flex;gap:0.35rem;align-items:center;flex-wrap:wrap">
+        <a href="/challenge/admin" id="op-admin-btn" class="btn btn-sm" style="display:none;text-decoration:none;font-size:0.7rem;padding:0.28rem 0.55rem">🛡️ Admin</a>
+        <button class="btn btn-sm" onclick="openDesktopTab('checkin')" style="font-size:0.7rem;padding:0.28rem 0.55rem" title="Open Desktop Weekly Check-In (Photos &amp; Commentary)">📊 Weekly Check-In</button>
+        <button class="btn btn-sm" onclick="openDesktopTab('integrations')" style="font-size:0.7rem;padding:0.28rem 0.55rem" title="Open Desktop Settings &amp; Garmin Setup (+ 2FA)">⚙️ Settings</button>
+        <a href="/api/challenge/auth/logout" class="btn btn-sm" style="text-decoration:none;font-size:0.7rem;padding:0.28rem 0.55rem">Sign Out</a>
+      </div>
+    </div>
+
+    <div class="card" style="padding:1rem;border-radius:16px;border:1px solid rgba(61,255,79,0.28)">
+      <!-- 1. Day Selector -->
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;margin-bottom:0.75rem;background:var(--surface-2);padding:0.55rem 0.7rem;border-radius:12px;border:1px solid var(--border)">
+        <button class="btn btn-sm" onclick="stepActiveDate(-1)" style="font-size:1rem;padding:0.35rem 0.7rem" title="Previous Day">◀</button>
+        <div style="text-align:center">
+          <div id="op-weekday-heading" style="font-size:1.25rem;font-weight:900;color:var(--green);line-height:1.1">Monday</div>
+          <div id="op-date-lbl" style="font-size:0.78rem;font-weight:700;color:#cbd5e1;margin-top:2px">Today</div>
+        </div>
+        <div style="display:flex;gap:0.3rem;align-items:center">
+          <button class="btn btn-sm" onclick="stepActiveDate(1)" style="font-size:1rem;padding:0.35rem 0.7rem" title="Next Day">▶</button>
+          <button class="btn btn-sm" onclick="goToToday()" style="font-size:0.72rem;padding:0.35rem 0.55rem">Today</button>
+        </div>
+      </div>
+
+      <!-- 2. Single 1-Tap Garmin Sync Button (Settings managed on Desktop) -->
+      <button class="btn btn-blue" id="op-btn-sync-garmin" onclick="triggerMobileGarminSync()" style="width:100%;justify-content:center;padding:0.85rem 1rem;font-size:1.05rem;font-weight:900;border-radius:12px;margin-bottom:0.35rem">
+        ⌚ Sync with Garmin
+      </button>
+      <div id="op-sync-status" style="font-size:0.73rem;color:var(--muted);text-align:center;margin-bottom:0.85rem">
+        Pulls today's Steps, Sleep, Weight &amp; Workouts from Garmin
+      </div>
+
+      <!-- 3. Large-Text Number Inputs -->
+      <div class="grid-2" style="gap:0.65rem;margin-bottom:0.85rem">
+        <div class="op-stat-box">
+          <label class="op-big-label" for="op-weight">WEIGHT (KG)</label>
+          <input type="number" step="0.1" inputmode="decimal" id="op-weight" class="op-big-input" placeholder="83.5" />
+        </div>
+        <div class="op-stat-box">
+          <label class="op-big-label" for="op-steps">STEPS</label>
+          <input type="number" step="100" inputmode="numeric" id="op-steps" class="op-big-input" placeholder="10000" />
+        </div>
+        <div class="op-stat-box">
+          <label class="op-big-label" for="op-cals">CALORIES (KCAL)</label>
+          <input type="number" step="10" inputmode="numeric" id="op-cals" class="op-big-input" placeholder="2173" />
+        </div>
+        <div class="op-stat-box">
+          <label class="op-big-label" for="op-prot">PROTEIN (G)</label>
+          <input type="number" step="1" inputmode="numeric" id="op-prot" class="op-big-input" placeholder="150" />
+        </div>
+        <div class="op-stat-box">
+          <label class="op-big-label" for="op-water">WATER (L)</label>
+          <input type="number" step="0.1" inputmode="decimal" id="op-water" class="op-big-input" placeholder="3.66" />
+        </div>
+        <div class="op-stat-box">
+          <label class="op-big-label" for="op-sleep">SLEEP</label>
+          <input type="text" id="op-sleep" class="op-big-input" placeholder="8h 00m" />
+        </div>
+      </div>
+
+      <!-- 4. Simple Training Selector (GYM / CARDIO / BOTH / REST) + Note -->
+      <div style="margin-bottom:0.75rem">
+        <label class="op-big-label" style="margin-bottom:0.4rem;display:block">TRAINING DONE TODAY</label>
+        <input type="hidden" id="op-training" value="REST" />
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.45rem" id="op-training-btns">
+          <button type="button" class="op-train-btn" data-train="GYM" onclick="selectOnePagerTraining('GYM')">🏋️ GYM</button>
+          <button type="button" class="op-train-btn" data-train="CARDIO" onclick="selectOnePagerTraining('CARDIO')">🏃 CARDIO</button>
+          <button type="button" class="op-train-btn" data-train="GYM & CARDIO" onclick="selectOnePagerTraining('GYM & CARDIO')">🔥 BOTH</button>
+          <button type="button" class="op-train-btn active" data-train="REST" onclick="selectOnePagerTraining('REST')">🛋️ REST</button>
+        </div>
+      </div>
+
+      <div style="margin-bottom:0.9rem">
+        <label class="op-big-label" for="op-notes" style="margin-bottom:0.35rem;display:block">WORKOUT / TRAINING NOTE</label>
+        <input type="text" id="op-notes" class="op-big-note-input" placeholder="e.g. 3 x 5k at 5 min miles" />
+      </div>
+
+      <!-- 5. Submit Button + Confirmation Message ("Monday saved") -->
+      <button class="btn btn-green" id="op-submit-btn" onclick="saveOnePagerDaily()" style="width:100%;justify-content:center;padding:1rem;font-size:1.22rem;font-weight:900;border-radius:14px;letter-spacing:0.02em">
+        ✅ Submit Monday
+      </button>
+
+      <div id="op-save-banner" style="display:none;margin-top:0.75rem;padding:0.85rem 1rem;border-radius:12px;background:rgba(61,255,79,0.16);border:2px solid var(--green);text-align:center">
+        <div id="op-save-banner-title" style="font-size:1.3rem;font-weight:900;color:var(--green)">✅ Monday saved</div>
+        <div id="op-save-banner-sub" style="font-size:0.8rem;color:#e2e8f0;margin-top:0.2rem">Stats updated &amp; collated into your Weekly Round-Up below.</div>
+      </div>
+    </div>
+
+    <!-- 6. Auto-Collated Weekly Round-Up Card -->
+    <div class="card" style="padding:0.9rem 1rem;margin-top:0.75rem;border-radius:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.55rem">
+        <span style="font-size:0.92rem;font-weight:900;color:#fff">📊 Weekly Round-Up (Auto-Collated)</span>
+        <span class="badge badge-green" id="op-rollup-days-badge">0 / 7 Days</span>
+      </div>
+      <div id="op-weekly-days-strip" style="display:grid;grid-template-columns:repeat(7,1fr);gap:0.28rem;margin-bottom:0.65rem"></div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.4rem;text-align:center">
+        <div style="background:var(--surface-2);padding:0.5rem 0.3rem;border-radius:10px;border:1px solid var(--border)">
+          <div style="font-size:0.62rem;font-weight:700;color:var(--muted)">AVG WEIGHT</div>
+          <div style="font-size:1.02rem;font-weight:900;color:var(--green);margin-top:2px" id="op-wk-wt">—</div>
+        </div>
+        <div style="background:var(--surface-2);padding:0.5rem 0.3rem;border-radius:10px;border:1px solid var(--border)">
+          <div style="font-size:0.62rem;font-weight:700;color:var(--muted)">AVG STEPS</div>
+          <div style="font-size:1.02rem;font-weight:900;color:#fff;margin-top:2px" id="op-wk-steps">0</div>
+        </div>
+        <div style="background:var(--surface-2);padding:0.5rem 0.3rem;border-radius:10px;border:1px solid var(--border)">
+          <div style="font-size:0.62rem;font-weight:700;color:var(--muted)">AVG CALS</div>
+          <div style="font-size:1.02rem;font-weight:900;color:#fff;margin-top:2px" id="op-wk-cals">0</div>
+        </div>
+        <div style="background:var(--surface-2);padding:0.5rem 0.3rem;border-radius:10px;border:1px solid var(--border)">
+          <div style="font-size:0.62rem;font-weight:700;color:var(--muted)">AVG PROTEIN</div>
+          <div style="font-size:1.02rem;font-weight:900;color:var(--green);margin-top:2px" id="op-wk-prot">0g</div>
+        </div>
+      </div>
+      <div style="margin-top:0.6rem;text-align:center;font-size:0.72rem;color:var(--muted)">
+        💻 On Friday, open <a href="#" onclick="openDesktopTab('checkin');return false;" style="color:var(--green);font-weight:800">Desktop Weekly Check-In</a> to add your 3 photos &amp; weekly commentary.
       </div>
     </div>
   </div>
@@ -97,12 +193,6 @@
           <option value="3">Week 3 · Fri (+ Photos)</option><option value="4">Week 4 · Fri (+ Photos)</option><option value="5">Week 5 · Fri (+ Photos)</option>
           <option value="6">Week 6 · Fri (+ Photos)</option><option value="7">Week 7 · Fri (+ Photos)</option><option value="8">Week 8 · Fri (Final Photos)</option>
         </select>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.4rem;text-align:center;margin-bottom:0.7rem">
-        <div style="background:var(--surface-2);padding:0.45rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.62rem;color:var(--muted)">AVG WT</div><div style="font-size:0.95rem;font-weight:800;color:var(--green)" id="op-wk-wt">—</div></div>
-        <div style="background:var(--surface-2);padding:0.45rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.62rem;color:var(--muted)">AVG STEPS</div><div style="font-size:0.95rem;font-weight:800;color:#fff" id="op-wk-steps">0</div></div>
-        <div style="background:var(--surface-2);padding:0.45rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.62rem;color:var(--muted)">AVG CALS</div><div style="font-size:0.95rem;font-weight:800;color:#fff" id="op-wk-cals">0</div></div>
-        <div style="background:var(--surface-2);padding:0.45rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.62rem;color:var(--muted)">AVG PROT</div><div style="font-size:0.95rem;font-weight:800;color:var(--green)" id="op-wk-prot">0g</div></div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <span style="font-size:0.7rem;font-weight:700;color:var(--muted)">📸 TAP TO ADD 3 PHOTOS (UPDATES FOR CHRIS / LAURA)</span>
@@ -121,30 +211,34 @@
     </div>
   </div>
 
-  <!-- 4-Module Stripped-Back Navigation -->
-  <nav class="nav-tabs" id="main-tabs" style="grid-template-columns:repeat(4,1fr)">
-    <button class="nav-tab active" data-tab="today" onclick="switchTab('today')">
-      <span class="icon">☀️</span>
-      <span>1. Morning Check-In</span>
+  <!-- Desktop Navigation: Daily (Mobile-First) · Weekly Check-In (Photos & Commentary) · Settings & Sync (Garmin + 2FA) -->
+  <nav class="nav-tabs" id="main-tabs" style="grid-template-columns:repeat(3,1fr)">
+    <button class="nav-tab" data-tab="daily-mobile" onclick="setOnePagerMode('daily')">
+      <span class="icon">📱</span>
+      <span>1. Daily Update</span>
     </button>
-    <button class="nav-tab" data-tab="workouts" onclick="switchTab('workouts')">
-      <span class="icon">🏋️</span>
-      <span>2. Workouts</span>
-    </button>
-    <button class="nav-tab" data-tab="checkin" onclick="switchTab('checkin')">
+    <button class="nav-tab active" data-tab="checkin" onclick="switchTab('checkin')">
       <span class="icon">📊</span>
-      <span>3. Weekly Check-In</span>
+      <span>2. Weekly Check-In (Photos &amp; Commentary)</span>
     </button>
     <button class="nav-tab" data-tab="integrations" onclick="switchTab('integrations')">
       <span class="icon">⚙️</span>
       <span>4. Settings &amp; Sync</span>
+    </button>
+    <button class="nav-tab" data-tab="today" onclick="switchTab('today')" style="display:none">
+      <span class="icon">☀️</span>
+      <span>Morning Check-In</span>
+    </button>
+    <button class="nav-tab" data-tab="workouts" onclick="switchTab('workouts')" style="display:none">
+      <span class="icon">🏋️</span>
+      <span>Workouts</span>
     </button>
   </nav>
 
   <!-- ========================================================= -->
   <!-- TAB 1: MORNING CHECK-IN (WEIGHT + VERIFY DAY + IG CARD)   -->
   <!-- ========================================================= -->
-  <section class="tab-panel active" id="panel-today">
+  <section class="tab-panel" id="panel-today">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem">
       <div style="font-size:0.78rem;color:var(--muted)">
         Challenger: <strong style="color:#fff" id="td-client-name">Challenger</strong> ·
@@ -485,7 +579,7 @@
   <!-- ========================================================= -->
   <!-- TAB 3: WEEKLY CHECK-IN (IN-APP SUBMISSION + 3 PHOTOS)     -->
   <!-- ========================================================= -->
-  <section class="tab-panel" id="panel-checkin">
+  <section class="tab-panel active" id="panel-checkin">
     <div class="card">
       <div class="card-header" style="flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
@@ -647,6 +741,20 @@
           <div>
             <label class="field-label">Garmin Password</label>
             <input type="password" id="cfg-garmin-pass" placeholder="••••••••" />
+          </div>
+          <div style="grid-column:1 / -1;padding:0.65rem 0.75rem;border-radius:10px;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.35)" id="cfg-garmin-mfa-box">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.35rem">
+              <label class="field-label" for="cfg-garmin-mfa-code" style="color:#38bdf8;margin:0">🔐 Garmin 2-Factor Auth (2FA) Code <span style="font-weight:600;color:var(--muted)">(Only if your Garmin account uses 2FA)</span></label>
+              <span id="cfg-garmin-mfa-badge" class="badge badge-blue" style="font-size:0.66rem">2FA Supported</span>
+            </div>
+            <div id="cfg-garmin-mfa-prompt" style="font-size:0.72rem;color:#cbd5e1;margin-bottom:0.45rem">
+              1️⃣ Enter your Garmin Email &amp; Password above and click <strong>Save &amp; Connect</strong>.<br/>
+              2️⃣ If Garmin sends a 6-digit verification code to your email or phone, enter it below and click <strong>Verify 2FA Code</strong>. Once verified on desktop, mobile 1-tap sync works automatically!
+            </div>
+            <div style="display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap">
+              <input type="text" id="cfg-garmin-mfa-code" inputmode="numeric" maxlength="8" placeholder="6-digit Garmin 2FA code (e.g. 123456)" style="max-width:260px;font-size:1rem;font-weight:800;letter-spacing:0.12em" />
+              <button type="button" class="btn btn-green btn-sm" onclick="saveIntegrationsConfig(true)">🔐 Verify 2FA Code &amp; Connect</button>
+            </div>
           </div>
           <div style="display:none">
             <label class="field-label">Nutrition App</label>
