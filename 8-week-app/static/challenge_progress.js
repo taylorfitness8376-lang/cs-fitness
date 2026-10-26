@@ -1485,4 +1485,33 @@ window.quickSwitchChallenger = async function(profileId) {
   }
 };
 
+window.exportChallengerBackupJson = async function() {
+  const res = await fetch('/api/challenge/backup/export');
+  const data = await res.json();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `cs-fitness-backup-${(data.client_name || 'user').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json`;
+  a.click();
+  showToast('💾 Downloaded full challenger backup JSON!');
+};
+
+window.importChallengerBackupJson = async function(event) {
+  const file = event.target?.files?.[0];
+  if (!file) return;
+  const text = await file.text();
+  const payload = JSON.parse(text);
+  const res = await fetch('/api/challenge/backup/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (data.ok) {
+    showToast(`✅ Restored ${data.restored.daily_checkins} check-ins & ${data.restored.daily_activities} activities!`);
+    if (typeof loadOverview === 'function') await loadOverview(STATE.date);
+    await refreshProgressSummary();
+  }
+};
+
 

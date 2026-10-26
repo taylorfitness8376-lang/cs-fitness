@@ -21,6 +21,11 @@ def get_db():
         ).fetchone()
         if not has_tables:
             init_db()
+            try:
+                from challenge_blocks import ensure_blocks_and_auth_tables
+                ensure_blocks_and_auth_tables(g.db)
+            except Exception:
+                pass
     return g.db
 
 

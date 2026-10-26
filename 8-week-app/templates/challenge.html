@@ -688,6 +688,14 @@
 
         <div id="sync-connection-report" style="display:none;margin-top:0.5rem"></div>
         <div id="bot-command-reply" style="display:none"></div>
+        <div style="margin-top:0.65rem;padding-top:0.65rem;border-top:1px solid var(--border);display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap">
+          <span style="font-size:0.74rem;font-weight:800;color:var(--green)">💾 Full Challenger Backup:</span>
+          <button class="btn btn-sm" onclick="exportChallengerBackupJson()">⬇️ Export My Data (JSON)</button>
+          <label class="btn btn-sm" style="cursor:pointer;margin:0">
+            ⬆️ Import Backup (JSON)
+            <input type="file" accept=".json,application/json" style="display:none" onchange="importChallengerBackupJson(event)" />
+          </label>
+        </div>
       </div>
 
       <!-- 2. User Profile & Target Setup + Onboarding Calculator -->

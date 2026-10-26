@@ -157,6 +157,7 @@ def ensure_blocks_and_auth_tables(db):
                    VALUES (?,?,?,?,?)""",
                 (p["id"], uname, default_email, role, secrets.token_urlsafe(12)),
             )
+    _auto_seed_ewan_backup_if_empty(db)
     db.commit()
 
 
@@ -573,3 +574,203 @@ def api_challenge_block_rollover():
         "profile": rolled[0] if rolled else None,
         "message": f"Rolled {len(rolled)} challenger(s) into {block_row['name']} as Returning Members (14k steps)!",
     })
+
+
+def _restore_backup_payload(db, payload, target_profile_id=None):
+    import os
+    pid = int(target_profile_id or payload.get("profile_id") or 1)
+    counts = {"daily_checkins": 0, "daily_activities": 0, "workout_logs": 0, "weekly_submissions": 0, "progress_photos": 0}
+
+    for c in payload.get("daily_checkins", []):
+        d_str = (c.get("date") or "")[:10]
+        if not d_str:
+            continue
+        db.execute(
+            """INSERT INTO daily_checkins (
+                profile_id, date, weight_kg, weigh_time, training_type, class_attended,
+                steps, protein_g, calories, carbs_g, fats_g, fibre_g, water_l,
+                sleep_mins, sleep_score, body_battery, resting_hr,
+                morning_steps_banked, checkpoint_12pm_5k, checkpoint_5pm_10k,
+                caffeine_cutoff_met, electrolytes_taken, stick_to_plan,
+                mindset_win, notes, sync_source_garmin, sync_source_nutrition
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(profile_id, date) DO UPDATE SET
+                weight_kg=COALESCE(excluded.weight_kg, daily_checkins.weight_kg),
+                weigh_time=CASE WHEN excluded.weigh_time != '' THEN excluded.weigh_time ELSE daily_checkins.weigh_time END,
+                training_type=excluded.training_type,
+                steps=CASE WHEN excluded.steps > 0 THEN excluded.steps ELSE daily_checkins.steps END,
+                protein_g=CASE WHEN excluded.protein_g > 0 THEN excluded.protein_g ELSE daily_checkins.protein_g END,
+                calories=CASE WHEN excluded.calories > 0 THEN excluded.calories ELSE daily_checkins.calories END,
+                carbs_g=CASE WHEN excluded.carbs_g > 0 THEN excluded.carbs_g ELSE daily_checkins.carbs_g END,
+                fats_g=CASE WHEN excluded.fats_g > 0 THEN excluded.fats_g ELSE daily_checkins.fats_g END,
+                fibre_g=CASE WHEN excluded.fibre_g > 0 THEN excluded.fibre_g ELSE daily_checkins.fibre_g END,
+                water_l=CASE WHEN excluded.water_l > 0 THEN excluded.water_l ELSE daily_checkins.water_l END,
+                sleep_mins=CASE WHEN excluded.sleep_mins > 0 THEN excluded.sleep_mins ELSE daily_checkins.sleep_mins END,
+                sleep_score=COALESCE(excluded.sleep_score, daily_checkins.sleep_score),
+                body_battery=COALESCE(excluded.body_battery, daily_checkins.body_battery),
+                resting_hr=COALESCE(excluded.resting_hr, daily_checkins.resting_hr),
+                stick_to_plan=excluded.stick_to_plan,
+                mindset_win=CASE WHEN excluded.mindset_win != '' THEN excluded.mindset_win ELSE daily_checkins.mindset_win END,
+                notes=CASE WHEN excluded.notes != '' THEN excluded.notes ELSE daily_checkins.notes END,
+                sync_source_garmin=CASE WHEN excluded.sync_source_garmin != '' THEN excluded.sync_source_garmin ELSE daily_checkins.sync_source_garmin END,
+                sync_source_nutrition=CASE WHEN excluded.sync_source_nutrition != '' THEN excluded.sync_source_nutrition ELSE daily_checkins.sync_source_nutrition END
+            """,
+            (
+                pid, d_str, c.get("weight_kg"), c.get("weigh_time") or "", c.get("training_type") or "REST",
+                c.get("class_attended") or "", int(c.get("steps") or 0), int(c.get("protein_g") or 0),
+                int(c.get("calories") or 0), int(c.get("carbs_g") or 0), int(c.get("fats_g") or 0),
+                int(c.get("fibre_g") or 0), float(c.get("water_l") or 0.0), int(c.get("sleep_mins") or 0),
+                c.get("sleep_score"), c.get("body_battery"), c.get("resting_hr"),
+                int(c.get("morning_steps_banked") or 0), int(c.get("checkpoint_12pm_5k") or 0),
+                int(c.get("checkpoint_5pm_10k") or 0), int(c.get("caffeine_cutoff_met") or 0),
+                int(c.get("electrolytes_taken") or 0), c.get("stick_to_plan") or "Y",
+                c.get("mindset_win") or "", c.get("notes") or "",
+                c.get("sync_source_garmin") or "", c.get("sync_source_nutrition") or "",
+            ),
+        )
+        counts["daily_checkins"] += 1
+
+    try:
+        for a in payload.get("daily_activities", []):
+            gid = str(a.get("garmin_activity_id") or "")
+            if gid and db.execute("SELECT 1 FROM daily_activities WHERE profile_id=? AND garmin_activity_id=?", (pid, gid)).fetchone():
+                continue
+            db.execute(
+                """INSERT INTO daily_activities (
+                    profile_id, date, source, garmin_activity_id, activity_type, category,
+                    title, start_time, duration_mins, distance_km, pace_str,
+                    avg_hr, max_hr, calories, elevation_m, steps, notes
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    pid, (a.get("date") or "")[:10], a.get("source") or "Garmin Connect", gid,
+                    a.get("activity_type") or "running", a.get("category") or "CARDIO",
+                    a.get("title") or "Activity", a.get("start_time") or "",
+                    a.get("duration_mins"), a.get("distance_km"), a.get("pace_str") or "",
+                    a.get("avg_hr"), a.get("max_hr"), a.get("calories"),
+                    a.get("elevation_m"), a.get("steps"), a.get("notes") or "",
+                ),
+            )
+            counts["daily_activities"] += 1
+    except Exception:
+        pass
+
+    for w in payload.get("workout_logs", []):
+        db.execute(
+            """INSERT INTO workout_logs (
+                profile_id, track, workout_num, week_num, row_key,
+                exercise_order, exercise_name, target_sets, target_reps,
+                weight_reps, set_logs_json, logged_date, notes
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(profile_id, track, week_num, row_key) DO UPDATE SET
+                weight_reps=excluded.weight_reps, set_logs_json=excluded.set_logs_json,
+                logged_date=excluded.logged_date, notes=excluded.notes""",
+            (
+                pid, w.get("track") or "mens", int(w.get("workout_num") or 1), int(w.get("week_num") or 1),
+                w.get("row_key") or "W1_A_1", w.get("exercise_order") or "A",
+                w.get("exercise_name") or "Exercise", int(w.get("target_sets") or 1),
+                str(w.get("target_reps") or "8"), w.get("weight_reps") or "",
+                w.get("set_logs_json") or "[]", w.get("logged_date") or "2026-10-19", w.get("notes") or "",
+            ),
+        )
+        counts["workout_logs"] += 1
+
+    try:
+        for s in payload.get("weekly_submissions", []):
+            db.execute(
+                """INSERT INTO weekly_submissions (profile_id, week_num, challenger_comments, coach_feedback, status, card_data_url)
+                   VALUES (?,?,?,?,?,?)
+                   ON CONFLICT(profile_id, week_num) DO UPDATE SET
+                       challenger_comments=excluded.challenger_comments,
+                       coach_feedback=CASE WHEN excluded.coach_feedback != '' THEN excluded.coach_feedback ELSE weekly_submissions.coach_feedback END,
+                       status=excluded.status""",
+                (
+                    pid, int(s.get("week_num") or 0), s.get("challenger_comments") or "",
+                    s.get("coach_feedback") or "", s.get("status") or "Submitted", s.get("card_data_url") or "",
+                ),
+            )
+            counts["weekly_submissions"] += 1
+    except Exception:
+        pass
+
+    for p in payload.get("progress_photos", []):
+        if not p.get("photo_data_url"):
+            continue
+        exists = db.execute(
+            "SELECT id FROM progress_photos WHERE profile_id=? AND week_num=? AND pose=?",
+            (pid, int(p.get("week_num") or 1), p.get("pose") or "Front"),
+        ).fetchone()
+        if exists:
+            db.execute(
+                "UPDATE progress_photos SET photo_data_url=?, taken_date=?, weight_kg=? WHERE id=?",
+                (p["photo_data_url"], p.get("taken_date") or "2026-10-19", p.get("weight_kg"), exists["id"]),
+            )
+        else:
+            db.execute(
+                """INSERT INTO progress_photos (profile_id, week_num, pose, taken_date, weight_kg, photo_data_url)
+                   VALUES (?,?,?,?,?,?)""",
+                (pid, int(p.get("week_num") or 1), p.get("pose") or "Front", p.get("taken_date") or "2026-10-19", p.get("weight_kg"), p["photo_data_url"]),
+            )
+        counts["progress_photos"] += 1
+
+    db.commit()
+    return counts
+
+
+def _auto_seed_ewan_backup_if_empty(db):
+    import os
+    from flask import current_app
+    try:
+        if current_app.config.get("TESTING"):
+            return
+        cnt = db.execute("SELECT COUNT(*) AS c FROM daily_checkins WHERE profile_id=1 AND date >= '2026-10-19'").fetchone()["c"]
+        if cnt >= 5:
+            return
+        seed_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "ewan_seed_backup.json"))
+        if os.path.exists(seed_path):
+            with open(seed_path, "r") as f:
+                payload = json.load(f)
+            _restore_backup_payload(db, payload, target_profile_id=1)
+    except Exception:
+        pass
+
+
+@challenge_blocks_bp.route("/api/challenge/backup/export", methods=["GET"])
+def api_challenge_backup_export():
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    prof = _get_active_profile(db)
+    pid = prof["id"]
+    payload = {
+        "ok": True,
+        "exported_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "profile_id": pid,
+        "client_name": prof["client_name"],
+        "profile": prof,
+        "daily_checkins": [dict(r) for r in db.execute("SELECT * FROM daily_checkins WHERE profile_id=? ORDER BY date", (pid,)).fetchall()],
+        "workout_logs": [dict(r) for r in db.execute("SELECT * FROM workout_logs WHERE profile_id=? ORDER BY id", (pid,)).fetchall()],
+        "progress_photos": [dict(r) for r in db.execute("SELECT * FROM progress_photos WHERE profile_id=? ORDER BY id", (pid,)).fetchall()],
+    }
+    for tbl in ("daily_activities", "weekly_submissions"):
+        try:
+            payload[tbl] = [dict(r) for r in db.execute(f"SELECT * FROM {tbl} WHERE profile_id=?", (pid,)).fetchall()]
+        except Exception:
+            payload[tbl] = []
+    for k, val in list(payload.items()):
+        if isinstance(val, list):
+            for row in val:
+                for col, v in list(row.items()):
+                    if col in ("created_at", "updated_at", "submitted_at", "reviewed_at") and v is not None:
+                        row[col] = str(v)
+    return jsonify(payload)
+
+
+@challenge_blocks_bp.route("/api/challenge/backup/import", methods=["POST"])
+def api_challenge_backup_import():
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    data = request.get_json() or {}
+    prof = _get_active_profile(db)
+    pid = int(data.get("profile_id") or prof["id"])
+    counts = _restore_backup_payload(db, data, target_profile_id=pid)
+    return jsonify({"ok": True, "profile_id": pid, "restored": counts})
+
