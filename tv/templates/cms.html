@@ -184,7 +184,9 @@
     <img class="topbar-logo" src="/static/logo.jpg" alt="CS" />
     <span class="topbar-name">CS Fitness CMS</span>
   </div>
-  <div style="display:flex;align-items:center;gap:0.6rem">
+  <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
+    <a href="/display" target="_blank" class="btn btn-dark" style="text-decoration:none;border:1px solid rgba(61,255,79,0.45)" title="Open TV Display (note hyphen: cs-fitness.onrender.com/display)">📺 Open TV Display</a>
+    <button type="button" class="btn btn-dark" onclick="navigator.clipboard.writeText(window.location.origin + '/display');this.textContent='✅ TV URL Copied!';setTimeout(()=>this.textContent='📋 Copy TV URL',1800)" title="Copy exact TV Display URL (cs-fitness with hyphen)">📋 Copy TV URL</button>
     <a href="/challenge" class="btn btn-accent" style="text-decoration:none">⚡ 8-Week Challenge App</a>
     <form method="post" action="/logout" style="display:inline">
       <button class="logout-btn" type="submit">Logout</button>

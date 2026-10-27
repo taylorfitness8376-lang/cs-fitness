@@ -793,6 +793,103 @@ def test_blank_fields_forgot_password_garmin_non2fa_and_apple_health(client, mon
     assert g_res["parsed"]["weight_kg"] == 83.2
     assert g_res["token_dump"] == '{"oauth1":"ok"}'
 
+    # 5. garminconnect 0.3+ compatibility: Garmin has .client (NativeGarminClient) and NO .garth attribute!
+    class FakeNativeClient03:
+        profile = {"displayName": "ewan_native_03", "fullName": "Ewan Taylor"}
+        def dump(self, path):
+            import os
+            os.makedirs(path, exist_ok=True)
+            with open(os.path.join(path, "garmin_tokens.json"), "w") as f:
+                f.write('{"di_token":"ok_03"}')
+        def dumps(self):
+            return '{"di_token":"ok_03"}'
+        def loads(self, s):
+            if "oauth1_token" in s:
+                raise ValueError("Legacy garth token format not supported in 0.3+")
+
+    class FakeGarmin03NoGarth:
+        def __init__(self, email=None, pw=None, return_on_mfa=False):
+            self.email = email
+            self.pw = pw
+            self.return_on_mfa = return_on_mfa
+            self.display_name = None
+            self.full_name = None
+            self.unit_system = None
+            self.client = FakeNativeClient03()
+            # Intentionally NO self.garth attribute!
+        def _load_profile_and_settings(self):
+            self.display_name = "ewan_native_03"
+            self.full_name = "Ewan Taylor"
+            self.unit_system = "metric"
+        def login(self, tokenstore=None):
+            if tokenstore:
+                self._load_profile_and_settings()
+                return (None, None)
+            if self.return_on_mfa:
+                # garminconnect 0.3+ returns (None, None) when MFA is not needed
+                return (None, None)
+            self._load_profile_and_settings()
+            return (None, None)
+        def get_stats(self, d):
+            assert not hasattr(self, "garth"), "Must not rely on .garth in 0.3+"
+            assert self.display_name == "ewan_native_03"
+            return {"totalSteps": 14560, "restingHeartRate": 52, "bodyBatteryMostRecentValue": 88}
+        def get_sleep_data(self, d):
+            return {"dailySleepDTO": {"sleepTimeSeconds": 29400, "sleepScores": {"overall": {"value": 89}}}}
+        def get_body_composition(self, d):
+            return {"totalAverage": {"weight": 82900}}
+        def get_activities_by_date(self, s, e):
+            return [{"activityType": {"typeKey": "strength_training"}, "activityName": "Men Workout 1"}]
+
+    fake_mod_03 = types.ModuleType("garminconnect")
+    fake_mod_03.Garmin = FakeGarmin03NoGarth
+    monkeypatch.setitem(sys.modules, "garminconnect", fake_mod_03)
+
+    # Also test that a legacy garth token_dump ("oauth1_token.json") in DB/dir is cleanly ignored in 0.3+
+    tok_dir_03 = tmp_path / "garmin_tok_03"
+    tok_dir_03.mkdir(parents=True, exist_ok=True)
+    (tok_dir_03 / "oauth1_token.json").write_text("{}")
+
+    g_res_03 = fetch_live_garmin_data(
+        "taylor.ewan@gmail.com",
+        "mygarminpass",
+        target_date="2026-10-20",
+        tokenstore_dir=str(tok_dir_03),
+        saved_token_dump='[{"filename":"oauth1_token.json"}]',
+        force_relogin=False,
+    )
+    assert g_res_03["ok"] is True, f"Expected ok=True without garth error, got: {g_res_03}"
+    assert "garth" not in g_res_03.get("error", "").lower()
+    assert g_res_03["parsed"]["steps"] == 14560
+    assert g_res_03["parsed"]["weight_kg"] == 82.9
+    assert g_res_03["parsed"]["training_type"] == "GYM"
+    assert g_res_03["token_dump"] == '{"di_token":"ok_03"}'
+    assert not (tok_dir_03 / "oauth1_token.json").exists()
+
+    # 6. Verify Daily WhatsApp Summary + 4-Photo Collage UI and API
+    re_login = client.post("/api/challenge/auth/login", json={
+        "email": "sarah@example.com",
+        "password": "newpassword456",
+    }).get_json()
+    assert re_login["ok"] is True
+
+    html_page = client.get("/challenge").get_data(as_text=True)
+    assert 'id="op-whatsapp-summary-card"' in html_page
+    assert 'id="op-daily-4photos-grid"' in html_page
+    assert 'id="op-wa-caption-box"' in html_page
+    assert 'id="op-daily-collage-canvas"' in html_page
+
+    for idx, slot_name in enumerate(["Breakfast", "Lunch", "Dinner", "Workout / Event"], start=1):
+        dm_res = client.post("/api/challenge/daily-moments", json={
+            "date": "2026-10-20",
+            "slot": slot_name,
+            "caption": f"Photo {idx}",
+            "photo_data_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        }).get_json()
+        assert dm_res["ok"] is True
+    assert len(dm_res["moments"]) == 4
+
+
 
 def test_email_username_verification_morning_weight_and_teamup(client):
     """Test Email + Username signup, clickable Email Verification link, Morning Weight vs End-of-Day save, and TeamUp integration."""

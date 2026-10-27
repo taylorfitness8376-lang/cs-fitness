@@ -170,6 +170,54 @@
       </div>
     </div>
 
+    <!-- 5B. Daily WhatsApp Summary + 4-Photo Collage Generator -->
+    <div class="card" id="op-whatsapp-summary-card" style="padding:0.95rem 1rem;margin-top:0.75rem;border-radius:14px;border:1px solid rgba(61,255,79,0.32)">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.55rem">
+        <div>
+          <div style="font-size:0.92rem;font-weight:900;color:#fff">📸 Daily WhatsApp Summary &amp; 4 Photos</div>
+          <div style="font-size:0.7rem;color:var(--muted)">Add up to 4 photos (Meals / Workout / Steps) &amp; copy your daily WhatsApp post</div>
+        </div>
+        <label class="btn btn-green btn-sm" style="cursor:pointer;margin:0">
+          📷 Select up to 4 Photos
+          <input type="file" accept="image/*" multiple style="display:none" onchange="uploadMultipleDailyPhotos(event)" />
+        </label>
+      </div>
+
+      <!-- 2x2 Grid for the 4 Daily Photos -->
+      <div id="op-daily-4photos-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.5rem;margin-bottom:0.7rem"></div>
+
+      <!-- Auto-generated WhatsApp Summary Text -->
+      <div style="margin-bottom:0.6rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.28rem">
+          <label class="op-big-label" for="op-wa-caption-box" style="margin:0;font-size:0.68rem">📲 DAILY WHATSAPP SUMMARY TEXT (READY TO PASTE)</label>
+          <span style="font-size:0.65rem;color:var(--green);font-weight:700" id="op-wa-photo-count-badge">0 / 4 Photos Added</span>
+        </div>
+        <textarea id="op-wa-caption-box" rows="4" style="font-size:0.8rem;line-height:1.4;background:#060a07;border:1.5px solid var(--border);border-radius:10px;padding:0.55rem 0.65rem;color:#f8fafc;width:100%" placeholder="Your daily summary &amp; #hashtags will appear here..."></textarea>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem">
+        <button type="button" class="btn btn-green" id="op-btn-copy-wa" onclick="copyOnePagerWhatsAppSummary(this)" style="width:100%;justify-content:center;padding:0.7rem 0.6rem;font-size:0.84rem;font-weight:900;border-radius:10px">
+          📋 Copy WhatsApp Text
+        </button>
+        <button type="button" class="btn btn-blue" id="op-btn-dl-collage" onclick="downloadOrShareDailyCollagePng(this)" style="width:100%;justify-content:center;padding:0.7rem 0.6rem;font-size:0.84rem;font-weight:900;border-radius:10px">
+          🖼️ Save 4-Photo Collage
+        </button>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;flex-wrap:wrap">
+        <a id="op-wa-direct-link" href="https://wa.me/" target="_blank" class="btn btn-sm" style="text-decoration:none;flex:1;justify-content:center">
+          💬 Open WhatsApp with Text
+        </a>
+        <button type="button" class="btn btn-sm" onclick="toggleDailyCollagePreview()" id="op-btn-toggle-collage-preview">
+          👁️ Preview Collage Card
+        </button>
+      </div>
+
+      <div id="op-collage-preview-wrap" style="display:none;margin-top:0.65rem;text-align:center;background:#060907;border:1px solid var(--border);border-radius:12px;padding:0.55rem">
+        <div style="font-size:0.68rem;font-weight:800;color:var(--green);margin-bottom:0.35rem">🖼️ LIVE 4-PHOTO + DAILY STATS COLLAGE (WEIGHT PRIVATE)</div>
+        <canvas id="op-daily-collage-canvas" width="1080" height="1350" style="width:100%;max-width:380px;height:auto;border-radius:10px;border:1px solid rgba(61,255,79,0.35)"></canvas>
+      </div>
+    </div>
+
     <!-- 6. Auto-Collated Weekly Round-Up Card -->
     <div class="card" style="padding:0.9rem 1rem;margin-top:0.75rem;border-radius:14px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.55rem">
@@ -743,7 +791,7 @@
       <div class="card">
         <div class="card-header">
           <span class="card-title">🔗 1. Link Garmin Connect, Apple Health &amp; Telegram</span>
-          <button class="btn btn-green btn-sm" onclick="saveIntegrationsConfig()">💾 Save &amp; Test Sync</button>
+          <button class="btn btn-green btn-sm" id="btn-cfg-save-top" onclick="saveIntegrationsConfig(false, this)">💾 Save &amp; Test Sync</button>
         </div>
         <div style="font-size:0.73rem;color:var(--muted);margin-bottom:0.6rem">
           • <strong>Garmin Connect:</strong> Pulls daily Steps, Sleep &amp; Workouts automatically.<br/>
@@ -770,7 +818,7 @@
             </div>
             <div style="display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap">
               <input type="text" id="cfg-garmin-mfa-code" inputmode="numeric" maxlength="8" placeholder="6-digit 2FA code (leave blank if no 2FA)" style="max-width:280px;font-size:0.95rem;font-weight:800;letter-spacing:0.08em" />
-              <button type="button" class="btn btn-green btn-sm" onclick="saveIntegrationsConfig(true)">🔐 Verify 2FA Code &amp; Connect</button>
+              <button type="button" class="btn btn-green btn-sm" id="btn-cfg-verify-mfa" onclick="saveIntegrationsConfig(true, this)">🔐 Verify 2FA Code &amp; Connect</button>
             </div>
           </div>
           <div style="display:none">
@@ -792,11 +840,13 @@
           </div>
         </div>
         <div style="display:flex;gap:0.45rem;flex-wrap:wrap">
-          <button class="btn btn-primary btn-sm" onclick="saveIntegrationsConfig()">💾 Save &amp; Connect</button>
-          <button class="btn btn-green btn-sm" onclick="triggerLiveSync()">⌚ Sync Live Garmin Now</button>
-          <button class="btn btn-sm" onclick="autoDetectTelegramChatId()">🔍 Auto-Detect My Telegram Chat ID</button>
-          <button class="btn btn-blue btn-sm" onclick="testTelegramToSelf()">🧪 Test Send Weekly PNG to Me</button>
+          <button class="btn btn-green btn-sm" id="btn-cfg-save-main" onclick="saveIntegrationsConfig(false, this)">💾 Save &amp; Connect</button>
+          <button class="btn btn-blue btn-sm" id="btn-cfg-sync-live" onclick="triggerLiveSync(this)">⌚ Sync Live Garmin Now</button>
+          <button class="btn btn-sm" id="btn-cfg-detect-tg" onclick="autoDetectTelegramChatId(this)">🔍 Auto-Detect My Telegram Chat ID</button>
+          <button class="btn btn-blue btn-sm" id="btn-cfg-test-tg" onclick="testTelegramToSelf(this)">🧪 Test Send Weekly PNG to Me</button>
         </div>
+
+        <div id="sync-connection-report" style="display:block;margin-top:0.65rem;padding:0.65rem 0.8rem;border-radius:10px;background:var(--surface-2);border:1px solid var(--border);font-size:0.75rem"></div>
 
         <div style="margin-top:0.75rem;padding:0.65rem;background:var(--surface-2);border:1px solid var(--border);border-radius:10px" id="apple-health-bridge-panel">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.4rem">
@@ -811,8 +861,8 @@
             <input type="text" id="cfg-apple-health-url" readonly value="" style="font-size:0.72rem;font-family:monospace;background:var(--surface-3);color:#38bdf8;width:100%" onclick="this.select()" />
           </div>
           <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
-            <button type="button" class="btn btn-primary btn-sm" onclick="testAppleHealthSync()">🧪 Test Apple Health (+ MFP) Sync Now</button>
-            <button type="button" class="btn btn-green btn-sm" onclick="copyAppleHealthShortcutConfig()">📋 Copy My iOS Shortcut URL &amp; JSON</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-cfg-test-ah" onclick="testAppleHealthSync(this)">🧪 Test Apple Health (+ MFP) Sync Now</button>
+            <button type="button" class="btn btn-green btn-sm" id="btn-cfg-copy-ah" onclick="copyAppleHealthShortcutConfig(this)">📋 Copy My iOS Shortcut URL &amp; JSON</button>
             <label class="btn btn-sm" style="cursor:pointer;margin:0">
               📂 Import Real Apple Health JSON/CSV
               <input type="file" accept=".json,.csv" style="display:none" onchange="importSyncFile(event, 'apple_health')" />
@@ -820,7 +870,6 @@
           </div>
         </div>
 
-        <div id="sync-connection-report" style="display:none;margin-top:0.5rem"></div>
         <div id="bot-command-reply" style="display:none"></div>
         <div style="margin-top:0.65rem;padding-top:0.65rem;border-top:1px solid var(--border);display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap">
           <span style="font-size:0.74rem;font-weight:800;color:var(--green)">💾 Full Challenger Backup:</span>

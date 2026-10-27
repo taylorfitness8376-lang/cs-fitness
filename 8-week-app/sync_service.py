@@ -949,6 +949,85 @@ class _BuiltinGarminClient:
         return data if isinstance(data, list) else []
 
 
+def _garmin_token_backend(garmin_obj):
+    """Return the token/session backend for garminconnect 0.3+ (.client) or 0.2.x (.garth)."""
+    if garmin_obj is None:
+        return None
+    backend = getattr(garmin_obj, "client", None)
+    if backend is not None and (
+        hasattr(backend, "dump") or hasattr(backend, "dumps") or hasattr(backend, "loads")
+    ):
+        return backend
+    return getattr(garmin_obj, "garth", None)
+
+
+def _clean_legacy_garth_tokens(token_dir):
+    """Remove legacy garth oauth1_token.json / oauth2_token.json files when upgrading to garminconnect 0.3+."""
+    import os
+    if not token_dir or not os.path.isdir(token_dir):
+        return
+    for legacy_name in ("oauth1_token.json", "oauth2_token.json"):
+        p = os.path.join(token_dir, legacy_name)
+        if os.path.exists(p):
+            try:
+                os.remove(p)
+            except Exception:
+                pass
+
+
+def _dump_garmin_tokens(garmin_obj, token_dir, fallback_dump=""):
+    """Safely persist Garmin session tokens to token_dir and return a string dump for DB persistence."""
+    import os
+    token_dump_out = fallback_dump or ""
+    backend = _garmin_token_backend(garmin_obj)
+    if backend is None:
+        return token_dump_out
+    if token_dir:
+        try:
+            os.makedirs(token_dir, exist_ok=True)
+            if hasattr(backend, "dump"):
+                backend.dump(token_dir)
+        except Exception:
+            pass
+    if hasattr(backend, "dumps"):
+        try:
+            dumped = backend.dumps()
+            if isinstance(dumped, str) and dumped.strip():
+                token_dump_out = dumped.strip()
+        except Exception:
+            pass
+    return token_dump_out
+
+
+def _restore_garmin_tokens(garmin_obj, token_dir, saved_token_dump=""):
+    """Safely restore saved_token_dump into garmin_obj and token_dir before calling garmin_obj.login(token_dir)."""
+    import os
+    is_native_03 = hasattr(garmin_obj, "client") and not hasattr(garmin_obj, "garth")
+    if is_native_03:
+        _clean_legacy_garth_tokens(token_dir)
+    backend = _garmin_token_backend(garmin_obj)
+    has_token_files = bool(
+        token_dir
+        and os.path.isdir(token_dir)
+        and (
+            os.path.exists(os.path.join(token_dir, "garmin_tokens.json"))
+            or (not is_native_03 and os.path.exists(os.path.join(token_dir, "oauth1_token.json")))
+        )
+    )
+    if not has_token_files and saved_token_dump and backend is not None and hasattr(backend, "loads"):
+        if is_native_03 and "oauth1_token" in saved_token_dump:
+            return False
+        try:
+            backend.loads(saved_token_dump)
+            if token_dir and hasattr(backend, "dump"):
+                os.makedirs(token_dir, exist_ok=True)
+                backend.dump(token_dir)
+                has_token_files = True
+        except Exception:
+            pass
+    return has_token_files
+
+
 def fetch_live_garmin_data(
     email,
     password,
@@ -959,7 +1038,7 @@ def fetch_live_garmin_data(
     force_relogin=False,
 ):
     """Connect to live Garmin Connect (via `garminconnect` if installed or built-in client) and pull steps, sleep, weight & workouts.
-    Supports both non-2FA accounts and Garmin 2-Factor Authentication (MFA) accounts seamlessly."""
+    Supports both non-2FA accounts and Garmin 2-Factor Authentication (MFA) accounts seamlessly across garminconnect 0.2.x and 0.3+."""
     import os
     date_str = (target_date or datetime.now().strftime("%Y-%m-%d"))[:10]
     real_today = datetime.now().strftime("%Y-%m-%d")
@@ -981,28 +1060,26 @@ def fetch_live_garmin_data(
                 st = _PENDING_MFA_STATE.pop(token_dir)
                 mfa_client = st["garth_client"]
                 mfa_client.resume_login(st["garth_client_state"], mfa_code)
-                os.makedirs(token_dir, exist_ok=True)
-                mfa_client.garth.dump(token_dir)
-                try:
-                    token_dump_out = mfa_client.garth.dumps()
-                except Exception:
-                    pass
-                client = Garmin(email or None, password or None)
-                client.login(token_dir)
+                token_dump_out = _dump_garmin_tokens(mfa_client, token_dir, token_dump_out)
+                if getattr(mfa_client, "display_name", None):
+                    client = mfa_client
+                else:
+                    client = Garmin(email or None, password or None)
+                    client.login(token_dir)
             else:
                 logged_in = False
                 client = None
                 if (os.path.exists(token_dir) or saved_token_dump) and not force_relogin:
                     try:
                         client = Garmin(email or None, None)
-                        if not os.path.exists(token_dir) and saved_token_dump:
-                            client.garth.loads(saved_token_dump)
-                            os.makedirs(token_dir, exist_ok=True)
-                            client.garth.dump(token_dir)
+                        _restore_garmin_tokens(client, token_dir, saved_token_dump)
                         client.login(token_dir)
                         if getattr(client, "display_name", None):
                             logged_in = True
-                    except Exception:
+                            token_dump_out = _dump_garmin_tokens(client, token_dir, token_dump_out)
+                    except Exception as tok_exc:
+                        if "old garth-format tokens" in str(tok_exc).lower():
+                            _clean_legacy_garth_tokens(token_dir)
                         logged_in = False
                 if not logged_in:
                     if not email or not password:
@@ -1011,6 +1088,7 @@ def fetch_live_garmin_data(
                             "needs_password": True,
                             "error": "Enter your Garmin Connect email & password once in Desktop Settings & Sync to connect your watch.",
                         }
+                    _clean_legacy_garth_tokens(token_dir)
                     try:
                         mfa_aware_client = Garmin(email, password, return_on_mfa=True)
                         login_res = mfa_aware_client.login()
@@ -1025,26 +1103,26 @@ def fetch_live_garmin_data(
                                 "needs_mfa": True,
                                 "error": "🔐 Garmin 2-Factor Auth: Enter the 6-digit verification code sent by Garmin to your email or phone.",
                             }
-                        os.makedirs(token_dir, exist_ok=True)
-                        mfa_aware_client.garth.dump(token_dir)
-                        try:
-                            token_dump_out = mfa_aware_client.garth.dumps()
-                        except Exception:
-                            pass
-                        client = Garmin(email, password)
-                        client.login(token_dir)
+                        if not getattr(mfa_aware_client, "display_name", None) and hasattr(
+                            mfa_aware_client, "_load_profile_and_settings"
+                        ):
+                            try:
+                                mfa_aware_client._load_profile_and_settings()
+                            except Exception:
+                                pass
+                        token_dump_out = _dump_garmin_tokens(mfa_aware_client, token_dir, token_dump_out)
+                        if getattr(mfa_aware_client, "display_name", None):
+                            client = mfa_aware_client
+                        else:
+                            client = Garmin(email, password)
+                            client.login(token_dir)
                     except Exception as first_login_exc:
                         err_lower = str(first_login_exc).lower()
                         if "mfa" in err_lower or "verification" in err_lower or "2fa" in err_lower:
                             raise
                         client = Garmin(email, password)
                         client.login()
-                        os.makedirs(token_dir, exist_ok=True)
-                        client.garth.dump(token_dir)
-                        try:
-                            token_dump_out = client.garth.dumps()
-                        except Exception:
-                            pass
+                        token_dump_out = _dump_garmin_tokens(client, token_dir, token_dump_out)
         except ImportError:
             if saved_token_dump and not os.path.exists(cookie_file) and saved_token_dump.startswith("{"):
                 try:

@@ -508,16 +508,99 @@ window.handlePoseFileSelect = function(event, weekNum, pose) {
   reader.readAsDataURL(file);
 };
 
+// ── UNIVERSAL BUTTON AFFORDANCE & LOADING FEEDBACK (DESKTOP + MOBILE) ────────
+window._lastClickedActionBtn = null;
+
+window.setButtonBusy = function(btn, busyText) {
+  const el = btn || window._lastClickedActionBtn;
+  if (!el) return null;
+  if (!el.hasAttribute('data-orig-html')) {
+    el.setAttribute('data-orig-html', el.innerHTML);
+  }
+  el.disabled = true;
+  el.classList.remove('btn-done-flash', 'btn-pressed');
+  el.classList.add('btn-loading');
+  if (busyText) {
+    el.textContent = busyText;
+  }
+  return el;
+};
+
+window.clearButtonBusy = function(btn, doneText) {
+  const el = btn;
+  if (!el) return;
+  const origHtml = el.getAttribute('data-orig-html');
+  el.disabled = false;
+  el.classList.remove('btn-loading', 'btn-pressed');
+  if (doneText) {
+    el.classList.add('btn-done-flash');
+    el.textContent = doneText;
+    setTimeout(() => {
+      el.classList.remove('btn-done-flash');
+      if (origHtml != null) {
+        el.innerHTML = origHtml;
+        el.removeAttribute('data-orig-html');
+      }
+    }, 1500);
+  } else if (origHtml != null) {
+    el.innerHTML = origHtml;
+    el.removeAttribute('data-orig-html');
+  }
+};
+
+(function initGlobalButtonAffordance() {
+  if (window._csBtnAffordanceWired) return;
+  window._csBtnAffordanceWired = true;
+
+  document.addEventListener('pointerdown', function(ev) {
+    const btn = ev.target && ev.target.closest ? ev.target.closest('button, .btn, .op-train-btn') : null;
+    if (!btn || btn.disabled) return;
+    window._lastClickedActionBtn = btn;
+    window._lastClickedActionTime = Date.now();
+    btn.classList.add('btn-pressed');
+    setTimeout(() => btn.classList.remove('btn-pressed'), 260);
+  }, { passive: true });
+
+  // Automatically show a tactile loading state on any button that triggers a network POST/DELETE
+  if (typeof window.fetch === 'function' && !window._csFetchWrapped) {
+    window._csFetchWrapped = true;
+    const origFetch = window.fetch.bind(window);
+    window.fetch = async function(input, init) {
+      const method = ((init && init.method) || 'GET').toUpperCase();
+      const recentBtn = (window._lastClickedActionBtn && (Date.now() - (window._lastClickedActionTime || 0) < 600))
+        ? window._lastClickedActionBtn
+        : null;
+      const autoManaged = recentBtn && method !== 'GET' && !recentBtn.classList.contains('btn-loading');
+      if (autoManaged) {
+        recentBtn.classList.add('btn-loading');
+      }
+      try {
+        const res = await origFetch(input, init);
+        return res;
+      } finally {
+        if (autoManaged && recentBtn) {
+          recentBtn.classList.remove('btn-loading');
+          recentBtn.classList.add('btn-done-flash');
+          setTimeout(() => recentBtn.classList.remove('btn-done-flash'), 900);
+        }
+      }
+    };
+  }
+})();
+
 // ── REAL GARMIN & MYFITNESSPAL SAVE + CONNECT + CSV IMPORT (TAB 4) ───────────
 function upgradeIntegrationsSaveAndImport() {
-  const saveBtn = document.querySelector('button[onclick="saveIntegrationsConfig()"]');
+  const saveBtn = document.getElementById('btn-cfg-save-main') || document.querySelector('button[onclick*="saveIntegrationsConfig"]');
   if (saveBtn && !document.getElementById('sync-connection-report')) {
     const statusBox = document.createElement('div');
     statusBox.id = 'sync-connection-report';
     statusBox.style.cssText = 'margin-top:10px;padding:10px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border);font-size:0.74rem;';
     saveBtn.parentNode.insertBefore(statusBox, saveBtn.nextSibling);
-
+  }
+  const existingBox = document.getElementById('sync-connection-report');
+  if (existingBox && !document.getElementById('sync-direct-import-box')) {
     const importBox = document.createElement('div');
+    importBox.id = 'sync-direct-import-box';
     importBox.style.cssText = 'margin-top:10px;padding:10px;border-radius:10px;background:var(--surface-2);border:1px dashed var(--border);font-size:0.74rem;';
     importBox.innerHTML = `
       <strong>📂 Direct File Import (Garmin Connect or MyFitnessPal .csv / .json)</strong>
@@ -526,7 +609,7 @@ function upgradeIntegrationsSaveAndImport() {
         <label class="btn btn-sm" style="cursor:pointer">🥗 Import MyFitnessPal CSV/JSON<input type="file" accept=".csv,.json" style="display:none" onchange="importSyncFile(event, 'mfp')"/></label>
       </div>
     `;
-    statusBox.parentNode.insertBefore(importBox, statusBox.nextSibling);
+    existingBox.parentNode.insertBefore(importBox, existingBox.nextSibling);
   }
   renderSavedIntegrationStatus();
 }
@@ -539,23 +622,28 @@ function renderSavedIntegrationStatus() {
   box.innerHTML = `
     <div><strong>🔐 Saved Account Status in Database:</strong></div>
     <div style="margin-top:4px">• <strong>Garmin Email:</strong> ${intg.garmin_email || '<em>Not saved yet</em>'} ${intg.garmin_password_set ? '(Password/Token set)' : ''} · Last Sync: ${intg.garmin_last_sync || 'Never'}</div>
-    <div>• <strong>Nutrition (Calories, Protein &amp; Water):</strong> Add manually each morning in Tab 1 Step 2</div>
+    <div>• <strong>Nutrition (Calories, Protein &amp; Water):</strong> Add manually or via MyFitnessPal / Apple Health</div>
   `;
 }
 
-window.saveIntegrationsConfig = async function(isMfaVerify) {
+window.saveIntegrationsConfig = async function(isMfaVerify, triggerBtn) {
   const box = document.getElementById('sync-connection-report');
   const mfaInput = document.getElementById('cfg-garmin-mfa-code');
   const mfaBox = document.getElementById('cfg-garmin-mfa-box');
   const mfaPrompt = document.getElementById('cfg-garmin-mfa-prompt');
   const mfaBadge = document.getElementById('cfg-garmin-mfa-badge');
   const mfaCode = (mfaInput?.value || '').trim();
+  const activeBtn = window.setButtonBusy(
+    triggerBtn || document.getElementById(isMfaVerify ? 'btn-cfg-verify-mfa' : 'btn-cfg-save-main'),
+    isMfaVerify ? '⏳ Verifying 2FA Code...' : '⏳ Connecting to Garmin...'
+  );
 
   if (box) {
     box.style.display = 'block';
+    box.style.borderColor = 'rgba(56,189,248,0.6)';
     box.innerHTML = isMfaVerify
-      ? `⏳ Verifying Garmin 2FA code & completing connection...`
-      : `⏳ Saving account details & testing live Garmin sync for ${STATE.date}...`;
+      ? `<div style="color:#38bdf8;font-weight:800">⏳ Verifying Garmin 2FA code &amp; completing connection...</div>`
+      : `<div style="color:#38bdf8;font-weight:800">⏳ Saving account details &amp; connecting to Garmin Connect for ${STATE.date}...</div>`;
   }
   const payload = {
     date: STATE.date,
@@ -567,56 +655,76 @@ window.saveIntegrationsConfig = async function(isMfaVerify) {
     telegram_bot_token: document.getElementById('cfg-tg-token')?.value || '',
     telegram_chat_id: document.getElementById('cfg-tg-chat')?.value || '',
   };
-  const res = await fetch('/api/challenge/sync/connect', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  const data = await res.json();
-  await loadOverview(STATE.date);
-  await refreshProgressSummary();
+  try {
+    const res = await fetch('/api/challenge/sync/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    await loadOverview(STATE.date);
+    await refreshProgressSummary();
 
-  if (data.needs_mfa) {
-    if (mfaBox) {
-      mfaBox.style.borderColor = '#fbbf24';
-      mfaBox.style.background = 'rgba(251,191,36,0.14)';
+    if (data.needs_mfa) {
+      window.clearButtonBusy(activeBtn, '🔐 Enter 2FA Code');
+      if (mfaBox) {
+        mfaBox.style.borderColor = '#fbbf24';
+        mfaBox.style.background = 'rgba(251,191,36,0.14)';
+      }
+      if (mfaBadge) {
+        mfaBadge.textContent = '🔐 Enter 6-Digit Code';
+        mfaBadge.className = 'badge badge-amber';
+      }
+      if (mfaPrompt) {
+        mfaPrompt.innerHTML = `<strong style="color:#fbbf24">${data.garmin_status || '🔐 Garmin sent a 6-digit verification code to your email or phone. Enter it below and click Verify 2FA Code & Connect.'}</strong>`;
+      }
+      if (mfaInput) mfaInput.focus();
+      if (box) {
+        box.style.display = 'block';
+        box.style.borderColor = '#fbbf24';
+        box.innerHTML = `<div style="color:#fbbf24;font-weight:800">🔐 Garmin 2-Factor Auth Required — enter the 6-digit code above and click "Verify 2FA Code &amp; Connect".</div>`;
+      }
+      showToast('🔐 Enter the 6-digit Garmin 2FA code sent to your email/phone!');
+      return;
     }
-    if (mfaBadge) {
-      mfaBadge.textContent = '🔐 Enter 6-Digit Code';
-      mfaBadge.className = 'badge badge-amber';
+
+    if (mfaInput) mfaInput.value = '';
+    const isConnected = Boolean(
+      (data.integrations && data.integrations.garmin_connected) ||
+      (data.garmin_status && data.garmin_status.includes('✅'))
+    );
+    if (isConnected) {
+      if (mfaBox) {
+        mfaBox.style.borderColor = 'rgba(61,255,79,0.45)';
+        mfaBox.style.background = 'rgba(61,255,79,0.08)';
+      }
+      if (mfaBadge) {
+        mfaBadge.textContent = '✅ Connected (Mobile Sync Ready)';
+        mfaBadge.className = 'badge badge-green';
+      }
     }
-    if (mfaPrompt) {
-      mfaPrompt.innerHTML = `<strong style="color:#fbbf24">${data.garmin_status || '🔐 Garmin sent a 6-digit verification code to your email or phone. Enter it below and click Verify 2FA Code & Connect.'}</strong>`;
-    }
-    if (mfaInput) mfaInput.focus();
     if (box) {
       box.style.display = 'block';
-      box.innerHTML = `<div style="color:#fbbf24;font-weight:800">🔐 Garmin 2-Factor Auth Required — enter the 6-digit code above and click "Verify 2FA Code &amp; Connect".</div>`;
+      box.style.borderColor = isConnected ? 'rgba(61,255,79,0.55)' : 'rgba(251,191,36,0.55)';
+      box.innerHTML = `
+        <div style="color:${isConnected ? 'var(--green)' : '#fbbf24'};font-weight:800;margin-bottom:4px">
+          ${isConnected ? '✅ Garmin Connected &amp; Saved!' : 'ℹ️ Account Saved — Check Garmin Status Below:'}
+        </div>
+        <div>• <strong>Garmin:</strong> ${data.garmin_status || 'Saved'}</div>
+        <div>• <strong>Nutrition:</strong> ${data.mfp_status || 'Manual / Apple Health ready'}</div>
+      `;
     }
-    showToast('🔐 Enter the 6-digit Garmin 2FA code sent to your email/phone!');
-    return;
-  }
-
-  if (mfaInput) mfaInput.value = '';
-  if (data.integrations && data.integrations.garmin_connected) {
-    if (mfaBox) {
-      mfaBox.style.borderColor = 'rgba(61,255,79,0.45)';
-      mfaBox.style.background = 'rgba(61,255,79,0.08)';
+    window.clearButtonBusy(activeBtn, isConnected ? '✅ Connected!' : '✅ Saved');
+    showToast(isConnected ? '✅ Garmin connected & synced!' : `ℹ️ ${data.garmin_status || 'Saved settings'}`);
+  } catch (err) {
+    window.clearButtonBusy(activeBtn);
+    if (box) {
+      box.style.display = 'block';
+      box.style.borderColor = '#f87171';
+      box.innerHTML = `<div style="color:#f87171;font-weight:800">⚠️ Connection request failed — please check your internet connection and try again.</div>`;
     }
-    if (mfaBadge) {
-      mfaBadge.textContent = '✅ Connected (Mobile Sync Ready)';
-      mfaBadge.className = 'badge badge-green';
-    }
+    showToast('⚠️ Could not reach server to save Garmin settings.');
   }
-  if (box) {
-    box.style.display = 'block';
-    box.innerHTML = `
-      <div style="color:var(--green);font-weight:700;margin-bottom:4px">✅ Account Details Saved to Database!</div>
-      <div>• <strong>Garmin:</strong> ${data.garmin_status}</div>
-      <div>• <strong>Nutrition:</strong> ${data.mfp_status}</div>
-    `;
-  }
-  showToast('💾 Saved Garmin & Telegram configuration!');
 };
 
 window.importSyncFile = function(event, source) {
@@ -639,29 +747,55 @@ window.importSyncFile = function(event, source) {
   reader.readAsText(file);
 };
 
-window.triggerLiveSync = async function() {
+window.triggerLiveSync = async function(triggerBtn) {
   const emailEl = document.getElementById('cfg-garmin-email');
   const passEl = document.getElementById('cfg-garmin-pass');
   const mfpEl = document.getElementById('cfg-mfp-user');
-  const res = await fetch('/api/challenge/sync/live', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      date: STATE.date,
-      garmin_email: emailEl ? emailEl.value : '',
-      garmin_password: passEl ? passEl.value : '',
-      mfp_username: mfpEl ? mfpEl.value : '',
-    }),
-  });
-  const data = await res.json();
-  await loadOverview(STATE.date);
-  await refreshProgressSummary();
-  const msg = (data.messages && data.messages.join(' · ')) || 'Sync completed';
-  if (!data.ok && msg.toLowerCase().includes('tab 4')) {
-    if (typeof switchTab === 'function') switchTab('integrations');
-    if (passEl) passEl.focus();
+  const box = document.getElementById('sync-connection-report');
+  const activeBtn = window.setButtonBusy(
+    triggerBtn || document.getElementById('btn-cfg-sync-live') || document.getElementById('btn-sync-now'),
+    '⏳ Syncing Garmin...'
+  );
+  if (box) {
+    box.style.display = 'block';
+    box.style.borderColor = 'rgba(56,189,248,0.6)';
+    box.innerHTML = `<div style="color:#38bdf8;font-weight:800">⏳ Pulling live Steps, Sleep, Scale Weight &amp; Workouts from Garmin Connect for ${STATE.date}...</div>`;
   }
-  showToast(data.ok ? `🔄 ${msg}` : `ℹ️ ${msg}`);
+  try {
+    const res = await fetch('/api/challenge/sync/live', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: STATE.date,
+        garmin_email: emailEl ? emailEl.value : '',
+        garmin_password: passEl ? passEl.value : '',
+        mfp_username: mfpEl ? mfpEl.value : '',
+      }),
+    });
+    const data = await res.json();
+    await loadOverview(STATE.date);
+    await refreshProgressSummary();
+    const msg = (data.messages && data.messages.join(' · ')) || 'Sync completed';
+    if (box) {
+      box.style.display = 'block';
+      box.style.borderColor = data.ok ? 'rgba(61,255,79,0.55)' : 'rgba(251,191,36,0.55)';
+      box.innerHTML = `<div style="color:${data.ok ? 'var(--green)' : '#fbbf24'};font-weight:800">${data.ok ? '✅' : 'ℹ️'} ${msg}</div>`;
+    }
+    if (!data.ok && msg.toLowerCase().includes('tab 4')) {
+      if (typeof switchTab === 'function') switchTab('integrations');
+      if (passEl) passEl.focus();
+    }
+    window.clearButtonBusy(activeBtn, data.ok ? '✅ Synced!' : 'ℹ️ Check Status');
+    showToast(data.ok ? `🔄 ${msg}` : `ℹ️ ${msg}`);
+  } catch (err) {
+    window.clearButtonBusy(activeBtn);
+    if (box) {
+      box.style.display = 'block';
+      box.style.borderColor = '#f87171';
+      box.innerHTML = `<div style="color:#f87171;font-weight:800">⚠️ Could not reach Garmin sync endpoint.</div>`;
+    }
+    showToast('⚠️ Could not reach Garmin sync service.');
+  }
 };
 
 // ── CLEAN 9:16 INSTAGRAM SCOREBOARD PNG (STATS-ONLY, WEIGHT HIDDEN) ──────────
@@ -1257,35 +1391,186 @@ window.testAppleHealthSync = async function() {
 };
 
 const DAILY_MOMENT_SLOTS = [
-  { key: 'Breakfast', icon: '🍳', tag: '#breakfast' },
-  { key: 'Lunch', icon: '🥗', tag: '#lunch' },
-  { key: 'Dinner', icon: '🍽️', tag: '#dinner' },
-  { key: 'Snack', icon: '🍎', tag: '#snack' },
-  { key: 'Workout / Event', icon: '🏋️', tag: '#workout' },
+  { key: 'Breakfast', label: 'Photo 1 · Breakfast / Meal 1', icon: '🍳', tag: '#breakfast' },
+  { key: 'Lunch', label: 'Photo 2 · Lunch / Meal 2', icon: '🥗', tag: '#lunch' },
+  { key: 'Dinner', label: 'Photo 3 · Dinner / Snack', icon: '🍽️', tag: '#dinner' },
+  { key: 'Snack', label: 'Snack', icon: '🍎', tag: '#snack' },
+  { key: 'Workout / Event', label: 'Photo 4 · Workout / Steps', icon: '🏋️', tag: '#workout' },
 ];
 
+const DAILY_4_PHOTO_SLOTS = [
+  { key: 'Breakfast', label: 'Photo 1 · Breakfast', icon: '🍳', tag: '#breakfast' },
+  { key: 'Lunch', label: 'Photo 2 · Lunch', icon: '🥗', tag: '#lunch' },
+  { key: 'Dinner', label: 'Photo 3 · Dinner', icon: '🍽️', tag: '#dinner' },
+  { key: 'Workout / Event', label: 'Photo 4 · Workout / Steps', icon: '🏋️', tag: '#workout' },
+];
+
+function compressImageFileToDataUrl(file, maxDim = 760, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = function(ev) {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = function() {
+        const scale = Math.min(1, maxDim / Math.max(img.width || 1, img.height || 1));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+window.uploadDailyMomentPhoto = async function(slotKey, event) {
+  const file = event && event.target && event.target.files ? event.target.files[0] : null;
+  if (!file) return;
+  const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
+  try {
+    showToast(`📸 Uploading ${slotKey} photo...`);
+    const dataUrl = await compressImageFileToDataUrl(file);
+    const res = await fetch('/api/challenge/daily-moments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: curDate,
+        slot: slotKey,
+        photo_data_url: dataUrl,
+      }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (!window.PROGRESS_SUMMARY) window.PROGRESS_SUMMARY = {};
+      const others = (window.PROGRESS_SUMMARY.daily_moments || []).filter(m => m.date !== curDate);
+      window.PROGRESS_SUMMARY.daily_moments = [...(data.moments || []), ...others];
+      renderDailyJourneyMoments();
+      await window.renderDailyCollageCanvas(true);
+      showToast(`✅ Added ${slotKey} photo to today's 4-photo collage!`);
+    }
+  } catch (err) {
+    showToast('⚠️ Could not upload photo — please try again.');
+  }
+};
+
+window.uploadMultipleDailyPhotos = async function(event) {
+  const files = event && event.target && event.target.files ? Array.from(event.target.files).slice(0, 4) : [];
+  if (!files.length) return;
+  const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
+  const allMoments = (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.daily_moments) || [];
+  const dayMoments = allMoments.filter(m => m.date === curDate && m.photo_data_url);
+  const usedSlots = new Set(dayMoments.map(m => m.slot));
+  // Fill empty slots first, then overwrite in order 1..4
+  const orderedSlots = [
+    ...DAILY_4_PHOTO_SLOTS.map(s => s.key).filter(k => !usedSlots.has(k)),
+    ...DAILY_4_PHOTO_SLOTS.map(s => s.key),
+  ];
+
+  showToast(`📸 Adding ${files.length} photo(s) to today's 4-photo collage...`);
+  let latestMoments = null;
+  for (let i = 0; i < files.length; i++) {
+    const slotKey = orderedSlots[i] || DAILY_4_PHOTO_SLOTS[i % 4].key;
+    try {
+      const dataUrl = await compressImageFileToDataUrl(files[i]);
+      const res = await fetch('/api/challenge/daily-moments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: curDate,
+          slot: slotKey,
+          photo_data_url: dataUrl,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        latestMoments = data.moments || [];
+      }
+    } catch (e) {}
+  }
+  if (latestMoments) {
+    if (!window.PROGRESS_SUMMARY) window.PROGRESS_SUMMARY = {};
+    const others = (window.PROGRESS_SUMMARY.daily_moments || []).filter(m => m.date !== curDate);
+    window.PROGRESS_SUMMARY.daily_moments = [...latestMoments, ...others];
+  }
+  if (event && event.target) event.target.value = '';
+  renderDailyJourneyMoments();
+  await window.renderDailyCollageCanvas(true);
+  showToast(`✅ Loaded ${files.length} photo(s) into your 4-photo collage!`);
+};
+
+window.deleteDailyMomentPhoto = async function(slotKey) {
+  const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
+  try {
+    const res = await fetch('/api/challenge/daily-moments', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: curDate, slot: slotKey }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.daily_moments) {
+        window.PROGRESS_SUMMARY.daily_moments = window.PROGRESS_SUMMARY.daily_moments.filter(
+          m => !(m.date === curDate && m.slot === slotKey)
+        );
+      }
+      renderDailyJourneyMoments();
+      await window.renderDailyCollageCanvas(false);
+      showToast(`🗑️ Removed ${slotKey} photo`);
+    }
+  } catch (e) {}
+};
+
+window.saveDailyMomentCaption = async function(slotKey, caption) {
+  const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
+  const allMoments = (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.daily_moments) || [];
+  const existing = allMoments.find(m => m.date === curDate && m.slot === slotKey) || {};
+  try {
+    const res = await fetch('/api/challenge/daily-moments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: curDate,
+        slot: slotKey,
+        caption: caption || '',
+        photo_data_url: existing.photo_data_url || '',
+      }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (!window.PROGRESS_SUMMARY) window.PROGRESS_SUMMARY = {};
+      const others = (window.PROGRESS_SUMMARY.daily_moments || []).filter(m => m.date !== curDate);
+      window.PROGRESS_SUMMARY.daily_moments = [...(data.moments || []), ...others];
+      renderOnePagerDailyPhotosAndWhatsApp();
+    }
+  } catch (e) {}
+};
+
 function renderDailyJourneyMoments() {
-  renderOnePagerViews();
   const grid = document.getElementById('daily-journey-moments-grid');
-  if (!grid) return;
   const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
   const allMoments = (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.daily_moments) || [];
   const dayMoments = allMoments.filter(m => m.date === curDate);
 
-  grid.innerHTML = DAILY_MOMENT_SLOTS.map(s => {
-    const m = dayMoments.find(x => x.slot === s.key) || {};
-    const hasPhoto = Boolean(m.photo_data_url);
-    return `<div style="background:var(--surface-2);border:1px ${hasPhoto ? 'solid var(--green)' : 'dashed var(--border)'};border-radius:10px;padding:0.5rem;text-align:center">
-      <div style="font-size:0.72rem;font-weight:800;color:#fff;margin-bottom:4px">${s.icon} ${s.key}</div>
-      <label style="cursor:pointer;display:block">
-        ${hasPhoto
-          ? `<img src="${m.photo_data_url}" style="width:100%;height:96px;object-fit:cover;border-radius:7px;border:1px solid rgba(61,255,79,0.35)"/>`
-          : `<div style="height:96px;border-radius:7px;background:#070a08;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--muted)">+ Tap to Add Pic</div>`}
-        <input type="file" accept="image/*" style="display:none" onchange="uploadDailyMomentPhoto('${s.key}', event)"/>
-      </label>
-      <input type="text" value="${(m.caption || '').replace(/"/g, '&quot;')}" placeholder="Note (${s.tag})" style="margin-top:5px;font-size:0.68rem;padding:0.3rem 0.45rem" onchange="saveDailyMomentCaption('${s.key}', this.value)"/>
-    </div>`;
-  }).join('');
+  if (grid) {
+    grid.innerHTML = DAILY_MOMENT_SLOTS.map(s => {
+      const m = dayMoments.find(x => x.slot === s.key) || {};
+      const hasPhoto = Boolean(m.photo_data_url);
+      return `<div style="background:var(--surface-2);border:1px ${hasPhoto ? 'solid var(--green)' : 'dashed var(--border)'};border-radius:10px;padding:0.5rem;text-align:center">
+        <div style="font-size:0.72rem;font-weight:800;color:#fff;margin-bottom:4px">${s.icon} ${s.key}</div>
+        <label style="cursor:pointer;display:block">
+          ${hasPhoto
+            ? `<img src="${m.photo_data_url}" style="width:100%;height:96px;object-fit:cover;border-radius:7px;border:1px solid rgba(61,255,79,0.35)"/>`
+            : `<div style="height:96px;border-radius:7px;background:#070a08;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--muted)">+ Tap to Add Pic</div>`}
+          <input type="file" accept="image/*" style="display:none" onchange="uploadDailyMomentPhoto('${s.key}', event)"/>
+        </label>
+        <input type="text" value="${(m.caption || '').replace(/"/g, '&quot;')}" placeholder="Note (${s.tag})" style="margin-top:5px;font-size:0.68rem;padding:0.3rem 0.45rem" onchange="saveDailyMomentCaption('${s.key}', this.value)"/>
+      </div>`;
+    }).join('');
+  }
 
   const strip = document.getElementById('sc-moments-strip');
   if (strip) {
@@ -1298,6 +1583,408 @@ function renderDailyJourneyMoments() {
     </div>`).join('');
   }
   renderOnePagerViews();
+}
+
+function getCurrentDailyValuesForSummary() {
+  const ov = (typeof STATE !== 'undefined' && STATE.overview) || {};
+  const c = ov.checkin || {};
+  const prof = ov.profile || {};
+  const wkInfo = ov.week_info || {};
+  const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
+  const dayName = getWeekdayNameForDate(curDate);
+  const shortDate = getFormattedShortDate(curDate);
+
+  const getFieldOrCheckin = (id, fallbackVal) => {
+    const el = document.getElementById(id);
+    if (el && el.value !== undefined && String(el.value).trim() !== '') {
+      return String(el.value).trim();
+    }
+    return fallbackVal != null && fallbackVal !== '' && fallbackVal !== 0 ? String(fallbackVal) : '';
+  };
+
+  const stepsRaw = getFieldOrCheckin('op-steps', c.steps);
+  const stepsNum = parseInt(stepsRaw || '0', 10) || 0;
+  const stepTarget = Number(wkInfo.step_target || prof.step_target_wk1 || 10000);
+  const calsRaw = getFieldOrCheckin('op-cals', c.calories);
+  const protRaw = getFieldOrCheckin('op-prot', c.protein_g);
+  const waterRaw = getFieldOrCheckin('op-water', c.water_l);
+  const sleepRaw = getFieldOrCheckin(
+    'op-sleep',
+    c.sleep_mins && Number(c.sleep_mins) > 0
+      ? (c.sleep_str || `${Math.floor(c.sleep_mins / 60)}h ${c.sleep_mins % 60}m`)
+      : (c.sleep_str || '')
+  );
+  const trainingVal = (document.getElementById('op-training')?.value || c.training_type || 'REST').toUpperCase();
+  const notesVal = (document.getElementById('op-notes')?.value ?? c.notes ?? c.class_attended ?? '').trim();
+  const firstName = ((prof.client_name || 'Challenger').split(' ')[0] || 'Challenger').replace(/[^A-Za-z0-9]/g, '');
+
+  return {
+    curDate,
+    dayName,
+    shortDate,
+    firstName,
+    clientName: prof.client_name || 'Challenger',
+    phaseLabel: wkInfo.phase_label || '8-Week Challenge',
+    stepsNum,
+    stepTarget,
+    stepsDisplay: stepsNum > 0 ? stepsNum.toLocaleString() : '—',
+    calsDisplay: calsRaw ? `${calsRaw} kcal` : '—',
+    protDisplay: protRaw ? `${protRaw}g` : '—',
+    waterDisplay: waterRaw ? `${Number(waterRaw).toFixed(2)}L` : '—',
+    sleepDisplay: sleepRaw || '—',
+    trainingVal,
+    notesVal,
+  };
+}
+
+window.buildLiveWhatsAppSummaryText = function() {
+  const s = getCurrentDailyValuesForSummary();
+  const stepCheck = s.stepsNum >= s.stepTarget && s.stepsNum > 0 ? '✅' : '👟';
+  const trainLine = s.notesVal
+    ? `🏋️ Training: ${s.trainingVal} (${s.notesVal})`
+    : `🏋️ Training: ${s.trainingVal}`;
+
+  const lines = [
+    `📅 *${s.dayName} (${s.shortDate}) · CS Fitness Daily Summary*`,
+    `${stepCheck} Steps: *${s.stepsDisplay}* / ${s.stepTarget.toLocaleString()}`,
+    `🔥 Calories: *${s.calsDisplay}* · 💪 Protein: *${s.protDisplay}*`,
+    `💧 Water: *${s.waterDisplay}* · 😴 Sleep: *${s.sleepDisplay}*`,
+    trainLine,
+    `#${s.firstName} #steps #macros #winTheDay #CSFitness`,
+  ];
+  return lines.join('\n');
+};
+
+function renderOnePagerDailyPhotosAndWhatsApp() {
+  const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
+  const allMoments = (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.daily_moments) || [];
+  const dayMoments = allMoments.filter(m => m.date === curDate);
+
+  const grid4 = document.getElementById('op-daily-4photos-grid');
+  const countBadge = document.getElementById('op-4photos-count-badge');
+  let uploadedCount = 0;
+
+  if (grid4) {
+    grid4.innerHTML = DAILY_4_PHOTO_SLOTS.map((slot, idx) => {
+      const m = dayMoments.find(x => x.slot === slot.key) || {};
+      const hasPhoto = Boolean(m.photo_data_url);
+      if (hasPhoto) uploadedCount++;
+      return `
+        <div style="background:#080c09;border:1.5px ${hasPhoto ? 'solid var(--green)' : 'dashed rgba(148,163,184,0.35)'};border-radius:12px;padding:0.45rem;position:relative">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem">
+            <span style="font-size:0.72rem;font-weight:800;color:${hasPhoto ? 'var(--green)' : '#cbd5e1'}">${slot.icon} ${slot.label}</span>
+            ${hasPhoto ? `<button type="button" onclick="deleteDailyMomentPhoto('${slot.key}')" title="Remove photo" style="background:rgba(248,113,113,0.18);border:1px solid rgba(248,113,113,0.45);color:#fca5a5;border-radius:6px;padding:0.05rem 0.35rem;font-size:0.65rem;cursor:pointer;font-weight:800">✕</button>` : `<span style="font-size:0.64rem;color:var(--muted)">#${idx + 1}</span>`}
+          </div>
+          <label style="cursor:pointer;display:block">
+            ${hasPhoto
+              ? `<img src="${m.photo_data_url}" alt="${slot.key}" style="width:100%;height:110px;object-fit:cover;border-radius:8px;border:1px solid rgba(61,255,79,0.4);display:block"/>`
+              : `<div style="height:110px;border-radius:8px;background:rgba(255,255,255,0.02);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#94a3b8;font-size:0.74rem;font-weight:700">
+                   <span style="font-size:1.3rem">${slot.icon}</span>
+                   <span>+ Tap to Add Photo ${idx + 1}</span>
+                 </div>`}
+            <input type="file" accept="image/*" style="display:none" onchange="uploadDailyMomentPhoto('${slot.key}', event)"/>
+          </label>
+          <input type="text" value="${(m.caption || '').replace(/"/g, '&quot;')}" placeholder="Optional caption (${slot.tag})"
+                 style="margin-top:0.35rem;font-size:0.72rem;padding:0.3rem 0.45rem;border-radius:7px"
+                 onchange="saveDailyMomentCaption('${slot.key}', this.value)"/>
+        </div>
+      `;
+    }).join('');
+  }
+
+  if (countBadge) {
+    countBadge.textContent = `${uploadedCount} / 4 Photos Added`;
+    countBadge.className = 'badge ' + (uploadedCount === 4 ? 'badge-green' : uploadedCount > 0 ? 'badge-blue' : 'badge-amber');
+  }
+
+  const captionText = window.buildLiveWhatsAppSummaryText();
+  const waBox = document.getElementById('op-wa-caption-box');
+  if (waBox && document.activeElement !== waBox) {
+    waBox.value = captionText;
+  }
+  const desktopWaBox = document.getElementById('wa-caption-box');
+  if (desktopWaBox && document.activeElement !== desktopWaBox) {
+    desktopWaBox.value = captionText;
+  }
+  const waLink = document.getElementById('op-wa-direct-link');
+  if (waLink) {
+    waLink.href = `https://wa.me/?text=${encodeURIComponent(captionText)}`;
+  }
+}
+
+window.copyOnePagerWhatsAppSummary = async function(triggerBtn) {
+  const waBox = document.getElementById('op-wa-caption-box');
+  const text = (waBox && waBox.value) ? waBox.value : window.buildLiveWhatsAppSummaryText();
+  const btn = window.setButtonBusy(triggerBtn || document.getElementById('op-btn-copy-wa'), '⏳ Copying...');
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (e) {
+    if (waBox) {
+      waBox.select();
+      try { document.execCommand('copy'); } catch (err) {}
+    }
+  }
+  window.clearButtonBusy(btn, '✅ Copied for WhatsApp!');
+  showToast('📋 Daily WhatsApp summary copied! Paste directly into your WhatsApp group.');
+};
+
+function loadImageElement(src) {
+  return new Promise((resolve) => {
+    if (!src) return resolve(null);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+function drawCoverImage(ctx, img, x, y, w, h, radius = 16) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, radius);
+  ctx.clip();
+  const imgRatio = (img.width || 1) / (img.height || 1);
+  const boxRatio = w / h;
+  let drawW = w;
+  let drawH = h;
+  let offsetX = x;
+  let offsetY = y;
+  if (imgRatio > boxRatio) {
+    drawW = h * imgRatio;
+    offsetX = x - (drawW - w) / 2;
+  } else {
+    drawH = w / imgRatio;
+    offsetY = y - (drawH - h) / 2;
+  }
+  ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
+  ctx.restore();
+}
+
+window.renderDailyCollageCanvas = async function(showPreview = true) {
+  const canvas = document.getElementById('op-daily-collage-canvas');
+  if (!canvas) return null;
+  const ctx = canvas.getContext('2d');
+  const s = getCurrentDailyValuesForSummary();
+  const curDate = s.curDate;
+  const allMoments = (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.daily_moments) || [];
+  const dayMoments = allMoments.filter(m => m.date === curDate);
+
+  // Canvas dimensions: 1080 x 1350 (4:5 Instagram / WhatsApp portrait collage)
+  canvas.width = 1080;
+  canvas.height = 1350;
+
+  const bg = ctx.createLinearGradient(0, 0, 1080, 1350);
+  bg.addColorStop(0, '#050806');
+  bg.addColorStop(0.55, '#0b150e');
+  bg.addColorStop(1, '#050806');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, 1080, 1350);
+
+  // Outer neon border
+  ctx.strokeStyle = '#3DFF4F';
+  ctx.lineWidth = 5;
+  ctx.strokeRect(24, 24, 1032, 1302);
+
+  // Top Header Bar
+  ctx.fillStyle = '#3DFF4F';
+  ctx.font = '900 28px Inter, -apple-system, sans-serif';
+  ctx.fillText('CS FITNESS · 8-WEEK CHALLENGE', 56, 78);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 44px Inter, -apple-system, sans-serif';
+  ctx.fillText(`${s.dayName.toUpperCase()} · ${s.shortDate.toUpperCase()}`, 56, 132);
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '700 24px Inter, -apple-system, sans-serif';
+  ctx.fillText(`${s.clientName} · ${s.phaseLabel} · Daily 4-Photo & Stats Summary`, 56, 168);
+
+  // 2x2 Photo Collage Grid (Y: 196 -> 846, Height: 650)
+  const gridX = 56;
+  const gridY = 194;
+  const gap = 18;
+  const cellW = Math.floor((1080 - 112 - gap) / 2); // 475
+  const cellH = 312;
+
+  for (let i = 0; i < DAILY_4_PHOTO_SLOTS.length; i++) {
+    const slot = DAILY_4_PHOTO_SLOTS[i];
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+    const x = gridX + col * (cellW + gap);
+    const y = gridY + row * (cellH + gap);
+    const m = dayMoments.find(d => d.slot === slot.key) || {};
+    const img = await loadImageElement(m.photo_data_url);
+
+    ctx.fillStyle = '#0d1410';
+    ctx.beginPath();
+    ctx.roundRect(x, y, cellW, cellH, 18);
+    ctx.fill();
+
+    if (img) {
+      drawCoverImage(ctx, img, x, y, cellW, cellH, 18);
+    } else {
+      ctx.fillStyle = '#475569';
+      ctx.font = '800 28px Inter, -apple-system, sans-serif';
+      ctx.fillText(`${slot.icon} ${slot.key}`, x + 32, y + cellH / 2 - 6);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '600 20px Inter, -apple-system, sans-serif';
+      ctx.fillText('No photo added for this slot', x + 32, y + cellH / 2 + 28);
+    }
+
+    ctx.strokeStyle = img ? 'rgba(61,255,79,0.75)' : 'rgba(148,163,184,0.28)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(x, y, cellW, cellH, 18);
+    ctx.stroke();
+
+    // Label pill at bottom of each photo
+    ctx.fillStyle = 'rgba(5, 8, 6, 0.82)';
+    ctx.beginPath();
+    ctx.roundRect(x + 12, y + cellH - 48, cellW - 24, 36, 10);
+    ctx.fill();
+
+    ctx.fillStyle = '#3DFF4F';
+    ctx.font = '800 19px Inter, -apple-system, sans-serif';
+    const capText = m.caption ? `${slot.key}: ${m.caption}` : slot.key;
+    ctx.fillText(capText.slice(0, 38), x + 24, y + cellH - 23);
+  }
+
+  // Bottom Scoreboard Strip (Y: 856 -> 1230)
+  const statsY = 856;
+  const statBoxes = [
+    { label: 'DAILY STEPS', value: s.stepsDisplay, sub: `Target ${s.stepTarget.toLocaleString()}`, accent: '#3DFF4F' },
+    { label: 'CALORIES', value: s.calsDisplay, sub: 'Daily Nutrition', accent: '#38bdf8' },
+    { label: 'PROTEIN', value: s.protDisplay, sub: 'Daily Target', accent: '#3DFF4F' },
+    { label: 'WATER INTAKE', value: s.waterDisplay, sub: 'Hydration', accent: '#38bdf8' },
+    { label: 'SLEEP', value: s.sleepDisplay, sub: 'Recovery', accent: '#a855f7' },
+    { label: 'TRAINING', value: s.trainingVal, sub: (s.notesVal || 'Daily Session').slice(0, 24), accent: '#fbbf24' },
+  ];
+
+  const sColW = Math.floor((1080 - 112 - 32) / 3); // 3 cols x 2 rows
+  const sRowH = 165;
+  statBoxes.forEach((b, idx) => {
+    const col = idx % 3;
+    const row = Math.floor(idx / 3);
+    const bx = 56 + col * (sColW + 16);
+    const by = statsY + row * (sRowH + 14);
+
+    ctx.fillStyle = '#0c130e';
+    ctx.beginPath();
+    ctx.roundRect(bx, by, sColW, sRowH, 16);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(61,255,79,0.32)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '800 18px Inter, -apple-system, sans-serif';
+    ctx.fillText(b.label, bx + 20, by + 36);
+
+    ctx.fillStyle = b.accent;
+    ctx.font = '900 38px Inter, -apple-system, sans-serif';
+    ctx.fillText(String(b.value).slice(0, 14), bx + 20, by + 94);
+
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '600 18px Inter, -apple-system, sans-serif';
+    ctx.fillText(String(b.sub), bx + 20, by + 136);
+  });
+
+  // Footer Hashtags
+  ctx.fillStyle = '#3DFF4F';
+  ctx.font = '800 22px Inter, -apple-system, sans-serif';
+  ctx.fillText(`#${s.firstName}  #steps  #macros  #winTheDay  #CSFitness`, 56, 1288);
+
+  const wrap = document.getElementById('op-collage-preview-wrap');
+  if (wrap && showPreview) {
+    wrap.style.display = 'block';
+  }
+  return canvas;
+};
+
+window.toggleDailyCollagePreview = async function(triggerBtn) {
+  const wrap = document.getElementById('op-collage-preview-wrap');
+  if (!wrap) return;
+  const isHidden = wrap.style.display === 'none' || !wrap.style.display;
+  if (isHidden) {
+    const btn = window.setButtonBusy(triggerBtn, '⏳ Building Preview...');
+    await window.renderDailyCollageCanvas(true);
+    window.clearButtonBusy(btn, '👁️ Preview Shown');
+  } else {
+    wrap.style.display = 'none';
+  }
+};
+
+window.downloadOrShareDailyCollagePng = async function(triggerBtn) {
+  const btn = window.setButtonBusy(
+    triggerBtn || document.getElementById('op-btn-collage-wa'),
+    '⏳ Generating 4-Photo Collage...'
+  );
+  try {
+    const canvas = await window.renderDailyCollageCanvas(true);
+    const captionText = window.buildLiveWhatsAppSummaryText();
+    try { await navigator.clipboard.writeText(captionText); } catch (e) {}
+
+    if (!canvas) {
+      window.clearButtonBusy(btn);
+      return;
+    }
+
+    const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
+    const fileName = `cs-fitness-daily-${curDate}.png`;
+
+    // Try native Web Share API with image file on mobile devices if supported
+    if (navigator.canShare && canvas.toBlob) {
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+      if (blob) {
+        const file = new File([blob], fileName, { type: 'image/png' });
+        if (navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: `CS Fitness Daily Summary (${curDate})`,
+              text: captionText,
+            });
+            window.clearButtonBusy(btn, '✅ Shared!');
+            showToast('✅ Shared 4-Photo Collage & copied WhatsApp text!');
+            return;
+          } catch (shareErr) {
+            // Fall through to standard PNG download if user cancels share sheet
+          }
+        }
+      }
+    }
+
+    const link = document.createElement('a');
+    link.download = fileName;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    window.clearButtonBusy(btn, '✅ Collage Saved!');
+    showToast('🖼️ Saved 4-Photo Collage PNG + copied WhatsApp summary text to clipboard!');
+  } catch (err) {
+    window.clearButtonBusy(btn);
+    showToast('⚠️ Could not generate collage image.');
+  }
+};
+
+function wireOnePagerLiveSummaryInputs() {
+  if (window._opLiveInputsWired) return;
+  const ids = ['op-steps', 'op-cals', 'op-prot', 'op-water', 'op-sleep', 'op-notes'];
+  let foundAny = false;
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.hasAttribute('data-wa-wired')) {
+      foundAny = true;
+      el.setAttribute('data-wa-wired', '1');
+      el.addEventListener('input', () => {
+        const txt = window.buildLiveWhatsAppSummaryText();
+        const waBox = document.getElementById('op-wa-caption-box');
+        if (waBox && document.activeElement !== waBox) waBox.value = txt;
+        const waLink = document.getElementById('op-wa-direct-link');
+        if (waLink) waLink.href = `https://wa.me/?text=${encodeURIComponent(txt)}`;
+      });
+    }
+  });
+  if (foundAny) window._opLiveInputsWired = true;
 }
 
 function getWeekdayNameForDate(dateStr) {
@@ -1330,15 +2017,18 @@ window.selectOnePagerTraining = function(val) {
       btn.classList.remove('active');
     }
   });
+  if (typeof window.buildLiveWhatsAppSummaryText === 'function') {
+    const txt = window.buildLiveWhatsAppSummaryText();
+    const waBox = document.getElementById('op-wa-caption-box');
+    if (waBox && document.activeElement !== waBox) waBox.value = txt;
+    const waLink = document.getElementById('op-wa-direct-link');
+    if (waLink) waLink.href = `https://wa.me/?text=${encodeURIComponent(txt)}`;
+  }
 };
 
 window.triggerMobileGarminSync = async function() {
-  const btn = document.getElementById('op-btn-sync-garmin');
+  const btn = window.setButtonBusy(document.getElementById('op-btn-sync-garmin'), '⏳ Syncing with Garmin...');
   const statusEl = document.getElementById('op-sync-status');
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = '⏳ Syncing with Garmin...';
-  }
   if (statusEl) {
     statusEl.style.color = '#38bdf8';
     statusEl.textContent = 'Connecting to Garmin Connect...';
@@ -1359,12 +2049,14 @@ window.triggerMobileGarminSync = async function() {
         statusEl.style.color = 'var(--green)';
         statusEl.textContent = `✅ ${msg}`;
       }
+      window.clearButtonBusy(btn, '✅ Garmin Synced!');
       showToast(`⌚ ${msg}`);
     } else {
       if (statusEl) {
         statusEl.style.color = '#fbbf24';
         statusEl.innerHTML = `ℹ️ ${msg} · <a href="#" onclick="openDesktopTab('integrations');return false;" style="color:var(--green);font-weight:800">Configure Garmin on Desktop</a>`;
       }
+      window.clearButtonBusy(btn);
       showToast(`ℹ️ ${msg}`);
     }
   } catch (err) {
@@ -1372,11 +2064,7 @@ window.triggerMobileGarminSync = async function() {
       statusEl.style.color = '#f87171';
       statusEl.textContent = 'Could not reach Garmin sync service.';
     }
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = '⌚ Sync with Garmin';
-    }
+    window.clearButtonBusy(btn);
   }
 };
 
@@ -1408,7 +2096,9 @@ function renderOnePagerViews() {
   if (dLbl) dLbl.textContent = getFormattedShortDate(curDate);
 
   const submitBtn = document.getElementById('op-submit-btn');
-  if (submitBtn) submitBtn.textContent = `✅ Submit ${dayName}`;
+  if (submitBtn && !submitBtn.classList.contains('btn-loading')) {
+    submitBtn.textContent = `✅ Submit ${dayName}`;
+  }
 
   const saveBanner = document.getElementById('op-save-banner');
   if (saveBanner && saveBanner.getAttribute('data-saved-date') !== curDate) {
@@ -1464,12 +2154,13 @@ function renderOnePagerViews() {
     wtSub.style.color = hasMorningWt ? 'var(--green)' : '#94a3b8';
   }
 
+  wireOnePagerLiveSummaryInputs();
+  renderOnePagerDailyPhotosAndWhatsApp();
   renderOnePagerWeekly();
 }
 
 window.saveMorningWeightOnly = async function(weightInputId, timeInputId) {
   const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
-  const dayName = getWeekdayNameForDate(curDate);
   const wEl = document.getElementById(weightInputId || 'op-weight') || document.getElementById('in-weight');
   const tEl = timeInputId ? document.getElementById(timeInputId) : document.getElementById('in-weigh-time');
   const rawVal = wEl ? wEl.value.trim() : '';
@@ -1482,11 +2173,7 @@ window.saveMorningWeightOnly = async function(weightInputId, timeInputId) {
   const now = new Date();
   const defaultTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   const weighTime = (tEl && tEl.value) ? tEl.value : defaultTime;
-  const saveBtn = document.getElementById('op-save-weight-btn');
-  if (saveBtn) {
-    saveBtn.disabled = true;
-    saveBtn.textContent = '⏳ Saving...';
-  }
+  const saveBtn = window.setButtonBusy(document.getElementById('op-save-weight-btn'), '⏳ Saving...');
   try {
     await window.postCheckinUpdate(
       { date: curDate, weight_kg: numVal, weigh_time: weighTime },
@@ -1494,11 +2181,9 @@ window.saveMorningWeightOnly = async function(weightInputId, timeInputId) {
     );
     await refreshProgressSummary();
     renderOnePagerViews();
-  } finally {
-    if (saveBtn) {
-      saveBtn.disabled = false;
-      saveBtn.textContent = '⚖️ Save Weight';
-    }
+    window.clearButtonBusy(saveBtn, `✅ Saved ${numVal.toFixed(1)} kg`);
+  } catch (e) {
+    window.clearButtonBusy(saveBtn);
   }
 };
 
@@ -1542,52 +2227,49 @@ function renderOnePagerWeekly() {
 window.saveOnePagerDaily = async function(withPng) {
   const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
   const dayName = getWeekdayNameForDate(curDate);
-  const submitBtn = document.getElementById('op-submit-btn');
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.textContent = `⏳ Saving ${dayName}...`;
-  }
-  const wtVal = document.getElementById('op-weight')?.value?.trim() || '';
-  const stepsVal = document.getElementById('op-steps')?.value?.trim() || '';
-  const calsVal = document.getElementById('op-cals')?.value?.trim() || '';
-  const protVal = document.getElementById('op-prot')?.value?.trim() || '';
-  const waterVal = document.getElementById('op-water')?.value?.trim() || '';
-  const sleepVal = document.getElementById('op-sleep')?.value?.trim() || '';
-  const payload = {
-    date: curDate,
-    training_type: document.getElementById('op-training')?.value || 'REST',
-    notes: document.getElementById('op-notes')?.value || '',
-  };
-  if (wtVal !== '') payload.weight_kg = parseFloat(wtVal);
-  if (stepsVal !== '') payload.steps = parseInt(stepsVal, 10);
-  if (calsVal !== '') payload.calories = parseInt(calsVal, 10);
-  if (protVal !== '') payload.protein_g = parseInt(protVal, 10);
-  if (waterVal !== '') payload.water_l = parseFloat(waterVal);
-  if (sleepVal !== '') payload.sleep = sleepVal;
-  await window.postCheckinUpdate(payload, `${dayName} saved`);
-  await refreshProgressSummary();
-  renderOnePagerViews();
+  const submitBtn = window.setButtonBusy(document.getElementById('op-submit-btn'), `⏳ Saving ${dayName}...`);
+  try {
+    const wtVal = document.getElementById('op-weight')?.value?.trim() || '';
+    const stepsVal = document.getElementById('op-steps')?.value?.trim() || '';
+    const calsVal = document.getElementById('op-cals')?.value?.trim() || '';
+    const protVal = document.getElementById('op-prot')?.value?.trim() || '';
+    const waterVal = document.getElementById('op-water')?.value?.trim() || '';
+    const sleepVal = document.getElementById('op-sleep')?.value?.trim() || '';
+    const payload = {
+      date: curDate,
+      training_type: document.getElementById('op-training')?.value || 'REST',
+      notes: document.getElementById('op-notes')?.value || '',
+    };
+    if (wtVal !== '') payload.weight_kg = parseFloat(wtVal);
+    if (stepsVal !== '') payload.steps = parseInt(stepsVal, 10);
+    if (calsVal !== '') payload.calories = parseInt(calsVal, 10);
+    if (protVal !== '') payload.protein_g = parseInt(protVal, 10);
+    if (waterVal !== '') payload.water_l = parseFloat(waterVal);
+    if (sleepVal !== '') payload.sleep = sleepVal;
+    await window.postCheckinUpdate(payload, `${dayName} saved`);
+    await refreshProgressSummary();
+    renderOnePagerViews();
 
-  const banner = document.getElementById('op-save-banner');
-  const bannerTitle = document.getElementById('op-save-banner-title');
-  const bannerSub = document.getElementById('op-save-banner-sub');
-  if (banner) {
-    banner.setAttribute('data-saved-date', curDate);
-    banner.style.display = 'block';
+    const banner = document.getElementById('op-save-banner');
+    const bannerTitle = document.getElementById('op-save-banner-title');
+    const bannerSub = document.getElementById('op-save-banner-sub');
+    if (banner) {
+      banner.setAttribute('data-saved-date', curDate);
+      banner.style.display = 'block';
+    }
+    if (bannerTitle) {
+      bannerTitle.textContent = `✅ ${dayName} saved`;
+    }
+    const sheet = (STATE.overview && STATE.overview.current_week_sheet) || {};
+    const daysLogged = (sheet.averages && sheet.averages.days_logged) || 1;
+    if (bannerSub) {
+      bannerSub.textContent = `Your ${dayName} stats are saved and collated into your Weekly Round-Up below (${daysLogged}/7 days logged this week).`;
+    }
+    window.clearButtonBusy(submitBtn, `✅ ${dayName} saved!`);
+    if (withPng) await window.downloadInstagramScoreboardPng();
+  } catch (err) {
+    window.clearButtonBusy(submitBtn);
   }
-  if (bannerTitle) {
-    bannerTitle.textContent = `✅ ${dayName} saved`;
-  }
-  const sheet = (STATE.overview && STATE.overview.current_week_sheet) || {};
-  const daysLogged = (sheet.averages && sheet.averages.days_logged) || 1;
-  if (bannerSub) {
-    bannerSub.textContent = `Your ${dayName} stats are saved and collated into your Weekly Round-Up below (${daysLogged}/7 days logged this week).`;
-  }
-  if (submitBtn) {
-    submitBtn.disabled = false;
-    submitBtn.textContent = `✅ ${dayName} saved`;
-  }
-  if (withPng) await window.downloadInstagramScoreboardPng();
 };
 
 window.changeOnePagerWeek = async function(val) {
