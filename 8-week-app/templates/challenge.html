@@ -89,7 +89,28 @@
         </div>
       </div>
 
-      <!-- 2. Single 1-Tap Garmin Sync Button (Settings managed on Desktop) -->
+      <!-- 2. Morning First Thing: Fasted Weigh-In (Saved independently in the morning) -->
+      <div style="background:rgba(61,255,79,0.06);border:1.5px solid rgba(61,255,79,0.38);border-radius:14px;padding:0.75rem 0.85rem;margin-bottom:0.85rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;margin-bottom:0.45rem">
+          <label class="op-big-label" for="op-weight" style="margin:0;color:var(--green)">🌅 MORNING WEIGHT (KG) · FIRST THING</label>
+          <span id="op-morning-weight-badge" class="badge badge-green" style="font-size:0.65rem">Fasted AM</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:0.55rem;align-items:stretch">
+          <input type="number" step="0.1" inputmode="decimal" id="op-weight" class="op-big-input" placeholder="" style="background:#070a08;border:1.5px solid var(--border);border-radius:10px;padding:0.45rem 0.65rem" />
+          <button type="button" class="btn btn-green" id="op-save-weight-btn" onclick="saveMorningWeightOnly('op-weight')" style="padding:0.65rem 1rem;font-size:0.95rem;font-weight:900;border-radius:10px;white-space:nowrap">
+            ⚖️ Save Weight
+          </button>
+        </div>
+        <div id="op-morning-weight-sub" style="font-size:0.7rem;color:#94a3b8;margin-top:0.35rem">
+          Log your scale weight first thing in the morning — End-of-Day stats can be synced &amp; submitted tonight.
+        </div>
+      </div>
+
+      <!-- 3. End of Day: 1-Tap Garmin Sync + Daily Totals -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem">
+        <span style="font-size:0.74rem;font-weight:900;color:#cbd5e1;letter-spacing:0.05em">🌙 END OF DAY · GARMIN SYNC &amp; DAILY STATS</span>
+        <span style="font-size:0.68rem;color:var(--muted)" id="op-rolling-wt-pill">7-Day Avg: —</span>
+      </div>
       <button class="btn btn-blue" id="op-btn-sync-garmin" onclick="triggerMobileGarminSync()" style="width:100%;justify-content:center;padding:0.85rem 1rem;font-size:1.05rem;font-weight:900;border-radius:12px;margin-bottom:0.35rem">
         ⌚ Sync with Garmin
       </button>
@@ -97,15 +118,15 @@
         Pulls today's Steps, Sleep, Weight &amp; Workouts from Garmin
       </div>
 
-      <!-- 3. Large-Text Number Inputs (Blank until synced or entered) -->
+      <!-- Large-Text Number Inputs (Blank until synced or entered) -->
       <div class="grid-2" style="gap:0.65rem;margin-bottom:0.85rem">
-        <div class="op-stat-box">
-          <label class="op-big-label" for="op-weight">WEIGHT (KG)</label>
-          <input type="number" step="0.1" inputmode="decimal" id="op-weight" class="op-big-input" placeholder="" />
-        </div>
         <div class="op-stat-box">
           <label class="op-big-label" for="op-steps">STEPS</label>
           <input type="number" step="100" inputmode="numeric" id="op-steps" class="op-big-input" placeholder="" />
+        </div>
+        <div class="op-stat-box">
+          <label class="op-big-label" for="op-sleep">SLEEP</label>
+          <input type="text" id="op-sleep" class="op-big-input" placeholder="" />
         </div>
         <div class="op-stat-box">
           <label class="op-big-label" for="op-cals">CALORIES (KCAL)</label>
@@ -115,13 +136,9 @@
           <label class="op-big-label" for="op-prot">PROTEIN (G)</label>
           <input type="number" step="1" inputmode="numeric" id="op-prot" class="op-big-input" placeholder="" />
         </div>
-        <div class="op-stat-box">
-          <label class="op-big-label" for="op-water">WATER (L)</label>
+        <div class="op-stat-box" style="grid-column: 1 / -1">
+          <label class="op-big-label" for="op-water">WATER INTAKE (LITRES)</label>
           <input type="number" step="0.1" inputmode="decimal" id="op-water" class="op-big-input" placeholder="" />
-        </div>
-        <div class="op-stat-box">
-          <label class="op-big-label" for="op-sleep">SLEEP</label>
-          <input type="text" id="op-sleep" class="op-big-input" placeholder="" />
         </div>
       </div>
 
@@ -262,7 +279,7 @@
         </div>
         <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
           <button class="btn btn-sm" onclick="switchTab('checkin');setTimeout(()=>document.getElementById('three-photo-slots')?.scrollIntoView({behavior:'smooth'}),100)">📸 Check-In Photos (Day 1 Mon Start &amp; Fridays Wk 2–8)</button>
-          <button class="btn btn-green btn-sm" onclick="saveTodayCheckin()">💾 Save Weight</button>
+          <button class="btn btn-green btn-sm" onclick="saveMorningWeightOnly('in-weight', 'in-weigh-time')">⚖️ Save Morning Weight</button>
         </div>
       </div>
       <div class="grid-3" style="margin-bottom:0">
@@ -850,6 +867,32 @@
             <a href="/challenge/admin" class="btn btn-green btn-sm" style="text-decoration:none">🛡️ Open Coach Admin View →</a>
           </div>
         </div>
+
+        <!-- 3. Account Profile (Email Sign-In, Username & Email Verification) -->
+        <div style="margin-top:0.85rem;padding:0.75rem;background:var(--surface-2);border:1px solid var(--border);border-radius:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem">
+            <div>
+              <div style="font-size:0.82rem;font-weight:900;color:#fff">👤 3. Account Sign-In (Email + Username) &amp; Verification</div>
+              <div style="font-size:0.7rem;color:var(--muted)">Sign in with your Email address; your Username is your display handle.</div>
+            </div>
+            <span id="acct-email-verified-badge" class="badge badge-blue">Checking…</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem">
+            <div>
+              <label class="field-label">Email Address (Primary Sign-In)</label>
+              <input type="email" id="acct-email-input" placeholder="you@example.com" />
+            </div>
+            <div>
+              <label class="field-label">Username (@handle)</label>
+              <input type="text" id="acct-username-input" placeholder="ewantaylor" />
+            </div>
+          </div>
+          <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">
+            <button type="button" class="btn btn-green btn-sm" onclick="saveMyAccountDetails()">💾 Update Email / Username</button>
+            <button type="button" class="btn btn-blue btn-sm" id="btn-resend-verify-email" onclick="resendMyVerificationEmail()" style="display:none">📧 Send / Open Verification Link</button>
+            <span id="acct-verify-status-msg" style="font-size:0.72rem;color:#cbd5e1"></span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -879,7 +922,7 @@
 </div>
 
 <div class="toast" id="app-toast">Saved!</div>
-<script src="/static/challenge.js?v=13"></script>
-<script src="/static/challenge_progress.js?v=13"></script>
+<script src="/static/challenge.js?v=14"></script>
+<script src="/static/challenge_progress.js?v=14"></script>
 </body>
 </html>

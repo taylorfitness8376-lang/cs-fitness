@@ -1436,7 +1436,8 @@ function renderOnePagerViews() {
       el.placeholder = '';
     }
   };
-  setVal('op-weight', c.weight_kg != null && Number(c.weight_kg) > 0 ? c.weight_kg : '');
+  const hasMorningWt = c.weight_kg != null && Number(c.weight_kg) > 0;
+  setVal('op-weight', hasMorningWt ? c.weight_kg : '');
   setVal('op-steps', c.steps && Number(c.steps) > 0 ? c.steps : '');
   setVal('op-cals', c.calories && Number(c.calories) > 0 ? c.calories : '');
   setVal('op-prot', c.protein_g && Number(c.protein_g) > 0 ? c.protein_g : '');
@@ -1445,8 +1446,61 @@ function renderOnePagerViews() {
   window.selectOnePagerTraining(c.training_type || 'REST');
   setVal('op-notes', c.notes || c.class_attended || '');
 
+  const wtBadge = document.getElementById('op-morning-weight-badge');
+  const wtSub = document.getElementById('op-morning-weight-sub');
+  const rollPill = document.getElementById('op-rolling-wt-pill');
+  const rollWt = ov.rolling_7d_weight_kg || prof.start_weight_kg;
+  if (rollPill && rollWt) {
+    rollPill.textContent = `7-Day Avg: ${Number(rollWt).toFixed(1)} kg`;
+  }
+  if (wtBadge) {
+    wtBadge.textContent = hasMorningWt ? `✅ Logged ${Number(c.weight_kg).toFixed(1)} kg` : 'Fasted AM';
+    wtBadge.className = 'badge ' + (hasMorningWt ? 'badge-green' : 'badge-blue');
+  }
+  if (wtSub) {
+    wtSub.textContent = hasMorningWt
+      ? `✅ Morning weight saved (${Number(c.weight_kg).toFixed(1)} kg${c.weigh_time ? ' · ' + c.weigh_time : ''}). End-of-day stats can be synced & submitted tonight.`
+      : 'Log your scale weight first thing in the morning — End-of-Day stats can be synced & submitted tonight.';
+    wtSub.style.color = hasMorningWt ? 'var(--green)' : '#94a3b8';
+  }
+
   renderOnePagerWeekly();
 }
+
+window.saveMorningWeightOnly = async function(weightInputId, timeInputId) {
+  const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
+  const dayName = getWeekdayNameForDate(curDate);
+  const wEl = document.getElementById(weightInputId || 'op-weight') || document.getElementById('in-weight');
+  const tEl = timeInputId ? document.getElementById(timeInputId) : document.getElementById('in-weigh-time');
+  const rawVal = wEl ? wEl.value.trim() : '';
+  const numVal = parseFloat(rawVal);
+  if (!rawVal || isNaN(numVal) || numVal <= 0) {
+    showToast('⚠️ Enter your morning weight (kg) first.');
+    if (wEl) wEl.focus();
+    return;
+  }
+  const now = new Date();
+  const defaultTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const weighTime = (tEl && tEl.value) ? tEl.value : defaultTime;
+  const saveBtn = document.getElementById('op-save-weight-btn');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = '⏳ Saving...';
+  }
+  try {
+    await window.postCheckinUpdate(
+      { date: curDate, weight_kg: numVal, weigh_time: weighTime },
+      `⚖️ Morning weight saved (${numVal.toFixed(1)} kg)`
+    );
+    await refreshProgressSummary();
+    renderOnePagerViews();
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '⚖️ Save Weight';
+    }
+  }
+};
 
 function renderOnePagerWeekly() {
   const ov = (typeof STATE !== 'undefined' && STATE.overview) || {};
@@ -1493,17 +1547,23 @@ window.saveOnePagerDaily = async function(withPng) {
     submitBtn.disabled = true;
     submitBtn.textContent = `⏳ Saving ${dayName}...`;
   }
+  const wtVal = document.getElementById('op-weight')?.value?.trim() || '';
+  const stepsVal = document.getElementById('op-steps')?.value?.trim() || '';
+  const calsVal = document.getElementById('op-cals')?.value?.trim() || '';
+  const protVal = document.getElementById('op-prot')?.value?.trim() || '';
+  const waterVal = document.getElementById('op-water')?.value?.trim() || '';
+  const sleepVal = document.getElementById('op-sleep')?.value?.trim() || '';
   const payload = {
     date: curDate,
-    weight_kg: document.getElementById('op-weight')?.value ? parseFloat(document.getElementById('op-weight').value) : null,
-    steps: parseInt(document.getElementById('op-steps')?.value || '0', 10),
-    calories: parseInt(document.getElementById('op-cals')?.value || '0', 10),
-    protein_g: parseInt(document.getElementById('op-prot')?.value || '0', 10),
-    water_l: parseFloat(document.getElementById('op-water')?.value || '0'),
-    sleep: document.getElementById('op-sleep')?.value || '',
     training_type: document.getElementById('op-training')?.value || 'REST',
     notes: document.getElementById('op-notes')?.value || '',
   };
+  if (wtVal !== '') payload.weight_kg = parseFloat(wtVal);
+  if (stepsVal !== '') payload.steps = parseInt(stepsVal, 10);
+  if (calsVal !== '') payload.calories = parseInt(calsVal, 10);
+  if (protVal !== '') payload.protein_g = parseInt(protVal, 10);
+  if (waterVal !== '') payload.water_l = parseFloat(waterVal);
+  if (sleepVal !== '') payload.sleep = sleepVal;
   await window.postCheckinUpdate(payload, `${dayName} saved`);
   await refreshProgressSummary();
   renderOnePagerViews();
@@ -1790,11 +1850,36 @@ window.syncMyAccountStatus = async function() {
     if (!data.ok) return;
     const authBtn = document.getElementById('hdr-auth-btn');
     if (authBtn && data.client_name) {
-      authBtn.textContent = `👤 ${data.client_name}`;
+      authBtn.textContent = `👤 ${data.client_name}${data.username ? ' (@' + data.username + ')' : ''}`;
     }
     const emailInput = document.getElementById('my-acct-email');
     if (emailInput && data.email && document.activeElement !== emailInput) {
       emailInput.value = data.email;
+    }
+    const acctEmailEl = document.getElementById('acct-email-input');
+    if (acctEmailEl && document.activeElement !== acctEmailEl) {
+      acctEmailEl.value = data.email || '';
+    }
+    const acctUserEl = document.getElementById('acct-username-input');
+    if (acctUserEl && document.activeElement !== acctUserEl) {
+      acctUserEl.value = data.username || '';
+    }
+    const verBadge = document.getElementById('acct-email-verified-badge');
+    const resendBtn = document.getElementById('btn-resend-verify-email');
+    if (verBadge) {
+      if (data.email_verified) {
+        verBadge.textContent = '✅ Email Verified';
+        verBadge.className = 'badge badge-green';
+        if (resendBtn) resendBtn.style.display = 'none';
+      } else if (data.email) {
+        verBadge.textContent = '📧 Pending Email Verification';
+        verBadge.className = 'badge badge-amber';
+        if (resendBtn) resendBtn.style.display = 'inline-flex';
+      } else {
+        verBadge.textContent = 'Add Email to Verify';
+        verBadge.className = 'badge badge-blue';
+        if (resendBtn) resendBtn.style.display = 'none';
+      }
     }
     const roleBadge = document.getElementById('my-acct-role-badge');
     const isAdmin = data.role === 'admin';
@@ -1807,6 +1892,46 @@ window.syncMyAccountStatus = async function() {
     const callout = document.getElementById('admin-portal-callout');
     if (callout) callout.style.display = isAdmin ? 'block' : 'none';
   } catch (e) {}
+};
+
+window.saveMyAccountDetails = async function() {
+  const email = document.getElementById('acct-email-input')?.value?.trim() || '';
+  const username = document.getElementById('acct-username-input')?.value?.trim() || '';
+  const statusMsg = document.getElementById('acct-verify-status-msg');
+  const res = await fetch('/api/challenge/auth/update-account', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, username })
+  });
+  const data = await res.json();
+  if (!data.ok) {
+    showToast(`⚠️ ${data.error || 'Could not update account'}`);
+    return;
+  }
+  showToast('✅ Updated Email & Username!');
+  if (statusMsg && data.verification_url && !data.email_verified) {
+    statusMsg.innerHTML = `📧 Verification link ready: <a href="${data.verification_url}" style="color:var(--green);font-weight:800">Click to verify ${data.email}</a>`;
+  }
+  await window.syncMyAccountStatus();
+};
+
+window.resendMyVerificationEmail = async function() {
+  const email = document.getElementById('acct-email-input')?.value?.trim() || '';
+  const statusMsg = document.getElementById('acct-verify-status-msg');
+  const res = await fetch('/api/challenge/auth/resend-verification', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email })
+  });
+  const data = await res.json();
+  if (!data.ok) {
+    showToast(`⚠️ ${data.error || 'Could not send verification email'}`);
+    return;
+  }
+  if (statusMsg && data.verification_url) {
+    statusMsg.innerHTML = `${data.email_sent ? '📧 Sent to inbox! Or click: ' : '📧 Click to verify now: '}<a href="${data.verification_url}" style="color:var(--green);font-weight:800">✅ Verify ${data.email}</a>`;
+  }
+  showToast('📧 Verification link sent & ready!');
 };
 
 window.saveMyAccountSettings = async function() {

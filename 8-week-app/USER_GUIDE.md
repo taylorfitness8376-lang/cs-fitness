@@ -9,11 +9,11 @@
 ## PART 1: Challenger Guide (3 Simple Steps)
 
 ### 1. Set Up & Initial Work on Desktop App (Do Once at the Start)
-1. **Sign In or Join Your 8-Week Block:**
+1. **Create Your Account (Email + Username), Verify Your Email, or Sign In:**
    - Open **`https://cs-fitness.onrender.com/challenge/login`** on your laptop or desktop browser.
-   - **New Challengers:** Click **🎟️ Join with Block Invite**, enter your Block Invite Code from Coach Chris (e.g., `CS-OCT2026`), your name, email, password, starting weight (`kg`), target weight, and body fat %. The app automatically calculates your personal **Calories, Protein, Carbs, Fats, Water (L), and Weekly Step Minimums**.
-   - **Existing Challengers:** Sign in with your email address and password.
-   - **Forgot Password?** Click **Forgot password?** on the sign-in screen (or the **🔑 Forgot / Set Password** tab) to reset your password using your Cohort Block Invite Code (`CS-OCT2026`) or a 6-digit Reset Code.
+   - **New Challengers (`✨ Create Account`):** Enter your **Email Address** (used for sign-in), your **Username** (`@handle`), Full Name, Password, Block Invite Code (`CS-OCT2026`), and starting/target weight. When your account is created, a clickable **Email Verification link** is sent to verify your email address.
+   - **Existing Challengers (`🔐 Sign In`):** Sign in with your **Email Address** and password.
+   - **Forgot Password (`🔑 Forgot Password`):** Enter your Email Address, your Block Invite Code (`CS-OCT2026`), and your new password to reset in one clean step.
 2. **Link Garmin Connect (Non-2FA & 2FA Supported) or Apple Health on Desktop:**
    - Click **⚙️ Settings** in the top bar to open **Settings & Sync**.
    - **Garmin Users WITHOUT 2FA:** Enter your **Garmin Connect Email & Password** and click **💾 Save & Connect** (leave the 6-digit 2FA box blank — you do **not** need to enable 2FA).
@@ -29,13 +29,14 @@
 1. **Open on Your Phone (Add to Home Screen):**
    - Open **`https://cs-fitness.onrender.com/challenge`** on your phone (in Safari tap **Share → Add to Home Screen**; in Chrome tap **Menu → Add to Home Screen**).
    - When you sign on, the screen is cleared of everything else and opens straight into your **Daily Update** screen (you can also use **📱 Daily Update** on the desktop web app).
-2. **Tap `⌚ Sync with Garmin`:**
-   - Tap the big blue **⌚ Sync with Garmin** button at the top to pull today's **Steps, Sleep, Weight, and Garmin Workouts** automatically.
-3. **Update Your Daily Numbers (Large Text):**
-   - Check or type your daily numbers in the large-text boxes:
-     - **Weight (kg)** · **Steps**
+2. **🌅 Morning First Thing — Save Your Morning Weight (`⚖️ Save Weight`):**
+   - First thing in the morning (fasted), enter your scale weight (`kg`) in the top **🌅 MORNING WEIGHT (KG) · FIRST THING** box and tap **⚖️ Save Weight**. Your morning weight is saved immediately without touching your end-of-day stats.
+3. **🌙 End of Day — Tap `⌚ Sync with Garmin` & Update Daily Numbers:**
+   - At the end of the day, tap the big blue **⌚ Sync with Garmin** button to pull today's **Steps, Sleep, and Garmin Workouts** automatically.
+   - Check or type your end-of-day numbers in the large-text boxes:
+     - **Steps** · **Sleep** (e.g., `8h 00m`)
      - **Calories (kcal)** · **Protein (g)** (from MyFitnessPal / Yazio)
-     - **Water (L)** · **Sleep** (e.g., `8h 00m`)
+     - **Water Intake (Litres)**
 4. **Select Training (`GYM`, `CARDIO`, `BOTH`, or `REST`) + Quick Note:**
    - No need to log every individual exercise at the gym — just tap **🏋️ GYM**, **🏃 CARDIO**, **🔥 BOTH**, or **🛋️ REST**.
    - In the **Workout / Training Note** box underneath, write a quick note if you trained (e.g., `3 x 5k at 5 min miles`).

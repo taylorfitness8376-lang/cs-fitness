@@ -352,22 +352,31 @@ async function postCheckinUpdate(payload, toastMsg) {
 }
 
 async function saveTodayCheckin() {
+  const wtVal = document.getElementById("in-weight")?.value;
+  const stepsVal = document.getElementById("in-steps")?.value;
+  const calsVal = document.getElementById("in-calories")?.value;
+  const protVal = document.getElementById("in-protein")?.value;
+  const waterVal = document.getElementById("in-water")?.value;
+  const carbsVal = document.getElementById("in-carbs")?.value;
+  const fatsVal = document.getElementById("in-fats")?.value;
+  const fibreVal = document.getElementById("in-fibre")?.value;
+  const sleepVal = document.getElementById("in-sleep")?.value;
   const payload = {
-    weight_kg: document.getElementById("in-weight").value ? parseFloat(document.getElementById("in-weight").value) : null,
-    weigh_time: document.getElementById("in-weigh-time").value,
-    training_type: document.getElementById("in-training-type").value,
-    stick_to_plan: document.getElementById("in-stick-plan").value,
-    steps: parseInt(document.getElementById("in-steps").value || "0", 10),
-    calories: parseInt(document.getElementById("in-calories").value || "0", 10),
-    protein_g: parseInt(document.getElementById("in-protein").value || "0", 10),
-    water_l: document.getElementById("in-water") ? parseFloat(document.getElementById("in-water").value || "0") : undefined,
-    carbs_g: document.getElementById("in-carbs") ? parseInt(document.getElementById("in-carbs").value || "0", 10) : undefined,
-    fats_g: document.getElementById("in-fats") ? parseInt(document.getElementById("in-fats").value || "0", 10) : undefined,
-    fibre_g: document.getElementById("in-fibre") ? parseInt(document.getElementById("in-fibre").value || "0", 10) : undefined,
-    sleep: document.getElementById("in-sleep").value,
-    notes: document.getElementById("in-notes").value,
-    mindset_win: document.getElementById("in-mindset").value,
+    weigh_time: document.getElementById("in-weigh-time")?.value || "06:30",
+    training_type: document.getElementById("in-training-type")?.value || "REST",
+    stick_to_plan: document.getElementById("in-stick-plan")?.value || "Y",
+    notes: document.getElementById("in-notes")?.value || "",
+    mindset_win: document.getElementById("in-mindset")?.value || "",
   };
+  if (wtVal !== undefined && wtVal !== "") payload.weight_kg = parseFloat(wtVal);
+  if (stepsVal !== undefined && stepsVal !== "") payload.steps = parseInt(stepsVal, 10);
+  if (calsVal !== undefined && calsVal !== "") payload.calories = parseInt(calsVal, 10);
+  if (protVal !== undefined && protVal !== "") payload.protein_g = parseInt(protVal, 10);
+  if (waterVal !== undefined && waterVal !== "") payload.water_l = parseFloat(waterVal);
+  if (carbsVal !== undefined && carbsVal !== "") payload.carbs_g = parseInt(carbsVal, 10);
+  if (fatsVal !== undefined && fatsVal !== "") payload.fats_g = parseInt(fatsVal, 10);
+  if (fibreVal !== undefined && fibreVal !== "") payload.fibre_g = parseInt(fibreVal, 10);
+  if (sleepVal !== undefined && sleepVal !== "") payload.sleep = sleepVal;
   await postCheckinUpdate(payload, `✅ Saved ${STATE.date} to Win the Day & Check-In Sheet!`);
 }
 

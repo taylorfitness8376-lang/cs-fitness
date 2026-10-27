@@ -458,14 +458,18 @@
             <input type="text" id="new-user-name" placeholder="e.g. Alex Morgan" />
           </div>
           <div>
-            <label class="field-label">Email Address (for Sign-In)</label>
+            <label class="field-label">Username (@handle)</label>
+            <input type="text" id="new-user-username" placeholder="e.g. alexmorgan" />
+          </div>
+          <div>
+            <label class="field-label">Email Address (Primary Sign-In)</label>
             <input type="email" id="new-user-email" placeholder="alex@example.com" />
           </div>
           <div>
             <label class="field-label">Initial Password (Optional)</label>
             <input type="password" id="new-user-pass" placeholder="Or user sets on first sign-in" />
           </div>
-          <div>
+          <div style="grid-column: 1 / -1">
             <label class="field-label">Assign to 8-Week Block</label>
             <select id="new-user-block"></select>
           </div>
@@ -529,8 +533,8 @@
         <table class="cs-table">
           <thead>
             <tr>
-              <th>Client</th>
-              <th>Email / Role</th>
+              <th>Client &amp; @Username</th>
+              <th>Email / Verified / TeamUp</th>
               <th>Start → Target Wt</th>
               <th>Body Fat %</th>
               <th>LBM / Fat Mass</th>
@@ -542,6 +546,47 @@
           </thead>
           <tbody id="adm-directory-tbody"></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- TeamUp Gym Management Integration (Future / Beta) -->
+    <div class="card" style="border-color:rgba(56,189,248,0.45)">
+      <div class="card-header">
+        <span class="card-title">🏋️ TeamUp Gym Management Integration (Future / Beta)</span>
+        <span class="badge badge-blue" id="teamup-status-badge">Ready to Link</span>
+      </div>
+      <p style="font-size:0.74rem;color:var(--muted);margin-bottom:0.7rem">
+        CS Fitness uses <strong>TeamUp</strong> (`goteamup.com`) for gym memberships &amp; class bookings. Connect TeamUp via webhook or API key to automatically provision or link challengers by email and auto-log attended gym/cardio classes (`GYM` / `CARDIO`) on their daily check-in sheet.
+      </p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.55rem;margin-bottom:0.65rem">
+        <div>
+          <label class="field-label">TeamUp Provider / Box ID</label>
+          <input type="text" id="tu-provider-id" placeholder="e.g. cs-fitness-glasgow" />
+        </div>
+        <div>
+          <label class="field-label">TeamUp API Key / Token (Optional)</label>
+          <input type="password" id="tu-api-key" placeholder="TeamUp API Token" />
+        </div>
+        <div>
+          <label class="field-label">Default Block Invite Code</label>
+          <input type="text" id="tu-default-code" value="CS-OCT2026" />
+        </div>
+        <div>
+          <label class="field-label">Webhook Endpoint (Paste in TeamUp)</label>
+          <input type="text" id="tu-webhook-url" readonly value="/api/challenge/teamup/webhook" onclick="this.select()" />
+        </div>
+      </div>
+      <div style="display:flex;gap:0.85rem;align-items:center;flex-wrap:wrap">
+        <label style="font-size:0.74rem;display:flex;align-items:center;gap:0.35rem;cursor:pointer">
+          <input type="checkbox" id="tu-enabled" style="width:auto" /> Enable TeamUp Sync
+        </label>
+        <label style="font-size:0.74rem;display:flex;align-items:center;gap:0.35rem;cursor:pointer">
+          <input type="checkbox" id="tu-auto-enroll" checked style="width:auto" /> Auto-enroll new TeamUp members
+        </label>
+        <label style="font-size:0.74rem;display:flex;align-items:center;gap:0.35rem;cursor:pointer">
+          <input type="checkbox" id="tu-sync-classes" checked style="width:auto" /> Auto-log attended TeamUp classes to Daily Sheet
+        </label>
+        <button class="btn btn-green btn-sm" onclick="saveTeamUpConfig()">💾 Save TeamUp Settings</button>
       </div>
     </div>
   </section>
@@ -1184,8 +1229,16 @@ function renderAdminsAndUsersDirectory() {
   document.getElementById('adm-directory-count').textContent = `${chs.length} Profiles`;
   document.getElementById('adm-directory-tbody').innerHTML = chs.map(c => `
     <tr>
-      <td><strong>${c.client_name}</strong></td>
-      <td><span style="color:#cbd5e1">${c.email || '—'}</span> <span class="badge ${c.role === 'admin' ? 'badge-green' : 'badge-blue'}">${c.role || 'challenger'}</span></td>
+      <td>
+        <strong>${c.client_name}</strong>
+        <div style="font-size:0.68rem;color:var(--muted)">@${c.username || (c.client_name || '').toLowerCase().replace(/[^a-z0-9]/g, '')}</div>
+      </td>
+      <td>
+        <span style="color:#cbd5e1">${c.email || '—'}</span>
+        <span class="badge ${c.role === 'admin' ? 'badge-green' : 'badge-blue'}">${c.role || 'challenger'}</span>
+        ${c.email ? `<span class="badge ${c.email_verified ? 'badge-green' : ''}" style="margin-left:3px">${c.email_verified ? '✅ Verified' : '📧 Unverified'}</span>` : ''}
+        ${c.teamup_customer_id ? `<span class="badge badge-blue" style="margin-left:3px">🏋️ TeamUp: ${c.teamup_customer_id}</span>` : ''}
+      </td>
       <td>${c.start_weight_kg} kg → <strong style="color:var(--green)">${c.target_weight_kg} kg</strong></td>
       <td>${c.start_body_fat_pct}% → ${c.target_body_fat_pct}%</td>
       <td>${c.lean_body_mass_kg} kg LBM / ${c.fat_mass_kg} kg Fat</td>
@@ -1200,6 +1253,50 @@ function renderAdminsAndUsersDirectory() {
       </td>
     </tr>
   `).join('');
+  loadTeamUpConfig();
+}
+
+async function loadTeamUpConfig() {
+  try {
+    const res = await fetch('/api/challenge/admin/teamup').then(r => r.json());
+    if (!res.ok || !res.teamup) return;
+    const t = res.teamup;
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+    setVal('tu-provider-id', t.provider_id);
+    setVal('tu-default-code', t.default_block_code || 'CS-OCT2026');
+    setVal('tu-webhook-url', window.location.origin + '/api/challenge/teamup/webhook');
+    const en = document.getElementById('tu-enabled');
+    if (en) en.checked = Boolean(t.enabled);
+    const ae = document.getElementById('tu-auto-enroll');
+    if (ae) ae.checked = Boolean(t.auto_enroll);
+    const sc = document.getElementById('tu-sync-classes');
+    if (sc) sc.checked = Boolean(t.sync_classes);
+    const badge = document.getElementById('teamup-status-badge');
+    if (badge) {
+      badge.textContent = t.enabled ? '✅ TeamUp Enabled' : 'Future / Beta Ready';
+      badge.className = 'badge ' + (t.enabled ? 'badge-green' : 'badge-blue');
+    }
+  } catch (e) {}
+}
+
+async function saveTeamUpConfig() {
+  const payload = {
+    enabled: document.getElementById('tu-enabled')?.checked || false,
+    provider_id: document.getElementById('tu-provider-id')?.value || '',
+    api_key: document.getElementById('tu-api-key')?.value || '',
+    default_block_code: document.getElementById('tu-default-code')?.value || 'CS-OCT2026',
+    auto_enroll: document.getElementById('tu-auto-enroll')?.checked ?? true,
+    sync_classes: document.getElementById('tu-sync-classes')?.checked ?? true,
+  };
+  const res = await fetch('/api/challenge/admin/teamup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then(r => r.json());
+  if (res.ok) {
+    showAdminToast('✅ Saved TeamUp Gym integration settings!');
+    await loadTeamUpConfig();
+  }
 }
 
 async function adminResetChallengerPassword(profileId, clientName) {
@@ -1240,6 +1337,7 @@ async function adminCreateChallenger() {
   const payload = {
     invite_code: document.getElementById('new-user-block').value || 'CS-OCT2026',
     client_name: document.getElementById('new-user-name').value,
+    username: document.getElementById('new-user-username')?.value || '',
     email: document.getElementById('new-user-email').value,
     password: document.getElementById('new-user-pass').value,
     start_weight_kg: parseFloat(document.getElementById('new-user-sw').value || '82'),
@@ -1263,7 +1361,8 @@ async function adminCreateChallenger() {
     return;
   }
   box.style.color = 'var(--green)';
-  box.innerHTML = `✅ Added <strong>${res.client_name}</strong> (${res.email}) · Sign-In Invite Link: <code>${window.location.origin}${res.invite_url}</code>`;
+  box.innerHTML = `✅ Added <strong>${res.client_name}</strong> (@${res.username || ''} · ${res.email || 'no email'}) · Invite: <code>${window.location.origin}${res.invite_url}</code>` +
+    (res.verification_url ? ` · <a href="${res.verification_url}" style="color:#38bdf8;font-weight:800">📧 Verify Email Link</a>` : '');
   showAdminToast(`✅ Added ${res.client_name} to ${res.block.name}!`);
   await initAdminPortal();
 }

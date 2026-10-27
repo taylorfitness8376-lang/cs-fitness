@@ -794,6 +794,88 @@ def test_blank_fields_forgot_password_garmin_non2fa_and_apple_health(client, mon
     assert g_res["token_dump"] == '{"oauth1":"ok"}'
 
 
+def test_email_username_verification_morning_weight_and_teamup(client):
+    """Test Email + Username signup, clickable Email Verification link, Morning Weight vs End-of-Day save, and TeamUp integration."""
+    # 1. Create account with both email (primary sign-in) and username
+    join_res = client.post("/api/challenge/blocks/join", json={
+        "invite_code": "CS-OCT2026",
+        "email": "liam@example.com",
+        "username": "liamfit",
+        "client_name": "Liam Connor",
+        "password": "liampass123",
+        "start_weight_kg": 86.0,
+        "target_weight_kg": 79.5,
+        "start_body_fat_pct": 18.0,
+        "protein_g": 160,
+    }).get_json()
+    assert join_res["ok"] is True
+    assert join_res["email"] == "liam@example.com"
+    assert join_res["username"] == "liamfit"
+    assert join_res["email_verified"] is False
+    assert join_res["verification_url"].startswith("/challenge/verify-email?token=")
+
+    # 2. Clicking the email verification link marks email_verified = True and redirects to /challenge/login?verified=1
+    ver_resp = client.get(join_res["verification_url"])
+    assert ver_resp.status_code in (301, 302)
+    assert "verified=1" in ver_resp.headers["Location"]
+
+    st_res = client.get("/api/challenge/auth/status").get_json()
+    assert st_res["ok"] is True
+    assert st_res["email"] == "liam@example.com"
+    assert st_res["username"] == "liamfit"
+    assert st_res["email_verified"] is True
+
+    # 3. Morning Weight Save (first thing in the morning) followed by End-of-Day Stats Save tonight
+    #    Morning: user records only weight_kg + weigh_time
+    am_save = client.post("/api/challenge/checkins", json={
+        "date": "2026-10-20",
+        "weight_kg": 85.4,
+        "weigh_time": "06:40",
+    }).get_json()
+    assert am_save["checkin"]["weight_kg"] == 85.4
+    assert am_save["checkin"]["weigh_time"] == "06:40"
+    assert am_save["checkin"]["steps"] == 0
+
+    #    End of Day: user syncs/submits steps, calories, protein, water, sleep, training & note WITHOUT sending weight_kg
+    pm_save = client.post("/api/challenge/checkins", json={
+        "date": "2026-10-20",
+        "steps": 13200,
+        "calories": 2140,
+        "protein_g": 162,
+        "water_l": 3.8,
+        "sleep": "7h 50m",
+        "training_type": "GYM",
+        "notes": "Heavy squats & RDLs",
+    }).get_json()
+    # Morning weight (85.4 kg @ 06:40) MUST still be preserved alongside End-of-Day stats!
+    assert pm_save["checkin"]["weight_kg"] == 85.4
+    assert pm_save["checkin"]["weigh_time"] == "06:40"
+    assert pm_save["checkin"]["steps"] == 13200
+    assert pm_save["checkin"]["calories"] == 2140
+    assert pm_save["checkin"]["protein_g"] == 162
+    assert pm_save["checkin"]["training_type"] == "GYM"
+    assert pm_save["checkin"]["notes"] == "Heavy squats & RDLs"
+
+    # 4. TeamUp gym management webhook: auto-enrolls/links member by email & auto-logs attended class
+    tu_webhook = client.post("/api/challenge/teamup/webhook", json={
+        "event": "class.attended",
+        "email": "liam@example.com",
+        "customer_id": "tu_cust_7788",
+        "class_name": "CS Sweat Conditioning",
+        "date": "2026-10-20",
+    }).get_json()
+    assert tu_webhook["ok"] is True
+    assert tu_webhook["profile_id"] == join_res["profile_id"]
+    assert tu_webhook["teamup_customer_id"] == "tu_cust_7788"
+    assert tu_webhook["class_logged"] == "CS Sweat Conditioning"
+
+    # Since Liam already had GYM on 2026-10-20 and attended a CARDIO class in TeamUp, training_type upgrades to GYM & CARDIO
+    ov_after_tu = client.get("/api/challenge/overview?date=2026-10-20").get_json()
+    assert ov_after_tu["checkin"]["training_type"] == "GYM & CARDIO"
+    assert "CS Sweat Conditioning" in ov_after_tu["checkin"]["notes"]
+
+
+
 
 
 

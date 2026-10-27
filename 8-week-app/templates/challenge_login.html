@@ -8,8 +8,8 @@
   <link rel="stylesheet" href="/static/challenge.css" />
   <style>
     .auth-shell {
-      max-width: 520px;
-      margin: 2rem auto;
+      max-width: 480px;
+      margin: 2.2rem auto;
       padding: 0 1rem;
     }
     .auth-tabs {
@@ -17,187 +17,208 @@
       grid-template-columns: repeat(3, 1fr);
       gap: 0.4rem;
       margin-bottom: 1rem;
-    }
-    .oauth-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.5rem;
-      margin-bottom: 0.9rem;
-    }
-    .oauth-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.4rem;
-      padding: 0.55rem 0.75rem;
-      border-radius: 9px;
+      background: #0b110d;
+      padding: 0.35rem;
+      border-radius: 12px;
       border: 1px solid var(--border);
-      background: #0d1510;
-      color: #cbd5e1;
-      font-size: 0.76rem;
-      font-weight: 700;
-      cursor: pointer;
+    }
+    .auth-input-lg {
+      width: 100%;
+      padding: 0.72rem 0.85rem;
+      font-size: 0.95rem;
+      border-radius: 10px;
     }
   </style>
 </head>
 <body>
   <div class="auth-shell">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-      <div style="display:flex;align-items:center;gap:0.6rem">
-        <img src="/static/logo.jpg" alt="CS Fitness" style="width:40px;height:40px;border-radius:9px;border:1px solid var(--green)" />
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.1rem">
+      <div style="display:flex;align-items:center;gap:0.65rem">
+        <img src="/static/logo.jpg" alt="CS Fitness" style="width:42px;height:42px;border-radius:10px;border:1.5px solid var(--green)" />
         <div>
-          <div class="brand-title" style="font-size:1.35rem">CS FITNESS · 8-WEEK BLOCK ACCESS</div>
-          <div style="font-size:0.74rem;color:var(--muted)">Challenger Sign-In, Cohort Block Invite &amp; Password Setup</div>
+          <div class="brand-title" style="font-size:1.35rem;letter-spacing:0.02em">CS FITNESS · 8-WEEK CHALLENGE</div>
+          <div style="font-size:0.75rem;color:var(--muted)">Sign In with Email · Create Account · Reset Password</div>
         </div>
       </div>
       {% if is_authenticated %}
       <div style="display:flex;gap:0.4rem">
-        <a href="/challenge" class="btn btn-sm" style="text-decoration:none">← Back to App</a>
+        <a href="/challenge" class="btn btn-green btn-sm" style="text-decoration:none">Open App →</a>
         <a href="/api/challenge/auth/logout" class="btn btn-sm" style="text-decoration:none;border-color:rgba(248,113,113,0.4);color:#f87171">Sign Out</a>
       </div>
       {% endif %}
     </div>
 
+    {% if verified_banner %}
+    <div style="margin-bottom:1rem;padding:0.85rem 1rem;border-radius:12px;background:rgba(61,255,79,0.14);border:1.5px solid var(--green);display:flex;justify-content:space-between;align-items:center;gap:0.6rem">
+      <div>
+        <div style="font-size:0.9rem;font-weight:900;color:var(--green)">✅ Email Address Verified!</div>
+        <div style="font-size:0.76rem;color:#e2e8f0;margin-top:2px">Your email ({{ email_prefill or (active_account.email if active_account else '') }}) is confirmed and your account is active.</div>
+      </div>
+      <a href="/challenge" class="btn btn-green btn-sm" style="text-decoration:none;white-space:nowrap">Go to Daily Tracker →</a>
+    </div>
+    {% endif %}
+
     <div class="auth-tabs">
-      <button class="btn btn-green btn-sm" id="tab-btn-signin" onclick="showAuthTab('signin')">🔐 Sign In</button>
-      <button class="btn btn-sm" id="tab-btn-invite" onclick="showAuthTab('invite')">🎟️ Join Block (Invite)</button>
-      <button class="btn btn-sm" id="tab-btn-password" onclick="showAuthTab('password')">🔑 Forgot / Set Password</button>
+      <button class="btn btn-green btn-sm" id="tab-btn-signin" onclick="showAuthTab('signin')" style="justify-content:center">🔐 Sign In</button>
+      <button class="btn btn-sm" id="tab-btn-invite" onclick="showAuthTab('invite')" style="justify-content:center">✨ Create Account</button>
+      <button class="btn btn-sm" id="tab-btn-password" onclick="showAuthTab('password')" style="justify-content:center">🔑 Forgot Password</button>
     </div>
 
-    <!-- 1. Sign In Panel -->
-    <div class="card" id="auth-panel-signin">
-      <div class="card-header">
-        <span class="card-title">🔐 Sign In to Your 8-Week Block</span>
+    <!-- 1. Clean Email Sign-In Panel -->
+    <div class="card" id="auth-panel-signin" style="padding:1.25rem;border-radius:16px">
+      <div class="card-header" style="margin-bottom:0.9rem">
+        <span class="card-title" style="font-size:1.05rem">Sign In with Email</span>
         {% if is_authenticated and active_profile %}
-        <span class="badge badge-green">Signed in: {{ active_profile.client_name }}</span>
+        <span class="badge badge-green">Signed in: {{ active_profile.client_name }}{% if active_account and active_account.username %} (@{{ active_account.username }}){% endif %}</span>
         {% else %}
-        <span class="badge badge-blue">Private Challenger Login</span>
+        <span class="badge badge-blue">Challenger &amp; Coach Login</span>
         {% endif %}
       </div>
-      <div style="display:grid;gap:0.65rem;margin-bottom:0.85rem">
+      <form onsubmit="event.preventDefault(); submitEmailLogin(false);" style="display:grid;gap:0.85rem">
         <div>
-          <label class="field-label">Email Address or Full Name</label>
-          <input type="text" id="login-email" value="{{ email_prefill }}" placeholder="Enter your email address or full name..." />
+          <label class="field-label" for="login-email">Email Address</label>
+          <input type="text" inputmode="email" autocomplete="email" id="login-email" class="auth-input-lg" value="{{ email_prefill }}" placeholder="you@example.com" required />
         </div>
         <div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.2rem">
-            <label class="field-label" style="margin-bottom:0">Password (If no password set yet, enter one to save it)</label>
-            <a href="#" onclick="openForgotPasswordFromLogin();return false;" style="font-size:0.72rem;color:var(--green);font-weight:700;text-decoration:none">Forgot password?</a>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
+            <label class="field-label" for="login-password" style="margin-bottom:0">Password</label>
+            <a href="#" onclick="openForgotPasswordFromLogin();return false;" style="font-size:0.75rem;color:var(--green);font-weight:700;text-decoration:none">Forgot password?</a>
           </div>
-          <input type="password" id="login-password" placeholder="Enter your password..." />
+          <input type="password" autocomplete="current-password" id="login-password" class="auth-input-lg" placeholder="Enter your password" />
         </div>
-        <div class="grid-2" style="margin-bottom:0;gap:0.45rem">
-          <button class="btn btn-green" onclick="submitEmailLogin(false)">🚀 Sign In to 8-Week App</button>
-          <button class="btn btn-primary" onclick="submitEmailLogin(true)">🛡️ Coach &amp; Admin Sign In</button>
-        </div>
+        <button type="submit" class="btn btn-green" style="width:100%;justify-content:center;padding:0.85rem;font-size:0.98rem;font-weight:900;border-radius:11px">
+          Sign In →
+        </button>
+      </form>
+
+      <div id="login-msg" style="font-size:0.8rem;color:var(--green);margin-top:0.7rem"></div>
+
+      <div style="margin-top:1rem;padding-top:0.85rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;font-size:0.76rem;color:var(--muted)">
+        <span>New to the 8-Week Challenge? <a href="#" onclick="showAuthTab('invite');return false;" style="color:var(--green);font-weight:800;text-decoration:none">Create Account →</a></span>
+        <a href="#" onclick="submitEmailLogin(true);return false;" style="color:#38bdf8;font-weight:700;text-decoration:none">🛡️ Coach Portal Sign-In</a>
       </div>
-      <div style="font-size:0.7rem;color:var(--muted);text-align:center;margin-bottom:0.5rem">— OR SOCIAL SIGN-IN (READY FOR OAUTH CLIENT ID) —</div>
-      <div class="oauth-row">
-        <button class="oauth-btn" onclick="alert('Google Sign-In slot ready: set GOOGLE_CLIENT_ID in Railway variables when ready, or use Email + Password above.')">🌐 Continue with Google</button>
-        <button class="oauth-btn" onclick="alert('Apple Sign-In slot ready: set APPLE_CLIENT_ID in Railway variables when ready, or use Email + Password above.')">🍎 Continue with Apple</button>
-      </div>
-      <div id="login-msg" style="font-size:0.76rem;color:var(--green)"></div>
     </div>
 
-    <!-- 2. Join Block via Invite Code Panel -->
-    <div class="card" id="auth-panel-invite" style="display:none">
-      <div class="card-header">
-        <span class="card-title">🎟️ Join an 8-Week Cohort Block</span>
-        <span class="badge badge-blue">Auto-Calculates Targets</span>
+    <!-- 2. Create Account / Join Block Panel (Email + Username) -->
+    <div class="card" id="auth-panel-invite" style="display:none;padding:1.25rem;border-radius:16px">
+      <div class="card-header" style="margin-bottom:0.85rem">
+        <span class="card-title" style="font-size:1.05rem">✨ Create Challenger Account</span>
+        <span class="badge badge-green">Sends Verification Email</span>
       </div>
-      <div style="display:grid;gap:0.6rem">
+      <form onsubmit="event.preventDefault(); submitBlockJoin();" style="display:grid;gap:0.7rem">
         <div>
-          <label class="field-label">Select 8-Week Cohort Block (or Enter Invite Code)</label>
-          <select id="join-block-code">
-            {% for b in blocks %}
-            <option value="{{ b.invite_code }}" {% if b.status == 'Active' or b.invite_code == invite_code %}selected{% endif %}>
-              {{ b.name }} ({{ b.start_date }} → {{ b.end_date }}) · Code: {{ b.invite_code }}
-            </option>
-            {% endfor %}
-          </select>
+          <label class="field-label" for="join-email">Email Address (Used for Sign-In &amp; Verification)</label>
+          <input type="email" autocomplete="email" id="join-email" class="auth-input-lg" value="{{ email_prefill }}" placeholder="you@example.com" oninput="suggestUsernameFromInputs()" required />
         </div>
-        <div class="grid-2" style="margin-bottom:0">
+        <div class="grid-2" style="margin-bottom:0;gap:0.55rem">
           <div>
-            <label class="field-label">Full Name</label>
-            <input type="text" id="join-name" placeholder="e.g. Sarah Jenkins" />
+            <label class="field-label" for="join-username">Username (Display ID)</label>
+            <input type="text" id="join-username" placeholder="e.g. ewan_t" oninput="this.dataset.touched='1'" />
           </div>
           <div>
-            <label class="field-label">Email Address</label>
-            <input type="email" id="join-email" value="{{ email_prefill }}" placeholder="sarah@example.com" />
+            <label class="field-label" for="join-name">Full Name</label>
+            <input type="text" id="join-name" placeholder="e.g. Sarah Jenkins" oninput="suggestUsernameFromInputs()" required />
           </div>
         </div>
-        <div class="grid-2" style="margin-bottom:0">
+        <div class="grid-2" style="margin-bottom:0;gap:0.55rem">
           <div>
-            <label class="field-label">Create Password</label>
-            <input type="password" id="join-password" placeholder="Create password..." />
+            <label class="field-label" for="join-password">Create Password</label>
+            <input type="password" autocomplete="new-password" id="join-password" placeholder="At least 4 characters" required />
           </div>
           <div>
-            <label class="field-label">Workout Track</label>
-            <select id="join-track">
-              <option value="mens">Men's Workouts 1–4</option>
-              <option value="ladies">Ladies' Workouts 1–4</option>
+            <label class="field-label" for="join-block-code">8-Week Cohort Block</label>
+            <select id="join-block-code">
+              {% for b in blocks %}
+              <option value="{{ b.invite_code }}" {% if b.status == 'Active' or b.invite_code == invite_code %}selected{% endif %}>
+                {{ b.name }} ({{ b.invite_code }})
+              </option>
+              {% endfor %}
             </select>
           </div>
         </div>
-        <div class="grid-2" style="margin-bottom:0">
-          <div>
-            <label class="field-label">Start Weight (kg)</label>
-            <input type="number" step="0.1" id="join-sw" value="80.0" />
+
+        <details style="background:#080d0a;border:1px solid var(--border);border-radius:10px;padding:0.65rem 0.75rem">
+          <summary style="cursor:pointer;font-size:0.78rem;font-weight:800;color:#cbd5e1">⚙️ Starting Stats &amp; Targets (Optional — can also set in Desktop App)</summary>
+          <div style="display:grid;gap:0.55rem;margin-top:0.65rem">
+            <div class="grid-2" style="margin-bottom:0">
+              <div>
+                <label class="field-label">Workout Track</label>
+                <select id="join-track">
+                  <option value="mens">Men's Workouts 1–4</option>
+                  <option value="ladies">Ladies' Workouts 1–4</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label">Protein Target (g)</label>
+                <input type="number" id="join-prot" value="150" />
+              </div>
+            </div>
+            <div class="grid-2" style="margin-bottom:0">
+              <div>
+                <label class="field-label">Start Weight (kg)</label>
+                <input type="number" step="0.1" id="join-sw" value="80.0" />
+              </div>
+              <div>
+                <label class="field-label">Target Weight (kg)</label>
+                <input type="number" step="0.1" id="join-tw" value="74.5" />
+              </div>
+            </div>
+            <div class="grid-2" style="margin-bottom:0">
+              <div>
+                <label class="field-label">Start Body Fat (%)</label>
+                <input type="number" step="0.5" id="join-sbf" value="18.0" />
+              </div>
+              <div style="display:flex;align-items:end;padding-bottom:0.35rem">
+                <label style="font-size:0.74rem;display:flex;align-items:center;gap:0.4rem;cursor:pointer">
+                  <input type="checkbox" id="join-returning" style="width:auto" /> Returning Member (14k steps)
+                </label>
+              </div>
+            </div>
           </div>
-          <div>
-            <label class="field-label">Target Weight (kg)</label>
-            <input type="number" step="0.1" id="join-tw" value="74.5" />
-          </div>
-        </div>
-        <div class="grid-2" style="margin-bottom:0">
-          <div>
-            <label class="field-label">Start Body Fat (%)</label>
-            <input type="number" step="0.5" id="join-sbf" value="18.0" />
-          </div>
-          <div>
-            <label class="field-label">Protein Target (g)</label>
-            <input type="number" id="join-prot" value="150" />
-          </div>
-        </div>
-        <label style="font-size:0.76rem;display:flex;align-items:center;gap:0.4rem;cursor:pointer">
-          <input type="checkbox" id="join-returning" style="width:auto" /> Returning Block Challenger (Starts at 14,000 steps/day)
-        </label>
-        <button class="btn btn-green" onclick="submitBlockJoin()">✅ Accept Invite &amp; Join 8-Week Block</button>
-        <div id="join-msg" style="font-size:0.76rem;color:var(--green)"></div>
-      </div>
+        </details>
+
+        <button type="submit" class="btn btn-green" style="width:100%;justify-content:center;padding:0.85rem;font-size:0.98rem;font-weight:900;border-radius:11px">
+          ✨ Create Account &amp; Send Verification Email
+        </button>
+        <div id="join-msg" style="font-size:0.78rem;color:var(--green)"></div>
+      </form>
     </div>
 
-    <!-- 3. Forgot / Reset / Set Password Panel -->
-    <div class="card" id="auth-panel-password" style="display:none">
-      <div class="card-header">
-        <span class="card-title">🔑 Forgot Password / Reset Password</span>
-        <span class="badge badge-green">Instant Self-Service Reset</span>
+    <!-- 3. Clean Forgot / Reset Password Panel -->
+    <div class="card" id="auth-panel-password" style="display:none;padding:1.25rem;border-radius:16px">
+      <div class="card-header" style="margin-bottom:0.75rem">
+        <span class="card-title" style="font-size:1.05rem">🔑 Reset Your Password</span>
+        <span class="badge badge-green">Email Reset</span>
       </div>
-      <p style="font-size:0.75rem;color:var(--muted);margin:0 0 0.75rem 0;line-height:1.45">
-        Forgot your password? Enter your <strong>Email Address (or Full Name)</strong> and verify with your <strong>8-Week Block Invite Code</strong> (e.g. <code>CS-OCT2026</code>) or a <strong>6-Digit Reset Code</strong> to set a new password right away.
+      <p style="font-size:0.76rem;color:var(--muted);margin:0 0 0.85rem 0;line-height:1.45">
+        Enter your <strong>Email Address</strong> below. You can either click <strong>📩 Email Reset Code</strong> to receive a 6-digit code &amp; reset link, or enter your cohort's <strong>Block Invite Code</strong> (e.g. <code>CS-OCT2026</code>) to set a new password immediately.
       </p>
-      <div style="display:grid;gap:0.6rem;margin-bottom:0.85rem;padding-bottom:0.85rem;border-bottom:1px solid var(--border)">
+      <form onsubmit="event.preventDefault(); submitForgotPasswordReset();" style="display:grid;gap:0.7rem;margin-bottom:0.85rem;padding-bottom:0.85rem;border-bottom:1px solid var(--border)">
         <div>
-          <label class="field-label">1. Your Email Address or Full Name</label>
+          <label class="field-label" for="fp-email">Email Address</label>
           <div style="display:flex;gap:0.45rem">
-            <input type="text" id="fp-email" value="{{ email_prefill }}" placeholder="you@example.com or Full Name" style="flex:1" />
-            <button type="button" class="btn btn-blue btn-sm" onclick="requestPasswordResetCode()" style="white-space:nowrap">📩 Send 6-Digit Code</button>
+            <input type="text" inputmode="email" id="fp-email" value="{{ email_prefill }}" placeholder="you@example.com" style="flex:1" required />
+            <button type="button" class="btn btn-blue btn-sm" onclick="requestPasswordResetCode()" style="white-space:nowrap">📩 Email Reset Code</button>
           </div>
         </div>
-        <div>
-          <label class="field-label">2. Block Invite Code (e.g. CS-OCT2026) OR 6-Digit Reset Code</label>
-          <input type="text" id="fp-code" value="{{ invite_token or invite_code }}" placeholder="Enter Block Invite Code (e.g. CS-OCT2026) or 6-digit code" />
+        <div class="grid-2" style="margin-bottom:0;gap:0.55rem">
+          <div>
+            <label class="field-label" for="fp-code">Reset Code or Block Code</label>
+            <input type="text" id="fp-code" value="{{ request.args.get('code', '') or invite_token or invite_code or 'CS-OCT2026' }}" placeholder="6-digit code or CS-OCT2026" required />
+          </div>
+          <div>
+            <label class="field-label" for="fp-new-pw">New Password</label>
+            <input type="password" autocomplete="new-password" id="fp-new-pw" placeholder="New password (4+ chars)" required />
+          </div>
         </div>
-        <div>
-          <label class="field-label">3. Choose a New Password</label>
-          <input type="password" id="fp-new-pw" placeholder="New password (at least 4 characters)" />
-        </div>
-        <button class="btn btn-green" onclick="submitForgotPasswordReset()">🔐 Reset Password &amp; Sign In</button>
-        <div id="fp-msg" style="font-size:0.76rem;color:var(--green)"></div>
-      </div>
+        <button type="submit" class="btn btn-green" style="width:100%;justify-content:center;padding:0.82rem;font-size:0.95rem;font-weight:900;border-radius:11px">
+          🔐 Save New Password &amp; Sign In
+        </button>
+        <div id="fp-msg" style="font-size:0.78rem;color:var(--green)"></div>
+      </form>
 
       <details style="font-size:0.76rem;color:#cbd5e1">
-        <summary style="cursor:pointer;font-weight:700;color:var(--muted);margin-bottom:0.5rem">Already know your current password and want to change it?</summary>
+        <summary style="cursor:pointer;font-weight:700;color:var(--muted);margin-bottom:0.5rem">Change password using your current password</summary>
         <div style="display:grid;gap:0.55rem;margin-top:0.5rem">
           <div>
             <label class="field-label">Email Address</label>
@@ -225,6 +246,19 @@
         document.getElementById('tab-btn-' + k).className = (k === tab) ? 'btn btn-green btn-sm' : 'btn btn-sm';
       });
     }
+    function suggestUsernameFromInputs() {
+      const uEl = document.getElementById('join-username');
+      if (!uEl || uEl.dataset.touched === '1') return;
+      const emailVal = (document.getElementById('join-email')?.value || '').trim().toLowerCase();
+      const nameVal = (document.getElementById('join-name')?.value || '').trim().toLowerCase();
+      let base = '';
+      if (nameVal) {
+        base = nameVal.replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      } else if (emailVal && emailVal.includes('@')) {
+        base = emailVal.split('@')[0].replace(/[^a-z0-9_.-]+/g, '');
+      }
+      uEl.value = base;
+    }
     function openForgotPasswordFromLogin() {
       const loginEmail = document.getElementById('login-email')?.value || '';
       if (loginEmail && document.getElementById('fp-email')) {
@@ -242,11 +276,11 @@
       const msg = document.getElementById('fp-msg');
       if (!email) {
         msg.style.color = '#f87171';
-        msg.textContent = 'Please enter your email address or full name first.';
+        msg.textContent = 'Please enter your email address first.';
         return;
       }
       msg.style.color = '#94a3b8';
-      msg.textContent = '⏳ Requesting password reset code...';
+      msg.textContent = '⏳ Sending password reset code & link...';
       const res = await fetch('/api/challenge/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -277,15 +311,17 @@
       setTimeout(() => { window.location.href = '/challenge'; }, 500);
     }
     async function submitEmailLogin(forceAdminView) {
-      const email = document.getElementById('login-email').value;
+      const email = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value;
+      const msg = document.getElementById('login-msg');
+      msg.style.color = '#94a3b8';
+      msg.textContent = '⏳ Signing in...';
       const res = await fetch('/api/challenge/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
       const data = await res.json();
-      const msg = document.getElementById('login-msg');
       if (!data.ok) {
         msg.style.color = '#f87171';
         msg.textContent = data.error || 'Sign-in failed';
@@ -300,14 +336,15 @@
       const isCoachOnly = ['chris', 'laura'].includes((data.client_name || '').toLowerCase());
       const dest = (forceAdminView || (data.role === 'admin' && isCoachOnly)) ? '/challenge/admin' : '/challenge';
       msg.style.color = 'var(--green)';
-      msg.textContent = '✅ Signed in as ' + data.client_name + ' (' + data.role + ')! Redirecting...';
-      setTimeout(() => { window.location.href = dest; }, 450);
+      msg.textContent = `✅ Signed in as ${data.client_name} (@${data.username || 'user'})! Redirecting...`;
+      setTimeout(() => { window.location.href = dest; }, 400);
     }
     async function submitBlockJoin() {
       const payload = {
         invite_code: document.getElementById('join-block-code').value,
-        client_name: document.getElementById('join-name').value,
-        email: document.getElementById('join-email').value,
+        client_name: document.getElementById('join-name').value.trim(),
+        username: document.getElementById('join-username').value.trim(),
+        email: document.getElementById('join-email').value.trim(),
         password: document.getElementById('join-password').value,
         workout_track: document.getElementById('join-track').value,
         start_weight_kg: parseFloat(document.getElementById('join-sw').value || '80'),
@@ -326,12 +363,22 @@
       const msg = document.getElementById('join-msg');
       if (!data.ok) {
         msg.style.color = '#f87171';
-        msg.textContent = data.error || 'Could not join block';
+        msg.textContent = data.error || 'Could not create account';
         return;
       }
       msg.style.color = 'var(--green)';
-      msg.textContent = '🎉 Joined ' + data.block.name + '! Redirecting to your dashboard...';
-      setTimeout(() => { window.location.href = '/challenge'; }, 600);
+      msg.innerHTML = `
+        <div style="padding:0.75rem;border-radius:10px;background:rgba(61,255,79,0.12);border:1px solid var(--green);margin-top:0.35rem">
+          <div style="font-weight:900;color:var(--green);margin-bottom:0.25rem">🎉 Account Created for ${data.client_name} (@${data.username})!</div>
+          <div style="color:#e2e8f0;font-size:0.75rem;margin-bottom:0.55rem">
+            📩 Verification link sent for <strong>${data.email}</strong>. Click below to verify your email address and open your tracker:
+          </div>
+          <div style="display:flex;gap:0.45rem;flex-wrap:wrap">
+            <a href="${data.verification_url}" class="btn btn-green btn-sm" style="text-decoration:none">✅ Verify Email (${data.email}) &amp; Continue →</a>
+            <a href="/challenge" class="btn btn-sm" style="text-decoration:none">Open Daily App →</a>
+          </div>
+        </div>
+      `;
     }
     async function submitPasswordUpdate() {
       const res = await fetch('/api/challenge/auth/set-password', {

@@ -111,11 +111,37 @@ def ensure_blocks_and_auth_tables(db):
         "ALTER TABLE challenge_user_accounts ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'email'",
         "ALTER TABLE challenge_user_accounts ADD COLUMN reset_code TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE challenge_user_accounts ADD COLUMN reset_expires_at TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE challenge_user_accounts ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE challenge_user_accounts ADD COLUMN verification_token TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE challenge_user_accounts ADD COLUMN verified_at TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE challenge_user_accounts ADD COLUMN teamup_customer_id TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE challenge_user_accounts ADD COLUMN teamup_status TEXT NOT NULL DEFAULT ''",
     ):
         try:
             db.execute(col_sql)
         except Exception:
             pass
+
+    db.execute(
+        """CREATE TABLE IF NOT EXISTS teamup_integration_settings (
+            id                      INTEGER PRIMARY KEY CHECK (id = 1),
+            enabled                 INTEGER NOT NULL DEFAULT 0,
+            provider_id             TEXT NOT NULL DEFAULT '',
+            api_key_set             INTEGER NOT NULL DEFAULT 0,
+            api_key_b64             TEXT NOT NULL DEFAULT '',
+            webhook_secret          TEXT NOT NULL DEFAULT '',
+            auto_enroll_block_code  TEXT NOT NULL DEFAULT 'CS-OCT2026',
+            sync_class_attendance   INTEGER NOT NULL DEFAULT 1,
+            last_webhook_at         TEXT NOT NULL DEFAULT '',
+            updated_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )"""
+    )
+    t_row = db.execute("SELECT id, webhook_secret FROM teamup_integration_settings WHERE id=1").fetchone()
+    if not t_row:
+        db.execute(
+            "INSERT INTO teamup_integration_settings (id, webhook_secret, auto_enroll_block_code, sync_class_attendance) VALUES (1, ?, 'CS-OCT2026', 1)",
+            (f"tu_{secrets.token_urlsafe(14)}",),
+        )
 
     cnt = db.execute("SELECT COUNT(*) AS c FROM challenge_blocks").fetchone()["c"]
     if cnt == 0:
@@ -193,34 +219,189 @@ def ensure_blocks_and_auth_tables(db):
             p_row = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (cname,)).fetchone()
         if p_row:
             db.execute(
-                """INSERT INTO challenge_user_accounts (profile_id, username, email, role, invite_token)
-                   VALUES (?,?,?,?,?)
+                """INSERT INTO challenge_user_accounts (profile_id, username, email, role, invite_token, email_verified, verification_token)
+                   VALUES (?,?,?,?,?,1,?)
                    ON CONFLICT(profile_id) DO UPDATE SET role='admin',
+                       email_verified=1,
                        email=CASE WHEN challenge_user_accounts.email='' THEN excluded.email ELSE challenge_user_accounts.email END""",
-                (p_row["id"], uname, default_email, "admin", secrets.token_urlsafe(12)),
+                (p_row["id"], uname, default_email, "admin", secrets.token_urlsafe(12), secrets.token_urlsafe(18)),
             )
 
     # Ensure every profile has a row in challenge_user_accounts
     for p in db.execute("SELECT id, client_name FROM challenge_profiles").fetchall():
-        existing = db.execute("SELECT profile_id FROM challenge_user_accounts WHERE profile_id=?", (p["id"],)).fetchone()
+        existing = db.execute("SELECT profile_id, verification_token FROM challenge_user_accounts WHERE profile_id=?", (p["id"],)).fetchone()
         if not existing:
             slug = re.sub(r"[^a-z0-9]", "", p["client_name"].split()[0].lower()) or f"user{p['id']}"
             clash = db.execute("SELECT 1 FROM challenge_user_accounts WHERE username=?", (slug,)).fetchone()
             uname = f"{slug}{p['id']}" if clash else slug
             default_email = "taylor.ewan@gmail.com" if p["client_name"] == "Ewan t" else f"{uname}@taylorfitness.co.uk"
-            role = "admin" if p["client_name"].lower() in ("ewan t", "chris", "laura") else "challenger"
+            is_adm = p["client_name"].lower() in ("ewan t", "chris", "laura")
+            role = "admin" if is_adm else "challenger"
             db.execute(
-                """INSERT OR IGNORE INTO challenge_user_accounts (profile_id, username, email, role, invite_token)
-                   VALUES (?,?,?,?,?)""",
-                (p["id"], uname, default_email, role, secrets.token_urlsafe(12)),
+                """INSERT OR IGNORE INTO challenge_user_accounts (
+                    profile_id, username, email, role, invite_token, email_verified, verification_token
+                ) VALUES (?,?,?,?,?,?,?)""",
+                (p["id"], uname, default_email, role, secrets.token_urlsafe(12), 1 if is_adm else 0, secrets.token_urlsafe(18)),
+            )
+        elif not existing["verification_token"]:
+            db.execute(
+                "UPDATE challenge_user_accounts SET verification_token=? WHERE profile_id=?",
+                (secrets.token_urlsafe(18), p["id"]),
             )
     _auto_seed_ewan_backup_if_empty(db)
     db.commit()
 
 
+def _send_challenge_email(to_email, subject, text_body, html_body=None):
+    """Send a transactional email via SMTP or Resend HTTP API when configured."""
+    import os
+    import smtplib
+    from email.message import EmailMessage
+
+    to_email = (to_email or "").strip()
+    if not to_email or "@" not in to_email:
+        return {"sent": False, "method": "none"}
+
+    # 1. Resend HTTP API (ideal for Render/cloud hosts)
+    resend_key = (os.environ.get("RESEND_API_KEY") or "").strip()
+    if resend_key:
+        try:
+            import urllib.request
+            payload = {
+                "from": os.environ.get("SMTP_FROM") or "CS Fitness 8-Week Challenge <onboarding@resend.dev>",
+                "to": [to_email],
+                "subject": subject,
+                "text": text_body,
+            }
+            if html_body:
+                payload["html"] = html_body
+            req = urllib.request.Request(
+                "https://api.resend.com/emails",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {resend_key}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=7)
+            return {"sent": True, "method": "resend"}
+        except Exception:
+            pass
+
+    # 2. Standard SMTP (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS)
+    smtp_host = (os.environ.get("SMTP_HOST") or "").strip()
+    if smtp_host:
+        try:
+            msg = EmailMessage()
+            msg["Subject"] = subject
+            msg["From"] = os.environ.get("SMTP_FROM") or os.environ.get("SMTP_USER") or "noreply@cs.fitness"
+            msg["To"] = to_email
+            msg.set_content(text_body)
+            if html_body:
+                msg.add_alternative(html_body, subtype="html")
+            smtp_port = int(os.environ.get("SMTP_PORT") or 587)
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=8) as server:
+                server.starttls()
+                if os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASS"):
+                    server.login(os.environ["SMTP_USER"], os.environ["SMTP_PASS"])
+                server.send_message(msg)
+            return {"sent": True, "method": "smtp"}
+        except Exception:
+            pass
+
+    return {"sent": False, "method": "verification_link_ready"}
+
+
+def _send_verification_email(db, profile_id, base_url=None):
+    """Ensure a verification token exists and send a clickable verification email to the user."""
+    acct = db.execute(
+        """SELECT a.*, p.client_name FROM challenge_user_accounts a
+           JOIN challenge_profiles p ON p.id = a.profile_id
+           WHERE a.profile_id=?""",
+        (profile_id,),
+    ).fetchone()
+    if not acct:
+        return {"sent": False, "verification_url": "", "verification_token": ""}
+
+    token = (acct["verification_token"] or "").strip() if "verification_token" in acct.keys() else ""
+    if not token:
+        token = secrets.token_urlsafe(20)
+        db.execute(
+            "UPDATE challenge_user_accounts SET verification_token=?, updated_at=CURRENT_TIMESTAMP WHERE profile_id=?",
+            (token, profile_id),
+        )
+        db.commit()
+
+    host_prefix = (base_url or "").rstrip("/")
+    rel_url = f"/challenge/verify-email?token={token}"
+    full_url = f"{host_prefix}{rel_url}" if host_prefix else rel_url
+
+    subject = "Verify your email — CS Fitness 8-Week Challenge"
+    text_body = (
+        f"Hi {acct['client_name']} (@{acct['username']}),\n\n"
+        f"Welcome to the CS Fitness 8-Week Challenge!\n"
+        f"Please click the link below to verify your email address ({acct['email']}):\n\n"
+        f"{full_url}\n\n"
+        f"Sign-In Email: {acct['email']}\n"
+        f"Username: {acct['username']}\n"
+    )
+    html_body = (
+        f"<div style='font-family:sans-serif;max-width:520px;padding:24px;background:#0a0f0c;color:#f8fafc;border-radius:12px;border:1px solid #3DFF4F'>"
+        f"<h2 style='color:#3DFF4F;margin-top:0'>CS FITNESS · 8-WEEK CHALLENGE</h2>"
+        f"<p>Hi <strong>{acct['client_name']}</strong> (<code>@{acct['username']}</code>),</p>"
+        f"<p>Your challenger account has been created. Click the button below to verify your email address (<strong>{acct['email']}</strong>):</p>"
+        f"<p style='margin:24px 0'><a href='{full_url}' style='background:#3DFF4F;color:#050806;padding:12px 22px;border-radius:8px;font-weight:800;text-decoration:none;display:inline-block'>✅ Verify Email Address</a></p>"
+        f"<p style='font-size:12px;color:#94a3b8'>Or copy &amp; paste this link: {full_url}</p>"
+        f"</div>"
+    )
+    mail_res = _send_challenge_email(acct["email"], subject, text_body, html_body)
+    return {
+        "sent": mail_res["sent"],
+        "method": mail_res["method"],
+        "verification_url": rel_url,
+        "full_verification_url": full_url,
+        "verification_token": token,
+    }
+
+
 def _upsert_challenger_for_block(db, data, block_row):
     cname = (data.get("client_name") or data.get("name") or "").strip()
     email = (data.get("email") or "").strip().lower()
+    req_username = re.sub(r"[^a-z0-9_.-]", "", (data.get("username") or "").strip().lower())
+    teamup_cid = str(data.get("teamup_customer_id") or "").strip()
+
+    # Check if an account already exists by email, username, or teamup_customer_id so we reuse its profile
+    existing_by_acct = None
+    if email:
+        existing_by_acct = db.execute(
+            """SELECT p.id, p.client_name FROM challenge_user_accounts a
+               JOIN challenge_profiles p ON p.id = a.profile_id
+               WHERE LOWER(a.email)=?""",
+            (email,),
+        ).fetchone()
+    if not existing_by_acct and req_username:
+        existing_by_acct = db.execute(
+            """SELECT p.id, p.client_name FROM challenge_user_accounts a
+               JOIN challenge_profiles p ON p.id = a.profile_id
+               WHERE LOWER(a.username)=?""",
+            (req_username,),
+        ).fetchone()
+    if not existing_by_acct and teamup_cid:
+        existing_by_acct = db.execute(
+            """SELECT p.id, p.client_name FROM challenge_user_accounts a
+               JOIN challenge_profiles p ON p.id = a.profile_id
+               WHERE a.teamup_customer_id=? AND a.teamup_customer_id != ''""",
+            (teamup_cid,),
+        ).fetchone()
+
+    if existing_by_acct and not cname:
+        cname = existing_by_acct["client_name"]
+    elif existing_by_acct and cname.lower() != existing_by_acct["client_name"].lower():
+        cname = existing_by_acct["client_name"]
+
+    if not cname and req_username:
+        cname = req_username.replace("_", " ").replace(".", " ").title()
     if not cname and email:
         cname = email.split("@")[0].replace(".", " ").title()
     if not cname:
@@ -307,12 +488,15 @@ def _upsert_challenger_for_block(db, data, block_row):
         ),
     )
 
-    slug = re.sub(r"[^a-z0-9]", "", cname.split()[0].lower()) or f"user{pid}"
-    clash = db.execute("SELECT 1 FROM challenge_user_accounts WHERE username=? AND profile_id!=?", (slug, pid)).fetchone()
-    uname = f"{slug}{pid}" if clash else slug
+    base_slug = req_username or re.sub(r"[^a-z0-9]", "", cname.split()[0].lower()) or f"user{pid}"
+    clash = db.execute("SELECT 1 FROM challenge_user_accounts WHERE LOWER(username)=LOWER(?) AND profile_id!=?", (base_slug, pid)).fetchone()
+    uname = f"{base_slug}{pid}" if clash else base_slug
     raw_pw = str(data.get("password") or "").strip()
     pw_hash = bcrypt.hashpw(raw_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8") if raw_pw else ""
     invite_token = secrets.token_urlsafe(12)
+    verif_token = secrets.token_urlsafe(20)
+    teamup_cid = str(data.get("teamup_customer_id") or "").strip()
+    teamup_st = str(data.get("teamup_status") or ("Linked" if teamup_cid else "")).strip()
     is_admin_caller = _is_current_user_admin(db)
     if cname.strip().lower() in ("ewan t", "chris", "laura"):
         role = "admin"
@@ -322,14 +506,32 @@ def _upsert_challenger_for_block(db, data, block_row):
         role = "challenger"
 
     db.execute(
-        """INSERT INTO challenge_user_accounts (profile_id, username, email, password_hash, role, invite_token)
-           VALUES (?,?,?,?,?,?)
+        """INSERT INTO challenge_user_accounts (
+               profile_id, username, email, password_hash, role, invite_token,
+               email_verified, verification_token, teamup_customer_id, teamup_status
+           )
+           VALUES (?,?,?,?,?,?,0,?,?,?)
            ON CONFLICT(profile_id) DO UPDATE SET
+               username=CASE WHEN ? != '' THEN excluded.username ELSE challenge_user_accounts.username END,
                email=CASE WHEN excluded.email != '' THEN excluded.email ELSE challenge_user_accounts.email END,
                password_hash=CASE WHEN excluded.password_hash != '' THEN excluded.password_hash ELSE challenge_user_accounts.password_hash END,
+               verification_token=CASE WHEN challenge_user_accounts.verification_token = '' THEN excluded.verification_token ELSE challenge_user_accounts.verification_token END,
+               teamup_customer_id=CASE WHEN excluded.teamup_customer_id != '' THEN excluded.teamup_customer_id ELSE challenge_user_accounts.teamup_customer_id END,
+               teamup_status=CASE WHEN excluded.teamup_status != '' THEN excluded.teamup_status ELSE challenge_user_accounts.teamup_status END,
                role=excluded.role,
                updated_at=CURRENT_TIMESTAMP""",
-        (pid, uname, email or f"{uname}@taylorfitness.co.uk", pw_hash, role, invite_token),
+        (
+            pid,
+            uname,
+            email or f"{uname}@taylorfitness.co.uk",
+            pw_hash,
+            role,
+            invite_token,
+            verif_token,
+            teamup_cid,
+            teamup_st,
+            req_username,
+        ),
     )
     db.commit()
     acct = db.execute("SELECT * FROM challenge_user_accounts WHERE profile_id=?", (pid,)).fetchone()
@@ -343,15 +545,120 @@ def challenge_login_page():
     blocks = [dict(r) for r in db.execute("SELECT * FROM challenge_blocks ORDER BY start_date").fetchall()]
     is_authed = bool(session.get("challenge_authed") and session.get("challenge_profile_id"))
     active_prof = _get_active_profile(db) if is_authed else None
+    active_acct = None
+    if active_prof:
+        r = db.execute("SELECT * FROM challenge_user_accounts WHERE profile_id=?", (active_prof["id"],)).fetchone()
+        active_acct = dict(r) if r else None
     return render_template(
         "challenge_login.html",
         blocks=blocks,
         active_profile=active_prof,
+        active_account=active_acct,
         is_authenticated=is_authed,
         invite_code=request.args.get("code", ""),
         invite_token=request.args.get("invite", ""),
         email_prefill=request.args.get("email", ""),
+        verified_banner=request.args.get("verified", "") == "1",
     )
+
+
+@challenge_blocks_bp.route("/challenge/verify-email", methods=["GET"])
+@challenge_blocks_bp.route("/api/challenge/auth/verify-email", methods=["GET", "POST"])
+def api_challenge_verify_email():
+    """Verify a challenger's email address when they click the verification link sent on account creation."""
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    token = (
+        request.args.get("token")
+        or ((request.get_json(silent=True) or {}).get("token") if request.method == "POST" else "")
+        or ""
+    ).strip()
+
+    wants_json = (
+        request.path.startswith("/api/")
+        or request.method == "POST"
+        or "application/json" in (request.headers.get("Accept") or "")
+    )
+    if not token:
+        if wants_json:
+            return jsonify({"ok": False, "error": "Missing verification token."}), 400
+        return redirect(url_for("challenge_blocks.challenge_login_page"))
+
+    acct = db.execute(
+        """SELECT a.*, p.client_name FROM challenge_user_accounts a
+           JOIN challenge_profiles p ON p.id = a.profile_id
+           WHERE a.verification_token=?""",
+        (token,),
+    ).fetchone()
+    if not acct:
+        if wants_json:
+            return jsonify({"ok": False, "error": "Invalid or expired email verification token."}), 404
+        return redirect(url_for("challenge_blocks.challenge_login_page"))
+
+    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    db.execute(
+        """UPDATE challenge_user_accounts
+           SET email_verified=1, verified_at=?, updated_at=CURRENT_TIMESTAMP
+           WHERE profile_id=?""",
+        (now_str, acct["profile_id"]),
+    )
+    db.commit()
+
+    session["challenge_profile_id"] = acct["profile_id"]
+    session["challenge_authed"] = True
+
+    if wants_json:
+        return jsonify({
+            "ok": True,
+            "profile_id": acct["profile_id"],
+            "client_name": acct["client_name"],
+            "username": acct["username"],
+            "email": acct["email"],
+            "email_verified": True,
+            "verified_at": now_str,
+            "message": f"Email {acct['email']} verified! Welcome, {acct['client_name']} (@{acct['username']}).",
+        })
+    return redirect(url_for("challenge_blocks.challenge_login_page", verified="1", email=acct["email"]))
+
+
+@challenge_blocks_bp.route("/api/challenge/auth/resend-verification", methods=["POST"])
+def api_challenge_resend_verification():
+    """Resend the email verification link to the user's email address."""
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    data = request.get_json(silent=True) or {}
+    ident = (data.get("email") or data.get("username") or "").strip().lower()
+    pid = data.get("profile_id")
+
+    if pid:
+        acct = db.execute("SELECT * FROM challenge_user_accounts WHERE profile_id=?", (int(pid),)).fetchone()
+    elif ident:
+        acct = db.execute(
+            "SELECT * FROM challenge_user_accounts WHERE LOWER(email)=? OR LOWER(username)=?",
+            (ident, ident),
+        ).fetchone()
+    else:
+        active_prof = _get_active_profile(db)
+        acct = db.execute("SELECT * FROM challenge_user_accounts WHERE profile_id=?", (active_prof["id"],)).fetchone()
+
+    if not acct:
+        return jsonify({"ok": False, "error": "Account not found."}), 404
+
+    v_res = _send_verification_email(db, acct["profile_id"], request.host_url.rstrip("/"))
+    return jsonify({
+        "ok": True,
+        "profile_id": acct["profile_id"],
+        "email": acct["email"],
+        "username": acct["username"],
+        "email_sent": v_res["sent"],
+        "verification_url": v_res["verification_url"],
+        "full_verification_url": v_res["full_verification_url"],
+        "message": (
+            f"Verification email sent to {acct['email']}!"
+            if v_res["sent"]
+            else f"Verification link generated for {acct['email']} — click to verify."
+        ),
+    })
 
 
 @challenge_blocks_bp.route("/api/challenge/auth/logout", methods=["POST", "GET"])
@@ -382,7 +689,10 @@ def api_challenge_auth_status():
         "authenticated": bool(session.get("challenge_authed")),
         "profile_id": prof["id"],
         "client_name": prof["client_name"],
+        "username": acct["username"] if acct else "",
         "email": acct["email"] if acct else "",
+        "email_verified": bool(acct and acct["email_verified"]) if acct and "email_verified" in acct.keys() else False,
+        "teamup_customer_id": acct["teamup_customer_id"] if acct and "teamup_customer_id" in acct.keys() else "",
         "role": acct["role"] if acct else "challenger",
         "has_password": bool(acct and acct["password_hash"]),
         "active_block": dict(enr) if enr else None,
@@ -397,6 +707,9 @@ def api_challenge_auth_login():
     ident = (data.get("email") or data.get("username") or "").strip().lower()
     raw_pw = str(data.get("password") or "").strip()
 
+    if not ident:
+        return jsonify({"ok": False, "error": "Please enter your email address."}), 400
+
     acct = db.execute(
         """SELECT a.*, p.client_name FROM challenge_user_accounts a
            JOIN challenge_profiles p ON p.id = a.profile_id
@@ -404,11 +717,11 @@ def api_challenge_auth_login():
         (ident, ident, ident),
     ).fetchone()
     if not acct:
-        return jsonify({"ok": False, "error": "Account not found. Check your email/name or use an Invite Code to join."}), 404
+        return jsonify({"ok": False, "error": "No account found for that email address. Use the Create Account / Join Block tab to sign up."}), 404
 
     if acct["password_hash"]:
         if not raw_pw or not bcrypt.checkpw(raw_pw.encode("utf-8"), acct["password_hash"].encode("utf-8")):
-            return jsonify({"ok": False, "error": "Incorrect password for this account."}), 401
+            return jsonify({"ok": False, "error": "Incorrect password. Click 'Forgot password?' below if you need to reset it."}), 401
     elif raw_pw:
         # First-time password setup on login if account had no password yet
         pw_hash = bcrypt.hashpw(raw_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -421,8 +734,91 @@ def api_challenge_auth_login():
         "ok": True,
         "profile_id": acct["profile_id"],
         "client_name": acct["client_name"],
+        "username": acct["username"],
         "email": acct["email"],
+        "email_verified": bool(acct["email_verified"]) if "email_verified" in acct.keys() else False,
         "role": acct["role"],
+    })
+
+
+@challenge_blocks_bp.route("/api/challenge/auth/update-account", methods=["POST"])
+def api_challenge_update_account():
+    """Update a user's email address, username (handle), or display name."""
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    data = request.get_json() or {}
+    active_prof = _get_active_profile(db)
+    pid = int(data.get("profile_id") or active_prof["id"])
+    if pid != int(active_prof["id"]) and not _is_current_user_admin(db):
+        return jsonify({"ok": False, "error": "Cannot modify another user's account."}), 403
+
+    new_email = (data.get("email") or "").strip().lower()
+    new_username = re.sub(r"[^a-z0-9_.-]", "", (data.get("username") or "").strip().lower())
+    new_name = (data.get("client_name") or "").strip()
+    teamup_cid = (data.get("teamup_customer_id") or "").strip()
+
+    acct = db.execute("SELECT * FROM challenge_user_accounts WHERE profile_id=?", (pid,)).fetchone()
+    if not acct:
+        return jsonify({"ok": False, "error": "Account not found."}), 404
+
+    if new_username and new_username != (acct["username"] or "").lower():
+        clash = db.execute(
+            "SELECT 1 FROM challenge_user_accounts WHERE LOWER(username)=? AND profile_id!=?",
+            (new_username, pid),
+        ).fetchone()
+        if clash:
+            return jsonify({"ok": False, "error": f"Username '@{new_username}' is already taken."}), 409
+
+    if new_email and new_email != (acct["email"] or "").lower():
+        clash = db.execute(
+            "SELECT 1 FROM challenge_user_accounts WHERE LOWER(email)=? AND profile_id!=?",
+            (new_email, pid),
+        ).fetchone()
+        if clash:
+            return jsonify({"ok": False, "error": f"Email '{new_email}' is already linked to another account."}), 409
+
+    email_changed = bool(new_email and new_email != (acct["email"] or "").lower())
+    db.execute(
+        """UPDATE challenge_user_accounts
+           SET email=CASE WHEN ? != '' THEN ? ELSE email END,
+               username=CASE WHEN ? != '' THEN ? ELSE username END,
+               teamup_customer_id=CASE WHEN ? != '' THEN ? ELSE teamup_customer_id END,
+               email_verified=CASE WHEN ? = 1 THEN 0 ELSE email_verified END,
+               verification_token=CASE WHEN ? = 1 THEN ? ELSE verification_token END,
+               updated_at=CURRENT_TIMESTAMP
+           WHERE profile_id=?""",
+        (
+            new_email, new_email,
+            new_username, new_username,
+            teamup_cid, teamup_cid,
+            1 if email_changed else 0,
+            1 if email_changed else 0,
+            secrets.token_urlsafe(20),
+            pid,
+        ),
+    )
+    if new_name:
+        db.execute("UPDATE challenge_profiles SET client_name=? WHERE id=?", (new_name, pid))
+    db.commit()
+
+    v_res = None
+    if email_changed:
+        v_res = _send_verification_email(db, pid, request.host_url.rstrip("/"))
+
+    updated = db.execute(
+        """SELECT a.*, p.client_name FROM challenge_user_accounts a
+           JOIN challenge_profiles p ON p.id = a.profile_id WHERE a.profile_id=?""",
+        (pid,),
+    ).fetchone()
+    return jsonify({
+        "ok": True,
+        "profile_id": pid,
+        "client_name": updated["client_name"],
+        "username": updated["username"],
+        "email": updated["email"],
+        "email_verified": bool(updated["email_verified"]),
+        "verification_url": v_res["verification_url"] if v_res else "",
+        "message": "Account details updated!",
     })
 
 
@@ -495,28 +891,27 @@ def api_challenge_forgot_password():
     db.commit()
 
     delivery = []
-    smtp_host = (os.environ.get("SMTP_HOST") or "").strip()
-    if smtp_host and acct["email"] and "@" in acct["email"]:
-        try:
-            msg = EmailMessage()
-            msg["Subject"] = f"CS Fitness 8-Week Challenge — Password Reset Code ({reset_code})"
-            msg["From"] = os.environ.get("SMTP_FROM") or os.environ.get("SMTP_USER") or "noreply@cs.fitness"
-            msg["To"] = acct["email"]
-            msg.set_content(
-                f"Hi {acct['client_name']},\n\n"
-                f"Your CS Fitness 8-Week Challenge password reset code is: {reset_code}\n"
-                f"(Valid for 30 minutes.)\n\n"
-                f"You can also reset your password anytime on the Sign-In page using your 8-Week Block Invite Code.\n"
-            )
-            smtp_port = int(os.environ.get("SMTP_PORT") or 587)
-            with smtplib.SMTP(smtp_host, smtp_port, timeout=8) as server:
-                server.starttls()
-                if os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASS"):
-                    server.login(os.environ["SMTP_USER"], os.environ["SMTP_PASS"])
-                server.send_message(msg)
-            delivery.append("email")
-        except Exception:
-            pass
+    reset_url = f"{request.host_url.rstrip('/')}/challenge/login?reset=1&email={acct['email']}&code={reset_code}"
+    mail_res = _send_challenge_email(
+        acct["email"],
+        f"CS Fitness 8-Week Challenge — Password Reset ({reset_code})",
+        (
+            f"Hi {acct['client_name']} (@{acct['username']}),\n\n"
+            f"Your CS Fitness 8-Week Challenge password reset code is: {reset_code}\n"
+            f"(Valid for 30 minutes.)\n\n"
+            f"Or click this link to reset your password directly:\n{reset_url}\n"
+        ),
+        (
+            f"<div style='font-family:sans-serif;max-width:520px;padding:24px;background:#0a0f0c;color:#f8fafc;border-radius:12px;border:1px solid #3DFF4F'>"
+            f"<h2 style='color:#3DFF4F;margin-top:0'>Password Reset Request</h2>"
+            f"<p>Hi <strong>{acct['client_name']}</strong> (<code>@{acct['username']}</code>),</p>"
+            f"<p>Your 6-digit password reset code is: <strong style='font-size:20px;color:#3DFF4F'>{reset_code}</strong></p>"
+            f"<p style='margin:22px 0'><a href='{reset_url}' style='background:#3DFF4F;color:#050806;padding:12px 22px;border-radius:8px;font-weight:800;text-decoration:none;display:inline-block'>🔑 Reset Password Now</a></p>"
+            f"</div>"
+        ),
+    )
+    if mail_res.get("sent"):
+        delivery.append("email")
 
     try:
         intg = db.execute(
@@ -761,7 +1156,8 @@ def api_challenge_blocks():
             dict(r)
             for r in db.execute(
                 """SELECT e.*, p.client_name, p.start_weight_kg, p.target_weight_kg, p.target_calories, p.target_protein_g,
-                          p.returning_member, a.email, a.username, a.invite_token,
+                          p.returning_member, a.email, a.username, a.invite_token, a.email_verified,
+                          a.teamup_customer_id, a.teamup_status,
                           CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password
                    FROM challenge_block_enrollments e
                    JOIN challenge_profiles p ON p.id = e.profile_id
@@ -774,6 +1170,7 @@ def api_challenge_blocks():
             for r in db.execute(
                 """SELECT p.id AS profile_id, p.client_name, p.start_date, p.end_date, p.returning_member,
                           p.target_calories, p.target_protein_g, a.email, a.username, a.role, a.invite_token,
+                          a.email_verified, a.teamup_customer_id, a.teamup_status,
                           CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password
                    FROM challenge_profiles p
                    LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
@@ -785,7 +1182,8 @@ def api_challenge_blocks():
             dict(r)
             for r in db.execute(
                 """SELECT e.*, p.client_name, p.start_weight_kg, p.target_weight_kg, p.target_calories, p.target_protein_g,
-                          p.returning_member, a.email, a.username,
+                          p.returning_member, a.email, a.username, a.email_verified,
+                          a.teamup_customer_id, a.teamup_status,
                           CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password
                    FROM challenge_block_enrollments e
                    JOIN challenge_profiles p ON p.id = e.profile_id
@@ -800,6 +1198,7 @@ def api_challenge_blocks():
             for r in db.execute(
                 """SELECT p.id AS profile_id, p.client_name, p.start_date, p.end_date, p.returning_member,
                           p.target_calories, p.target_protein_g, a.email, a.username, a.role,
+                          a.email_verified, a.teamup_customer_id, a.teamup_status,
                           CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password
                    FROM challenge_profiles p
                    LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
@@ -863,6 +1262,9 @@ def api_challenge_block_join_or_webhook():
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 
+    # Send verification email on account creation
+    v_res = _send_verification_email(db, prof["id"], request.host_url.rstrip("/"))
+
     if data.get("auto_sign_in", True):
         session["challenge_profile_id"] = prof["id"]
         session["challenge_authed"] = True
@@ -872,8 +1274,146 @@ def api_challenge_block_join_or_webhook():
         "block": dict(block_row),
         "profile_id": prof["id"],
         "client_name": prof["client_name"],
+        "username": acct["username"],
         "email": acct["email"],
+        "email_verified": bool(acct.get("email_verified")),
+        "verification_email_sent": v_res["sent"],
+        "verification_url": v_res["verification_url"],
+        "full_verification_url": v_res["full_verification_url"],
         "invite_url": f"/challenge/login?invite={acct['invite_token']}&email={acct['email']}",
+        "message": (
+            f"Account created for {prof['client_name']} (@{acct['username']})! Verification email sent to {acct['email']}."
+            if v_res["sent"]
+            else f"Account created for {prof['client_name']} (@{acct['username']})! Click the verification link sent for {acct['email']} to verify your email."
+        ),
+    })
+
+
+@challenge_blocks_bp.route("/api/challenge/admin/teamup", methods=["GET", "POST"])
+def api_challenge_admin_teamup():
+    """Configure or inspect the TeamUp Gym Management integration (for future/live member & class sync)."""
+    import base64
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    if request.method == "POST" and not _is_current_user_admin(db):
+        return jsonify({"ok": False, "error": "Only Coach & Admin accounts can configure TeamUp."}), 403
+
+    row = db.execute("SELECT * FROM teamup_integration_settings WHERE id=1").fetchone()
+    curr = dict(row) if row else {}
+
+    if request.method == "POST":
+        data = request.get_json() or {}
+        enabled = 1 if data.get("enabled", curr.get("enabled")) else 0
+        provider_id = str(data.get("provider_id", curr.get("provider_id", ""))).strip()
+        auto_block = str(data.get("auto_enroll_block_code", curr.get("auto_enroll_block_code", "CS-OCT2026"))).strip().upper()
+        sync_classes = 1 if data.get("sync_class_attendance", curr.get("sync_class_attendance", 1)) else 0
+        raw_key = str(data.get("api_key") or "").strip()
+        api_key_set = 1 if raw_key else int(curr.get("api_key_set") or 0)
+        api_key_b64 = base64.b64encode(raw_key.encode("utf-8")).decode("ascii") if raw_key else curr.get("api_key_b64", "")
+
+        db.execute(
+            """UPDATE teamup_integration_settings
+               SET enabled=?, provider_id=?, api_key_set=?, api_key_b64=?,
+                   auto_enroll_block_code=?, sync_class_attendance=?, updated_at=CURRENT_TIMESTAMP
+               WHERE id=1""",
+            (enabled, provider_id, api_key_set, api_key_b64, auto_block, sync_classes),
+        )
+        if data.get("link_profile_id") and data.get("teamup_customer_id") is not None:
+            lpid = int(data["link_profile_id"])
+            tcid = str(data["teamup_customer_id"]).strip()
+            db.execute(
+                """UPDATE challenge_user_accounts
+                   SET teamup_customer_id=?, teamup_status=?, updated_at=CURRENT_TIMESTAMP
+                   WHERE profile_id=?""",
+                (tcid, "Active Member" if tcid else "", lpid),
+            )
+        db.commit()
+        row = db.execute("SELECT * FROM teamup_integration_settings WHERE id=1").fetchone()
+        curr = dict(row)
+
+    curr.pop("api_key_b64", None)
+    curr["webhook_url"] = f"{request.host_url.rstrip('/')}/api/challenge/teamup/webhook"
+    return jsonify({"ok": True, "teamup": curr})
+
+
+@challenge_blocks_bp.route("/api/challenge/teamup/webhook", methods=["POST"])
+def api_challenge_teamup_webhook():
+    """Receive TeamUp Gym webhooks (new member enrollment or CS Fitness class check-in)."""
+    from challenge import _upsert_checkin
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    data = request.get_json(silent=True) or {}
+    event_type = (data.get("event") or data.get("type") or "customer.sync").strip().lower()
+    email = (data.get("email") or (data.get("customer") or {}).get("email") or "").strip().lower()
+    name = (data.get("name") or (data.get("customer") or {}).get("name") or "").strip()
+    teamup_cid = str(data.get("teamup_customer_id") or data.get("customer_id") or (data.get("customer") or {}).get("id") or "").strip()
+
+    t_cfg = db.execute("SELECT * FROM teamup_integration_settings WHERE id=1").fetchone()
+    block_code = (data.get("block_code") or (t_cfg["auto_enroll_block_code"] if t_cfg else "CS-OCT2026")).strip().upper()
+    block_row = db.execute(
+        "SELECT * FROM challenge_blocks WHERE UPPER(invite_code)=? OR UPPER(block_code)=?",
+        (block_code, block_code),
+    ).fetchone() or db.execute("SELECT * FROM challenge_blocks WHERE status='Active' LIMIT 1").fetchone()
+
+    db.execute(
+        "UPDATE teamup_integration_settings SET last_webhook_at=?, updated_at=CURRENT_TIMESTAMP WHERE id=1",
+        (datetime.now().strftime("%Y-%m-%d %H:%M"),),
+    )
+
+    if not email and not name:
+        db.commit()
+        return jsonify({"ok": False, "error": "TeamUp payload requires customer email or name."}), 400
+
+    prof, acct = _upsert_challenger_for_block(
+        db,
+        {
+            "client_name": name,
+            "email": email,
+            "username": data.get("username") or "",
+            "teamup_customer_id": teamup_cid or f"TU-{secrets.token_hex(3).upper()}",
+            "teamup_status": "Active Member (TeamUp)",
+            "joined_via": "TeamUp Gym Sync",
+            "start_weight_kg": data.get("start_weight_kg") or 80.0,
+        },
+        dict(block_row),
+    )
+
+    class_logged = None
+    if "class_name" in data or "attendance" in event_type or "class" in event_type:
+        cls_name = (data.get("class_name") or "CS Fitness Sweat").strip()
+        date_str = (data.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
+        is_cardio = any(k in cls_name.lower() for k in ("run", "sweat", "hyrox", "engine", "cardio", "conditioning"))
+        new_t_type = "CARDIO" if is_cardio else "GYM"
+        ex_ci = db.execute(
+            "SELECT training_type, notes FROM daily_checkins WHERE profile_id=? AND date=?",
+            (prof["id"], date_str),
+        ).fetchone()
+        ex_t = (ex_ci["training_type"] if ex_ci and ex_ci["training_type"] else "REST").upper()
+        if ex_t in ("GYM & CARDIO", "BOTH") or (ex_t == "GYM" and new_t_type == "CARDIO") or (ex_t == "CARDIO" and new_t_type == "GYM"):
+            merged_t_type = "GYM & CARDIO"
+        else:
+            merged_t_type = new_t_type
+        ex_notes = (ex_ci["notes"] if ex_ci and ex_ci["notes"] else "").strip()
+        tu_note = f"TeamUp: {cls_name}"
+        merged_notes = f"{ex_notes} · {tu_note}" if (ex_notes and tu_note not in ex_notes) else (ex_notes or f"Synced from TeamUp ({cls_name})")
+        _upsert_checkin(
+            db,
+            date_str,
+            {"training_type": merged_t_type, "class_attended": f"TeamUp: {cls_name}", "notes": merged_notes},
+            prof["id"],
+        )
+        class_logged = cls_name
+
+    db.commit()
+    return jsonify({
+        "ok": True,
+        "event": event_type,
+        "profile_id": prof["id"],
+        "client_name": prof["client_name"],
+        "username": acct["username"],
+        "email": acct["email"],
+        "teamup_customer_id": acct.get("teamup_customer_id"),
+        "class_logged": class_logged,
     })
 
 
@@ -1247,8 +1787,15 @@ def api_challenge_admin_challenger_detail():
     profile = dict(p_row)
     profile["weekly_targets"] = json.loads(profile.get("weekly_targets_json", "[]") or "[]")
 
-    acct = db.execute("SELECT username, email, role, invite_token FROM challenge_user_accounts WHERE profile_id=?", (profile["id"],)).fetchone()
+    acct = db.execute(
+        "SELECT username, email, role, invite_token, email_verified, teamup_customer_id, teamup_status FROM challenge_user_accounts WHERE profile_id=?",
+        (profile["id"],),
+    ).fetchone()
+    profile["username"] = acct["username"] if acct else ""
     profile["email"] = acct["email"] if acct else ""
+    profile["email_verified"] = bool(acct["email_verified"]) if acct and "email_verified" in acct.keys() else False
+    profile["teamup_customer_id"] = acct["teamup_customer_id"] if acct and "teamup_customer_id" in acct.keys() else ""
+    profile["teamup_status"] = acct["teamup_status"] if acct and "teamup_status" in acct.keys() else ""
     profile["role"] = acct["role"] if acct else "challenger"
     profile["invite_token"] = acct["invite_token"] if acct else ""
 
@@ -1324,7 +1871,11 @@ def api_challenge_admin_cohort_summary():
     profiles = [
         dict(r)
         for r in db.execute(
-            """SELECT p.*, COALESCE(a.email, '') AS email, COALESCE(a.role, 'challenger') AS role,
+            """SELECT p.*, COALESCE(a.email, '') AS email, COALESCE(a.username, '') AS username,
+                      COALESCE(a.email_verified, 0) AS email_verified,
+                      COALESCE(a.teamup_customer_id, '') AS teamup_customer_id,
+                      COALESCE(a.teamup_status, '') AS teamup_status,
+                      COALESCE(a.role, 'challenger') AS role,
                       e.block_id, COALESCE(b.name, 'Block 1 · Oct–Dec 2026') AS block_name,
                       COALESCE(b.invite_code, 'CS-OCT2026') AS invite_code
                FROM challenge_profiles p
@@ -1389,7 +1940,11 @@ def api_challenge_admin_cohort_summary():
         roster.append({
             "profile_id": pid,
             "client_name": p["client_name"],
+            "username": p.get("username") or "",
             "email": p["email"],
+            "email_verified": bool(p.get("email_verified")),
+            "teamup_customer_id": p.get("teamup_customer_id") or "",
+            "teamup_status": p.get("teamup_status") or "",
             "role": p["role"],
             "goal": p.get("goal") or "Weight Loss",
             "returning_member": bool(p.get("returning_member")),
