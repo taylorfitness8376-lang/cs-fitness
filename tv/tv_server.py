@@ -70,7 +70,59 @@ def cms():
 
 @app.route("/display")
 def display():
-    return render_template("display.html")
+    initial_session = get_current_session() or {"name": None}
+    resp = app.make_response(render_template("display.html", initial_session=initial_session))
+    resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return resp
+
+
+@app.route("/sw-display.js")
+def sw_display():
+    sw_code = """const CACHE_NAME = 'cs-fitness-tv-v2';
+const SHELL_URLS = ['/display', '/static/logo.jpg'];
+
+self.addEventListener('install', event => {
+  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL_URLS).catch(() => {}))
+  );
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(keys => Promise.all(
+      keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+    )).then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+  if (url.pathname === '/display') {
+    event.respondWith(
+      fetch(event.request)
+        .then(resp => {
+          if (resp && resp.ok) {
+            const copy = resp.clone();
+            caches.open(CACHE_NAME).then(c => c.put('/display', copy));
+            return resp;
+          }
+          return caches.match('/display').then(cached => cached || resp);
+        })
+        .catch(() => caches.match('/display'))
+    );
+  } else if (url.pathname === '/static/logo.jpg') {
+    event.respondWith(
+      caches.match(event.request).then(cached => cached || fetch(event.request))
+    );
+  }
+});
+"""
+    resp = app.make_response(sw_code)
+    resp.headers["Content-Type"] = "application/javascript"
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
 
 
 # ── Sessions API ──────────────────────────────────────────
@@ -211,17 +263,34 @@ def import_sessions():
 
 def get_current_session():
     db = get_db()
-    today = datetime.now().strftime("%Y-%m-%d")
+    now = datetime.now()
+    today = now.strftime("%Y-%m-%d")
 
     # 1. Manual override takes precedence, but only for the day it was published
     ov = db.execute("SELECT session_id, set_at FROM override WHERE id=1").fetchone()
-    if ov and ov["session_id"] and ov["set_at"] and str(ov["set_at"])[:10] == today:
+    if ov and ov["session_id"] and (not ov["set_at"] or str(ov["set_at"])[:10] == today):
         return _session_to_dict(ov["session_id"], db)
 
     # 2. Today's calendar entry
     row = db.execute("SELECT session_id FROM calendar WHERE date=?", (today,)).fetchone()
     if row and row["session_id"]:
         return _session_to_dict(row["session_id"], db)
+
+    # 3. Walk back through weekly schedule (up to 7 days) to find active slot
+    current_day = now.weekday()      # 0=Mon … 6=Sun
+    current_time = now.strftime("%H:%M")
+
+    for days_back in range(7):
+        check_day = (current_day - days_back) % 7
+        check_time = current_time if days_back == 0 else "23:59"
+        sched_row = db.execute(
+            "SELECT session_id FROM schedule "
+            "WHERE day_of_week=? AND start_time<=? "
+            "ORDER BY start_time DESC LIMIT 1",
+            (check_day, check_time)
+        ).fetchone()
+        if sched_row and sched_row["session_id"]:
+            return _session_to_dict(sched_row["session_id"], db)
 
     return None
 
@@ -274,9 +343,10 @@ def delete_calendar(date):
 @app.route("/api/session")
 def api_current_session():
     result = get_current_session()
-    if result is None:
-        return jsonify({"name": None}), 200
-    return jsonify(result)
+    payload = {"name": None} if result is None else result
+    resp = jsonify(payload)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp, 200
 
 
 # ── Schedule CRUD ─────────────────────────────────────────

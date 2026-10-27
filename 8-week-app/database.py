@@ -94,7 +94,63 @@ def init_db():
             pass
 
     init_challenge_tables(db)
+    try:
+        if not current_app.config.get("TESTING"):
+            seed_default_tv_sessions(db)
+    except Exception:
+        pass
     db.commit()
+
+
+def seed_default_tv_sessions(db):
+    """Auto-seed CS Performance TV workouts and default weekly schedule when empty on cloud/local startup."""
+    import json as _json
+    count_row = db.execute("SELECT COUNT(*) as c FROM sessions").fetchone()
+    if count_row and count_row["c"] == 0:
+        import_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "data", "cs_performance_import.json")
+        )
+        if os.path.exists(import_path):
+            with open(import_path, "r", encoding="utf-8") as f:
+                sessions_data = _json.load(f)
+            for s in sessions_data:
+                if not s.get("name"):
+                    continue
+                cur = db.execute(
+                    "INSERT INTO sessions (name, coach_notes, session_type) VALUES (?,?,?)",
+                    (s["name"], s.get("coach_notes", ""), s.get("session_type", "strength")),
+                )
+                sid = cur.lastrowid
+                for i, block in enumerate(s.get("blocks", [])):
+                    bcur = db.execute(
+                        "INSERT INTO blocks (session_id, label, focus, sort_order) VALUES (?,?,?,?)",
+                        (sid, block.get("label", ""), block.get("focus", ""), i),
+                    )
+                    bid = bcur.lastrowid
+                    for j, ex in enumerate(block.get("exercises", [])):
+                        db.execute(
+                            "INSERT INTO exercises (block_id, code, name, sets_reps, sort_order) VALUES (?,?,?,?,?)",
+                            (bid, ex.get("code", ""), ex.get("name", ""), ex.get("sets_reps", ""), j),
+                        )
+
+    sched_count = db.execute("SELECT COUNT(*) as c FROM schedule").fetchone()
+    if sched_count and sched_count["c"] == 0:
+        rows = db.execute("SELECT id, name FROM sessions ORDER BY id").fetchall()
+        if rows:
+            day_tokens = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+            for dow, token in enumerate(day_tokens):
+                matched_id = None
+                for r in rows:
+                    if f"- {token} " in r["name"] or token.lower() in r["name"].lower():
+                        matched_id = r["id"]
+                        break
+                if matched_id is None:
+                    matched_id = rows[dow % len(rows)]["id"]
+                db.execute(
+                    "INSERT OR IGNORE INTO schedule (day_of_week, start_time, session_id) VALUES (?,?,?)",
+                    (dow, "04:00", matched_id),
+                )
+
 
 
 def calculate_challenge_targets(

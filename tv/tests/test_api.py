@@ -87,3 +87,28 @@ def test_update_session(authed_client):
     })
     r2 = authed_client.get(f"/api/sessions/{sid}")
     assert r2.get_json()["name"] == "New Name"
+
+
+def test_display_and_sw_routes(client):
+    r = client.get("/display")
+    assert r.status_code == 200
+    assert b"INITIAL_SESSION" in r.data
+    assert b"#root { flex: 1; display: flex;" in r.data
+
+    sw = client.get("/sw-display.js")
+    assert sw.status_code == 200
+    assert b"cs-fitness-tv-v2" in sw.data
+
+
+def test_default_tv_sessions_auto_seed(app, client):
+    from database import get_db, seed_default_tv_sessions
+    with app.app_context():
+        db = get_db()
+        seed_default_tv_sessions(db)
+        db.commit()
+    r = client.get("/api/session")
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data.get("name") is not None
+    assert "CS Performance" in data["name"]
+

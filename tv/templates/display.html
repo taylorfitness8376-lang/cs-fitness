@@ -9,6 +9,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
     body { font-family: Inter, sans-serif; display: flex; flex-direction: column; }
+    #root { flex: 1; display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; }
 
     /* Header */
     .header { display: flex; align-items: stretch; flex-shrink: 0; border-bottom: 1px solid #000; }
@@ -68,49 +69,86 @@
     .blocks.cardio .ex-name { font-size: 2.6vw; }
     .blocks.cardio .ex-sets { font-size: 2.4vw; min-width: 6vw; }
 
-    /* Idle state */
-    .idle { flex: 1; display: flex; align-items: center; justify-content: center; }
-    .idle img { width: 20vw; opacity: 0.2; filter: drop-shadow(0 0 2vw #3DFF4F44); }
+    /* Idle & Rest state */
+    .idle { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5vw; text-align: center; padding: 3vw; }
+    .idle img { width: 14vw; opacity: 0.85; filter: drop-shadow(0 0 2vw #3DFF4F66); }
+    .idle-title { font-family: 'Barlow Condensed', sans-serif; font-style: italic; font-weight: 800; font-size: 3.6vw; color: #fff; letter-spacing: 0.04em; text-transform: uppercase; }
+    .idle-sub { font-size: 1.2vw; color: #888; max-width: 55vw; line-height: 1.5; }
+    .idle-sub a { color: #3DFF4F; text-decoration: none; font-weight: 700; }
+    .conn-badge { position: fixed; bottom: 0.8vw; right: 1.2vw; font-size: 0.75vw; color: #666; background: rgba(10,10,10,0.85); border: 1px solid #222; border-radius: 999px; padding: 0.25vw 0.7vw; display: flex; align-items: center; gap: 0.4vw; pointer-events: none; z-index: 50; }
+    .conn-dot { width: 0.5vw; height: 0.5vw; border-radius: 50%; background: #3DFF4F; }
+    .conn-badge.offline { color: #ffb347; border-color: #664400; }
+    .conn-badge.offline .conn-dot { background: #ffb347; }
   </style>
 </head>
 <body>
   <div id="root"></div>
+  <div class="conn-badge" id="conn-badge" style="opacity:0.45">
+    <span class="conn-dot"></span>
+    <span id="conn-text">LIVE</span>
+  </div>
 
   <script>
+    const INITIAL_SESSION = {{ (initial_session if initial_session is defined else {"name": None}) | tojson }};
     const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+    const CACHE_KEY = "cs_tv_cached_session_v1";
 
-    function render(data) {
-      const root = document.getElementById("root");
-      if (!data || !data.name) {
-        root.innerHTML = `
-          <div class="idle">
-            <img src="/static/logo.jpg" alt="CS Fitness" />
-          </div>`;
-        return;
-      }
-
+    function getHeaderHtml(titleText) {
       const now = new Date();
       const day = DAYS[now.getDay() === 0 ? 6 : now.getDay() - 1];
       const date = now.toLocaleDateString("en-GB", {day:"numeric",month:"long",year:"numeric"});
       const time = now.toLocaleTimeString("en-GB", {hour:"2-digit",minute:"2-digit"});
-
-      const isCardio = data.session_type === 'cardio';
-
-      // Pad blocks to even number for grid (strength only)
-      const blocks = [...(data.blocks || [])];
-      if (!isCardio && blocks.length % 2 !== 0) blocks.push(null);
-
-      root.innerHTML = `
+      return `
         <div class="header">
           <div class="header-logo"><img src="/static/logo.jpg" alt="CS Fitness" /></div>
           <div class="header-title">
-            <div class="session-title">${esc(data.name)}</div>
+            <div class="session-title">${esc(titleText)}</div>
             <div class="header-right">
               <div class="date-display">${esc(day)} · ${esc(date)}</div>
               <div class="time-display" id="clock">${esc(time)}</div>
             </div>
           </div>
-        </div>
+        </div>`;
+    }
+
+    function render(data) {
+      const root = document.getElementById("root");
+      if (!data || !data.name) {
+        root.innerHTML = `
+          ${getHeaderHtml("CS FITNESS — GYM DISPLAY")}
+          <div class="idle">
+            <img src="/static/logo.jpg" alt="CS Fitness" />
+            <div class="idle-title">Standby · No Session Scheduled Right Now</div>
+            <div class="idle-sub">Open <a href="/cms">/cms</a> to publish a workout or assign today's session on the schedule. The TV updates automatically within 10 seconds.</div>
+          </div>`;
+        return;
+      }
+
+      const isCardio = data.session_type === 'cardio';
+      const rawBlocks = Array.isArray(data.blocks) ? data.blocks : [];
+
+      if (rawBlocks.length === 0) {
+        root.innerHTML = `
+          ${getHeaderHtml(data.name)}
+          ${data.coach_notes ? `
+          <div class="notes-bar">
+            <span class="notes-label">Coach</span>
+            <span class="notes-text">${esc(data.coach_notes)}</span>
+          </div>` : ""}
+          <div class="idle">
+            <img src="/static/logo.jpg" alt="CS Fitness" />
+            <div class="idle-title">${esc(data.coach_notes || "Active Rest & Recovery Day")}</div>
+            <div class="idle-sub">Hit your daily steps target, stay hydrated (3.5L+ water &amp; electrolytes), prioritise protein, and get 8 hours of sleep.</div>
+          </div>`;
+        return;
+      }
+
+      // Pad blocks to even number for grid (strength only)
+      const blocks = [...rawBlocks];
+      if (!isCardio && blocks.length % 2 !== 0) blocks.push(null);
+
+      root.innerHTML = `
+        ${getHeaderHtml(data.name)}
         ${data.coach_notes ? `
         <div class="notes-bar">
           <span class="notes-label">Coach</span>
@@ -142,6 +180,21 @@
         .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     }
 
+    function setConnectionStatus(online, msg) {
+      const badge = document.getElementById("conn-badge");
+      const text = document.getElementById("conn-text");
+      if (!badge || !text) return;
+      if (online) {
+        badge.classList.remove("offline");
+        badge.style.opacity = "0.45";
+        text.textContent = "LIVE";
+      } else {
+        badge.classList.add("offline");
+        badge.style.opacity = "0.95";
+        text.textContent = msg || "RECONNECTING…";
+      }
+    }
+
     // Clock tick
     setInterval(() => {
       const el = document.getElementById("clock");
@@ -149,18 +202,71 @@
         {hour:"2-digit",minute:"2-digit"});
     }, 1000);
 
-    // Poll for session
-    let lastId = null;
+    // Render immediately on load using server-injected session or cached fallback
+    let lastSig = null;
+    try {
+      let startData = INITIAL_SESSION;
+      if ((!startData || !startData.name) && localStorage.getItem(CACHE_KEY)) {
+        // Only use cached session if INITIAL_SESSION wasn't injected
+        if (!INITIAL_SESSION || typeof INITIAL_SESSION.name === "undefined") {
+          startData = JSON.parse(localStorage.getItem(CACHE_KEY));
+        }
+      }
+      if (startData && startData.name) {
+        localStorage.setItem(CACHE_KEY, JSON.stringify(startData));
+      }
+      lastSig = JSON.stringify(startData || {"name": null});
+      render(startData);
+    } catch (e) {
+      render({"name": null});
+    }
+
+    // Poll for session with Cloudflare / cold-start resilience
     async function poll() {
+      const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+      const timer = controller ? setTimeout(() => controller.abort(), 8000) : null;
       try {
-        const r = await fetch("/api/session");
+        const r = await fetch("/api/session", {
+          cache: "no-store",
+          headers: { "Accept": "application/json" },
+          signal: controller ? controller.signal : undefined
+        });
+        if (timer) clearTimeout(timer);
+        if (!r.ok) {
+          throw new Error("HTTP " + r.status);
+        }
         const data = await r.json();
-        const newId = data.id ?? null;
-        if (newId !== lastId) { lastId = newId; render(data); }
-      } catch (e) { /* network hiccup, retry next tick */ }
+        setConnectionStatus(true);
+        if (data && data.name) {
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch (_) {}
+        }
+        const newSig = JSON.stringify(data || {"name": null});
+        if (newSig !== lastSig) {
+          lastSig = newSig;
+          render(data);
+        }
+      } catch (e) {
+        if (timer) clearTimeout(timer);
+        setConnectionStatus(false, "RECONNECTING TO SERVER…");
+        // Keep current screen intact during Cloudflare / Wi-Fi blip; if screen is empty, try cached workout
+        const root = document.getElementById("root");
+        if (root && !root.innerHTML.trim()) {
+          try {
+            const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+            render(cached || {"name": null});
+          } catch (_) {
+            render({"name": null});
+          }
+        }
+      }
     }
     poll();
     setInterval(poll, 10000);
+
+    // Register Service Worker so TV page reloads survive Cloudflare 502/503 cold starts
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw-display.js").catch(() => {});
+    }
   </script>
 </body>
 </html>
