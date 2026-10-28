@@ -274,8 +274,9 @@
     <div style="background:#111; border:1px solid #222; border-radius:10px; padding:1.2rem;">
       <div style="color:#666; font-size:0.7rem; font-weight:800; text-transform:uppercase;
                   letter-spacing:0.08em; margin-bottom:0.4rem;">Up Next</div>
-      <div id="np-next-name" style="color:#aaa; font-size:0.95rem; font-weight:700; margin-bottom:0.3rem;">-</div>
-      <div id="np-next-time" style="color:#444; font-size:0.78rem;"></div>
+      <div id="np-next-name" style="color:#fff; font-size:1.05rem; font-weight:700; margin-bottom:0.3rem;">-</div>
+      <div id="np-next-time" style="color:#3DFF4F; font-size:0.78rem; font-weight:600;"></div>
+      <div id="np-next-queue" style="margin-top:0.75rem; padding-top:0.65rem; border-top:1px solid #1f1f1f; display:none;"></div>
     </div>
     <div style="grid-column:1/-1; background:#111; border:1px solid #1a1a1a;
                 border-radius:10px; padding:1.2rem;">
@@ -640,7 +641,27 @@ function calNextWeek() {
 }
 
 // ── Now Playing tab ───────────────────────────────────────
+function formatCalShortDate(dateStr, tomorrowStr) {
+  try {
+    const dt = new Date(dateStr + "T12:00:00");
+    const dayName = dt.toLocaleDateString("en-GB", { weekday: "short" });
+    const dayNum = dt.getDate();
+    const monName = dt.toLocaleDateString("en-GB", { month: "short" });
+    const prefix = dateStr === tomorrowStr ? "Tomorrow · " : "";
+    return `${prefix}${dayName} ${dayNum} ${monName}`;
+  } catch (e) {
+    return dateStr;
+  }
+}
+
 async function loadNowPlayingTab() {
+  if (!allSessions.length) {
+    try {
+      const sr = await fetch("/api/sessions");
+      if (sr.ok) allSessions = await sr.json();
+    } catch (e) {}
+  }
+
   // Populate override dropdown
   const sel = document.getElementById("np-override-select");
   sel.innerHTML = allSessions.map(s =>
@@ -652,9 +673,60 @@ async function loadNowPlayingTab() {
   document.getElementById("np-name").textContent = data.name || "Nothing scheduled";
   document.getElementById("np-meta").textContent = data.name ? `${data.blocks?.length || 0} blocks` : "";
 
-  // Next slot (simple: scan schedule for next slot after now)
-  const sched = await (await fetch("/api/schedule")).json();
+  // 1. Check Calendar Schedule (/api/calendar) for upcoming days starting tomorrow
   const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const horizon = new Date(now);
+  horizon.setDate(horizon.getDate() + 30);
+
+  const tomorrowStr = calDateStr(tomorrow);
+  const horizonStr = calDateStr(horizon);
+
+  const nextNameEl = document.getElementById("np-next-name");
+  const nextTimeEl = document.getElementById("np-next-time");
+  const nextQueueEl = document.getElementById("np-next-queue");
+  if (nextQueueEl) {
+    nextQueueEl.style.display = "none";
+    nextQueueEl.innerHTML = "";
+  }
+
+  try {
+    const calRes = await fetch(`/api/calendar?start=${tomorrowStr}&end=${horizonStr}`);
+    const calItems = calRes.ok ? await calRes.json() : [];
+    const upcomingCal = (calItems || []).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+
+    if (upcomingCal.length > 0) {
+      const nextItem = upcomingCal[0];
+      const blockCount = (nextItem.blocks || []).length;
+      const metaParts = [formatCalShortDate(nextItem.date, tomorrowStr)];
+      if (blockCount > 0) metaParts.push(`${blockCount} block${blockCount !== 1 ? "s" : ""}`);
+      else if (nextItem.coach_notes) metaParts.push(nextItem.coach_notes);
+
+      nextNameEl.textContent = nextItem.name;
+      nextNameEl.style.color = "#fff";
+      nextTimeEl.textContent = metaParts.join(" · ");
+      nextTimeEl.style.color = "#3DFF4F";
+
+      if (upcomingCal.length > 1 && nextQueueEl) {
+        const following = upcomingCal.slice(1, 4);
+        nextQueueEl.style.display = "block";
+        nextQueueEl.innerHTML = `
+          <div style="color:#666;font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.35rem;">Following Days</div>
+          ${following.map(item => `
+            <div style="display:flex;justify-content:space-between;gap:0.5rem;font-size:0.75rem;padding:0.2rem 0;color:#aaa;">
+              <span style="color:#3DFF4F;font-weight:700;white-space:nowrap;">${esc(formatCalShortDate(item.date, ""))}</span>
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(item.name)}</span>
+            </div>
+          `).join("")}
+        `;
+      }
+      return;
+    }
+  } catch (e) {}
+
+  // 2. Fallback: scan recurring weekly schedule (/api/schedule)
+  const sched = await (await fetch("/api/schedule")).json();
   const currentDay = now.getDay() === 0 ? 6 : now.getDay() - 1;
   const currentTime = now.toTimeString().slice(0, 5);
 
@@ -665,12 +737,14 @@ async function loadNowPlayingTab() {
 
   const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
   if (future.length) {
-    document.getElementById("np-next-name").textContent = future[0].session_name;
-    document.getElementById("np-next-time").textContent =
-      DAYS[future[0].day_of_week] + " · " + future[0].start_time;
+    nextNameEl.textContent = future[0].session_name;
+    nextNameEl.style.color = "#fff";
+    nextTimeEl.textContent = DAYS[future[0].day_of_week] + " · " + future[0].start_time;
+    nextTimeEl.style.color = "#3DFF4F";
   } else {
-    document.getElementById("np-next-name").textContent = "No upcoming slots";
-    document.getElementById("np-next-time").textContent = "";
+    nextNameEl.textContent = "No upcoming slots";
+    nextNameEl.style.color = "#666";
+    nextTimeEl.textContent = "";
   }
 }
 
