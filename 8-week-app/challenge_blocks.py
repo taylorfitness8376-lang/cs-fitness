@@ -1540,6 +1540,51 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
                 )
             except Exception:
                 pass
+        else:
+            try:
+                if prof_data.get("start_weight_kg"):
+                    from database import calculate_challenge_targets
+                    sw = float(prof_data.get("start_weight_kg"))
+                    tw = float(prof_data.get("target_weight_kg") or 78.3)
+                    sbf = float(prof_data.get("start_body_fat_pct") or 16.0)
+                    tbf = float(prof_data.get("target_body_fat_pct") or 14.0)
+                    calc = calculate_challenge_targets(
+                        start_weight_kg=sw,
+                        target_weight_kg=tw,
+                        start_body_fat_pct=sbf,
+                        target_body_fat_pct=tbf,
+                        protein_g=int(prof_data.get("target_protein_g") or 150),
+                        start_date=prof_data.get("start_date") or "2026-10-19",
+                        goal=prof_data.get("goal") or "Weight Loss",
+                        returning_member=bool(prof_data.get("returning_member")),
+                    )
+                    wk_json = prof_data.get("weekly_targets_json") or json.dumps(calc["weekly_targets"])
+                    db.execute(
+                        """UPDATE challenge_profiles SET
+                            start_weight_kg=?, target_weight_kg=?, start_body_fat_pct=?, target_body_fat_pct=?,
+                            lean_body_mass_kg=?, fat_mass_kg=?, to_lose_kg=?,
+                            target_calories=?, target_protein_g=?, target_fats_g=?, target_carbs_g=?,
+                            target_water_l=?, weekly_targets_json=?
+                           WHERE id=?""",
+                        (
+                            calc["start_weight_kg"],
+                            calc["target_weight_kg"],
+                            calc["start_body_fat_pct"],
+                            calc["target_body_fat_pct"],
+                            calc["lean_body_mass_kg"],
+                            calc["fat_mass_kg"],
+                            calc["to_lose_kg"],
+                            int(prof_data.get("target_calories") or calc["target_calories"]),
+                            int(prof_data.get("target_protein_g") or calc["target_protein_g"]),
+                            int(prof_data.get("target_fats_g") or calc["target_fats_g"]),
+                            int(prof_data.get("target_carbs_g") or calc["target_carbs_g"]),
+                            calc["target_water_l"],
+                            wk_json,
+                            pid,
+                        ),
+                    )
+            except Exception:
+                pass
 
     # Restore user account if present and missing
     acct_data = payload.get("user_account") or {}
@@ -1844,9 +1889,14 @@ def _auto_seed_ewan_backup_if_empty(db):
         if current_app.config.get("TESTING"):
             return
         data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+        local_data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "data"))
         cnt = db.execute("SELECT COUNT(*) AS c FROM daily_checkins WHERE profile_id=1 AND date >= '2026-10-19'").fetchone()["c"]
-        if cnt < 5:
+        p1 = db.execute("SELECT start_weight_kg FROM challenge_profiles WHERE id=1").fetchone()
+        sw1 = float(p1["start_weight_kg"]) if p1 and p1["start_weight_kg"] else 84.0
+        if cnt < 5 or abs(sw1 - 84.0) < 0.05:
             seed_path = os.path.join(data_dir, "ewan_seed_backup.json")
+            if not os.path.exists(seed_path):
+                seed_path = os.path.join(local_data_dir, "ewan_seed_backup.json")
             if os.path.exists(seed_path):
                 with open(seed_path, "r") as f:
                     payload = json.load(f)
@@ -1856,6 +1906,8 @@ def _auto_seed_ewan_backup_if_empty(db):
                 with open(bpath, "r") as f:
                     bpayload = json.load(f)
                 bpid = int(bpayload.get("profile_id") or 1)
+                if bpid == 1 and abs(float((bpayload.get("profile") or {}).get("start_weight_kg") or 0) - 84.0) < 0.05:
+                    bpayload.setdefault("profile", {})["start_weight_kg"] = 88.6
                 _restore_backup_payload(db, bpayload, target_profile_id=bpid)
             except Exception:
                 pass

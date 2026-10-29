@@ -783,16 +783,16 @@
     "created_at": "2026-10-29 15:28:25",
     "email": "",
     "end_date": "2026-12-14",
-    "fat_mass_kg": 13.44,
+    "fat_mass_kg": 14.18,
     "goal": "Weight Loss",
     "id": 1,
-    "lean_body_mass_kg": 70.56,
+    "lean_body_mass_kg": 74.42,
     "password_hash": "",
     "returning_member": 0,
     "role": "challenger",
     "start_body_fat_pct": 16.0,
     "start_date": "2026-10-19",
-    "start_weight_kg": 84.0,
+    "start_weight_kg": 88.6,
     "target_body_fat_pct": 14.0,
     "target_calories": 2173,
     "target_carbs_g": 230,
@@ -800,11 +800,11 @@
     "target_fibre_g": 30,
     "target_protein_g": 150,
     "target_sleep_hrs": 8.0,
-    "target_water_l": 3.66,
+    "target_water_l": 3.86,
     "target_weight_kg": 78.3,
-    "to_lose_kg": -5.7,
+    "to_lose_kg": -10.3,
     "username": "",
-    "weekly_targets_json": "[{\"week\": 1, \"start_date\": \"2026-10-19\", \"target_weight_kg\": 84.0, \"raw_target_weight_kg\": 84.0, \"min_steps\": 10000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}, {\"week\": 2, \"start_date\": \"2026-10-26\", \"target_weight_kg\": 83.16, \"raw_target_weight_kg\": 83.16, \"min_steps\": 11000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}, {\"week\": 3, \"start_date\": \"2026-11-02\", \"target_weight_kg\": 82.33, \"raw_target_weight_kg\": 82.3284, \"min_steps\": 12000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}, {\"week\": 4, \"start_date\": \"2026-11-09\", \"target_weight_kg\": 81.51, \"raw_target_weight_kg\": 81.505116, \"min_steps\": 13000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}, {\"week\": 5, \"start_date\": \"2026-11-16\", \"target_weight_kg\": 80.69, \"raw_target_weight_kg\": 80.69006484, \"min_steps\": 14000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}, {\"week\": 6, \"start_date\": \"2026-11-23\", \"target_weight_kg\": 79.88, \"raw_target_weight_kg\": 79.8831641916, \"min_steps\": 15000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}, {\"week\": 7, \"start_date\": \"2026-11-30\", \"target_weight_kg\": 79.08, \"raw_target_weight_kg\": 79.08433254968399, \"min_steps\": 16000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}, {\"week\": 8, \"start_date\": \"2026-12-07\", \"target_weight_kg\": 78.29, \"raw_target_weight_kg\": 78.29348922418716, \"min_steps\": 17000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}]",
+    "weekly_targets_json": "[{\"week\": 1, \"start_date\": \"2026-10-19\", \"target_weight_kg\": 88.6, \"raw_target_weight_kg\": 88.6, \"min_steps\": 10000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}, {\"week\": 2, \"start_date\": \"2026-10-26\", \"target_weight_kg\": 87.71, \"raw_target_weight_kg\": 87.71399999999998, \"min_steps\": 11000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}, {\"week\": 3, \"start_date\": \"2026-11-02\", \"target_weight_kg\": 86.84, \"raw_target_weight_kg\": 86.83685999999999, \"min_steps\": 12000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}, {\"week\": 4, \"start_date\": \"2026-11-09\", \"target_weight_kg\": 85.97, \"raw_target_weight_kg\": 85.96849139999998, \"min_steps\": 13000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}, {\"week\": 5, \"start_date\": \"2026-11-16\", \"target_weight_kg\": 85.11, \"raw_target_weight_kg\": 85.10880648599998, \"min_steps\": 14000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}, {\"week\": 6, \"start_date\": \"2026-11-23\", \"target_weight_kg\": 84.26, \"raw_target_weight_kg\": 84.25771842113998, \"min_steps\": 15000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}, {\"week\": 7, \"start_date\": \"2026-11-30\", \"target_weight_kg\": 83.42, \"raw_target_weight_kg\": 83.41514123692858, \"min_steps\": 16000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}, {\"week\": 8, \"start_date\": \"2026-12-07\", \"target_weight_kg\": 82.58, \"raw_target_weight_kg\": 82.5809898245593, \"min_steps\": 17000, \"cardio_target\": \"2 or 3x per week\", \"strength_target\": \"3x per week\"}]",
     "workout_track": "mens"
   },
   "profile_id": 1,
@@ -820,7 +820,7 @@
       "profile_id": 1,
       "taken_date": "2026-10-17",
       "week_num": 1,
-      "weight_kg": null
+      "weight_kg": 88.6
     },
     {
       "created_at": "2026-10-29 15:28:25",
@@ -833,7 +833,7 @@
       "profile_id": 1,
       "taken_date": "2026-10-17",
       "week_num": 1,
-      "weight_kg": null
+      "weight_kg": 88.6
     },
     {
       "created_at": "2026-10-29 15:28:25",
@@ -846,7 +846,7 @@
       "profile_id": 1,
       "taken_date": "2026-10-17",
       "week_num": 1,
-      "weight_kg": null
+      "weight_kg": 88.6
     },
     {
       "created_at": "2026-10-29 15:28:25",

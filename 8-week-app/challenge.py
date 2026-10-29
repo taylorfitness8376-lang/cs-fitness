@@ -874,17 +874,20 @@ def api_challenge_overview():
     })
 
 
-@challenge_bp.route("/api/challenge/profile", methods=["GET", "PUT"])
+@challenge_bp.route("/api/challenge/profile", methods=["GET", "PUT", "POST"])
 def api_challenge_profile():
     db = get_db()
     if request.method == "GET":
         return jsonify(_get_active_profile(db, request.args.get("profile_id", type=int)))
 
     data = request.get_json() or {}
-    profile = _get_active_profile(db, data.get("id"))
+    profile = _get_active_profile(db, data.get("id") or data.get("profile_id"))
+    old_start_w = float(profile.get("start_weight_kg") or 84.0)
+    new_start_w = float(data.get("start_weight_kg") if data.get("start_weight_kg") is not None else old_start_w)
+    new_target_w = float(data.get("target_weight_kg") if data.get("target_weight_kg") is not None else profile["target_weight_kg"])
     calc = calculate_challenge_targets(
-        start_weight_kg=data.get("start_weight_kg", profile["start_weight_kg"]),
-        target_weight_kg=data.get("target_weight_kg", profile["target_weight_kg"]),
+        start_weight_kg=new_start_w,
+        target_weight_kg=new_target_w,
         start_body_fat_pct=data.get("start_body_fat_pct", profile["start_body_fat_pct"]),
         target_body_fat_pct=data.get("target_body_fat_pct", profile["target_body_fat_pct"]),
         protein_g=data.get("target_protein_g", profile["target_protein_g"]),
@@ -892,6 +895,23 @@ def api_challenge_profile():
         goal=data.get("goal", profile["goal"]),
         returning_member=data.get("returning_member", bool(profile["returning_member"])),
     )
+
+    recalc_macros = bool(data.get("recalculate_macros", False))
+    if recalc_macros:
+        target_cals = calc["target_calories"]
+        target_prot = calc["target_protein_g"]
+        target_fats = calc["target_fats_g"]
+        target_carbs = calc["target_carbs_g"]
+    else:
+        target_cals = int(data.get("target_calories") or profile.get("target_calories") or calc["target_calories"])
+        target_prot = int(data.get("target_protein_g") or profile.get("target_protein_g") or calc["target_protein_g"])
+        if "target_calories" in data or "target_protein_g" in data:
+            target_fats = int(round((target_cals * 0.30) / 9.0))
+            target_carbs = max(0, int(round((target_cals - (target_prot * 4.0 + target_fats * 9.0)) / 4.0)))
+        else:
+            target_fats = int(profile.get("target_fats_g") or calc["target_fats_g"])
+            target_carbs = int(profile.get("target_carbs_g") or calc["target_carbs_g"])
+
     db.execute(
         """UPDATE challenge_profiles SET
             client_name=?, goal=?, start_date=?, end_date=?,
@@ -906,15 +926,31 @@ def api_challenge_profile():
             calc["start_weight_kg"], calc["target_weight_kg"],
             calc["start_body_fat_pct"], calc["target_body_fat_pct"],
             calc["lean_body_mass_kg"], calc["fat_mass_kg"], calc["to_lose_kg"],
-            calc["target_calories"], calc["target_protein_g"],
-            calc["target_fats_g"], calc["target_carbs_g"],
+            target_cals, target_prot,
+            target_fats, target_carbs,
             calc["target_water_l"], 1 if calc["returning_member"] else 0,
             data.get("workout_track", profile.get("workout_track", "mens")),
             json.dumps(calc["weekly_targets"]),
             profile["id"],
         ),
     )
+    # Also ensure Week 0/1 baseline photos without weight or with old start weight reflect the updated start weight
+    try:
+        db.execute(
+            """UPDATE progress_photos
+               SET weight_kg=?
+               WHERE profile_id=? AND week_num IN (0, 1)
+                 AND (weight_kg IS NULL OR ABS(weight_kg - ?) < 0.05)""",
+            (calc["start_weight_kg"], profile["id"], old_start_w),
+        )
+    except Exception:
+        pass
     db.commit()
+    try:
+        from challenge_blocks import auto_persist_profile_backup
+        auto_persist_profile_backup(db, profile["id"])
+    except Exception:
+        pass
     return jsonify(_get_active_profile(db, profile["id"]))
 
 

@@ -144,6 +144,101 @@ window.renderTodayDashboard = function(data) {
   if (scTrain) scTrain.textContent = c.training_type || 'REST';
   renderDailyJourneyMoments();
   renderDataSourceBadges();
+  syncProgramStartWeightFields(data && data.profile);
+};
+
+window.syncProgramStartWeightFields = function(profArg) {
+  const prof = profArg || (STATE.overview && STATE.overview.profile) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.profile) || {};
+  const startWt = Number(prof.start_weight_kg || 88.6);
+  const targetWt = Number(prof.target_weight_kg || 78.3);
+  const cals = Number(prof.target_calories || 2173);
+  const prot = Number(prof.target_protein_g || 150);
+
+  const opStartLbl = document.getElementById('op-start-wt-lbl');
+  const opTargetLbl = document.getElementById('op-target-wt-lbl');
+  if (opStartLbl) opStartLbl.textContent = `${startWt.toFixed(1)} kg`;
+  if (opTargetLbl) opTargetLbl.textContent = `${targetWt.toFixed(1)} kg`;
+
+  ['op-edit-start-wt', 'td-edit-start-wt', 'ci-edit-start-wt', 'prof-edit-start-wt', 'calc-sw'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el && document.activeElement !== el) el.value = startWt.toFixed(1);
+  });
+  ['op-edit-target-wt', 'td-edit-target-wt', 'ci-edit-target-wt', 'prof-edit-target-wt', 'calc-tw'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el && document.activeElement !== el) el.value = targetWt.toFixed(1);
+  });
+  const calsEl = document.getElementById('prof-edit-cals');
+  if (calsEl && document.activeElement !== calsEl) calsEl.value = cals;
+  const protEl = document.getElementById('prof-edit-prot');
+  if (protEl && document.activeElement !== protEl) protEl.value = prot;
+
+  const lossBadge = document.getElementById('ci-total-loss-badge');
+  if (lossBadge) {
+    const rollWt = (STATE.overview && STATE.overview.rolling_7d_weight_kg) || (STATE.overview && STATE.overview.checkin && STATE.overview.checkin.weight_kg);
+    if (rollWt && startWt) {
+      const diff = (Number(rollWt) - startWt).toFixed(1);
+      lossBadge.textContent = `Current vs Start: ${diff > 0 ? '+' : ''}${diff} kg (${startWt.toFixed(1)} → ${Number(rollWt).toFixed(1)} kg)`;
+    } else {
+      lossBadge.textContent = `Goal: ${(targetWt - startWt).toFixed(1)} kg`;
+    }
+  }
+};
+
+window.toggleStartWeightEditor = function(forceShow) {
+  const box = document.getElementById('op-start-weight-editor');
+  if (!box) return;
+  const show = typeof forceShow === 'boolean' ? forceShow : box.style.display === 'none';
+  box.style.display = show ? 'block' : 'none';
+  if (show) syncProgramStartWeightFields();
+};
+
+window.saveProgramStartWeight = async function(startInputId, targetInputId, calsInputId, protInputId, recalcMacros) {
+  const startVal = parseFloat(document.getElementById(startInputId)?.value);
+  const targetVal = parseFloat(document.getElementById(targetInputId)?.value);
+  if (!startVal || startVal < 35 || startVal > 250) {
+    showToast('Please enter a valid Starting Weight in kg (e.g. 88.6)');
+    return;
+  }
+  const prof = (STATE.overview && STATE.overview.profile) || {};
+  const payload = {
+    id: prof.id || 1,
+    start_weight_kg: startVal,
+    target_weight_kg: (!isNaN(targetVal) && targetVal > 35) ? targetVal : (prof.target_weight_kg || 78.3),
+    recalculate_macros: Boolean(recalcMacros),
+  };
+  if (calsInputId) {
+    const calVal = parseInt(document.getElementById(calsInputId)?.value, 10);
+    if (calVal && calVal >= 1000) payload.target_calories = calVal;
+  }
+  if (protInputId) {
+    const protVal = parseInt(document.getElementById(protInputId)?.value, 10);
+    if (protVal && protVal >= 50) payload.target_protein_g = protVal;
+  }
+
+  try {
+    const res = await fetch('/api/challenge/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const updatedProf = await res.json();
+    if (STATE.overview) STATE.overview.profile = updatedProf;
+    if (window.PROGRESS_SUMMARY) window.PROGRESS_SUMMARY.profile = updatedProf;
+    syncProgramStartWeightFields(updatedProf);
+    toggleStartWeightEditor(false);
+    if (typeof window.pullServerBackupIntoBrowserVault === 'function') {
+      window.pullServerBackupIntoBrowserVault();
+    }
+    if (typeof loadOverview === 'function') {
+      await loadOverview(STATE.date);
+    }
+    if (typeof loadProgressSummary === 'function') {
+      await loadProgressSummary();
+    }
+    showToast(`✅ Program Start Weight updated to ${updatedProf.start_weight_kg} kg (Goal: ${updatedProf.target_weight_kg} kg)!`);
+  } catch (err) {
+    showToast('⚠️ Failed to update Start Weight — please try again.');
+  }
 };
 
 const _origRenderWeekSheetData = window.renderWeekSheetData;
@@ -172,17 +267,21 @@ window.renderWeekSheetData = function(sheet) {
     });
     const real = sheet.rows.filter((r) => r.steps > 0 || r.calories > 0 || r.weight_kg != null);
     const wts = real.filter((r) => r.weight_kg != null).map((r) => Number(r.weight_kg));
+    const avgWt = wts.length ? Number((wts.reduce((a, b) => a + b, 0) / wts.length).toFixed(2)) : 0;
+    const startWt = Number((STATE.overview && STATE.overview.profile && STATE.overview.profile.start_weight_kg) || 88.6);
+    const lossPct = (avgWt > 0 && startWt > 0) ? Number((((avgWt - startWt) / startWt) * 100).toFixed(2)) : 0;
     sheet.averages = {
       avg_calories: real.length ? Math.round(real.reduce((s, r) => s + (r.calories || 0), 0) / real.length) : 0,
       avg_protein_g: real.length ? Math.round(real.reduce((s, r) => s + (r.protein_g || 0), 0) / real.length) : 0,
       avg_steps: real.length ? Math.round(real.reduce((s, r) => s + (r.steps || 0), 0) / real.length) : 0,
-      avg_weight_kg: wts.length ? Number((wts.reduce((a, b) => a + b, 0) / wts.length).toFixed(2)) : 0,
-      weight_loss_pct: 0,
+      avg_weight_kg: avgWt,
+      weight_loss_pct: lossPct,
       days_logged: real.length,
       days_on_plan: real.filter((r) => r.stick_to_plan === 'Y').length,
     };
   }
   if (_origRenderWeekSheetData) _origRenderWeekSheetData(sheet);
+  syncProgramStartWeightFields();
   const wk = getActiveSheetWeek();
   const photos = ((STATE.overview && STATE.overview.progress_photos) || []).filter((p) => Number(p.week_num) === wk);
   const posesLogged = ['Front', 'Side', 'Back'].filter((pose) => photos.some((p) => p.pose === pose));
