@@ -3,6 +3,9 @@ import os
 from flask import g, current_app
 
 
+_TV_SESSIONS_SYNCED = set()
+
+
 def get_db():
     if "db" not in g:
         path = current_app.config.get("DATABASE") or current_app.config["DATABASE_PATH"]
@@ -24,6 +27,13 @@ def get_db():
             try:
                 from challenge_blocks import ensure_blocks_and_auth_tables
                 ensure_blocks_and_auth_tables(g.db)
+            except Exception:
+                pass
+        elif not current_app.config.get("TESTING") and path not in _TV_SESSIONS_SYNCED:
+            try:
+                seed_default_tv_sessions(g.db)
+                g.db.commit()
+                _TV_SESSIONS_SYNCED.add(path)
             except Exception:
                 pass
     return g.db
@@ -103,22 +113,25 @@ def init_db():
 
 
 def seed_default_tv_sessions(db):
-    """Auto-seed CS Performance TV workouts and default weekly schedule when empty on cloud/local startup."""
+    """Auto-seed CS Performance TV workouts, calendar dates, and default weekly schedule on cloud/local startup."""
     import json as _json
-    count_row = db.execute("SELECT COUNT(*) as c FROM sessions").fetchone()
-    if count_row and count_row["c"] == 0:
-        import_path = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "data", "cs_performance_import.json")
-        )
-        if os.path.exists(import_path):
-            with open(import_path, "r", encoding="utf-8") as f:
-                sessions_data = _json.load(f)
-            for s in sessions_data:
-                if not s.get("name"):
-                    continue
+    import_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "data", "cs_performance_import.json")
+    )
+    if os.path.exists(import_path):
+        with open(import_path, "r", encoding="utf-8") as f:
+            sessions_data = _json.load(f)
+        for s in sessions_data:
+            name = (s.get("name") or "").strip()
+            if not name:
+                continue
+            existing = db.execute("SELECT id FROM sessions WHERE name=?", (name,)).fetchone()
+            if existing:
+                sid = existing["id"]
+            else:
                 cur = db.execute(
                     "INSERT INTO sessions (name, coach_notes, session_type) VALUES (?,?,?)",
-                    (s["name"], s.get("coach_notes", ""), s.get("session_type", "strength")),
+                    (name, s.get("coach_notes", ""), s.get("session_type", "strength")),
                 )
                 sid = cur.lastrowid
                 for i, block in enumerate(s.get("blocks", [])):
@@ -132,6 +145,12 @@ def seed_default_tv_sessions(db):
                             "INSERT INTO exercises (block_id, code, name, sets_reps, sort_order) VALUES (?,?,?,?,?)",
                             (bid, ex.get("code", ""), ex.get("name", ""), ex.get("sets_reps", ""), j),
                         )
+            cal_date = (s.get("calendar_date") or "").strip()
+            if cal_date and sid:
+                db.execute(
+                    "INSERT OR IGNORE INTO calendar (date, session_id) VALUES (?, ?)",
+                    (cal_date, sid),
+                )
 
     sched_count = db.execute("SELECT COUNT(*) as c FROM schedule").fetchone()
     if sched_count and sched_count["c"] == 0:

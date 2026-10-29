@@ -267,17 +267,29 @@ def import_sessions():
     if not isinstance(data, list):
         return jsonify({"error": "expected a list"}), 400
     db = get_db()
-    existing_names = {r["name"] for r in db.execute("SELECT name FROM sessions").fetchall()}
+    existing_by_name = {r["name"]: r["id"] for r in db.execute("SELECT id, name FROM sessions").fetchall()}
     added = 0
     for s in data:
-        if s.get("name") and s["name"] not in existing_names:
+        name = (s.get("name") or "").strip()
+        if not name:
+            continue
+        if name not in existing_by_name:
             cur = db.execute(
                 "INSERT INTO sessions (name, coach_notes, session_type) VALUES (?,?,?)",
-                (s["name"], s.get("coach_notes", ""), s.get("session_type", "strength"))
+                (name, s.get("coach_notes", ""), s.get("session_type", "strength"))
             )
-            _save_blocks(cur.lastrowid, s.get("blocks", []), db)
-            existing_names.add(s["name"])
+            sid = cur.lastrowid
+            _save_blocks(sid, s.get("blocks", []), db)
+            existing_by_name[name] = sid
             added += 1
+        else:
+            sid = existing_by_name[name]
+        cal_date = (s.get("calendar_date") or "").strip()
+        if cal_date and sid:
+            db.execute(
+                "INSERT OR REPLACE INTO calendar (date, session_id) VALUES (?, ?)",
+                (cal_date, sid),
+            )
     db.commit()
     return jsonify({"added": added, "skipped": len(data) - added})
 

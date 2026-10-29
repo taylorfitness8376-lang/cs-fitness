@@ -337,5 +337,295 @@
         ]
       }
     ]
+  },
+  {
+    "name": "CS Performance - Wed 28 Oct | Full Body",
+    "calendar_date": "2026-10-28",
+    "coach_notes": "Full body — Sumo deadlift focus",
+    "session_type": "strength",
+    "blocks": [
+      {
+        "label": "A",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "A", "name": "Sumo Deadlift", "sets_reps": "5×6" }
+        ]
+      },
+      {
+        "label": "B",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "B1", "name": "DB Shoulder Press", "sets_reps": "4×10" },
+          { "code": "B2", "name": "1-Arm DB Row", "sets_reps": "4×8" }
+        ]
+      },
+      {
+        "label": "C",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "C1", "name": "Lat Pulldown", "sets_reps": "4×10" },
+          { "code": "C2", "name": "DB Lateral Raise", "sets_reps": "4×12" }
+        ]
+      },
+      {
+        "label": "D",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "D1", "name": "Seated Incline DB Curls", "sets_reps": "3×12" },
+          { "code": "D2", "name": "Tricep Rope Pulldowns", "sets_reps": "3×12" },
+          { "code": "D3", "name": "Dead Bug", "sets_reps": "3×00:40" }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "CS Performance - Thu 29 Oct | Active Rest",
+    "calendar_date": "2026-10-29",
+    "coach_notes": "Active Rest",
+    "session_type": "strength",
+    "blocks": []
+  },
+  {
+    "name": "CS Performance - Fri 30 Oct | Full Body",
+    "calendar_date": "2026-10-30",
+    "coach_notes": "Full body",
+    "session_type": "strength",
+    "blocks": [
+      {
+        "label": "A",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "A", "name": "Strict Press", "sets_reps": "5×6" }
+        ]
+      },
+      {
+        "label": "B",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "B1", "name": "Bulgarian Split Squat", "sets_reps": "4×20" },
+          { "code": "B2", "name": "Goblet Squat", "sets_reps": "4×12" }
+        ]
+      },
+      {
+        "label": "C",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "C1", "name": "Lat Pulldown", "sets_reps": "4×12" },
+          { "code": "C2", "name": "Lying Leg Curl", "sets_reps": "4×12" }
+        ]
+      },
+      {
+        "label": "D",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "D", "name": "Strength/Power", "sets_reps": "" }
+        ]
+      },
+      {
+        "label": "E",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "E1", "name": "cable chest flys", "sets_reps": "4×12" },
+          { "code": "E2", "name": "Incline DB Curl", "sets_reps": "4×12" },
+          { "code": "E3", "name": "Band Skull Crusher", "sets_reps": "4×12" }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "CS Performance - Sat 31 Oct | Cardio + Conditioning",
+    "calendar_date": "2026-10-31",
+    "coach_notes": "",
+    "session_type": "cardio",
+    "blocks": [
+      {
+        "label": "A",
+        "focus": "Conditioning",
+        "exercises": [
+          { "code": "A", "name": "easy ergs session", "sets_reps": "1×85:00" }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "CS Performance - Mon 2 Nov | Full Body",
+    "calendar_date": "2026-11-02",
+    "coach_notes": "Full body — Back squat focus",
+    "session_type": "strength",
+    "blocks": [
+      {
+        "label": "A",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "A", "name": "Back Squat", "sets_reps": "4×6" }
+        ]
+      },
+      {
+        "label": "B",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "B1", "name": "Pull-Up", "sets_reps": "3×8" },
+          { "code": "B2", "name": "Chest Press", "sets_reps": "4×12" }
+        ]
+      },
+      {
+        "label": "C",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "C", "name": "Barbell Hip Thrust", "sets_reps": "8, 10, 12, 14" }
+        ]
+      },
+      {
+        "label": "D",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "D", "name": "Split Squat", "sets_reps": "4×10" }
+        ]
+      },
+      {
+        "label": "E",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "E1", "name": "EZ Bar Curl", "sets_reps": "3 Sets" },
+          { "code": "E2", "name": "Tricep Rope Pulldowns", "sets_reps": "3 Sets" },
+          { "code": "E3", "name": "Cable Crunch", "sets_reps": "3 Sets" }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "CS Performance - Tue 3 Nov | Cardio + Conditioning",
+    "calendar_date": "2026-11-03",
+    "coach_notes": "Cardio + Conditioning",
+    "session_type": "cardio",
+    "blocks": [
+      {
+        "label": "A",
+        "focus": "Conditioning",
+        "exercises": [
+          { "code": "A", "name": "Rowing", "sets_reps": "5×2:00" }
+        ]
+      },
+      {
+        "label": "B",
+        "focus": "Conditioning",
+        "exercises": [
+          { "code": "B", "name": "EMOM", "sets_reps": "3 Sets" }
+        ]
+      },
+      {
+        "label": "C",
+        "focus": "Conditioning",
+        "exercises": [
+          { "code": "C", "name": "Rowing", "sets_reps": "5×3:00" }
+        ]
+      },
+      {
+        "label": "D",
+        "focus": "Conditioning",
+        "exercises": [
+          { "code": "D", "name": "EMOM", "sets_reps": "3 Sets" }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "CS Performance - Wed 4 Nov | Full Body",
+    "calendar_date": "2026-11-04",
+    "coach_notes": "Full body — Shoulder press focus",
+    "session_type": "strength",
+    "blocks": [
+      {
+        "label": "A",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "A", "name": "Shoulder Press", "sets_reps": "4×8" }
+        ]
+      },
+      {
+        "label": "B",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "B", "name": "Deficit Rev Lunge", "sets_reps": "4×12" }
+        ]
+      },
+      {
+        "label": "C",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "C1", "name": "Chin-Up", "sets_reps": "4×10" },
+          { "code": "C2", "name": "Dips", "sets_reps": "4×10" }
+        ]
+      },
+      {
+        "label": "D",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "D1", "name": "Reverse Flys", "sets_reps": "4×12" },
+          { "code": "D2", "name": "Lying Leg Curl", "sets_reps": "4×12" }
+        ]
+      },
+      {
+        "label": "E",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "E1", "name": "DB Bicep Curls", "sets_reps": "4×12" },
+          { "code": "E2", "name": "Tricep Pushdown", "sets_reps": "4×12" }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "CS Performance - Thu 5 Nov | Active Rest",
+    "calendar_date": "2026-11-05",
+    "coach_notes": "Active Rest",
+    "session_type": "strength",
+    "blocks": []
+  },
+  {
+    "name": "CS Performance - Fri 6 Nov | Full Body",
+    "calendar_date": "2026-11-06",
+    "coach_notes": "Full body — Deadlift & bench press focus",
+    "session_type": "strength",
+    "blocks": [
+      {
+        "label": "A",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "A", "name": "Deadlift", "sets_reps": "5×5" }
+        ]
+      },
+      {
+        "label": "B",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "B", "name": "Bench Press", "sets_reps": "5×8" }
+        ]
+      },
+      {
+        "label": "C",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "C", "name": "Leg Press", "sets_reps": "5×12" }
+        ]
+      },
+      {
+        "label": "D",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "D1", "name": "Chest-Supported DB Row", "sets_reps": "4×10" },
+          { "code": "D2", "name": "DB Lateral Raise", "sets_reps": "3×15" }
+        ]
+      },
+      {
+        "label": "E",
+        "focus": "Strength / Power",
+        "exercises": [
+          { "code": "E1", "name": "Skull Crushers", "sets_reps": "4 Sets" },
+          { "code": "E2", "name": "Seated Incline DB Curls", "sets_reps": "3 Sets" },
+          { "code": "E3", "name": "Barbell Roll Outs", "sets_reps": "3 Sets" }
+        ]
+      }
+    ]
   }
 ]
