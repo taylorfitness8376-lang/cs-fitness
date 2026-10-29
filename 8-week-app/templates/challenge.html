@@ -206,7 +206,7 @@
         </div>
         <label class="btn btn-green btn-sm" style="cursor:pointer;margin:0">
           📷 Select up to 4 Photos
-          <input type="file" accept="image/*" multiple style="display:none" onchange="uploadMultipleDailyPhotos(event)" />
+          <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" multiple style="display:none" onchange="uploadMultipleDailyPhotos(event)" />
         </label>
       </div>
 
@@ -270,8 +270,13 @@
           <div style="font-size:1.02rem;font-weight:900;color:var(--green);margin-top:2px" id="op-wk-prot">0g</div>
         </div>
       </div>
-      <div style="margin-top:0.6rem;text-align:center;font-size:0.72rem;color:var(--muted)">
-        💻 On Friday, open <a href="#" onclick="openDesktopTab('checkin');return false;" style="color:var(--green);font-weight:800">Desktop Weekly Check-In</a> to add your 3 photos &amp; weekly commentary.
+      <div style="margin-top:0.65rem;display:flex;gap:0.45rem;flex-wrap:wrap;justify-content:center">
+        <button type="button" class="btn btn-green btn-sm" onclick="downloadCoachChrisExcel(this)" style="font-weight:800">
+          📊 Download Coach Chris Excel (.xlsx)
+        </button>
+        <button type="button" class="btn btn-sm" onclick="openDesktopTab('checkin');return false;">
+          📸 Weekly Photos &amp; Check-In Sheet
+        </button>
       </div>
     </div>
   </div>
@@ -286,17 +291,23 @@
           <option value="6">Week 6 · Fri (+ Photos)</option><option value="7">Week 7 · Fri (+ Photos)</option><option value="8">Week 8 · Fri (Final Photos)</option>
         </select>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <span style="font-size:0.7rem;font-weight:700;color:var(--muted)">📸 TAP TO ADD 3 PHOTOS (UPDATES FOR CHRIS / LAURA)</span>
-        <label style="font-size:0.68rem;color:var(--green);cursor:pointer;font-weight:700">✂️ Split Collage<input type="file" accept="image/*" style="display:none" onchange="handleThreePoseCollageUpload(event)"/></label>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:4px">
+        <span style="font-size:0.7rem;font-weight:700;color:var(--muted)">📸 TAP TO ADD 3 PHOTOS (SUPPORTS iPHONE .HEIC &amp; JPG)</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="font-size:0.68rem;color:var(--green);cursor:pointer;font-weight:700">📤 Upload All 3<input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" multiple style="display:none" onchange="handleMultiPoseUpload(event)"/></label>
+          <label style="font-size:0.68rem;color:var(--green);cursor:pointer;font-weight:700">✂️ Split Collage<input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" style="display:none" onchange="handleThreePoseCollageUpload(event)"/></label>
+        </div>
       </div>
       <div id="op-wk-photos" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.45rem;margin-bottom:0.65rem"></div>
       <div style="margin-bottom:0.65rem">
         <label class="field-label">Weekly Write-Up for Chris / Laura</label>
         <textarea id="op-wk-comments" rows="2" placeholder="How did the week go? Wins & focus for next week..."></textarea>
       </div>
-      <div class="grid-3" style="gap:0.4rem">
+      <div class="grid-2" style="gap:0.4rem;margin-bottom:0.4rem">
+        <button class="btn btn-green" onclick="downloadCoachChrisExcel(this)">📊 Coach Chris Excel (.xlsx)</button>
         <button class="btn btn-green" onclick="saveOnePagerWeekly()">✅ Update App</button>
+      </div>
+      <div class="grid-2" style="gap:0.4rem">
         <button class="btn" onclick="saveOnePagerWeekly('png')">🖼️ Get PNG</button>
         <button class="btn btn-blue" onclick="saveOnePagerWeekly('tg')">✈️ Telegram</button>
       </div>
@@ -688,7 +699,12 @@
             <option value="8">WEEK 8 · Fri Check-In (11 Dec · Final Photos)</option>
           </select>
         </div>
-        <div style="display:flex;gap:0.45rem;flex-wrap:wrap">
+        <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-green btn-sm" onclick="downloadCoachChrisExcel(this)" title="Download Coach Chris's exact 6-tab Excel (.xlsx) spreadsheet populated with all your logged daily check-ins, weekly averages, targets &amp; workouts">📊 Export Coach Chris Excel (.xlsx)</button>
+          <label class="btn btn-sm" style="cursor:pointer;margin:0" title="Import an existing Coach Chris .xlsx spreadsheet to populate your check-ins &amp; workouts">
+            📥 Import Chris Excel (.xlsx)
+            <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="importCoachChrisExcel(event)" />
+          </label>
           <button class="btn btn-green btn-sm" onclick="submitWeeklyCheckinInApp()">✅ Submit Weekly Check-In to Coach (In-App)</button>
           <button class="btn btn-sm" onclick="sendWeeklyTelegram()" title="Temporary bridge while Chris uses Telegram">✈️ Also Send / Copy for Telegram</button>
           <a id="tg-direct-link" href="#" target="_blank" class="btn btn-blue btn-sm" style="text-decoration:none;display:none">Open Telegram</a>
@@ -760,6 +776,7 @@
           <div id="wk-coach-feedback-text" style="color:var(--muted);margin-top:4px">No coach feedback logged yet for this week. Submit your check-in below or log Chris's Telegram voice/text feedback here.</div>
         </div>
         <div style="display:flex;gap:0.45rem;flex-wrap:wrap">
+          <button class="btn btn-green btn-sm" onclick="downloadCoachChrisExcel(this)">📊 Export Coach Chris Excel (.xlsx)</button>
           <button class="btn btn-green btn-sm" onclick="submitWeeklyCheckinInApp()">✅ Submit Weekly Card &amp; Write-Up (In-App)</button>
           <button class="btn btn-sm" onclick="downloadWeeklyCheckinPng()">🖼️ Download Weekly PNG</button>
           <button class="btn btn-blue btn-sm" onclick="sendWeeklyTelegram()">✈️ Send PNG + Summary to Telegram</button>
@@ -793,8 +810,9 @@
           </label>
           <label class="btn btn-sm" style="cursor:pointer" title="Upload a single horizontal 3-pose collage (like your Adobe Express Day 1 image) to auto-split into Side, Front & Back">
             ✂️ Auto-Split 3-Pose Collage
-            <input type="file" accept="image/*" style="display:none" onchange="handleThreePoseCollageUpload(event)" />
+            <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" style="display:none" onchange="handleThreePoseCollageUpload(event)" />
           </label>
+          <button class="btn btn-green btn-sm" onclick="downloadCoachChrisExcel(this)">📊 Coach Chris Excel (.xlsx)</button>
           <button class="btn btn-green btn-sm" onclick="downloadWeeklyCheckinPng()">🖼️ Download Weekly PNG</button>
           <button class="btn btn-blue btn-sm" onclick="sendWeeklyTelegram()">✈️ Share via Telegram</button>
         </div>

@@ -1,5 +1,6 @@
-from flask import Blueprint, current_app, jsonify, redirect, request, render_template, session, url_for
+from flask import Blueprint, Response, current_app, jsonify, redirect, request, render_template, session, url_for
 from datetime import datetime, timedelta
+import base64
 import csv
 import io
 import json
@@ -7,6 +8,7 @@ import re
 
 from database import get_db
 from challenge import (
+    WORKOUT_TEMPLATES,
     _get_active_profile,
     _resolve_webhook_or_active_profile,
     _is_current_user_admin,
@@ -19,6 +21,12 @@ from challenge import (
     _save_daily_activity,
     _sync_checkin_from_activities,
     _build_week_sheet,
+)
+from excel_service import (
+    generate_chris_excel_bytes,
+    import_chris_excel_bytes,
+    normalize_image_bytes_to_jpeg_data_url,
+    normalize_image_data_url,
 )
 from sync_service import (
     fetch_live_garmin_data,
@@ -436,20 +444,55 @@ def api_clear_fake_data():
     return jsonify({"ok": True, "message": "Cleared demo data. Only real logged data will be shown."})
 
 
-@challenge_progress_bp.route("/api/challenge/photos/upload", methods=["POST"])
+@challenge_progress_bp.route("/api/challenge/photos/upload", methods=["POST", "DELETE"])
 def api_upload_week_photo():
-    """Save or update one of the 3 weekly progress photos (Front, Side, Back) with real image data."""
+    """Save, update, or delete one of the 3 weekly progress photos (Front, Side, Back) with real image data (including .HEIC)."""
     db = get_db()
     pid = _get_active_profile(db)["id"]
-    data = request.get_json() or {}
-    week_num = int(data.get("week_num", 0))
-    pose = data.get("pose", "Front")
+
+    if request.method == "DELETE":
+        data = request.get_json(silent=True) or {}
+        week_num = int(data.get("week_num", request.args.get("week_num", 0)))
+        pose = data.get("pose") or request.args.get("pose") or "Front"
+        db.execute(
+            "DELETE FROM progress_photos WHERE profile_id=? AND week_num=? AND pose=?",
+            (pid, week_num, pose),
+        )
+        db.commit()
+        try:
+            from challenge_blocks import auto_persist_profile_backup
+            auto_persist_profile_backup(db, pid)
+        except Exception:
+            pass
+        photos = [
+            dict(r) for r in db.execute(
+                "SELECT * FROM progress_photos WHERE profile_id=? ORDER BY week_num, id", (pid,)
+            ).fetchall()
+        ]
+        return jsonify({"ok": True, "deleted": True, "week_num": week_num, "pose": pose, "photos": photos})
+
+    if request.files and "file" in request.files:
+        fobj = request.files["file"]
+        raw_bytes = fobj.read()
+        week_num = int(request.form.get("week_num", 0))
+        pose = request.form.get("pose", "Front")
+        taken_date = (request.form.get("taken_date") or datetime.now().strftime("%Y-%m-%d"))[:10]
+        weight_kg = float(request.form["weight_kg"]) if request.form.get("weight_kg") else None
+        notes = request.form.get("notes", "")
+        photo_data_url = normalize_image_bytes_to_jpeg_data_url(
+            raw_bytes, filename=fobj.filename or "photo.heic", mime_type=fobj.mimetype or ""
+        )
+    else:
+        data = request.get_json(silent=True) or {}
+        week_num = int(data.get("week_num", 0))
+        pose = data.get("pose", "Front")
+        taken_date = (data.get("taken_date") or datetime.now().strftime("%Y-%m-%d"))[:10]
+        weight_kg = data.get("weight_kg")
+        photo_data_url = normalize_image_data_url(data.get("photo_data_url", ""))
+        notes = data.get("notes", "")
+
     if pose not in ("Front", "Side", "Back"):
         pose = "Front"
-    taken_date = (data.get("taken_date") or datetime.now().strftime("%Y-%m-%d"))[:10]
-    weight_kg = data.get("weight_kg")
-    photo_data_url = data.get("photo_data_url", "")
-    notes = data.get("notes", "")
 
     existing = db.execute(
         "SELECT id FROM progress_photos WHERE profile_id=? AND week_num=? AND pose=?",
@@ -467,12 +510,100 @@ def api_upload_week_photo():
             (pid, week_num, pose, taken_date, weight_kg, photo_data_url, notes),
         )
     db.commit()
+    try:
+        from challenge_blocks import auto_persist_profile_backup
+        auto_persist_profile_backup(db, pid)
+    except Exception:
+        pass
     photos = [
         dict(r) for r in db.execute(
             "SELECT * FROM progress_photos WHERE profile_id=? ORDER BY week_num, id", (pid,)
         ).fetchall()
     ]
     return jsonify({"ok": True, "week_num": week_num, "pose": pose, "photos": photos})
+
+
+@challenge_progress_bp.route("/api/challenge/photos/convert", methods=["POST"])
+def api_convert_photo_heic():
+    """Convert an uploaded .HEIC / .HEIF / image file or data URL into a clean JPEG data URL for browser preview & canvas."""
+    try:
+        if request.files and "file" in request.files:
+            fobj = request.files["file"]
+            max_dim = int(request.form.get("max_dim") or 900)
+            data_url = normalize_image_bytes_to_jpeg_data_url(
+                fobj.read(),
+                filename=fobj.filename or "upload.heic",
+                mime_type=fobj.mimetype or "",
+                max_dim=max_dim,
+            )
+            return jsonify({"ok": True, "data_url": data_url, "photo_data_url": data_url})
+        data = request.get_json(silent=True) or {}
+        raw_durl = data.get("data_url") or data.get("photo_data_url") or ""
+        max_dim = int(data.get("max_dim") or 900)
+        if not raw_durl:
+            return jsonify({"ok": False, "error": "Missing file or data_url"}), 400
+        out_url = normalize_image_data_url(raw_durl, max_dim=max_dim)
+        return jsonify({"ok": True, "data_url": out_url, "photo_data_url": out_url})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@challenge_progress_bp.route("/api/challenge/export/excel", methods=["GET"])
+def api_export_chris_excel():
+    """Generate and download Coach Chris's exact 6-tab .xlsx workbook populated with the challenger's data."""
+    db = get_db()
+    _ensure_weekly_submissions_table(db)
+    req_pid = request.args.get("profile_id", type=int)
+    active_prof = _get_active_profile(db)
+    if req_pid and req_pid != int(active_prof["id"]) and _is_current_user_admin(db):
+        row = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (req_pid,)).fetchone()
+        profile = dict(row) if row else active_prof
+    else:
+        profile = active_prof
+    week_num = request.args.get("week_num", type=int)
+    xlsx_bytes, filename = generate_chris_excel_bytes(db, profile, selected_week=week_num)
+    return Response(
+        xlsx_bytes,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@challenge_progress_bp.route("/api/challenge/import/excel", methods=["POST"])
+def api_import_chris_excel():
+    """Import daily check-in rows and workout logs from a Coach Chris .xlsx workbook."""
+    db = get_db()
+    _ensure_weekly_submissions_table(db)
+    profile = _get_active_profile(db)
+    pid = int(profile["id"])
+
+    xlsx_bytes = b""
+    if request.files and "file" in request.files:
+        xlsx_bytes = request.files["file"].read()
+    else:
+        data = request.get_json(silent=True) or {}
+        b64_str = (data.get("file_b64") or data.get("content_b64") or "").strip()
+        if "," in b64_str and b64_str.startswith("data:"):
+            b64_str = b64_str.split(",", 1)[1]
+        if b64_str:
+            xlsx_bytes = base64.b64decode(b64_str)
+
+    if not xlsx_bytes:
+        return jsonify({"ok": False, "error": "No Excel (.xlsx) file uploaded"}), 400
+
+    try:
+        res = import_chris_excel_bytes(db, xlsx_bytes, profile, _upsert_checkin, WORKOUT_TEMPLATES)
+        try:
+            from challenge_blocks import auto_persist_profile_backup
+            auto_persist_profile_backup(db, pid)
+        except Exception:
+            pass
+        return jsonify(res)
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"Failed to import Excel workbook: {exc}"}), 400
 
 
 @challenge_progress_bp.route("/api/challenge/workouts/rollup", methods=["POST"])
@@ -797,7 +928,7 @@ def api_daily_journey_moments():
     first_name = re.sub(r"[^A-Za-z0-9]", "", (profile.get("client_name") or "Ewan").split()[0])
     slot_tag = re.sub(r"[^a-z0-9]", "", slot.split()[0].lower())
     hashtags = (data.get("hashtags") or f"#{first_name} #{slot_tag}").strip()
-    photo_data_url = data.get("photo_data_url") or ""
+    photo_data_url = normalize_image_data_url(data.get("photo_data_url") or "")
 
     db.execute(
         """INSERT INTO daily_journey_moments (profile_id, date, slot, caption, hashtags, photo_data_url)
@@ -810,6 +941,11 @@ def api_daily_journey_moments():
         (pid, date_str, slot, caption, hashtags, photo_data_url),
     )
     db.commit()
+    try:
+        from challenge_blocks import auto_persist_profile_backup
+        auto_persist_profile_backup(db, pid)
+    except Exception:
+        pass
     rows = db.execute(
         "SELECT * FROM daily_journey_moments WHERE profile_id=? AND date=? ORDER BY id ASC",
         (pid, date_str),

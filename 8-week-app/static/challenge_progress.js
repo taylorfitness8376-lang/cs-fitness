@@ -394,16 +394,33 @@ function upgradeThreePhotoWeeklyVault() {
   card.dataset.upgraded = '1';
   card.innerHTML = `
     <div class="card-header" style="flex-wrap:wrap;gap:6px">
-      <div class="card-title">📸 Weekly 3-Photo Check-In (<span id="photo-active-wk-label">Week 1</span>: Side · Front · Back)</div>
+      <div class="card-title" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span>📸 Weekly 3-Photo Check-In (Side · Front · Back)</span>
+        <select id="photo-upload-wk-select" onchange="changePhotoUploadWeek(this.value)" style="width:auto;font-size:0.74rem;font-weight:800;padding:2px 8px">
+          <option value="0">Start · Day 1 Mon</option>
+          <option value="1">Week 1 · Fri</option>
+          <option value="2">Week 2 · Fri</option>
+          <option value="3">Week 3 · Fri</option>
+          <option value="4">Week 4 · Fri</option>
+          <option value="5">Week 5 · Fri</option>
+          <option value="6">Week 6 · Fri</option>
+          <option value="7">Week 7 · Fri</option>
+          <option value="8">Week 8 · Fri</option>
+        </select>
+      </div>
       <div style="display:flex;gap:6px;align-items:center;font-size:0.74rem;flex-wrap:wrap">
+        <label class="btn btn-green btn-sm" style="cursor:pointer;padding:2px 8px;font-size:0.68rem" title="Select 1, 2 or 3 photos (including iPhone .HEIC) to upload into Side, Front & Back">
+          📤 Upload All 3 Photos (.HEIC / JPG)
+          <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" multiple style="display:none" onchange="handleMultiPoseUpload(event)" />
+        </label>
         <label class="btn btn-sm" style="cursor:pointer;padding:2px 8px;font-size:0.68rem" title="Auto-slice a 3-pose collage into Side, Front & Back">
           ✂️ Split 3-Pose Collage
-          <input type="file" accept="image/*" style="display:none" onchange="handleThreePoseCollageUpload(event)" />
+          <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" style="display:none" onchange="handleThreePoseCollageUpload(event)" />
         </label>
         <span>Compare:</span>
-        <select id="photo-cmp-wk-a" onchange="renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:115px"><option value="0" selected>Start (Mon Day 1)</option><option value="1">Wk 1 (Fri · No Pic)</option><option value="2">Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
+        <select id="photo-cmp-wk-a" onchange="renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:115px"><option value="0" selected>Start (Mon Day 1)</option><option value="1">Wk 1 (Fri)</option><option value="2">Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
         <span>vs</span>
-        <select id="photo-cmp-wk-b" onchange="renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:115px"><option value="0">Start (Mon Day 1)</option><option value="1">Wk 1 (Fri · No Pic)</option><option value="2" selected>Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
+        <select id="photo-cmp-wk-b" onchange="renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:115px"><option value="0">Start (Mon Day 1)</option><option value="1">Wk 1 (Fri)</option><option value="2" selected>Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
       </div>
     </div>
     <div id="photo-schedule-rule-banner" style="margin-bottom:0.65rem;padding:0.5rem 0.7rem;border-radius:8px;font-size:0.74rem"></div>
@@ -411,6 +428,20 @@ function upgradeThreePhotoWeeklyVault() {
     <div id="three-photo-comparison"></div>
   `;
 }
+
+window.changePhotoUploadWeek = async function(val) {
+  const ciSel = document.getElementById('ci-week-select');
+  if (ciSel && ciSel.value !== String(val)) {
+    ciSel.value = String(val);
+    if (typeof window.loadWeekSheet === 'function') {
+      await window.loadWeekSheet(val);
+    }
+  }
+  const opSel = document.getElementById('op-week-select');
+  if (opSel) opSel.value = String(val);
+  renderThreePhotoSlots();
+  renderOnePagerWeekly();
+};
 
 function _findPhotoForWeekAndPose(photos, wk, pose) {
   const exact = photos.find(p => Number(p.week_num) === Number(wk) && p.pose === pose);
@@ -426,12 +457,14 @@ function renderThreePhotoSlots() {
   const slotsEl = document.getElementById('three-photo-slots');
   if (!slotsEl) return;
   const wk = getActiveSheetWeek();
+  const upSel = document.getElementById('photo-upload-wk-select');
+  if (upSel && upSel.value !== String(wk)) upSel.value = String(wk);
   const lbl = document.getElementById('photo-active-wk-label');
   if (lbl) {
     lbl.textContent = wk === 0
       ? 'Start Check-In · Day 1 Monday'
       : wk === 1
-      ? 'Week 1 · Friday Check-In (No Photos Needed)'
+      ? 'Week 1 · Friday Check-In'
       : `Week ${wk} · Friday Check-In`;
   }
   const ruleBanner = document.getElementById('photo-schedule-rule-banner');
@@ -440,17 +473,17 @@ function renderThreePhotoSlots() {
       ruleBanner.style.background = 'rgba(56,189,248,0.12)';
       ruleBanner.style.border = '1px solid rgba(56,189,248,0.4)';
       ruleBanner.style.color = '#e0f2fe';
-      ruleBanner.innerHTML = '🚫 <strong>First Friday Check-In (Week 1): No photos required this Friday!</strong> You already submitted your starting photos on Day 1 Monday. Weekly Friday progress photos resume on <strong>Week 2 Friday</strong>.';
+      ruleBanner.innerHTML = 'ℹ️ <strong>Week 1 Friday Check-In:</strong> Starting photos were taken Day 1 Monday, or you can upload/update Week 1 Friday photos below (supports iPhone <code>.HEIC</code> &amp; <code>.JPG</code>).';
     } else if (wk === 0) {
       ruleBanner.style.background = 'rgba(61,255,79,0.10)';
       ruleBanner.style.border = '1px solid rgba(61,255,79,0.35)';
       ruleBanner.style.color = '#dcfce7';
-      ruleBanner.innerHTML = '📸 <strong>Start Check-In (Day 1 Monday):</strong> Upload your 3 Starting Photos (Side · Front · Back) &amp; log your fasted Starting Weight.';
+      ruleBanner.innerHTML = '📸 <strong>Start Check-In (Day 1 Monday):</strong> Upload your 3 Starting Photos (Side · Front · Back — supports iPhone <code>.HEIC</code> &amp; <code>.JPG</code>) &amp; log your fasted Starting Weight.';
     } else {
       ruleBanner.style.background = 'rgba(61,255,79,0.10)';
       ruleBanner.style.border = '1px solid rgba(61,255,79,0.35)';
       ruleBanner.style.color = '#dcfce7';
-      ruleBanner.innerHTML = `📸 <strong>Week ${wk} Friday Check-In:</strong> Upload your 3 Friday Progress Photos (Side · Front · Back) alongside your Friday weigh-in.`;
+      ruleBanner.innerHTML = `📸 <strong>Week ${wk} Friday Check-In:</strong> Upload your 3 Friday Progress Photos (Side · Front · Back — supports iPhone <code>.HEIC</code> &amp; <code>.JPG</code>) alongside your Friday weigh-in.`;
     }
   }
   const photos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
@@ -461,15 +494,18 @@ function renderThreePhotoSlots() {
     const noPhotoNeededWk1 = wk === 1 && !rec;
     const imgHtml = rec && rec.photo_data_url
       ? `<img src="${rec.photo_data_url}" style="width:100%;height:130px;object-fit:contain;background:#070a08;border-radius:8px;margin-bottom:6px;border:1px solid var(--green)"/>`
-      : `<div style="width:100%;height:130px;border-radius:8px;border:1px dashed ${noPhotoNeededWk1 ? 'rgba(56,189,248,0.45)' : 'var(--border)'};display:flex;align-items:center;justify-content:center;color:${noPhotoNeededWk1 ? '#38bdf8' : 'var(--muted)'};font-size:0.72rem;padding:0.4rem;margin-bottom:6px">${noPhotoNeededWk1 ? '🚫 No photo needed on Week 1 Friday (Sent Monday)' : rec ? '✅ Logged' : `No ${pose} photo`}</div>`;
+      : `<div style="width:100%;height:130px;border-radius:8px;border:1px dashed ${noPhotoNeededWk1 ? 'rgba(56,189,248,0.45)' : 'var(--border)'};display:flex;align-items:center;justify-content:center;color:${noPhotoNeededWk1 ? '#38bdf8' : 'var(--muted)'};font-size:0.72rem;padding:0.4rem;margin-bottom:6px">${noPhotoNeededWk1 ? '📷 Optional on Wk 1 Fri (or tap below to upload)' : rec ? '✅ Logged' : `No ${pose} photo`}</div>`;
     return `<div style="padding:0.6rem;border-radius:10px;background:var(--surface-2);border:1px solid ${rec ? 'var(--green)' : 'var(--border)'};text-align:center">
-      <div style="font-weight:700;font-size:0.78rem;margin-bottom:4px">${rec ? '✅' : (noPhotoNeededWk1 ? '🚫' : '📷')} ${pose} Pose (${wk === 0 ? 'Start Mon' : 'Wk ' + wk + ' Fri'})</div>
+      <div style="font-weight:700;font-size:0.78rem;margin-bottom:4px">${rec ? '✅' : '📷'} ${pose} Pose (${wk === 0 ? 'Start Mon' : 'Wk ' + wk + ' Fri'})</div>
       ${imgHtml}
-      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:6px">${rec ? `${rec.taken_date}${rec.weight_kg ? ' · ' + rec.weight_kg + 'kg' : ''}` : (noPhotoNeededWk1 ? 'Optional on Wk 1 Fri' : 'Fasted morning')}</div>
-      <label class="btn ${noPhotoNeededWk1 ? '' : 'btn-green'} btn-sm" style="cursor:pointer;display:inline-block">
-        📤 ${rec ? 'Update' : (noPhotoNeededWk1 ? 'Optional' : 'Record')} ${pose}
-        <input type="file" accept="image/*" style="display:none" onchange="handlePoseFileSelect(event, ${wk}, '${pose}')"/>
-      </label>
+      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:6px">${rec ? `${rec.taken_date}${rec.weight_kg ? ' · ' + rec.weight_kg + 'kg' : ''}` : 'Supports iPhone .HEIC & JPG'}</div>
+      <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
+        <label class="btn btn-green btn-sm" style="cursor:pointer;display:inline-block">
+          📤 ${rec ? 'Replace' : 'Upload'} ${pose}
+          <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" style="display:none" onchange="handlePoseFileSelect(event, ${wk}, '${pose}')"/>
+        </label>
+        ${rec ? `<button type="button" class="btn btn-sm" style="padding:2px 7px;font-size:0.66rem;color:#fca5a5" onclick="deletePosePhoto(${wk}, '${pose}')" title="Remove ${pose} photo">🗑️</button>` : ''}
+      </div>
     </div>`;
   }).join('');
 
@@ -483,44 +519,113 @@ function renderThreePhotoSlots() {
         const pB = _findPhotoForWeekAndPose(photos, wkB, pose);
         const box = (p, w) => p && p.photo_data_url
           ? `<img src="${p.photo_data_url}" style="width:100%;height:85px;object-fit:cover;border-radius:6px"/>`
-          : `<div style="height:85px;border-radius:6px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">${w === 0 ? 'Start' : 'Wk ' + w}: ${w === 1 ? 'No Pic (Fri)' : (p ? 'Logged' : 'Empty')}</div>`;
+          : `<div style="height:85px;border-radius:6px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">${w === 0 ? 'Start' : 'Wk ' + w}: ${p ? 'Logged' : 'Empty'}</div>`;
         return `<div style="padding:6px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border)"><div style="font-size:0.7rem;font-weight:700;text-align:center;margin-bottom:4px">${pose}</div><div class="grid-2">${box(pA, wkA)}${box(pB, wkB)}</div></div>`;
       }).join('')}</div>`;
   }
 }
 
-window.handlePoseFileSelect = function(event, weekNum, pose) {
-  const file = event.target.files?.[0];
+window.handlePoseFileSelect = async function(event, weekNum, pose) {
+  const file = event.target?.files?.[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(ev) {
-    const img = new Image();
-    img.onload = async function() {
-      const canvas = document.createElement('canvas');
-      const maxDim = 600;
-      let w = img.width, h = img.height;
-      if (w > maxDim || h > maxDim) {
-        if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
-        else { w = Math.round(w * maxDim / h); h = maxDim; }
-      }
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      const c = (STATE.overview && STATE.overview.checkin) || {};
+  const labelBtn = event.target?.closest('label');
+  window.setButtonBusy(labelBtn, `⏳ Uploading ${pose}...`);
+  try {
+    showToast(`📸 Processing ${pose} photo (${file.name})...`);
+    const jpegDataUrl = await compressImageFileToDataUrl(file, 760, 0.82);
+    const c = (STATE.overview && STATE.overview.checkin) || {};
+    const res = await fetch('/api/challenge/photos/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        week_num: weekNum,
+        pose,
+        taken_date: STATE.date,
+        weight_kg: c.weight_kg || null,
+        photo_data_url: jpegDataUrl,
+      }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (STATE.overview) STATE.overview.progress_photos = data.photos;
+      await refreshProgressSummary();
+      renderThreePhotoSlots();
+      renderOnePagerWeekly();
+      window.clearButtonBusy(labelBtn, `✅ ${pose} Saved!`);
+      showToast(`📸 Recorded ${pose} photo for ${weekNum === 0 ? 'Start Check-In' : 'Week ' + weekNum}!`);
+    } else {
+      window.clearButtonBusy(labelBtn);
+      showToast(`⚠️ Photo upload failed: ${data.error || 'Unknown error'}`);
+    }
+  } catch (err) {
+    window.clearButtonBusy(labelBtn);
+    showToast(`⚠️ Could not process ${file.name}. Please try again.`);
+  } finally {
+    if (event.target) event.target.value = '';
+  }
+};
+
+window.handleMultiPoseUpload = async function(event) {
+  const files = event.target?.files ? Array.from(event.target.files).slice(0, 3) : [];
+  if (!files.length) return;
+  const wk = getActiveSheetWeek();
+  const poses = ['Side', 'Front', 'Back'];
+  const photos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
+  const emptyPoses = poses.filter(pose => !_findPhotoForWeekAndPose(photos, wk, pose));
+  const targetPoses = files.length === 3 ? poses : [...emptyPoses, ...poses];
+  const labelBtn = event.target?.closest('label');
+  window.setButtonBusy(labelBtn, `⏳ Uploading ${files.length} photo(s)...`);
+  try {
+    const c = (STATE.overview && STATE.overview.checkin) || {};
+    for (let i = 0; i < files.length; i++) {
+      const pose = targetPoses[i] || poses[i % 3];
+      showToast(`📸 Processing ${pose} (${i + 1}/${files.length}: ${files[i].name})...`);
+      const jpegDataUrl = await compressImageFileToDataUrl(files[i], 760, 0.82);
       const res = await fetch('/api/challenge/photos/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ week_num: weekNum, pose, taken_date: STATE.date, weight_kg: c.weight_kg || null, photo_data_url: canvas.toDataURL('image/jpeg', 0.8) })
+        body: JSON.stringify({
+          week_num: wk,
+          pose,
+          taken_date: STATE.date,
+          weight_kg: c.weight_kg || null,
+          photo_data_url: jpegDataUrl,
+        }),
       });
       const data = await res.json();
-      if (data.ok) {
-        if (STATE.overview) STATE.overview.progress_photos = data.photos;
-        await refreshProgressSummary();
-        showToast(`📸 Recorded ${pose} photo for Week ${weekNum}!`);
+      if (data.ok && STATE.overview) {
+        STATE.overview.progress_photos = data.photos;
       }
-    };
-    img.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
+    }
+    await refreshProgressSummary();
+    renderThreePhotoSlots();
+    renderOnePagerWeekly();
+    window.clearButtonBusy(labelBtn, `✅ Uploaded ${files.length} Photo(s)!`);
+    showToast(`✅ Uploaded ${files.length} progress photo(s) for ${wk === 0 ? 'Start Check-In' : 'Week ' + wk}!`);
+  } catch (err) {
+    window.clearButtonBusy(labelBtn);
+    showToast('⚠️ Error uploading photos — please try again.');
+  } finally {
+    if (event.target) event.target.value = '';
+  }
+};
+
+window.deletePosePhoto = async function(weekNum, pose) {
+  try {
+    const res = await fetch('/api/challenge/photos/upload', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ week_num: weekNum, pose }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (STATE.overview) STATE.overview.progress_photos = data.photos;
+      await refreshProgressSummary();
+      renderThreePhotoSlots();
+      renderOnePagerWeekly();
+      showToast(`🗑️ Cleared ${pose} photo for ${weekNum === 0 ? 'Start' : 'Week ' + weekNum}`);
+    }
+  } catch (e) {}
 };
 
 // ── UNIVERSAL BUTTON AFFORDANCE & LOADING FEEDBACK (DESKTOP + MOBILE) ────────
@@ -1201,39 +1306,47 @@ window.downloadWeeklyCheckinPng = async function() {
   showToast(`🖼️ Downloaded Stylised Week ${wk} Check-In PNG!`);
 };
 
-window.handleThreePoseCollageUpload = function(event) {
-  const file = event.target.files?.[0];
+window.handleThreePoseCollageUpload = async function(event) {
+  const file = event.target?.files?.[0];
   if (!file) return;
   const wk = getActiveSheetWeek();
-  const reader = new FileReader();
-  reader.onload = function(ev) {
-    const img = new Image();
-    img.onload = async function() {
-      const poses = ['Side', 'Front', 'Back'];
-      const hasBottomCaption = img.height > img.width * 0.72;
-      const topSkip = hasBottomCaption ? Math.round(img.height * 0.08) : 0;
-      const cropH = hasBottomCaption ? Math.round(img.height * 0.56) : img.height;
-      const sliceW = Math.floor(img.width / 3);
-      const c = (STATE.overview && STATE.overview.checkin) || {};
-      for (let i = 0; i < 3; i++) {
-        const sc = document.createElement('canvas');
-        sc.width = 420;
-        sc.height = Math.round(420 * (cropH / sliceW));
-        sc.getContext('2d').drawImage(img, i * sliceW, topSkip, sliceW, cropH, 0, 0, sc.width, sc.height);
-        const res = await fetch('/api/challenge/photos/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ week_num: wk, pose: poses[i], taken_date: STATE.date, weight_kg: c.weight_kg || null, photo_data_url: sc.toDataURL('image/png') })
-        });
-        const data = await res.json();
-        if (data.ok && STATE.overview) STATE.overview.progress_photos = data.photos;
-      }
-      await refreshProgressSummary();
-      showToast(`✂️ Auto-split 3-pose collage into Side, Front & Back for Week ${wk}!`);
-    };
-    img.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
+  const labelBtn = event.target?.closest('label');
+  window.setButtonBusy(labelBtn, '⏳ Splitting 3-Pose Collage...');
+  try {
+    showToast(`✂️ Splitting 3-pose collage (${file.name})...`);
+    const baseDataUrl = await compressImageFileToDataUrl(file, 1600, 0.88);
+    const img = await loadImageAsync(baseDataUrl);
+    if (!img) throw new Error('Could not decode collage image');
+    const poses = ['Side', 'Front', 'Back'];
+    const hasBottomCaption = img.height > img.width * 0.72;
+    const topSkip = hasBottomCaption ? Math.round(img.height * 0.08) : 0;
+    const cropH = hasBottomCaption ? Math.round(img.height * 0.56) : img.height;
+    const sliceW = Math.floor(img.width / 3);
+    const c = (STATE.overview && STATE.overview.checkin) || {};
+    for (let i = 0; i < 3; i++) {
+      const sc = document.createElement('canvas');
+      sc.width = 420;
+      sc.height = Math.round(420 * (cropH / sliceW));
+      sc.getContext('2d').drawImage(img, i * sliceW, topSkip, sliceW, cropH, 0, 0, sc.width, sc.height);
+      const res = await fetch('/api/challenge/photos/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ week_num: wk, pose: poses[i], taken_date: STATE.date, weight_kg: c.weight_kg || null, photo_data_url: sc.toDataURL('image/jpeg', 0.84) })
+      });
+      const data = await res.json();
+      if (data.ok && STATE.overview) STATE.overview.progress_photos = data.photos;
+    }
+    await refreshProgressSummary();
+    renderThreePhotoSlots();
+    renderOnePagerWeekly();
+    window.clearButtonBusy(labelBtn, '✅ Collage Split!');
+    showToast(`✂️ Auto-split 3-pose collage into Side, Front & Back for Week ${wk}!`);
+  } catch (err) {
+    window.clearButtonBusy(labelBtn);
+    showToast('⚠️ Could not split collage image — please try uploading photos individually.');
+  } finally {
+    if (event.target) event.target.value = '';
+  }
 };
 
 window.promptQuickCoachNote = async function() {
@@ -1450,27 +1563,62 @@ const DAILY_4_PHOTO_SLOTS = [
   { key: 'Workout / Event', label: 'Photo 4 · Workout / Steps', icon: '🏋️', tag: '#workout' },
 ];
 
-function compressImageFileToDataUrl(file, maxDim = 760, quality = 0.82) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = reject;
-    reader.onload = function(ev) {
-      const img = new Image();
-      img.onerror = reject;
-      img.onload = function() {
-        const scale = Math.min(1, maxDim / Math.max(img.width || 1, img.height || 1));
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.round(img.width * scale));
-        canvas.height = Math.max(1, Math.round(img.height * scale));
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.src = ev.target.result;
-    };
-    reader.readAsDataURL(file);
+async function _convertFileViaServer(file, maxDim = 760) {
+  const fd = new FormData();
+  fd.append('file', file, file.name || 'photo.heic');
+  fd.append('max_dim', String(maxDim));
+  const res = await fetch('/api/challenge/photos/convert', {
+    method: 'POST',
+    body: fd,
   });
+  const data = await res.json();
+  if (data && data.ok && data.photo_data_url) {
+    return data.photo_data_url;
+  }
+  throw new Error((data && data.error) || 'Server photo conversion failed');
 }
+
+async function compressImageFileToDataUrl(file, maxDim = 760, quality = 0.82) {
+  const name = (file && file.name) || '';
+  const type = (file && file.type) || '';
+  const isHeic = /\.(heic|heif)$/i.test(name) || /heic|heif/i.test(type);
+
+  // For iPhone .HEIC / .HEIF files, convert on the server first (pillow-heif on Render / sips on macOS)
+  // because Chrome and Firefox do not decode HEIC in new Image().
+  if (isHeic) {
+    try {
+      return await _convertFileViaServer(file, maxDim);
+    } catch (serverErr) {
+      // Fall through and try native browser decode (e.g. Safari)
+    }
+  }
+
+  try {
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = function(ev) {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = function() {
+          const scale = Math.min(1, maxDim / Math.max(img.width || 1, img.height || 1));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  } catch (clientDecodeErr) {
+    // Fallback to server conversion if browser failed to decode the image
+    return await _convertFileViaServer(file, maxDim);
+  }
+}
+window.compressImageFileToDataUrl = compressImageFileToDataUrl;
 
 window.uploadDailyMomentPhoto = async function(slotKey, event) {
   const file = event && event.target && event.target.files ? event.target.files[0] : null;
@@ -1610,7 +1758,7 @@ function renderDailyJourneyMoments() {
           ${hasPhoto
             ? `<img src="${m.photo_data_url}" style="width:100%;height:96px;object-fit:cover;border-radius:7px;border:1px solid rgba(61,255,79,0.35)"/>`
             : `<div style="height:96px;border-radius:7px;background:#070a08;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:var(--muted)">+ Tap to Add Pic</div>`}
-          <input type="file" accept="image/*" style="display:none" onchange="uploadDailyMomentPhoto('${s.key}', event)"/>
+          <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" style="display:none" onchange="uploadDailyMomentPhoto('${s.key}', event)"/>
         </label>
         <input type="text" value="${(m.caption || '').replace(/"/g, '&quot;')}" placeholder="Note (${s.tag})" style="margin-top:5px;font-size:0.68rem;padding:0.3rem 0.45rem" onchange="saveDailyMomentCaption('${s.key}', this.value)"/>
       </div>`;
@@ -1727,7 +1875,7 @@ function renderOnePagerDailyPhotosAndWhatsApp() {
                    <span style="font-size:1.3rem">${slot.icon}</span>
                    <span>+ Tap to Add Photo ${idx + 1}</span>
                  </div>`}
-            <input type="file" accept="image/*" style="display:none" onchange="uploadDailyMomentPhoto('${slot.key}', event)"/>
+            <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" style="display:none" onchange="uploadDailyMomentPhoto('${slot.key}', event)"/>
           </label>
           <input type="text" value="${(m.caption || '').replace(/"/g, '&quot;')}" placeholder="Optional caption (${slot.tag})"
                  style="margin-top:0.35rem;font-size:0.72rem;padding:0.3rem 0.45rem;border-radius:7px"
@@ -2710,7 +2858,97 @@ function renderOnePagerWeekly() {
       </button>`;
     }).join('');
   }
+
+  const opPhotosEl = document.getElementById('op-wk-photos');
+  if (opPhotosEl) {
+    const photos = (ov && ov.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
+    const poses = ['Side', 'Front', 'Back'];
+    opPhotosEl.innerHTML = poses.map(pose => {
+      const rec = _findPhotoForWeekAndPose(photos, wk, pose);
+      return `<div style="background:var(--surface-2);border:1px solid ${rec ? 'var(--green)' : 'var(--border)'};border-radius:10px;padding:0.45rem;text-align:center">
+        <div style="font-size:0.72rem;font-weight:800;margin-bottom:4px">${rec ? '✅' : '📷'} ${pose}</div>
+        ${rec && rec.photo_data_url
+          ? `<img src="${rec.photo_data_url}" style="width:100%;height:96px;object-fit:contain;background:#070a08;border-radius:7px;margin-bottom:5px;border:1px solid var(--green)"/>`
+          : `<div style="height:96px;border-radius:7px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted);margin-bottom:5px">No ${pose}</div>`}
+        <div style="display:flex;gap:4px;justify-content:center">
+          <label class="btn btn-green btn-sm" style="cursor:pointer;padding:0.25rem 0.5rem;font-size:0.68rem">
+            📤 ${rec ? 'Replace' : 'Upload'}
+            <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" style="display:none" onchange="handlePoseFileSelect(event, ${wk}, '${pose}')"/>
+          </label>
+          ${rec ? `<button type="button" class="btn btn-sm" style="padding:0.2rem 0.4rem;font-size:0.65rem;color:#fca5a5" onclick="deletePosePhoto(${wk}, '${pose}')">🗑️</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
 }
+
+window.downloadCoachChrisExcel = async function(triggerBtn) {
+  const wk = getActiveSheetWeek();
+  const btn = window.setButtonBusy(triggerBtn, '⏳ Building Coach Chris Excel...');
+  try {
+    showToast('📊 Generating Coach Chris Excel (.xlsx) with your daily check-ins, weekly averages & workouts...');
+    const url = `/api/challenge/export/excel?week_num=${encodeURIComponent(wk)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const blob = await res.blob();
+    const disp = res.headers.get('Content-Disposition') || '';
+    const match = disp.match(/filename="?([^";]+)"?/i);
+    const profName = ((STATE.overview && STATE.overview.profile && STATE.overview.profile.client_name) || 'Challenger').replace(/\s+/g, '_');
+    const filename = (match && match[1]) || `${profName}_CS_Fitness_Week_${wk || 1}_CheckIn.xlsx`;
+
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+
+    window.clearButtonBusy(btn, '✅ Excel Downloaded!');
+    showToast(`📊 Downloaded ${filename} — ready to send to Coach Chris!`);
+  } catch (err) {
+    window.clearButtonBusy(btn);
+    // Fallback direct navigation download for mobile browsers
+    window.location.href = `/api/challenge/export/excel?week_num=${encodeURIComponent(wk)}`;
+  }
+};
+
+window.importCoachChrisExcel = async function(event) {
+  const file = event.target?.files?.[0];
+  if (!file) return;
+  const labelBtn = event.target?.closest('label');
+  window.setButtonBusy(labelBtn, '⏳ Importing Excel...');
+  try {
+    showToast(`📥 Importing ${file.name}...`);
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    const res = await fetch('/api/challenge/import/excel', {
+      method: 'POST',
+      body: fd,
+    });
+    const data = await res.json();
+    if (data.ok) {
+      await loadOverview(STATE.date);
+      await refreshProgressSummary();
+      if (typeof window.loadWeekSheet === 'function') {
+        await window.loadWeekSheet(getActiveSheetWeek());
+      }
+      window.clearButtonBusy(labelBtn, '✅ Excel Imported!');
+      showToast(`📥 Imported ${data.imported_days || 0} day(s) & ${data.imported_workouts || 0} workout(s) from ${file.name}!`);
+    } else {
+      window.clearButtonBusy(labelBtn);
+      showToast(`⚠️ Import failed: ${data.error || 'Invalid Excel file'}`);
+    }
+  } catch (err) {
+    window.clearButtonBusy(labelBtn);
+    showToast('⚠️ Failed to import Excel file.');
+  } finally {
+    if (event.target) event.target.value = '';
+  }
+};
 
 window.saveOnePagerDaily = async function(withPng) {
   if (_onePagerAutoSaveTimer) {

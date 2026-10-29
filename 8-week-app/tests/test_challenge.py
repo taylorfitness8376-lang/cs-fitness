@@ -579,6 +579,102 @@ def test_multi_user_data_isolation_for_alan_vs_ewan(client):
     assert "Alan" in names
 
 
+def test_coach_chris_excel_export_import_and_heic_photos(client):
+    """Verify Coach Chris .xlsx workbook export/import and photo convert/upload/delete."""
+    import base64
+    import io
+    import zipfile
+
+    # 1. Log a Week 2 daily check-in and a Men's Workout 1 set log
+    ci_res = client.post("/api/challenge/checkins", json={
+        "date": "2026-10-26",
+        "weight_kg": 81.9,
+        "training_type": "GYM",
+        "steps": 13631,
+        "protein_g": 182,
+        "calories": 2095,
+        "water_l": 4.0,
+        "sleep_mins": 473,
+        "stick_to_plan": "Y",
+        "notes": "Mens Club - Heavy Deadlifts",
+    }).get_json()
+    assert ci_res["checkin"]["weight_kg"] == 81.9
+
+    wl_res = client.post("/api/challenge/workouts/log", json={
+        "track": "mens",
+        "workout_num": 1,
+        "week_num": 2,
+        "row_key": "W1_A_1",
+        "exercise_order": "A",
+        "exercise_name": "Barbell Back Squat",
+        "target_sets": 1,
+        "target_reps": "8",
+        "weight_reps": "80kg x8",
+        "logged_date": "2026-10-26",
+        "mark_checkin_gym": True,
+    }).get_json()
+    assert wl_res["ok"] is True
+
+    # 2. Export Coach Chris .xlsx for Week 2
+    xls_res = client.get("/api/challenge/export/excel?week_num=2")
+    assert xls_res.status_code == 200
+    assert "spreadsheetml.sheet" in xls_res.mimetype
+    xls_bytes = xls_res.data
+    assert len(xls_bytes) > 50000
+
+    with zipfile.ZipFile(io.BytesIO(xls_bytes), "r") as zf:
+        names = set(zf.namelist())
+        # All 6 sheets + 8 embedded CS Fitness JPEG logos preserved
+        for idx in range(1, 7):
+            assert f"xl/worksheets/sheet{idx}.xml" in names
+        for idx in range(1, 9):
+            assert f"xl/media/image{idx}.jpeg" in names
+        sheet2_xml = zf.read("xl/worksheets/sheet2.xml").decode("utf-8")
+        sheet3_xml = zf.read("xl/worksheets/sheet3.xml").decode("utf-8")
+        assert "81.9" in sheet2_xml
+        assert "13631" in sheet2_xml
+        assert "81.9" in sheet3_xml
+
+    # 3. Round-trip import the generated .xlsx back into the app
+    imp_res = client.post(
+        "/api/challenge/import/excel",
+        data={"file": (io.BytesIO(xls_bytes), "Ewan_t_CS_Fitness_Week_2_CheckIn.xlsx")},
+        content_type="multipart/form-data",
+    ).get_json()
+    assert imp_res["ok"] is True
+    assert imp_res["imported_days"] >= 1
+    assert imp_res["imported_workouts"] >= 1
+
+    # 4. Test photo convert endpoint and pose upload + delete
+    png_1x1 = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+    )
+    conv_res = client.post(
+        "/api/challenge/photos/convert",
+        data={"file": (io.BytesIO(png_1x1), "IMG_1838.HEIC"), "max_dim": "600"},
+        content_type="multipart/form-data",
+    ).get_json()
+    assert conv_res["ok"] is True
+    assert conv_res["photo_data_url"].startswith("data:image/jpeg;base64,")
+
+    up_res = client.post("/api/challenge/photos/upload", json={
+        "week_num": 2,
+        "pose": "Side",
+        "taken_date": "2026-10-30",
+        "weight_kg": 81.9,
+        "photo_data_url": conv_res["photo_data_url"],
+    }).get_json()
+    assert up_res["ok"] is True
+    assert any(p["week_num"] == 2 and p["pose"] == "Side" for p in up_res["photos"])
+
+    del_res = client.delete("/api/challenge/photos/upload", json={
+        "week_num": 2,
+        "pose": "Side",
+    }).get_json()
+    assert del_res["ok"] is True
+    assert not any(p["week_num"] == 2 and p["pose"] == "Side" for p in del_res["photos"])
+
+
 def test_simplified_daily_mobile_and_garmin_2fa(client, monkeypatch):
     # 1. Verify /challenge contains the simplified mobile-first Daily view + Desktop Garmin 2FA input
     res = client.get("/challenge")

@@ -103,6 +103,7 @@
         <option value="7">Week 7 · Fri Check-In (+ 3 Photos)</option>
         <option value="8">Week 8 · Fri Check-In (Final Photos)</option>
       </select>
+      <button class="btn btn-green btn-sm" onclick="window.location.href='/api/challenge/export/excel?profile_id='+(document.getElementById('admin-challenger-select')?.value||1)+'&week_num='+(document.getElementById('admin-week-select')?.value||1)">📊 Export Coach Chris Excel (.xlsx)</button>
       <button class="btn btn-sm" onclick="openChallengerInMainApp()">👁️ Open in Challenger App</button>
     </div>
   </div>
