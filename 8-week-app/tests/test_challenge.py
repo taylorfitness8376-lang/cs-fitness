@@ -1169,6 +1169,55 @@ def test_multi_day_checkin_and_garmin_persistence_across_restart(client):
     assert ov_oct28["integrations"]["garmin_token_dump"] == '{"di_token":"valid_garmin_token_123"}'
 
 
+def test_mobile_daily_notes_carryover_to_weekly_sheet_and_excel(client):
+    """Verify daily notes captured on mobile (mindset_win) carry over next to workouts in the Weekly Sheet and Excel."""
+    import io
+    import zipfile
+
+    ch_html = client.get("/challenge").get_data(as_text=True)
+    assert 'id="op-daily-note"' in ch_html
+    assert 'id="op-weekly-notes-rollup"' in ch_html
+    assert 'id="op-wk-daily-notes-review"' in ch_html
+    assert 'id="desktop-wk-daily-notes-review"' in ch_html
+
+    # 1. Save a day with both a workout note and a daily context note
+    res = client.post("/api/challenge/checkins", json={
+        "date": "2026-10-29",
+        "weight_kg": 81.9,
+        "steps": 14800,
+        "calories": 2110,
+        "protein_g": 165,
+        "training_type": "GYM",
+        "notes": "Strength (50 min)",
+        "mindset_win": "High energy today, slept great despite travel",
+    }).get_json()
+    assert res["checkin"]["notes"] == "Strength (50 min)"
+    assert res["checkin"]["mindset_win"] == "High energy today, slept great despite travel"
+
+    # 2. Fetch Week 2 sheet and verify workout + daily note appear side-by-side
+    sheet = client.get("/api/challenge/week/2").get_json()
+    thu_row = [r for r in sheet["rows"] if r["date"] == "2026-10-29"][0]
+    assert thu_row["workout_note"] == "Strength (50 min)"
+    assert thu_row["daily_note"] == "High energy today, slept great despite travel"
+    assert thu_row["notes"] == "Strength (50 min) · 📝 High energy today, slept great despite travel"
+
+    # 3. Editing the combined string from the Weekly Check-In Sheet table splits cleanly without duplicating "· 📝"
+    edit_res = client.post("/api/challenge/checkins", json={
+        "date": "2026-10-29",
+        "notes": "Strength (50 min) · 📝 High energy today, hit PB on incline press",
+    }).get_json()
+    assert edit_res["checkin"]["notes"] == "Strength (50 min)"
+    assert edit_res["checkin"]["mindset_win"] == "High energy today, hit PB on incline press"
+
+    # 4. Verify Coach Chris .xlsx export includes both workout and daily note side-by-side
+    xls_bytes = client.get("/api/challenge/export/excel?week_num=2").data
+    with zipfile.ZipFile(io.BytesIO(xls_bytes), "r") as zf:
+        shared_strings_xml = zf.read("xl/sharedStrings.xml").decode("utf-8")
+        assert "Strength (50 min)" in shared_strings_xml
+        assert "High energy today, hit PB on incline press" in shared_strings_xml
+
+
+
 
 
 

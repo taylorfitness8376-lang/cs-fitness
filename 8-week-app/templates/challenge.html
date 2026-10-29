@@ -204,9 +204,17 @@
         </div>
       </div>
 
-      <div style="margin-bottom:0.9rem">
-        <label class="op-big-label" for="op-notes" style="margin-bottom:0.35rem;display:block">WORKOUT / TRAINING NOTE</label>
+      <div style="margin-bottom:0.65rem">
+        <label class="op-big-label" for="op-notes" style="margin-bottom:0.35rem;display:block">🏋️ WORKOUT / TRAINING NOTE</label>
         <input type="text" id="op-notes" class="op-big-note-input" placeholder="e.g. 3 x 5k at 5 min miles" oninput="scheduleOnePagerAutoSave()" />
+      </div>
+
+      <div style="margin-bottom:0.9rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;gap:6px;flex-wrap:wrap">
+          <label class="op-big-label" for="op-daily-note" style="margin:0;display:block;color:var(--green)">📝 DAILY NOTES &amp; EXTRA CONTEXT</label>
+          <span style="font-size:0.65rem;color:#94a3b8">Carried over next to workouts for your Weekly Update</span>
+        </div>
+        <textarea id="op-daily-note" rows="2" class="op-big-note-input" style="font-size:0.86rem;line-height:1.38;padding:0.55rem 0.7rem;resize:vertical" placeholder="Capture anything from today (energy, sleep, hunger, travel, soreness, wins) to review when doing your weekly update..." oninput="scheduleOnePagerAutoSave()"></textarea>
       </div>
 
       <!-- 5. Submit Button + Confirmation Message ("Monday saved") -->
@@ -293,6 +301,8 @@
           <div style="font-size:1.02rem;font-weight:900;color:var(--green);margin-top:2px" id="op-wk-prot">0g</div>
         </div>
       </div>
+      <!-- Collated Weekly Workouts & Daily Notes Context -->
+      <div id="op-weekly-notes-rollup" style="margin-top:0.65rem"></div>
       <div style="margin-top:0.65rem;display:flex;gap:0.45rem;flex-wrap:wrap;justify-content:center">
         <button type="button" class="btn btn-green btn-sm" onclick="downloadCoachChrisExcel(this)" style="font-weight:800">
           📊 Download Coach Chris Excel (.xlsx)
@@ -322,9 +332,13 @@
         </div>
       </div>
       <div id="op-wk-photos" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.45rem;margin-bottom:0.65rem"></div>
+      <div id="op-wk-daily-notes-review" style="margin-bottom:0.65rem"></div>
       <div style="margin-bottom:0.65rem">
-        <label class="field-label">Weekly Write-Up for Chris / Laura</label>
-        <textarea id="op-wk-comments" rows="2" placeholder="How did the week go? Wins & focus for next week..."></textarea>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:0.25rem">
+          <label class="field-label" style="margin:0">Weekly Write-Up for Chris / Laura</label>
+          <button type="button" class="btn btn-sm" style="padding:2px 8px;font-size:0.66rem" onclick="appendDailyNotesToWeeklyWriteup('op-wk-comments')">➕ Insert Daily Workouts &amp; Notes</button>
+        </div>
+        <textarea id="op-wk-comments" rows="3" placeholder="How did the week go? Wins & focus for next week..."></textarea>
       </div>
       <div class="grid-2" style="gap:0.4rem;margin-bottom:0.4rem">
         <button class="btn btn-green" onclick="downloadCoachChrisExcel(this)">📊 Coach Chris Excel (.xlsx)</button>
@@ -794,7 +808,7 @@
               <th>CALORIES</th>
               <th>SLEEP</th>
               <th>STICK TO PLAN?</th>
-              <th>NOTES</th>
+              <th>WORKOUTS &amp; DAILY NOTES</th>
             </tr>
           </thead>
           <tbody id="checkin-sheet-tbody"></tbody>
@@ -810,8 +824,12 @@
           <span class="card-title">📝 Weekly Check-In Comments &amp; Coach Chris Feedback</span>
           <span class="badge badge-green" id="wk-submission-status-badge">Not Submitted</span>
         </div>
+        <div id="desktop-wk-daily-notes-review" style="margin-bottom:0.65rem"></div>
         <div style="margin-bottom:0.65rem">
-          <label class="field-label">Your Weekly Write-Up / Reflection for Chris (Rendered on Weekly PNG &amp; Coach View)</label>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:0.25rem">
+            <label class="field-label" style="margin:0">Your Weekly Write-Up / Reflection for Chris (Rendered on Weekly PNG &amp; Coach View)</label>
+            <button type="button" class="btn btn-sm" style="padding:2px 8px;font-size:0.68rem" onclick="appendDailyNotesToWeeklyWriteup('wk-challenger-comments')">➕ Insert This Week's Workouts &amp; Daily Notes</button>
+          </div>
           <textarea id="wk-challenger-comments" rows="4" oninput="if(window.renderWeeklyCheckinCardCanvas)renderWeeklyCheckinCardCanvas()" placeholder="How did the week go? Add your weekly reflection, wins, travel/schedule notes, or questions for Chris..." style="font-size:0.78rem"></textarea>
         </div>
         <div id="wk-coach-feedback-box" style="padding:0.65rem;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);margin-bottom:0.65rem;font-size:0.76rem">

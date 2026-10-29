@@ -281,7 +281,9 @@ window.renderWeekSheetData = function(sheet) {
     };
   }
   if (_origRenderWeekSheetData) _origRenderWeekSheetData(sheet);
+  window._lastLoadedWeekSheet = sheet;
   syncProgramStartWeightFields();
+  renderWeeklyWorkoutsAndDailyNotesContext(sheet);
   const wk = getActiveSheetWeek();
   const photos = ((STATE.overview && STATE.overview.progress_photos) || []).filter((p) => Number(p.week_num) === wk);
   const posesLogged = ['Front', 'Side', 'Back'].filter((pose) => photos.some((p) => p.pose === pose));
@@ -2229,6 +2231,7 @@ function getCurrentDailyValuesForSummary() {
   );
   const trainingVal = (document.getElementById('op-training')?.value || c.training_type || 'REST').toUpperCase();
   const notesVal = (document.getElementById('op-notes')?.value ?? c.notes ?? c.class_attended ?? '').trim();
+  const dailyNoteVal = (document.getElementById('op-daily-note')?.value ?? c.mindset_win ?? '').trim();
   const firstName = ((prof.client_name || 'Challenger').split(' ')[0] || 'Challenger').replace(/[^A-Za-z0-9]/g, '');
 
   return {
@@ -2247,6 +2250,7 @@ function getCurrentDailyValuesForSummary() {
     sleepDisplay: sleepRaw || '—',
     trainingVal,
     notesVal,
+    dailyNoteVal,
   };
 }
 
@@ -2263,8 +2267,11 @@ window.buildLiveWhatsAppSummaryText = function() {
     `🔥 Calories: *${s.calsDisplay}* · 💪 Protein: *${s.protDisplay}*`,
     `💧 Water: *${s.waterDisplay}* · 😴 Sleep: *${s.sleepDisplay}*`,
     trainLine,
-    `#${s.firstName} #steps #macros #winTheDay #CSFitness`,
   ];
+  if (s.dailyNoteVal) {
+    lines.push(`📝 Notes: ${s.dailyNoteVal}`);
+  }
+  lines.push(`#${s.firstName} #steps #macros #winTheDay #CSFitness`);
   return lines.join('\n');
 };
 
@@ -2581,7 +2588,7 @@ window.downloadOrShareDailyCollagePng = async function(triggerBtn) {
 
 function wireOnePagerLiveSummaryInputs() {
   if (window._opLiveInputsWired) return;
-  const ids = ['op-steps', 'op-cals', 'op-prot', 'op-water', 'op-sleep', 'op-notes'];
+  const ids = ['op-steps', 'op-cals', 'op-prot', 'op-water', 'op-sleep', 'op-notes', 'op-daily-note'];
   let foundAny = false;
   ids.forEach(id => {
     const el = document.getElementById(id);
@@ -2689,7 +2696,8 @@ function hasMeaningfulCheckinData(c) {
     Number(c.sleep_mins || 0) > 0 ||
     (c.sleep_str && String(c.sleep_str).trim()) ||
     (c.sleep && String(c.sleep).trim()) ||
-    (c.notes && String(c.notes).trim())
+    (c.notes && String(c.notes).trim()) ||
+    (c.mindset_win && String(c.mindset_win).trim())
   );
 }
 
@@ -2705,7 +2713,7 @@ window.recordCheckinInBrowserVault = function(row, pid) {
     const merged = Object.assign({}, existing);
     Object.keys(row).forEach(k => {
       const v = row[k];
-      if (v !== undefined && v !== null && v !== '') {
+      if (v !== undefined && v !== null && (v !== '' || k === 'notes' || k === 'mindset_win')) {
         merged[k] = v;
       }
     });
@@ -2863,11 +2871,13 @@ window.scheduleOnePagerAutoSave = function() {
   const sleepVal = document.getElementById('op-sleep')?.value?.trim() || '';
   const trainVal = document.getElementById('op-training')?.value || 'REST';
   const notesVal = document.getElementById('op-notes')?.value || '';
+  const dailyNoteVal = document.getElementById('op-daily-note')?.value || '';
 
   const draft = {
     date: curDate,
     training_type: trainVal,
     notes: notesVal,
+    mindset_win: dailyNoteVal,
   };
   if (wtVal !== '') draft.weight_kg = parseFloat(wtVal);
   if (stepsVal !== '') draft.steps = parseInt(stepsVal, 10);
@@ -3093,6 +3103,7 @@ function renderMobileDailyWeekStrip() {
       <div style="font-size:0.68rem;font-weight:900;margin-top:1px;color:${hasData ? '#fff' : 'var(--muted)'}">${hasData ? '✓ ' + subTxt : '·'}</div>
     </button>`;
   }).join('');
+  renderWeeklyWorkoutsAndDailyNotesContext(sheet);
 }
 
 function renderOnePagerViews() {
@@ -3190,6 +3201,7 @@ function renderOnePagerViews() {
   setVal('op-sleep', c.sleep_mins && Number(c.sleep_mins) > 0 ? (c.sleep_str || `${Math.floor(c.sleep_mins / 60)}h ${c.sleep_mins % 60}m`) : (c.sleep_str || c.sleep || ''));
   window.selectOnePagerTraining(c.training_type || 'REST', false);
   setVal('op-notes', c.notes || c.class_attended || '');
+  setVal('op-daily-note', c.mindset_win || '');
 
   const wtBadge = document.getElementById('op-morning-weight-badge');
   const wtSub = document.getElementById('op-morning-weight-sub');
@@ -3214,6 +3226,155 @@ function renderOnePagerViews() {
   renderOnePagerDailyPhotosAndWhatsApp();
   renderOnePagerWeekly();
 }
+
+function getActiveWeekRowsWithNotes(sheetOverride) {
+  const ov = (typeof STATE !== 'undefined' && STATE.overview) || {};
+  const sheet = sheetOverride || window._lastLoadedWeekSheet || ov.current_week_sheet || {};
+  const rows = Array.isArray(sheet.rows) ? sheet.rows : [];
+  const vault = typeof window.getBrowserCheckinsVault === 'function' ? window.getBrowserCheckinsVault() : {};
+  const vaultMap = {};
+  (vault.daily_checkins || []).forEach(v => {
+    if (v && v.date) vaultMap[String(v.date).slice(0, 10)] = v;
+  });
+
+  return rows.map(r => {
+    const dStr = String(r.date || '').slice(0, 10);
+    const v = vaultMap[dStr] || {};
+    const isToday = dStr === ((typeof STATE !== 'undefined' && STATE.date) || '');
+    const liveWorkout = isToday ? (document.getElementById('op-notes')?.value ?? '') : '';
+    const liveDaily = isToday ? (document.getElementById('op-daily-note')?.value ?? '') : '';
+
+    let workoutNote = String(
+      (isToday && liveWorkout !== '' ? liveWorkout : '') ||
+      r.workout_note ||
+      v.notes ||
+      v.class_attended ||
+      r.class_attended ||
+      ''
+    ).trim();
+    if (!workoutNote && r.notes && !String(r.notes).includes(' · 📝 ') && !String(r.notes).startsWith('📝 ')) {
+      workoutNote = String(r.notes).trim();
+    } else if (!workoutNote && r.notes && String(r.notes).includes(' · 📝 ')) {
+      workoutNote = String(r.notes).split(' · 📝 ')[0].trim();
+    }
+
+    let dailyNote = String(
+      (isToday && liveDaily !== '' ? liveDaily : '') ||
+      r.daily_note ||
+      r.mindset_win ||
+      v.mindset_win ||
+      ''
+    ).trim();
+    if (!dailyNote && r.notes && String(r.notes).includes(' · 📝 ')) {
+      dailyNote = String(r.notes).split(' · 📝 ').slice(1).join(' · 📝 ').trim();
+    } else if (!dailyNote && r.notes && String(r.notes).startsWith('📝 ')) {
+      dailyNote = String(r.notes).slice(2).trim();
+    }
+
+    const trainingType = String(
+      (isToday && document.getElementById('op-training')?.value) ||
+      r.training_type ||
+      v.training_type ||
+      'REST'
+    ).toUpperCase();
+
+    return {
+      date: dStr,
+      day_name: r.day_name || getWeekdayNameForDate(dStr),
+      day_short: r.day_short || (r.day_name || getWeekdayNameForDate(dStr)).slice(0, 3),
+      training_type: trainingType,
+      workout_note: workoutNote,
+      daily_note: dailyNote,
+      steps: r.steps || v.steps || 0,
+      weight_kg: r.weight_kg ?? v.weight_kg ?? null,
+    };
+  });
+}
+
+function renderWeeklyWorkoutsAndDailyNotesContext(sheetOverride) {
+  const enrichedRows = getActiveWeekRowsWithNotes(sheetOverride);
+  const activeRows = enrichedRows.filter(
+    r => (r.training_type && r.training_type !== 'REST') || r.workout_note || r.daily_note
+  );
+
+  const buildFeedHtml = (compact) => {
+    if (!activeRows.length) {
+      return `<div style="background:rgba(15,22,18,0.7);border:1px dashed var(--border);border-radius:10px;padding:0.5rem 0.65rem;font-size:0.74rem;color:#94a3b8;text-align:left">
+        📝 <strong>Workouts &amp; Daily Notes Context:</strong> No daily notes or workouts logged for this week yet. Add a note on the daily screen and it will appear here next to your workouts for easy weekly review.
+      </div>`;
+    }
+    const itemsHtml = activeRows.map(r => {
+      const tBadgeBg = r.training_type === 'REST' ? 'rgba(148,163,184,0.15)' : 'rgba(61,255,79,0.16)';
+      const tBadgeColor = r.training_type === 'REST' ? '#cbd5e1' : 'var(--green)';
+      const workoutLabel = r.workout_note
+        ? `<span style="color:#e2e8f0;font-weight:700">${r.workout_note}</span>`
+        : `<span style="color:#64748b;font-style:italic">${r.training_type === 'REST' ? 'Rest day' : r.training_type}</span>`;
+      const dailyNoteHtml = r.daily_note
+        ? `<span style="color:#fde68a;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);border-radius:6px;padding:1px 6px;font-weight:600">📝 ${r.daily_note}</span>`
+        : '';
+      return `<div onclick="loadOverview('${r.date}')" style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:0.32rem 0.45rem;border-radius:7px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);cursor:pointer;text-align:left" title="Tap to view/edit ${r.day_name} (${r.date})">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;flex:1">
+          <span style="font-size:0.7rem;font-weight:900;color:#fff;min-width:32px">${r.day_short}</span>
+          <span style="font-size:0.63rem;font-weight:800;padding:1px 6px;border-radius:99px;background:${tBadgeBg};color:${tBadgeColor}">${r.training_type}</span>
+          <span style="font-size:0.74rem">${workoutLabel}</span>
+          ${dailyNoteHtml}
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div style="background:#08100b;border:1px solid rgba(61,255,79,0.3);border-radius:10px;padding:${compact ? '0.5rem 0.6rem' : '0.6rem 0.75rem'};text-align:left">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:0.35rem">
+        <span style="font-size:0.72rem;font-weight:900;color:var(--green);letter-spacing:0.03em">🏋️ WORKOUTS &amp; 📝 DAILY NOTES THIS WEEK (${activeRows.length}d)</span>
+        <span style="font-size:0.64rem;color:#94a3b8">Tap any day to edit</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">${itemsHtml}</div>
+    </div>`;
+  };
+
+  const mobileRollupEl = document.getElementById('op-weekly-notes-rollup');
+  if (mobileRollupEl) mobileRollupEl.innerHTML = buildFeedHtml(true);
+
+  const mobileWeeklyReviewEl = document.getElementById('op-wk-daily-notes-review');
+  if (mobileWeeklyReviewEl) mobileWeeklyReviewEl.innerHTML = buildFeedHtml(false);
+
+  const desktopWeeklyReviewEl = document.getElementById('desktop-wk-daily-notes-review');
+  if (desktopWeeklyReviewEl) desktopWeeklyReviewEl.innerHTML = buildFeedHtml(false);
+}
+
+window.appendDailyNotesToWeeklyWriteup = function(targetTextareaId) {
+  const rows = getActiveWeekRowsWithNotes().filter(
+    r => (r.training_type && r.training_type !== 'REST') || r.workout_note || r.daily_note
+  );
+  if (!rows.length) {
+    showToast('ℹ️ No daily workouts or notes logged for this week yet.');
+    return;
+  }
+  const summaryLines = rows.map(r => {
+    const parts = [];
+    if (r.workout_note) {
+      parts.push(`${r.training_type}: ${r.workout_note}`);
+    } else if (r.training_type && r.training_type !== 'REST') {
+      parts.push(r.training_type);
+    }
+    if (r.daily_note) {
+      parts.push(`📝 ${r.daily_note}`);
+    }
+    return `${r.day_short}: ${parts.join(' · ')}`;
+  });
+  const block = summaryLines.join('\n');
+
+  const ids = targetTextareaId ? [targetTextareaId] : ['op-wk-comments', 'wk-challenger-comments'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const curr = el.value.trim();
+    el.value = curr ? `${curr}\n\n${block}` : block;
+  });
+  if (typeof window.renderWeeklyCheckinCardCanvas === 'function') {
+    window.renderWeeklyCheckinCardCanvas();
+  }
+  showToast('📝 Inserted this week\'s workouts & daily notes into your weekly write-up!');
+};
 
 window.saveMorningWeightOnly = async function(weightInputId, timeInputId) {
   const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
@@ -3265,11 +3426,12 @@ function renderOnePagerWeekly() {
   setTxt('op-wk-cals', String(avgCals));
   setTxt('op-wk-prot', `${avgProt}g`);
   setTxt('op-rollup-days-badge', `${daysLogged} / 7 Days Logged`);
+  renderWeeklyWorkoutsAndDailyNotesContext(sheet);
 
   const stripEl = document.getElementById('op-weekly-days-strip');
   if (stripEl && rows.length) {
     stripEl.innerHTML = rows.map(r => {
-      const hasData = Boolean(r.weight_kg || r.steps || r.calories || r.protein_g || (r.notes && r.notes.trim()));
+      const hasData = Boolean(r.weight_kg || r.steps || r.calories || r.protein_g || (r.notes && r.notes.trim()) || (r.mindset_win && r.mindset_win.trim()));
       const isSelected = r.date === STATE.date;
       const shortDay = r.day_short || (r.day_name || '').slice(0, 3);
       return `<button type="button" onclick="loadOverview('${r.date}')" style="padding:0.35rem 0.15rem;border-radius:8px;cursor:pointer;background:${isSelected ? 'rgba(61,255,79,0.22)' : (hasData ? 'rgba(61,255,79,0.08)' : 'var(--surface-2)')};border:1.5px solid ${isSelected ? 'var(--green)' : (hasData ? 'rgba(61,255,79,0.4)' : 'var(--border)')};color:#fff;text-align:center">
@@ -3424,6 +3586,7 @@ window.saveOnePagerDaily = async function(withPng) {
       date: curDate,
       training_type: document.getElementById('op-training')?.value || 'REST',
       notes: document.getElementById('op-notes')?.value || '',
+      mindset_win: document.getElementById('op-daily-note')?.value || '',
     };
     if (wtVal !== '') payload.weight_kg = parseFloat(wtVal);
     if (stepsVal !== '') payload.steps = parseInt(stepsVal, 10);

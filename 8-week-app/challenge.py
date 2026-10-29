@@ -490,6 +490,17 @@ def _upsert_checkin(db, date_str, data, profile_id=1):
         if k in data and data[k] is not None:
             curr[k] = data[k]
 
+    # If the user edited the combined "Workout · 📝 Daily Note" column in the Weekly Sheet table,
+    # split it back into `notes` (workout) and `mindset_win` (daily note) so it never duplicates.
+    if "notes" in data and data.get("notes") and " · 📝 " in str(data.get("notes")) and "mindset_win" not in data:
+        parts = str(data["notes"]).split(" · 📝 ", 1)
+        curr["notes"] = parts[0].strip()
+        curr["mindset_win"] = parts[1].strip()
+    elif "notes" in data and data.get("notes") and str(data.get("notes")).startswith("📝 ") and "mindset_win" not in data:
+        curr["mindset_win"] = str(data["notes"])[2:].strip()
+        if not existing or not existing["notes"]:
+            curr["notes"] = ""
+
     if "sleep" in data and data["sleep"] is not None:
         if str(data["sleep"]).strip() == "":
             curr["sleep_mins"] = 0
@@ -713,7 +724,39 @@ def _build_week_sheet(db, profile, week_num):
                 "sleep_str": "",
                 "stick_to_plan": "",
                 "notes": "",
+                "mindset_win": "",
+                "class_attended": "",
             }
+        day_acts = [
+            dict(a)
+            for a in db.execute(
+                "SELECT title, distance_km, pace_str, duration_mins, category FROM daily_activities WHERE profile_id=? AND date=? ORDER BY start_time, id",
+                (profile.get("id", 1), d_str),
+            ).fetchall()
+        ]
+        act_titles = [
+            f"{a['title']} ({a['distance_km']}km{' @ ' + a['pace_str'] if a.get('pace_str') else ''})"
+            if a.get("distance_km") else str(a.get("title") or "").strip()
+            for a in day_acts
+            if str(a.get("title") or "").strip()
+        ]
+        raw_notes = str(r.get("notes") or "").strip()
+        class_att = str(r.get("class_attended") or "").strip()
+        daily_ctx = str(r.get("mindset_win") or "").strip()
+        workout_note = raw_notes or class_att or (" + ".join(dict.fromkeys(act_titles)) if act_titles else "")
+        if class_att and class_att not in workout_note:
+            workout_note = f"{workout_note} ({class_att})" if workout_note else class_att
+        if daily_ctx:
+            if workout_note and daily_ctx not in workout_note:
+                combined_notes = f"{workout_note} · 📝 {daily_ctx}"
+            else:
+                combined_notes = workout_note or f"📝 {daily_ctx}"
+        else:
+            combined_notes = workout_note
+        r["workout_note"] = workout_note
+        r["daily_note"] = daily_ctx
+        r["combined_notes"] = combined_notes
+        r["notes"] = combined_notes
         r["day_short"] = day_names[i]
         r["day_initial"] = day_initials[i]
         r["is_friday_checkin"] = (int(week_num) >= 1 and i == 4)

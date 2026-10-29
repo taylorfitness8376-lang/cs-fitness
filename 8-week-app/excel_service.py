@@ -345,6 +345,8 @@ def _has_meaningful_day_data(c_row: dict, day_acts: list) -> bool:
         return True
     if (c_row.get("notes") or "").strip():
         return True
+    if (c_row.get("mindset_win") or "").strip():
+        return True
     if day_acts:
         return True
     return False
@@ -352,13 +354,18 @@ def _has_meaningful_day_data(c_row: dict, day_acts: list) -> bool:
 
 def _build_day_notes(c_row: dict, day_acts: list, extra_note: str = "") -> str:
     notes = str((c_row or {}).get("notes") or "").strip()
+    class_att = str((c_row or {}).get("class_attended") or "").strip()
+    if not notes and class_att:
+        notes = class_att
+    elif class_att and class_att not in notes:
+        notes = f"{notes} ({class_att})"
     if not notes and day_acts:
         titles = [str(a.get("title") or "").strip() for a in day_acts if str(a.get("title") or "").strip()]
         if titles:
             notes = " + ".join(dict.fromkeys(titles))
     mindset = str((c_row or {}).get("mindset_win") or "").strip()
     if mindset and mindset not in notes:
-        notes = f"{notes} | Win: {mindset}" if notes else f"Win: {mindset}"
+        notes = f"{notes} · {mindset}" if notes else mindset
     if extra_note and extra_note not in notes:
         notes = f"{notes} | {extra_note}" if notes else extra_note
     return notes
