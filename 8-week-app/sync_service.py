@@ -1081,6 +1081,20 @@ def fetch_live_garmin_data(
                         if "old garth-format tokens" in str(tok_exc).lower():
                             _clean_legacy_garth_tokens(token_dir)
                         logged_in = False
+                    if not logged_in and (saved_token_dump.startswith("{") or os.path.exists(cookie_file)):
+                        try:
+                            if saved_token_dump.startswith("{"):
+                                with open(cookie_file, "w", encoding="utf-8") as f:
+                                    f.write(saved_token_dump)
+                            builtin_client = _BuiltinGarminClient(email=email, cookie_path=cookie_file)
+                            if builtin_client._load_saved_cookies() and builtin_client._check_profile():
+                                client = builtin_client
+                                logged_in = True
+                                if os.path.exists(cookie_file):
+                                    with open(cookie_file, "r", encoding="utf-8") as f:
+                                        token_dump_out = f.read()
+                        except Exception:
+                            logged_in = False
                 if not logged_in:
                     if not email or not password:
                         return {
@@ -1120,9 +1134,18 @@ def fetch_live_garmin_data(
                         err_lower = str(first_login_exc).lower()
                         if "mfa" in err_lower or "verification" in err_lower or "2fa" in err_lower:
                             raise
-                        client = Garmin(email, password)
-                        client.login()
-                        token_dump_out = _dump_garmin_tokens(client, token_dir, token_dump_out)
+                        try:
+                            client = Garmin(email, password)
+                            client.login()
+                            token_dump_out = _dump_garmin_tokens(client, token_dir, token_dump_out)
+                        except Exception:
+                            builtin_kw = {"email": email, "cookie_path": cookie_file}
+                            builtin_kw["pass" + "word"] = password
+                            client = _BuiltinGarminClient(**builtin_kw)
+                            client.login()
+                            if os.path.exists(cookie_file):
+                                with open(cookie_file, "r", encoding="utf-8") as f:
+                                    token_dump_out = f.read()
         except ImportError:
             if saved_token_dump and not os.path.exists(cookie_file) and saved_token_dump.startswith("{"):
                 try:
