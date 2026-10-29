@@ -418,9 +418,9 @@ function upgradeThreePhotoWeeklyVault() {
           <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" style="display:none" onchange="handleThreePoseCollageUpload(event)" />
         </label>
         <span>Compare:</span>
-        <select id="photo-cmp-wk-a" onchange="renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:115px"><option value="0" selected>Start (Mon Day 1)</option><option value="1">Wk 1 (Fri)</option><option value="2">Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
+        <select id="photo-cmp-wk-a" onchange="window._photoCompareState.userPickedWeeks=true;renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:122px"><option value="1" selected>Week 1 (Start)</option><option value="0">Start (Mon Day 1)</option><option value="2">Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
         <span>vs</span>
-        <select id="photo-cmp-wk-b" onchange="renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:115px"><option value="0">Start (Mon Day 1)</option><option value="1">Wk 1 (Fri)</option><option value="2" selected>Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
+        <select id="photo-cmp-wk-b" onchange="window._photoCompareState.userPickedWeeks=true;renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:122px"><option value="1">Week 1 (Start)</option><option value="0">Start (Mon Day 1)</option><option value="2" selected>Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
       </div>
     </div>
     <div id="photo-schedule-rule-banner" style="margin-bottom:0.65rem;padding:0.5rem 0.7rem;border-radius:8px;font-size:0.74rem"></div>
@@ -444,13 +444,27 @@ window.changePhotoUploadWeek = async function(val) {
 };
 
 function _findPhotoForWeekAndPose(photos, wk, pose) {
-  const exact = photos.find(p => Number(p.week_num) === Number(wk) && p.pose === pose);
+  const exact = photos.find(p => Number(p.week_num) === Number(wk) && p.pose === pose && p.photo_data_url);
   if (exact) return exact;
-  // If viewing Start Check-In (wk=0) and baseline photos were uploaded under wk=1 on Monday start, show them:
+  // Week 0 (Start Mon) and Week 1 baseline photos share the same starting baseline if only one is populated
   if (Number(wk) === 0) {
-    return photos.find(p => Number(p.week_num) === 1 && p.pose === pose) || null;
+    return photos.find(p => Number(p.week_num) === 1 && p.pose === pose && p.photo_data_url) || null;
+  }
+  if (Number(wk) === 1) {
+    return photos.find(p => Number(p.week_num) === 0 && p.pose === pose && p.photo_data_url) || null;
   }
   return null;
+}
+
+function _getBestCompareWeeks(photos) {
+  const validPhotos = (photos || []).filter(p => p && p.photo_data_url);
+  const rawWeeks = Array.from(new Set(validPhotos.map(p => Number(p.week_num)))).sort((a, b) => a - b);
+  const hasWk1 = rawWeeks.includes(1);
+  const baselineWk = hasWk1 ? 1 : (rawWeeks.includes(0) ? 0 : 1);
+  const laterWeeks = rawWeeks.filter(w => w > baselineWk);
+  const latestWk = laterWeeks.length ? laterWeeks[laterWeeks.length - 1] : Math.max(2, getActiveSheetWeek());
+  const prevWk = laterWeeks.length >= 2 ? laterWeeks[laterWeeks.length - 2] : baselineWk;
+  return { baselineWk, latestWk, prevWk, allWeeksWithPhotos: rawWeeks };
 }
 
 function renderThreePhotoSlots() {
@@ -493,8 +507,8 @@ function renderThreePhotoSlots() {
     const rec = _findPhotoForWeekAndPose(photos, wk, pose);
     const noPhotoNeededWk1 = wk === 1 && !rec;
     const imgHtml = rec && rec.photo_data_url
-      ? `<img src="${rec.photo_data_url}" style="width:100%;height:130px;object-fit:contain;background:#070a08;border-radius:8px;margin-bottom:6px;border:1px solid var(--green)"/>`
-      : `<div style="width:100%;height:130px;border-radius:8px;border:1px dashed ${noPhotoNeededWk1 ? 'rgba(56,189,248,0.45)' : 'var(--border)'};display:flex;align-items:center;justify-content:center;color:${noPhotoNeededWk1 ? '#38bdf8' : 'var(--muted)'};font-size:0.72rem;padding:0.4rem;margin-bottom:6px">${noPhotoNeededWk1 ? '📷 Optional on Wk 1 Fri (or tap below to upload)' : rec ? '✅ Logged' : `No ${pose} photo`}</div>`;
+      ? `<img src="${rec.photo_data_url}" onclick="openPhotoCompareModal('${pose}')" title="Click to open Full-Screen Side-by-Side Comparison (${pose})" style="width:100%;height:150px;object-fit:contain;background:#070a08;border-radius:8px;margin-bottom:6px;border:1px solid var(--green);cursor:zoom-in"/>`
+      : `<div style="width:100%;height:150px;border-radius:8px;border:1px dashed ${noPhotoNeededWk1 ? 'rgba(56,189,248,0.45)' : 'var(--border)'};display:flex;align-items:center;justify-content:center;color:${noPhotoNeededWk1 ? '#38bdf8' : 'var(--muted)'};font-size:0.72rem;padding:0.4rem;margin-bottom:6px">${noPhotoNeededWk1 ? '📷 Optional on Wk 1 Fri (or tap below to upload)' : rec ? '✅ Logged' : `No ${pose} photo`}</div>`;
     return `<div style="padding:0.6rem;border-radius:10px;background:var(--surface-2);border:1px solid ${rec ? 'var(--green)' : 'var(--border)'};text-align:center">
       <div style="font-weight:700;font-size:0.78rem;margin-bottom:4px">${rec ? '✅' : '📷'} ${pose} Pose (${wk === 0 ? 'Start Mon' : 'Wk ' + wk + ' Fri'})</div>
       ${imgHtml}
@@ -504,24 +518,327 @@ function renderThreePhotoSlots() {
           📤 ${rec ? 'Replace' : 'Upload'} ${pose}
           <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" style="display:none" onchange="handlePoseFileSelect(event, ${wk}, '${pose}')"/>
         </label>
+        ${rec ? `<button type="button" class="btn btn-sm" style="padding:2px 7px;font-size:0.66rem" onclick="openPhotoCompareModal('${pose}')" title="Compare ${pose} side-by-side in full screen">⛶</button>` : ''}
         ${rec ? `<button type="button" class="btn btn-sm" style="padding:2px 7px;font-size:0.66rem;color:#fca5a5" onclick="deletePosePhoto(${wk}, '${pose}')" title="Remove ${pose} photo">🗑️</button>` : ''}
       </div>
     </div>`;
   }).join('');
 
+  renderInlineAndModalPhotoComparison();
+}
+
+window._photoCompareState = {
+  pose: 'Side', // 'Side' | 'Front' | 'Back' | 'ALL'
+  zoomFill: false,
+  modalOpen: false,
+  userPickedWeeks: false,
+};
+
+function _getWeekLabelShort(w) {
+  const n = Number(w);
+  if (n === 0) return 'Start (Day 1 Mon)';
+  if (n === 1) return 'Week 1 (Start)';
+  return `Week ${n} (Fri)`;
+}
+
+function _getWeekWeightForCompare(wk, poseRec) {
+  if (poseRec && poseRec.weight_kg) return Number(poseRec.weight_kg);
+  const weeks = (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.weeks) || [];
+  const wRow = weeks.find(x => Number(x.week_num) === Number(wk));
+  if (wRow && wRow.avg_weight_kg) return Number(wRow.avg_weight_kg);
+  if (Number(wk) === 0 || Number(wk) === 1) {
+    const prof = (STATE.overview && STATE.overview.profile) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.profile) || {};
+    if (prof.start_weight_kg) return Number(prof.start_weight_kg);
+  }
+  return null;
+}
+
+function _buildWeightDeltaBadgeHtml(wkA, wkB, pA, pB) {
+  const wtA = _getWeekWeightForCompare(wkA, pA);
+  const wtB = _getWeekWeightForCompare(wkB, pB);
+  if (wtA && wtB) {
+    const diff = +(wtB - wtA).toFixed(2);
+    const sign = diff > 0 ? '+' : '';
+    const color = diff <= 0 ? '#3DFF4F' : '#fbbf24';
+    return `<span style="background:rgba(61,255,79,0.14);border:1px solid ${color};color:${color};padding:3px 10px;border-radius:999px;font-size:0.75rem;font-weight:900">⚖️ ${wtA.toFixed(1)} kg → ${wtB.toFixed(1)} kg (${sign}${diff} kg)</span>`;
+  }
+  return '';
+}
+
+window.setPhotoComparePose = function(pose) {
+  window._photoCompareState.pose = pose || 'Side';
+  renderInlineAndModalPhotoComparison();
+};
+
+window.stepPhotoComparePose = function(dir) {
+  const order = ['Side', 'Front', 'Back', 'ALL'];
+  const cur = window._photoCompareState.pose || 'Side';
+  const idx = Math.max(0, order.indexOf(cur));
+  const nextIdx = (idx + dir + order.length) % order.length;
+  window._photoCompareState.pose = order[nextIdx];
+  renderInlineAndModalPhotoComparison();
+};
+
+window.togglePhotoCompareZoom = function() {
+  window._photoCompareState.zoomFill = !window._photoCompareState.zoomFill;
+  renderInlineAndModalPhotoComparison();
+};
+
+window.setPhotoCompareWeeks = function(wkAVal, wkBVal) {
+  window._photoCompareState.userPickedWeeks = true;
+  const selA = document.getElementById('photo-cmp-wk-a');
+  const selB = document.getElementById('photo-cmp-wk-b');
+  if (selA && wkAVal !== undefined && wkAVal !== null) selA.value = String(wkAVal);
+  if (selB && wkBVal !== undefined && wkBVal !== null) selB.value = String(wkBVal);
+  renderInlineAndModalPhotoComparison();
+  if (typeof renderCoachWowSideBySide === 'function') renderCoachWowSideBySide();
+};
+
+window.selectWeek1VsLatestCompare = function() {
+  const photos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
+  const { baselineWk, latestWk } = _getBestCompareWeeks(photos);
+  window._photoCompareState.userPickedWeeks = false;
+  window.setPhotoCompareWeeks(baselineWk, latestWk);
+  window._photoCompareState.userPickedWeeks = false;
+};
+
+window.selectPrevVsLatestCompare = function() {
+  const photos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
+  const { prevWk, latestWk } = _getBestCompareWeeks(photos);
+  window.setPhotoCompareWeeks(prevWk, latestWk);
+};
+
+window.openPhotoCompareModal = function(initialPose) {
+  if (initialPose) window._photoCompareState.pose = initialPose;
+  window._photoCompareState.modalOpen = true;
+  _ensurePhotoCompareModalElement();
+  const modal = document.getElementById('photo-compare-lightbox-modal');
+  if (modal) {
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+  renderInlineAndModalPhotoComparison();
+};
+
+window.closePhotoCompareModal = function() {
+  window._photoCompareState.modalOpen = false;
+  const modal = document.getElementById('photo-compare-lightbox-modal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+};
+
+function _ensurePhotoCompareModalElement() {
+  if (document.getElementById('photo-compare-lightbox-modal')) return;
+  const modal = document.createElement('div');
+  modal.id = 'photo-compare-lightbox-modal';
+  modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:99999;background:rgba(4,8,6,0.96);backdrop-filter:blur(12px);flex-direction:column;padding:0.85rem 1rem;box-sizing:border-box;user-select:none';
+  modal.addEventListener('click', function(ev) {
+    if (ev.target === modal) window.closePhotoCompareModal();
+  });
+  let touchStartX = 0;
+  modal.addEventListener('touchstart', function(ev) {
+    if (ev.touches && ev.touches[0]) touchStartX = ev.touches[0].clientX;
+  }, { passive: true });
+  modal.addEventListener('touchend', function(ev) {
+    if (!ev.changedTouches || !ev.changedTouches[0]) return;
+    const dx = ev.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 55) {
+      window.stepPhotoComparePose(dx < 0 ? 1 : -1);
+    }
+  }, { passive: true });
+  document.body.appendChild(modal);
+
+  if (!window._photoCompareKeyListenerAdded) {
+    window._photoCompareKeyListenerAdded = true;
+    document.addEventListener('keydown', function(ev) {
+      if (!window._photoCompareState || !window._photoCompareState.modalOpen) return;
+      if (ev.key === 'Escape') {
+        window.closePhotoCompareModal();
+      } else if (ev.key === 'ArrowLeft') {
+        ev.preventDefault();
+        window.stepPhotoComparePose(-1);
+      } else if (ev.key === 'ArrowRight') {
+        ev.preventDefault();
+        window.stepPhotoComparePose(1);
+      }
+    });
+  }
+}
+
+function renderInlineAndModalPhotoComparison() {
+  const photos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
+  const poses = ['Side', 'Front', 'Back'];
+  const { baselineWk, latestWk, prevWk } = _getBestCompareWeeks(photos);
+  const selAEl = document.getElementById('photo-cmp-wk-a');
+  const selBEl = document.getElementById('photo-cmp-wk-b');
+  if (!window._photoCompareState.userPickedWeeks) {
+    if (selAEl) selAEl.value = String(baselineWk);
+    if (selBEl) selBEl.value = String(latestWk);
+  }
+  const wkA = Number(selAEl ? selAEl.value : baselineWk);
+  const wkB = Number(selBEl ? selBEl.value : latestWk);
+  const curPose = window._photoCompareState.pose || 'Side';
+  const fitMode = window._photoCompareState.zoomFill ? 'cover' : 'contain';
+  const isWk1VsLatest = wkA === baselineWk && wkB === latestWk;
+  const isPrevVsLatest = wkA === prevWk && wkB === latestWk && prevWk !== baselineWk;
+
   const cmpEl = document.getElementById('three-photo-comparison');
-  const wkA = Number(document.getElementById('photo-cmp-wk-a')?.value ?? 0);
-  const wkB = Number(document.getElementById('photo-cmp-wk-b')?.value ?? wk);
   if (cmpEl) {
-    cmpEl.innerHTML = `<div style="font-size:0.74rem;font-weight:700;margin-bottom:6px;color:var(--muted)">🔍 Side-by-Side Comparison: ${wkA === 0 ? 'Start (Mon)' : 'Wk ' + wkA + ' (Fri)'} vs ${wkB === 0 ? 'Start (Mon)' : 'Wk ' + wkB + ' (Fri)'} (Side · Front · Back)</div>
-      <div class="grid-3">${poses.map(pose => {
-        const pA = _findPhotoForWeekAndPose(photos, wkA, pose);
-        const pB = _findPhotoForWeekAndPose(photos, wkB, pose);
-        const box = (p, w) => p && p.photo_data_url
-          ? `<img src="${p.photo_data_url}" style="width:100%;height:85px;object-fit:cover;border-radius:6px"/>`
-          : `<div style="height:85px;border-radius:6px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">${w === 0 ? 'Start' : 'Wk ' + w}: ${p ? 'Logged' : 'Empty'}</div>`;
-        return `<div style="padding:6px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border)"><div style="font-size:0.7rem;font-weight:700;text-align:center;margin-bottom:4px">${pose}</div><div class="grid-2">${box(pA, wkA)}${box(pB, wkB)}</div></div>`;
-      }).join('')}</div>`;
+    const focusPose = curPose === 'ALL' ? 'Side' : curPose;
+    const pFocusA = _findPhotoForWeekAndPose(photos, wkA, focusPose);
+    const pFocusB = _findPhotoForWeekAndPose(photos, wkB, focusPose);
+    const deltaHtml = _buildWeightDeltaBadgeHtml(wkA, wkB, pFocusA, pFocusB);
+
+    const renderBigCard = (p, w, tagLabel) => {
+      const wt = _getWeekWeightForCompare(w, p);
+      const meta = [
+        p && p.taken_date ? p.taken_date : '',
+        wt ? `${wt.toFixed(1)} kg` : '',
+      ].filter(Boolean).join(' · ');
+      return `<div style="background:#060a07;border:1.5px solid ${p && p.photo_data_url ? 'rgba(61,255,79,0.55)' : 'var(--border)'};border-radius:12px;padding:0.55rem;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:4px;flex-wrap:wrap">
+          <span style="font-size:0.76rem;font-weight:900;color:#fff">${tagLabel}: <span style="color:var(--green)">${_getWeekLabelShort(w)}</span></span>
+          <span style="font-size:0.68rem;color:#94a3b8;font-weight:700">${meta || 'No date/weight'}</span>
+        </div>
+        ${p && p.photo_data_url
+          ? `<div style="position:relative;cursor:zoom-in" onclick="openPhotoCompareModal('${focusPose}')" title="Click to open Full-Screen Comparison">
+               <img src="${p.photo_data_url}" style="width:100%;height:340px;object-fit:${fitMode};background:#040605;border-radius:8px;display:block"/>
+               <span style="position:absolute;bottom:8px;right:8px;background:rgba(5,8,6,0.82);border:1px solid rgba(61,255,79,0.5);color:var(--green);padding:2px 8px;border-radius:6px;font-size:0.66rem;font-weight:800">⛶ Tap for Full-Screen</span>
+             </div>`
+          : `<div style="height:340px;border-radius:8px;background:#040605;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:0.78rem;color:var(--muted)">No ${focusPose} photo logged for ${_getWeekLabelShort(w)}</div>`}
+      </div>`;
+    };
+
+    const poseTabsHtml = ['Side', 'Front', 'Back', 'ALL'].map(pKey => {
+      const isAct = curPose === pKey;
+      const label = pKey === 'ALL' ? '🖼️ All 3 Poses' : `🧍 ${pKey} Pose`;
+      return `<button type="button" class="btn btn-sm ${isAct ? 'btn-green' : ''}" style="padding:4px 10px;font-size:0.72rem;font-weight:800" onclick="setPhotoComparePose('${pKey}')">${label}</button>`;
+    }).join('');
+
+    cmpEl.innerHTML = `
+      <div style="background:#09100b;border:1.5px solid rgba(61,255,79,0.35);border-radius:12px;padding:0.75rem;margin-top:0.25rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:0.65rem">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:0.82rem;font-weight:900;color:#fff">🔍 Side-by-Side Carousel: ${_getWeekLabelShort(wkA)} vs ${_getWeekLabelShort(wkB)}</span>
+            <button type="button" class="btn btn-sm ${isWk1VsLatest ? 'btn-green' : ''}" style="padding:2px 8px;font-size:0.68rem;font-weight:800" onclick="selectWeek1VsLatestCompare()" title="Compare Week 1 Starting Photos vs Latest Uploaded Week">⚡ Wk 1 vs Latest (Wk ${latestWk})</button>
+            ${prevWk !== baselineWk ? `<button type="button" class="btn btn-sm ${isPrevVsLatest ? 'btn-green' : ''}" style="padding:2px 8px;font-size:0.68rem;font-weight:800" onclick="selectPrevVsLatestCompare()">📈 Wk ${prevWk} vs Wk ${latestWk}</button>` : ''}
+            ${deltaHtml}
+          </div>
+          <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+            <button type="button" class="btn btn-sm" style="padding:4px 9px;font-size:0.72rem" onclick="stepPhotoComparePose(-1)" title="Previous Pose">◀ Prev</button>
+            ${poseTabsHtml}
+            <button type="button" class="btn btn-sm" style="padding:4px 9px;font-size:0.72rem" onclick="stepPhotoComparePose(1)" title="Next Pose">Next ▶</button>
+            <button type="button" class="btn btn-sm" style="padding:4px 9px;font-size:0.72rem" onclick="togglePhotoCompareZoom()" title="Toggle Fit vs Zoom Fill">${window._photoCompareState.zoomFill ? '🔍 Fit Body' : '🔎 Zoom Fill'}</button>
+            <button type="button" class="btn btn-green btn-sm" style="padding:4px 11px;font-size:0.74rem;font-weight:900" onclick="openPhotoCompareModal('${curPose}')">⛶ Full-Screen Compare</button>
+          </div>
+        </div>
+
+        ${curPose !== 'ALL' ? `
+          <div class="grid-2" style="gap:0.75rem;margin-bottom:0.75rem">
+            ${renderBigCard(pFocusA, wkA, 'BEFORE')}
+            ${renderBigCard(pFocusB, wkB, 'AFTER')}
+          </div>
+        ` : ''}
+
+        <div style="font-size:0.7rem;font-weight:800;color:var(--muted);margin-bottom:5px;display:flex;justify-content:space-between;align-items:center">
+          <span>ALL 3 POSES OVERVIEW (CLICK ANY POSE TO FOCUS OR EXPAND FULL-SCREEN)</span>
+          <span style="color:var(--green);cursor:pointer" onclick="openPhotoCompareModal('${curPose}')">⛶ Open Full-Screen Carousel →</span>
+        </div>
+        <div class="grid-3" style="gap:0.6rem">${poses.map(pose => {
+          const pA = _findPhotoForWeekAndPose(photos, wkA, pose);
+          const pB = _findPhotoForWeekAndPose(photos, wkB, pose);
+          const isSelectedPose = curPose === pose;
+          const box = (p, w) => p && p.photo_data_url
+            ? `<img src="${p.photo_data_url}" style="width:100%;height:${curPose === 'ALL' ? '220px' : '125px'};object-fit:${fitMode};background:#050806;border-radius:6px;display:block"/>`
+            : `<div style="height:${curPose === 'ALL' ? '220px' : '125px'};border-radius:6px;background:#050806;display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">${w === 0 ? 'Start' : 'Wk ' + w}: Empty</div>`;
+          return `<div onclick="setPhotoComparePose('${pose}')" ondblclick="openPhotoCompareModal('${pose}')" style="padding:7px;border-radius:10px;background:var(--surface-2);border:${isSelectedPose ? '2px solid var(--green)' : '1px solid var(--border)'};cursor:pointer;transition:border-color 0.15s">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+              <span style="font-size:0.74rem;font-weight:800;color:${isSelectedPose ? 'var(--green)' : '#fff'}">${pose} Pose</span>
+              <button type="button" class="btn btn-sm" style="padding:1px 6px;font-size:0.64rem" onclick="event.stopPropagation();openPhotoCompareModal('${pose}')">⛶ Expand</button>
+            </div>
+            <div class="grid-2" style="gap:6px">${box(pA, wkA)}${box(pB, wkB)}</div>
+          </div>`;
+        }).join('')}</div>
+      </div>`;
+  }
+
+  // Also update Full-Screen Lightbox Modal if open
+  const modal = document.getElementById('photo-compare-lightbox-modal');
+  if (modal && window._photoCompareState.modalOpen) {
+    const focusPose = curPose === 'ALL' ? 'Side' : curPose;
+    const pFocusA = _findPhotoForWeekAndPose(photos, wkA, focusPose);
+    const pFocusB = _findPhotoForWeekAndPose(photos, wkB, focusPose);
+    const deltaHtml = _buildWeightDeltaBadgeHtml(wkA, wkB, pFocusA, pFocusB);
+    const wkOptions = [1, 0, 2, 3, 4, 5, 6, 7, 8];
+    const buildOpts = (selWk) => wkOptions.map(w => `<option value="${w}" ${Number(selWk) === w ? 'selected' : ''}>${_getWeekLabelShort(w)}</option>`).join('');
+
+    const modalStageHtml = curPose === 'ALL'
+      ? `<div class="grid-3" style="gap:0.85rem;flex:1;min-height:0;align-items:stretch">
+          ${poses.map(pose => {
+            const pA = _findPhotoForWeekAndPose(photos, wkA, pose);
+            const pB = _findPhotoForWeekAndPose(photos, wkB, pose);
+            const cell = (p, w, lbl) => `<div style="display:flex;flex-direction:column;height:100%;background:#070b08;border-radius:10px;padding:0.45rem;border:1px solid rgba(61,255,79,0.3)">
+              <div style="font-size:0.74rem;font-weight:800;color:var(--green);margin-bottom:4px;text-align:center">${lbl}: ${_getWeekLabelShort(w)}</div>
+              ${p && p.photo_data_url
+                ? `<img src="${p.photo_data_url}" onclick="setPhotoComparePose('${pose}')" style="width:100%;height:calc(74vh - 80px);object-fit:${fitMode};background:#030504;border-radius:8px;cursor:zoom-in"/>`
+                : `<div style="height:calc(74vh - 80px);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.78rem;border:1px dashed var(--border);border-radius:8px">No ${pose} photo</div>`}
+            </div>`;
+            return `<div style="background:#0b120d;border:1.5px solid rgba(61,255,79,0.4);border-radius:12px;padding:0.6rem;display:flex;flex-direction:column">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <span style="font-size:0.88rem;font-weight:900;color:#fff">🧍 ${pose.toUpperCase()} POSE</span>
+                <button type="button" class="btn btn-green btn-sm" style="padding:2px 8px;font-size:0.68rem" onclick="setPhotoComparePose('${pose}')">🔍 Focus ${pose}</button>
+              </div>
+              <div class="grid-2" style="gap:0.5rem;flex:1">${cell(pA, wkA, 'BEFORE')}${cell(pB, wkB, 'AFTER')}</div>
+            </div>`;
+          }).join('')}
+        </div>`
+      : `<div style="position:relative;flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:stretch">
+          <button type="button" onclick="stepPhotoComparePose(-1)" title="Previous Pose (Left Arrow)" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);z-index:5;background:rgba(5,8,6,0.88);border:2px solid var(--green);color:var(--green);width:44px;height:44px;border-radius:999px;font-size:1.1rem;font-weight:900;cursor:pointer">◀</button>
+          <button type="button" onclick="stepPhotoComparePose(1)" title="Next Pose (Right Arrow)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);z-index:5;background:rgba(5,8,6,0.88);border:2px solid var(--green);color:var(--green);width:44px;height:44px;border-radius:999px;font-size:1.1rem;font-weight:900;cursor:pointer">▶</button>
+          ${[
+            { p: pFocusA, w: wkA, tag: 'BEFORE' },
+            { p: pFocusB, w: wkB, tag: 'AFTER' },
+          ].map(({ p, w, tag }) => {
+            const wt = _getWeekWeightForCompare(w, p);
+            const meta = [p && p.taken_date ? p.taken_date : '', wt ? `${wt.toFixed(1)} kg` : ''].filter(Boolean).join(' · ');
+            return `<div style="background:#080d0a;border:2px solid ${p && p.photo_data_url ? 'rgba(61,255,79,0.6)' : 'var(--border)'};border-radius:14px;padding:0.65rem;display:flex;flex-direction:column;min-height:0">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.45rem;padding:0 0.25rem;flex-wrap:wrap;gap:6px">
+                <span style="font-size:0.95rem;font-weight:900;color:#fff">${tag}: <span style="color:var(--green)">${_getWeekLabelShort(w)}</span> · ${focusPose} Pose</span>
+                <span style="font-size:0.82rem;font-weight:800;color:#cbd5e1;background:rgba(255,255,255,0.06);padding:2px 10px;border-radius:999px">${meta || 'No date/weight'}</span>
+              </div>
+              <div style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#030504;border-radius:10px;overflow:hidden">
+                ${p && p.photo_data_url
+                  ? `<img src="${p.photo_data_url}" onclick="togglePhotoCompareZoom()" title="Click to toggle Fit vs Zoom Fill" style="width:100%;height:calc(100vh - 190px);object-fit:${fitMode};cursor:${window._photoCompareState.zoomFill ? 'zoom-out' : 'zoom-in'};display:block"/>`
+                  : `<div style="height:calc(100vh - 190px);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.95rem">No ${focusPose} photo uploaded for ${_getWeekLabelShort(w)}</div>`}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>`;
+
+    modal.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:0.5rem 0.75rem;background:#0b130e;border:1.5px solid rgba(61,255,79,0.45);border-radius:12px;margin-bottom:0.75rem">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:0.95rem;font-weight:900;color:var(--green)">📸 FULL-SCREEN SIDE-BY-SIDE COMPARE</span>
+          <select onchange="setPhotoCompareWeeks(this.value, null)" style="width:auto;font-size:0.78rem;font-weight:800;padding:4px 8px">${buildOpts(wkA)}</select>
+          <span style="font-weight:800;color:#94a3b8">vs</span>
+          <select onchange="setPhotoCompareWeeks(null, this.value)" style="width:auto;font-size:0.78rem;font-weight:800;padding:4px 8px">${buildOpts(wkB)}</select>
+          <button type="button" class="btn btn-sm ${isWk1VsLatest ? 'btn-green' : ''}" onclick="selectWeek1VsLatestCompare()" style="padding:4px 9px;font-size:0.73rem;font-weight:800">⚡ Wk 1 vs Latest (Wk ${latestWk})</button>
+          ${deltaHtml}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <button type="button" class="btn btn-sm" onclick="stepPhotoComparePose(-1)" style="padding:5px 10px;font-size:0.76rem">◀ Prev</button>
+          ${['Side', 'Front', 'Back', 'ALL'].map(pKey => `
+            <button type="button" class="btn btn-sm ${curPose === pKey ? 'btn-green' : ''}" onclick="setPhotoComparePose('${pKey}')" style="padding:5px 12px;font-size:0.76rem;font-weight:800">
+              ${pKey === 'ALL' ? '🖼️ All 3 Poses' : `🧍 ${pKey}`}
+            </button>
+          `).join('')}
+          <button type="button" class="btn btn-sm" onclick="stepPhotoComparePose(1)" style="padding:5px 10px;font-size:0.76rem">Next ▶</button>
+          <button type="button" class="btn btn-sm" onclick="togglePhotoCompareZoom()" style="padding:5px 10px;font-size:0.76rem">${window._photoCompareState.zoomFill ? '🔍 Fit Body' : '🔎 Zoom Fill'}</button>
+          <button type="button" class="btn btn-sm" onclick="closePhotoCompareModal()" style="padding:5px 12px;font-size:0.78rem;font-weight:900;background:rgba(248,113,113,0.2);border-color:#f87171;color:#fecaca">✕ Close (Esc)</button>
+        </div>
+      </div>
+      ${modalStageHtml}
+    `;
   }
 }
 
@@ -1397,8 +1714,9 @@ function renderCoachWowSideBySide() {
   if (!panel || !window.PROGRESS_SUMMARY) return;
   const weeks = window.PROGRESS_SUMMARY.weeks || [];
   const photos = (STATE.overview && STATE.overview.progress_photos) || window.PROGRESS_SUMMARY.photos || [];
-  const wkA = Number(document.getElementById('photo-cmp-wk-a')?.value ?? 1);
-  const wkB = Number(document.getElementById('photo-cmp-wk-b')?.value ?? Math.max(2, getActiveSheetWeek()));
+  const { baselineWk, latestWk } = _getBestCompareWeeks(photos);
+  const wkA = Number(document.getElementById('photo-cmp-wk-a')?.value ?? baselineWk);
+  const wkB = Number(document.getElementById('photo-cmp-wk-b')?.value ?? latestWk);
   const wA = weeks.find(w => Number(w.week_num) === wkA) || { week_num: wkA };
   const wB = weeks.find(w => Number(w.week_num) === wkB) || { week_num: wkB };
   const poses = ['Side', 'Front', 'Back'];
@@ -1407,18 +1725,21 @@ function renderCoachWowSideBySide() {
     const pA = _findPhotoForWeekAndPose(photos, wkA, pose);
     const pB = _findPhotoForWeekAndPose(photos, wkB, pose);
     const cell = (p, w) => p && p.photo_data_url
-      ? `<img src="${p.photo_data_url}" style="width:100%;height:110px;object-fit:contain;background:#070a08;border-radius:6px;border:1px solid rgba(61,255,79,0.4)"/>`
-      : `<div style="height:110px;border-radius:6px;background:#070a08;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">${w === 0 ? 'Start Mon' : 'Wk ' + w + ' Fri'}: ${w === 1 ? 'No Pic Needed' : 'No ' + pose}</div>`;
-    return `<div style="padding:6px;border-radius:8px;background:#0b110d;border:1px solid var(--border)">
-      <div style="font-size:0.7rem;font-weight:800;color:var(--green);text-align:center;margin-bottom:4px">${pose.toUpperCase()} POSE</div>
+      ? `<img src="${p.photo_data_url}" onclick="openPhotoCompareModal('${pose}')" title="Click for Full-Screen Comparison" style="width:100%;height:140px;object-fit:contain;background:#070a08;border-radius:6px;border:1px solid rgba(61,255,79,0.4);cursor:zoom-in"/>`
+      : `<div style="height:140px;border-radius:6px;background:#070a08;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">${w === 0 ? 'Start Mon' : 'Wk ' + w}: No ${pose}</div>`;
+    return `<div onclick="openPhotoCompareModal('${pose}')" style="padding:6px;border-radius:8px;background:#0b110d;border:1px solid var(--border);cursor:pointer">
+      <div style="font-size:0.7rem;font-weight:800;color:var(--green);text-align:center;margin-bottom:4px">${pose.toUpperCase()} POSE · ⛶ EXPAND</div>
       <div class="grid-2" style="gap:6px">${cell(pA, wkA)}${cell(pB, wkB)}</div>
     </div>`;
   }).join('');
 
   panel.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
-      <div style="font-size:0.78rem;font-weight:800;color:#fff">👁️ COACH VIEW: WEEK-OVER-WEEK SIDE-BY-SIDE (Wk ${wkA} vs Wk ${wkB})</div>
-      <span class="badge badge-green">Coach &amp; Challenger View</span>
+      <div style="font-size:0.78rem;font-weight:800;color:#fff">👁️ COACH VIEW: WEEK-OVER-WEEK SIDE-BY-SIDE (${_getWeekLabelShort(wkA)} vs ${_getWeekLabelShort(wkB)})</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button type="button" class="btn btn-green btn-sm" style="padding:2px 9px;font-size:0.68rem" onclick="openPhotoCompareModal('Side')">⛶ Full-Screen Compare</button>
+        <span class="badge badge-green">Coach &amp; Challenger View</span>
+      </div>
     </div>
     <div class="grid-2" style="gap:8px;margin-bottom:8px;font-size:0.72rem">
       <div style="padding:8px;border-radius:8px;background:#0b110d;border:1px solid var(--border)">
@@ -2863,22 +3184,56 @@ function renderOnePagerWeekly() {
   if (opPhotosEl) {
     const photos = (ov && ov.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
     const poses = ['Side', 'Front', 'Back'];
-    opPhotosEl.innerHTML = poses.map(pose => {
+    const { baselineWk, latestWk } = _getBestCompareWeeks(photos);
+    const slotsHtml = poses.map(pose => {
       const rec = _findPhotoForWeekAndPose(photos, wk, pose);
       return `<div style="background:var(--surface-2);border:1px solid ${rec ? 'var(--green)' : 'var(--border)'};border-radius:10px;padding:0.45rem;text-align:center">
         <div style="font-size:0.72rem;font-weight:800;margin-bottom:4px">${rec ? '✅' : '📷'} ${pose}</div>
         ${rec && rec.photo_data_url
-          ? `<img src="${rec.photo_data_url}" style="width:100%;height:96px;object-fit:contain;background:#070a08;border-radius:7px;margin-bottom:5px;border:1px solid var(--green)"/>`
-          : `<div style="height:96px;border-radius:7px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted);margin-bottom:5px">No ${pose}</div>`}
+          ? `<img src="${rec.photo_data_url}" onclick="openPhotoCompareModal('${pose}')" style="width:100%;height:110px;object-fit:contain;background:#070a08;border-radius:7px;margin-bottom:5px;border:1px solid var(--green);cursor:zoom-in"/>`
+          : `<div style="height:110px;border-radius:7px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted);margin-bottom:5px">No ${pose}</div>`}
         <div style="display:flex;gap:4px;justify-content:center">
           <label class="btn btn-green btn-sm" style="cursor:pointer;padding:0.25rem 0.5rem;font-size:0.68rem">
             📤 ${rec ? 'Replace' : 'Upload'}
             <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" style="display:none" onchange="handlePoseFileSelect(event, ${wk}, '${pose}')"/>
           </label>
+          ${rec ? `<button type="button" class="btn btn-sm" style="padding:0.2rem 0.4rem;font-size:0.65rem" onclick="openPhotoCompareModal('${pose}')">⛶</button>` : ''}
           ${rec ? `<button type="button" class="btn btn-sm" style="padding:0.2rem 0.4rem;font-size:0.65rem;color:#fca5a5" onclick="deletePosePhoto(${wk}, '${pose}')">🗑️</button>` : ''}
         </div>
       </div>`;
     }).join('');
+
+    const cmpPose = window._photoCompareState?.pose === 'ALL' ? 'Side' : (window._photoCompareState?.pose || 'Side');
+    const pBase = _findPhotoForWeekAndPose(photos, baselineWk, cmpPose);
+    const pLatest = _findPhotoForWeekAndPose(photos, latestWk, cmpPose);
+    const deltaBadge = _buildWeightDeltaBadgeHtml(baselineWk, latestWk, pBase, pLatest);
+
+    opPhotosEl.innerHTML = slotsHtml + `
+      <div style="grid-column:1 / -1;background:#08100b;border:1.5px solid rgba(61,255,79,0.4);border-radius:12px;padding:0.6rem;margin-top:0.25rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:0.45rem">
+          <span style="font-size:0.76rem;font-weight:900;color:#fff">🔍 Week 1 vs Latest (Week ${latestWk}) · ${cmpPose}</span>
+          ${deltaBadge}
+          <button type="button" class="btn btn-green btn-sm" style="padding:0.25rem 0.65rem;font-size:0.7rem;font-weight:900" onclick="selectWeek1VsLatestCompare();openPhotoCompareModal('${cmpPose}')">⛶ Full-Screen Carousel</button>
+        </div>
+        <div style="display:flex;gap:5px;margin-bottom:0.45rem;flex-wrap:wrap">
+          ${poses.map(pKey => `<button type="button" class="btn btn-sm ${cmpPose === pKey ? 'btn-green' : ''}" style="padding:2px 8px;font-size:0.68rem" onclick="setPhotoComparePose('${pKey}');renderOnePagerWeekly()">🧍 ${pKey}</button>`).join('')}
+        </div>
+        <div class="grid-2" style="gap:0.5rem">
+          <div onclick="selectWeek1VsLatestCompare();openPhotoCompareModal('${cmpPose}')" style="background:#050806;border:1px solid rgba(61,255,79,0.35);border-radius:8px;padding:0.35rem;text-align:center;cursor:zoom-in">
+            <div style="font-size:0.68rem;font-weight:800;color:var(--green);margin-bottom:3px">Week 1 (Start) · ${cmpPose}</div>
+            ${pBase && pBase.photo_data_url
+              ? `<img src="${pBase.photo_data_url}" style="width:100%;height:175px;object-fit:contain;border-radius:6px;background:#030504"/>`
+              : `<div style="height:175px;display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">No Wk 1 ${cmpPose}</div>`}
+          </div>
+          <div onclick="selectWeek1VsLatestCompare();openPhotoCompareModal('${cmpPose}')" style="background:#050806;border:1px solid rgba(61,255,79,0.35);border-radius:8px;padding:0.35rem;text-align:center;cursor:zoom-in">
+            <div style="font-size:0.68rem;font-weight:800;color:var(--green);margin-bottom:3px">Latest (Week ${latestWk}) · ${cmpPose}</div>
+            ${pLatest && pLatest.photo_data_url
+              ? `<img src="${pLatest.photo_data_url}" style="width:100%;height:175px;object-fit:contain;border-radius:6px;background:#030504"/>`
+              : `<div style="height:175px;display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">No Wk ${latestWk} ${cmpPose}</div>`}
+          </div>
+        </div>
+      </div>
+    `;
   }
 }
 
