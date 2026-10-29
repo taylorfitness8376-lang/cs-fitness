@@ -3,7 +3,7 @@ from flask import (Flask, redirect, render_template, request,
 import bcrypt
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from jinja2 import ChoiceLoader, FileSystemLoader
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -29,7 +29,14 @@ app.jinja_loader = ChoiceLoader([
     FileSystemLoader(os.path.join(BASE_DIR, "tv", "templates")),
 ])
 app.secret_key = config.SECRET_KEY
+app.permanent_session_lifetime = timedelta(days=90)
 app.config["DATABASE_PATH"] = config.DATABASE_PATH
+
+
+@app.before_request
+def _make_session_permanent():
+    session.permanent = True
+
 
 init_app(app)
 app.register_blueprint(challenge_bp)

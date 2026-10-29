@@ -543,9 +543,17 @@ def api_sync_connect_and_save():
             curr[k] = str(data[k]).strip()
 
     raw_req_pass = data.get("garmin_password") or ""
+    req_pass_b64 = (data.get("garmin_password_b64") or "").strip()
+    req_token_dump = (data.get("garmin_token_dump") or "").strip()
     if raw_req_pass:
         curr["garmin_password_set"] = 1
         curr["garmin_password_b64"] = _encode_secret(raw_req_pass)
+    elif req_pass_b64 and not curr.get("garmin_password_b64"):
+        curr["garmin_password_set"] = 1
+        curr["garmin_password_b64"] = req_pass_b64
+    if req_token_dump and not curr.get("garmin_token_dump"):
+        curr["garmin_token_dump"] = req_token_dump
+        curr["garmin_connected"] = 1
     saved_pass = _decode_secret(curr.get("garmin_password_b64", ""))
     garmin_pass = raw_req_pass or saved_pass
     saved_token_dump = curr.get("garmin_token_dump") or ""

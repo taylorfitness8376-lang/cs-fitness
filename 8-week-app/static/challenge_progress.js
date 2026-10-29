@@ -12,6 +12,7 @@ async function initRealDataAndProgress() {
   injectWeekOverWeekOnCheckinTab();
   upgradeThreePhotoWeeklyVault();
   upgradeIntegrationsSaveAndImport();
+  await ensureServerRehydratedFromBrowserVault();
   if (typeof STATE !== 'undefined' && STATE && STATE.overview) {
     window.renderTodayDashboard(STATE.overview);
     if (STATE.overview.current_week_sheet) {
@@ -22,6 +23,7 @@ async function initRealDataAndProgress() {
   renderDataSourceBadges();
   renderSavedIntegrationStatus();
   await refreshProgressSummary();
+  await pullServerBackupIntoBrowserVault();
 }
 
 async function refreshProgressSummary() {
@@ -220,7 +222,20 @@ window.postCheckinUpdate = async function(payload, toastMsg) {
   } else if (!payload.sync_source_garmin) {
     payload.sync_source_garmin = 'Manual Entry';
   }
-  if (_origPostCheckinUpdate) return _origPostCheckinUpdate(payload, toastMsg);
+  if (typeof window.recordCheckinInBrowserVault === 'function') {
+    window.recordCheckinInBrowserVault(payload);
+  }
+  let res;
+  if (_origPostCheckinUpdate) {
+    res = await _origPostCheckinUpdate(payload, toastMsg);
+  }
+  if (typeof window.recordCheckinInBrowserVault === 'function' && STATE.overview && STATE.overview.checkin) {
+    window.recordCheckinInBrowserVault(STATE.overview.checkin);
+  }
+  if (typeof window.pullServerBackupIntoBrowserVault === 'function') {
+    window.pullServerBackupIntoBrowserVault();
+  }
+  return res;
 };
 
 const _origRenderIntegrations = window.renderIntegrationsAndStaples;
@@ -645,10 +660,23 @@ window.saveIntegrationsConfig = async function(isMfaVerify, triggerBtn) {
       ? `<div style="color:#38bdf8;font-weight:800">⏳ Verifying Garmin 2FA code &amp; completing connection...</div>`
       : `<div style="color:#38bdf8;font-weight:800">⏳ Saving account details &amp; connecting to Garmin Connect for ${STATE.date}...</div>`;
   }
+  const garminVault = typeof window.getBrowserGarminVault === 'function' ? window.getBrowserGarminVault() : {};
+  const rawEmail = (document.getElementById('cfg-garmin-email')?.value || garminVault.garmin_email || '').trim();
+  const rawPass = document.getElementById('cfg-garmin-pass')?.value || '';
+  if (rawEmail || rawPass) {
+    if (typeof window.saveBrowserGarminVault === 'function') {
+      window.saveBrowserGarminVault({
+        garmin_email: rawEmail,
+        garmin_password_b64: rawPass ? btoa(unescape(encodeURIComponent(rawPass))) : (garminVault.garmin_password_b64 || ''),
+      });
+    }
+  }
   const payload = {
     date: STATE.date,
-    garmin_email: document.getElementById('cfg-garmin-email')?.value || '',
-    garmin_password: document.getElementById('cfg-garmin-pass')?.value || '',
+    garmin_email: rawEmail,
+    garmin_password: rawPass,
+    garmin_password_b64: rawPass ? btoa(unescape(encodeURIComponent(rawPass))) : (garminVault.garmin_password_b64 || ''),
+    garmin_token_dump: garminVault.garmin_token_dump || '',
     mfa_code: mfaCode,
     nutrition_provider: document.getElementById('cfg-nutri-provider')?.value || 'myfitnesspal',
     mfp_username: document.getElementById('cfg-mfp-user')?.value || '',
@@ -662,8 +690,14 @@ window.saveIntegrationsConfig = async function(isMfaVerify, triggerBtn) {
       body: JSON.stringify(payload)
     });
     const data = await res.json();
+    if (data.integrations && typeof window.saveBrowserGarminVault === 'function') {
+      window.saveBrowserGarminVault(data.integrations);
+    }
     await loadOverview(STATE.date);
     await refreshProgressSummary();
+    if (typeof window.pullServerBackupIntoBrowserVault === 'function') {
+      window.pullServerBackupIntoBrowserVault();
+    }
 
     if (data.needs_mfa) {
       window.clearButtonBusy(activeBtn, '🔐 Enter 2FA Code');
@@ -762,19 +796,30 @@ window.triggerLiveSync = async function(triggerBtn) {
     box.innerHTML = `<div style="color:#38bdf8;font-weight:800">⏳ Pulling live Steps, Sleep, Scale Weight &amp; Workouts from Garmin Connect for ${STATE.date}...</div>`;
   }
   try {
+    const garminVault = typeof window.getBrowserGarminVault === 'function' ? window.getBrowserGarminVault() : {};
+    const rawEmail = (emailEl && emailEl.value ? emailEl.value : (garminVault.garmin_email || '')).trim();
+    const rawPass = passEl && passEl.value ? passEl.value : '';
     const res = await fetch('/api/challenge/sync/live', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         date: STATE.date,
-        garmin_email: emailEl ? emailEl.value : '',
-        garmin_password: passEl ? passEl.value : '',
+        garmin_email: rawEmail,
+        garmin_password: rawPass,
+        garmin_password_b64: rawPass ? btoa(unescape(encodeURIComponent(rawPass))) : (garminVault.garmin_password_b64 || ''),
+        garmin_token_dump: garminVault.garmin_token_dump || '',
         mfp_username: mfpEl ? mfpEl.value : '',
       }),
     });
     const data = await res.json();
+    if (data.integrations && typeof window.saveBrowserGarminVault === 'function') {
+      window.saveBrowserGarminVault(data.integrations);
+    }
     await loadOverview(STATE.date);
     await refreshProgressSummary();
+    if (typeof window.pullServerBackupIntoBrowserVault === 'function') {
+      window.pullServerBackupIntoBrowserVault();
+    }
     const msg = (data.messages && data.messages.join(' · ')) || 'Sync completed';
     if (box) {
       box.style.display = 'block';
@@ -2005,9 +2050,305 @@ function getFormattedShortDate(dateStr) {
   }
 }
 
-window.selectOnePagerTraining = function(val) {
+// ── MULTI-LAYER PERSISTENCE VAULT (Survives Ephemeral Container Restarts) ──
+function getActiveVaultProfileId() {
+  const ov = (typeof STATE !== 'undefined' && STATE.overview) || {};
+  return Number((ov.profile && ov.profile.id) || 1);
+}
+
+function getCheckinsVaultKey(pid) {
+  return `cs_fitness_checkins_vault_p${pid || getActiveVaultProfileId()}`;
+}
+
+function getGarminVaultKey(pid) {
+  return `cs_fitness_garmin_auth_p${pid || getActiveVaultProfileId()}`;
+}
+
+function getDraftVaultKey(dateStr, pid) {
+  return `cs_fitness_draft_p${pid || getActiveVaultProfileId()}_${dateStr}`;
+}
+
+window.getBrowserGarminVault = function(pid) {
+  try {
+    const raw = localStorage.getItem(getGarminVaultKey(pid));
+    const parsed = raw ? JSON.parse(raw) : {};
+    const ovIntg = (typeof STATE !== 'undefined' && STATE.overview && STATE.overview.integrations) || {};
+    return {
+      garmin_email: parsed.garmin_email || ovIntg.garmin_email || '',
+      garmin_password_b64: parsed.garmin_password_b64 || ovIntg.garmin_password_b64 || '',
+      garmin_token_dump: parsed.garmin_token_dump || ovIntg.garmin_token_dump || '',
+      garmin_last_sync: parsed.garmin_last_sync || ovIntg.garmin_last_sync || '',
+      garmin_connected: parsed.garmin_connected || ovIntg.garmin_connected || 0,
+    };
+  } catch (e) {
+    return {};
+  }
+};
+
+window.saveBrowserGarminVault = function(data, pid) {
+  if (!data || typeof data !== 'object') return;
+  try {
+    const curr = window.getBrowserGarminVault(pid);
+    const merged = {
+      garmin_email: data.garmin_email || curr.garmin_email || '',
+      garmin_password_b64: data.garmin_password_b64 || curr.garmin_password_b64 || '',
+      garmin_token_dump: data.garmin_token_dump || curr.garmin_token_dump || '',
+      garmin_last_sync: data.garmin_last_sync || curr.garmin_last_sync || '',
+      garmin_connected: data.garmin_connected != null ? data.garmin_connected : (curr.garmin_connected || 0),
+      updated_at: new Date().toISOString(),
+    };
+    localStorage.setItem(getGarminVaultKey(pid), JSON.stringify(merged));
+  } catch (e) {}
+};
+
+window.getBrowserCheckinsVault = function(pid) {
+  try {
+    const raw = localStorage.getItem(getCheckinsVaultKey(pid));
+    return raw ? JSON.parse(raw) : { profile_id: pid || getActiveVaultProfileId(), daily_checkins: [], workout_logs: [], weekly_submissions: [] };
+  } catch (e) {
+    return { profile_id: pid || getActiveVaultProfileId(), daily_checkins: [], workout_logs: [], weekly_submissions: [] };
+  }
+};
+
+function hasMeaningfulCheckinData(c) {
+  if (!c) return false;
+  return Boolean(
+    (c.weight_kg != null && Number(c.weight_kg) > 0) ||
+    Number(c.steps || 0) > 0 ||
+    Number(c.calories || 0) > 0 ||
+    Number(c.protein_g || 0) > 0 ||
+    Number(c.water_l || 0) > 0 ||
+    Number(c.sleep_mins || 0) > 0 ||
+    (c.sleep_str && String(c.sleep_str).trim()) ||
+    (c.sleep && String(c.sleep).trim()) ||
+    (c.notes && String(c.notes).trim())
+  );
+}
+
+window.recordCheckinInBrowserVault = function(row, pid) {
+  if (!row || !row.date) return;
+  try {
+    const targetPid = pid || getActiveVaultProfileId();
+    const vault = window.getBrowserCheckinsVault(targetPid);
+    const list = Array.isArray(vault.daily_checkins) ? vault.daily_checkins : [];
+    const dStr = String(row.date).slice(0, 10);
+    const idx = list.findIndex(x => String(x.date).slice(0, 10) === dStr);
+    const existing = idx >= 0 ? list[idx] : { date: dStr, profile_id: targetPid };
+    const merged = Object.assign({}, existing);
+    Object.keys(row).forEach(k => {
+      const v = row[k];
+      if (v !== undefined && v !== null && v !== '') {
+        merged[k] = v;
+      }
+    });
+    if (row.sleep && !merged.sleep_str) {
+      merged.sleep_str = String(row.sleep);
+    }
+    if (idx >= 0) {
+      list[idx] = merged;
+    } else {
+      list.push(merged);
+    }
+    vault.daily_checkins = list;
+    vault.updated_at = new Date().toISOString();
+    localStorage.setItem(getCheckinsVaultKey(targetPid), JSON.stringify(vault));
+    const badge = document.getElementById('op-persistence-badge');
+    if (badge) {
+      badge.style.color = 'var(--green)';
+      badge.textContent = '🔒 Saved to Device & Cloud ✓';
+    }
+  } catch (e) {}
+};
+
+window.pullServerBackupIntoBrowserVault = async function() {
+  try {
+    const res = await fetch('/api/challenge/backup/export');
+    const data = await res.json();
+    if (!data || !data.ok) return;
+    const pid = Number(data.profile_id || getActiveVaultProfileId());
+    if (data.integrations) {
+      window.saveBrowserGarminVault(data.integrations, pid);
+    }
+    const localVault = window.getBrowserCheckinsVault(pid);
+    const byDate = {};
+    (localVault.daily_checkins || []).forEach(c => {
+      if (c && c.date) byDate[String(c.date).slice(0, 10)] = Object.assign({}, c);
+    });
+    (data.daily_checkins || []).forEach(sc => {
+      if (!sc || !sc.date) return;
+      const d = String(sc.date).slice(0, 10);
+      const prev = byDate[d] || {};
+      const merged = Object.assign({}, prev);
+      Object.keys(sc).forEach(k => {
+        const sv = sc[k];
+        if (sv !== null && sv !== undefined && sv !== '' && sv !== 0) {
+          merged[k] = sv;
+        } else if (merged[k] === undefined) {
+          merged[k] = sv;
+        }
+      });
+      byDate[d] = merged;
+    });
+    const nextVault = {
+      profile_id: pid,
+      updated_at: new Date().toISOString(),
+      profile: data.profile || localVault.profile || {},
+      user_account: data.user_account || localVault.user_account || {},
+      daily_checkins: Object.values(byDate).sort((a, b) => String(a.date).localeCompare(String(b.date))),
+      workout_logs: (data.workout_logs && data.workout_logs.length) ? data.workout_logs : (localVault.workout_logs || []),
+      weekly_submissions: (data.weekly_submissions && data.weekly_submissions.length) ? data.weekly_submissions : (localVault.weekly_submissions || []),
+      daily_activities: (data.daily_activities && data.daily_activities.length) ? data.daily_activities : (localVault.daily_activities || []),
+    };
+    localStorage.setItem(getCheckinsVaultKey(pid), JSON.stringify(nextVault));
+  } catch (e) {}
+};
+
+async function ensureServerRehydratedFromBrowserVault() {
+  try {
+    const pid = getActiveVaultProfileId();
+    const localVault = window.getBrowserCheckinsVault(pid);
+    const garminVault = window.getBrowserGarminVault(pid);
+    const ov = (typeof STATE !== 'undefined' && STATE.overview) || {};
+    const serverIntg = ov.integrations || {};
+
+    // Check if localVault has check-ins or Garmin auth that the server lost after a container restart
+    const localMeaningful = (localVault.daily_checkins || []).filter(hasMeaningfulCheckinData);
+    const needsGarminRestore = Boolean(
+      (garminVault.garmin_email && !serverIntg.garmin_email) ||
+      (garminVault.garmin_password_b64 && !serverIntg.garmin_password_set) ||
+      (garminVault.garmin_token_dump && !serverIntg.garmin_connected)
+    );
+
+    let needsCheckinRestore = false;
+    if (localMeaningful.length > 0) {
+      try {
+        const cRes = await fetch('/api/challenge/checkins');
+        const serverRows = await cRes.json();
+        const serverMap = {};
+        (Array.isArray(serverRows) ? serverRows : []).forEach(r => {
+          if (r && r.date) serverMap[String(r.date).slice(0, 10)] = r;
+        });
+        for (const lc of localMeaningful) {
+          const d = String(lc.date).slice(0, 10);
+          const sc = serverMap[d];
+          if (!sc || !hasMeaningfulCheckinData(sc)) {
+            needsCheckinRestore = true;
+            break;
+          }
+          if (
+            (lc.weight_kg && !sc.weight_kg) ||
+            (Number(lc.steps || 0) > Number(sc.steps || 0)) ||
+            (Number(lc.calories || 0) > Number(sc.calories || 0)) ||
+            (Number(lc.protein_g || 0) > Number(sc.protein_g || 0)) ||
+            (Number(lc.water_l || 0) > Number(sc.water_l || 0))
+          ) {
+            needsCheckinRestore = true;
+            break;
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (needsGarminRestore || needsCheckinRestore) {
+      const importPayload = {
+        profile_id: pid,
+        profile: localVault.profile || ov.profile || {},
+        user_account: localVault.user_account || {},
+        integrations: garminVault,
+        daily_checkins: localMeaningful,
+        workout_logs: localVault.workout_logs || [],
+        weekly_submissions: localVault.weekly_submissions || [],
+        daily_activities: localVault.daily_activities || [],
+      };
+      await fetch('/api/challenge/backup/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(importPayload),
+      });
+      if (typeof loadOverview === 'function') {
+        await loadOverview(STATE.date);
+      }
+    } else if (serverIntg.garmin_email || serverIntg.garmin_password_b64 || serverIntg.garmin_token_dump) {
+      window.saveBrowserGarminVault(serverIntg, pid);
+    }
+  } catch (e) {
+    console.warn('Vault rehydration check error:', e);
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    ensureServerRehydratedFromBrowserVault().then(() => {
+      renderOnePagerViews();
+    });
+  }
+});
+
+let _onePagerAutoSaveTimer = null;
+window.scheduleOnePagerAutoSave = function() {
+  const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
+  const wtVal = document.getElementById('op-weight')?.value?.trim() || '';
+  const stepsVal = document.getElementById('op-steps')?.value?.trim() || '';
+  const calsVal = document.getElementById('op-cals')?.value?.trim() || '';
+  const protVal = document.getElementById('op-prot')?.value?.trim() || '';
+  const waterVal = document.getElementById('op-water')?.value?.trim() || '';
+  const sleepVal = document.getElementById('op-sleep')?.value?.trim() || '';
+  const trainVal = document.getElementById('op-training')?.value || 'REST';
+  const notesVal = document.getElementById('op-notes')?.value || '';
+
+  const draft = {
+    date: curDate,
+    training_type: trainVal,
+    notes: notesVal,
+  };
+  if (wtVal !== '') draft.weight_kg = parseFloat(wtVal);
+  if (stepsVal !== '') draft.steps = parseInt(stepsVal, 10);
+  if (calsVal !== '') draft.calories = parseInt(calsVal, 10);
+  if (protVal !== '') draft.protein_g = parseInt(protVal, 10);
+  if (waterVal !== '') draft.water_l = parseFloat(waterVal);
+  if (sleepVal !== '') draft.sleep = sleepVal;
+
+  // Save immediately to Browser Vault so closing the phone tab never loses typed numbers
+  window.recordCheckinInBrowserVault(draft);
+  try {
+    localStorage.setItem(getDraftVaultKey(curDate), JSON.stringify(draft));
+  } catch (e) {}
+
+  const badge = document.getElementById('op-persistence-badge');
+  if (badge) {
+    badge.style.color = '#38bdf8';
+    badge.textContent = '💾 Auto-saving...';
+  }
+
+  if (_onePagerAutoSaveTimer) clearTimeout(_onePagerAutoSaveTimer);
+  _onePagerAutoSaveTimer = setTimeout(async () => {
+    try {
+      await fetch('/api/challenge/checkins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft),
+      });
+      try {
+        localStorage.removeItem(getDraftVaultKey(curDate));
+      } catch (e) {}
+      if (badge) {
+        badge.style.color = 'var(--green)';
+        badge.textContent = '🔒 Auto-Saved ✓';
+      }
+      renderMobileDailyWeekStrip();
+    } catch (e) {
+      if (badge) {
+        badge.style.color = '#fbbf24';
+        badge.textContent = '📱 Saved on Device (Offline)';
+      }
+    }
+  }, 900);
+};
+
+window.selectOnePagerTraining = function(val, triggerSave) {
   const trainVal = val || 'REST';
   const hidden = document.getElementById('op-training');
+  const prevVal = hidden ? hidden.value : 'REST';
   if (hidden) hidden.value = trainVal;
   document.querySelectorAll('#op-training-btns .op-train-btn').forEach(btn => {
     const bVal = btn.getAttribute('data-train');
@@ -2024,6 +2365,69 @@ window.selectOnePagerTraining = function(val) {
     const waLink = document.getElementById('op-wa-direct-link');
     if (waLink) waLink.href = `https://wa.me/?text=${encodeURIComponent(txt)}`;
   }
+  if (triggerSave && prevVal !== trainVal && typeof window.scheduleOnePagerAutoSave === 'function') {
+    window.scheduleOnePagerAutoSave();
+  }
+};
+
+window.toggleMobileGarminDrawer = function(forceOpen) {
+  const drawer = document.getElementById('op-garmin-connect-drawer');
+  if (!drawer) return;
+  const shouldOpen = forceOpen !== undefined ? Boolean(forceOpen) : (drawer.style.display === 'none' || !drawer.style.display);
+  drawer.style.display = shouldOpen ? 'block' : 'none';
+  if (shouldOpen) {
+    const gv = window.getBrowserGarminVault();
+    const emailInput = document.getElementById('op-garmin-email');
+    if (emailInput && !emailInput.value) {
+      emailInput.value = gv.garmin_email || '';
+    }
+  }
+};
+
+window.saveAndSyncMobileGarmin = async function() {
+  const emailEl = document.getElementById('op-garmin-email');
+  const passEl = document.getElementById('op-garmin-password');
+  const email = (emailEl?.value || '').trim();
+  const password = passEl?.value || '';
+  if (!email) {
+    showToast('⚠️ Enter your Garmin Connect email first.');
+    if (emailEl) emailEl.focus();
+    return;
+  }
+  const gv = window.getBrowserGarminVault();
+  const passB64 = password ? btoa(unescape(encodeURIComponent(password))) : (gv.garmin_password_b64 || '');
+  window.saveBrowserGarminVault({
+    garmin_email: email,
+    garmin_password_b64: passB64,
+  });
+
+  const btn = window.setButtonBusy(document.getElementById('op-garmin-save-sync-btn'), '⏳ Saving & Syncing Garmin...');
+  try {
+    const res = await fetch('/api/challenge/sync/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: STATE.date,
+        garmin_email: email,
+        garmin_password: password,
+        garmin_password_b64: passB64,
+        garmin_token_dump: gv.garmin_token_dump || '',
+      }),
+    });
+    const data = await res.json();
+    if (data.integrations) {
+      window.saveBrowserGarminVault(data.integrations);
+    }
+    await loadOverview(STATE.date);
+    await refreshProgressSummary();
+    renderOnePagerViews();
+    window.clearButtonBusy(btn, '✅ Garmin Saved & Synced!');
+    window.toggleMobileGarminDrawer(false);
+    showToast(data.garmin_status || '✅ Garmin login saved & synced!');
+  } catch (e) {
+    window.clearButtonBusy(btn);
+    showToast('⚠️ Could not reach Garmin sync service.');
+  }
 };
 
 window.triggerMobileGarminSync = async function() {
@@ -2034,12 +2438,27 @@ window.triggerMobileGarminSync = async function() {
     statusEl.textContent = 'Connecting to Garmin Connect...';
   }
   try {
+    const gv = window.getBrowserGarminVault();
+    const drawerEmail = (document.getElementById('op-garmin-email')?.value || '').trim();
+    const drawerPass = document.getElementById('op-garmin-password')?.value || '';
     const res = await fetch('/api/challenge/sync/live', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: STATE.date }),
+      body: JSON.stringify({
+        date: STATE.date,
+        garmin_email: drawerEmail || gv.garmin_email || '',
+        garmin_password: drawerPass || '',
+        garmin_password_b64: drawerPass ? btoa(unescape(encodeURIComponent(drawerPass))) : (gv.garmin_password_b64 || ''),
+        garmin_token_dump: gv.garmin_token_dump || '',
+      }),
     });
     const data = await res.json();
+    if (data.integrations) {
+      window.saveBrowserGarminVault(data.integrations);
+    }
+    if (data.checkin) {
+      window.recordCheckinInBrowserVault(data.checkin);
+    }
     await loadOverview(STATE.date);
     await refreshProgressSummary();
     renderOnePagerViews();
@@ -2052,9 +2471,12 @@ window.triggerMobileGarminSync = async function() {
       window.clearButtonBusy(btn, '✅ Garmin Synced!');
       showToast(`⌚ ${msg}`);
     } else {
+      if (data.needs_password || data.needs_setup) {
+        window.toggleMobileGarminDrawer(true);
+      }
       if (statusEl) {
         statusEl.style.color = '#fbbf24';
-        statusEl.innerHTML = `ℹ️ ${msg} · <a href="#" onclick="openDesktopTab('integrations');return false;" style="color:var(--green);font-weight:800">Configure Garmin on Desktop</a>`;
+        statusEl.innerHTML = `ℹ️ ${msg} · <a href="#" onclick="toggleMobileGarminDrawer(true);return false;" style="color:var(--green);font-weight:800">Enter Garmin Login Below</a>`;
       }
       window.clearButtonBusy(btn);
       showToast(`ℹ️ ${msg}`);
@@ -2068,14 +2490,74 @@ window.triggerMobileGarminSync = async function() {
   }
 };
 
+function renderMobileDailyWeekStrip() {
+  const stripEl = document.getElementById('op-daily-week-strip');
+  if (!stripEl) return;
+  const ov = (typeof STATE !== 'undefined' && STATE.overview) || {};
+  const sheet = ov.current_week_sheet || {};
+  const rows = sheet.rows || [];
+  const vault = window.getBrowserCheckinsVault();
+  const vaultByDate = {};
+  (vault.daily_checkins || []).forEach(c => {
+    if (c && c.date) vaultByDate[String(c.date).slice(0, 10)] = c;
+  });
+
+  if (!rows.length) {
+    stripEl.innerHTML = '';
+    return;
+  }
+  const titleEl = document.getElementById('op-week-strip-title');
+  const loggedCnt = rows.filter(r => hasMeaningfulCheckinData(r) || hasMeaningfulCheckinData(vaultByDate[r.date])).length;
+  if (titleEl) {
+    titleEl.textContent = `${sheet.label || 'THIS WEEK'} · ${loggedCnt}/7 DAYS SAVED`;
+  }
+
+  stripEl.innerHTML = rows.map(r => {
+    const vc = vaultByDate[r.date] || {};
+    const wt = r.weight_kg || vc.weight_kg;
+    const st = r.steps || vc.steps;
+    const hasData = hasMeaningfulCheckinData(r) || hasMeaningfulCheckinData(vc);
+    const isSelected = r.date === STATE.date;
+    const shortDay = r.day_short || (r.day_name || '').slice(0, 3) || r.date.slice(8, 10);
+    const subTxt = wt ? `${Number(wt).toFixed(1)}k` : (st ? `${Math.round(Number(st) / 1000)}k` : (hasData ? '✓' : '·'));
+    return `<button type="button" onclick="loadOverview('${r.date}')" style="padding:0.32rem 0.1rem;border-radius:8px;cursor:pointer;background:${isSelected ? 'rgba(61,255,79,0.22)' : (hasData ? 'rgba(61,255,79,0.08)' : 'var(--surface-2)')};border:1.5px solid ${isSelected ? 'var(--green)' : (hasData ? 'rgba(61,255,79,0.42)' : 'var(--border)')};color:#fff;text-align:center">
+      <div style="font-size:0.62rem;font-weight:800;color:${hasData ? 'var(--green)' : '#94a3b8'}">${shortDay}</div>
+      <div style="font-size:0.68rem;font-weight:900;margin-top:1px;color:${hasData ? '#fff' : 'var(--muted)'}">${hasData ? '✓ ' + subTxt : '·'}</div>
+    </button>`;
+  }).join('');
+}
+
 function renderOnePagerViews() {
   const ov = (typeof STATE !== 'undefined' && STATE.overview) || {};
-  const c = ov.checkin || {};
+  const serverC = ov.checkin || {};
   const prof = ov.profile || {};
-  const intg = ov.integrations || {};
+  const intg = Object.assign({}, window.getBrowserGarminVault(), ov.integrations || {});
   const wkInfo = ov.week_info || {};
   const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
   const dayName = getWeekdayNameForDate(curDate);
+
+  // Merge server check-in with local browser vault + any unsaved draft for curDate so data never blanks out
+  const vault = window.getBrowserCheckinsVault();
+  const vaultRow = (vault.daily_checkins || []).find(x => String(x.date).slice(0, 10) === curDate) || {};
+  let draftRow = {};
+  try {
+    const rawDraft = localStorage.getItem(getDraftVaultKey(curDate));
+    if (rawDraft) draftRow = JSON.parse(rawDraft);
+  } catch (e) {}
+  const c = Object.assign({}, vaultRow, serverC);
+  Object.keys(vaultRow).forEach(k => {
+    if ((c[k] === null || c[k] === undefined || c[k] === '' || c[k] === 0) && vaultRow[k]) {
+      c[k] = vaultRow[k];
+    }
+  });
+  Object.keys(draftRow).forEach(k => {
+    if (draftRow[k] !== undefined && draftRow[k] !== null && draftRow[k] !== '') {
+      c[k] = draftRow[k];
+    }
+  });
+  if (hasMeaningfulCheckinData(serverC)) {
+    window.recordCheckinInBrowserVault(serverC);
+  }
 
   const clientNameEl = document.getElementById('op-client-name');
   if (clientNameEl && prof.client_name) {
@@ -2105,17 +2587,22 @@ function renderOnePagerViews() {
     saveBanner.style.display = 'none';
   }
 
+  const emailEl = document.getElementById('op-garmin-email');
+  if (emailEl && !emailEl.value && intg.garmin_email) {
+    emailEl.value = intg.garmin_email;
+  }
+
   const syncStatus = document.getElementById('op-sync-status');
   if (syncStatus && !syncStatus.textContent.startsWith('⏳')) {
     if (intg.garmin_last_sync) {
       syncStatus.style.color = '#94a3b8';
-      syncStatus.textContent = `Last Garmin sync: ${intg.garmin_last_sync}`;
+      syncStatus.textContent = `✅ Garmin linked (${intg.garmin_email || 'Connected'}) · Last sync: ${intg.garmin_last_sync}`;
     } else if (intg.garmin_email) {
       syncStatus.style.color = '#94a3b8';
-      syncStatus.textContent = `Garmin linked (${intg.garmin_email}) · Tap above to pull today's stats`;
+      syncStatus.textContent = `⌚ Garmin linked (${intg.garmin_email}) · Tap above to pull today's stats`;
     } else {
       syncStatus.style.color = 'var(--muted)';
-      syncStatus.innerHTML = `Set up Garmin once on <a href="#" onclick="openDesktopTab('integrations');return false;" style="color:var(--green);font-weight:700">Desktop Settings</a>, then tap Sync daily`;
+      syncStatus.innerHTML = `Tap <a href="#" onclick="toggleMobileGarminDrawer(true);return false;" style="color:var(--green);font-weight:700">🔑 Garmin Login</a> once to save your Garmin account on this device`;
     }
   }
 
@@ -2132,8 +2619,8 @@ function renderOnePagerViews() {
   setVal('op-cals', c.calories && Number(c.calories) > 0 ? c.calories : '');
   setVal('op-prot', c.protein_g && Number(c.protein_g) > 0 ? c.protein_g : '');
   setVal('op-water', c.water_l && Number(c.water_l) > 0 ? c.water_l : '');
-  setVal('op-sleep', c.sleep_mins && Number(c.sleep_mins) > 0 ? (c.sleep_str || `${Math.floor(c.sleep_mins / 60)}h ${c.sleep_mins % 60}m`) : (c.sleep_str || ''));
-  window.selectOnePagerTraining(c.training_type || 'REST');
+  setVal('op-sleep', c.sleep_mins && Number(c.sleep_mins) > 0 ? (c.sleep_str || `${Math.floor(c.sleep_mins / 60)}h ${c.sleep_mins % 60}m`) : (c.sleep_str || c.sleep || ''));
+  window.selectOnePagerTraining(c.training_type || 'REST', false);
   setVal('op-notes', c.notes || c.class_attended || '');
 
   const wtBadge = document.getElementById('op-morning-weight-badge');
@@ -2154,6 +2641,7 @@ function renderOnePagerViews() {
     wtSub.style.color = hasMorningWt ? 'var(--green)' : '#94a3b8';
   }
 
+  renderMobileDailyWeekStrip();
   wireOnePagerLiveSummaryInputs();
   renderOnePagerDailyPhotosAndWhatsApp();
   renderOnePagerWeekly();
@@ -2215,7 +2703,7 @@ function renderOnePagerWeekly() {
     stripEl.innerHTML = rows.map(r => {
       const hasData = Boolean(r.weight_kg || r.steps || r.calories || r.protein_g || (r.notes && r.notes.trim()));
       const isSelected = r.date === STATE.date;
-      const shortDay = (r.day_name || '').slice(0, 3);
+      const shortDay = r.day_short || (r.day_name || '').slice(0, 3);
       return `<button type="button" onclick="loadOverview('${r.date}')" style="padding:0.35rem 0.15rem;border-radius:8px;cursor:pointer;background:${isSelected ? 'rgba(61,255,79,0.22)' : (hasData ? 'rgba(61,255,79,0.08)' : 'var(--surface-2)')};border:1.5px solid ${isSelected ? 'var(--green)' : (hasData ? 'rgba(61,255,79,0.4)' : 'var(--border)')};color:#fff;text-align:center">
         <div style="font-size:0.65rem;font-weight:800;color:${hasData ? 'var(--green)' : 'var(--muted)'}">${shortDay}</div>
         <div style="font-size:0.75rem;font-weight:900;margin-top:1px">${hasData ? '✓' : '·'}</div>
@@ -2225,10 +2713,15 @@ function renderOnePagerWeekly() {
 }
 
 window.saveOnePagerDaily = async function(withPng) {
+  if (_onePagerAutoSaveTimer) {
+    clearTimeout(_onePagerAutoSaveTimer);
+    _onePagerAutoSaveTimer = null;
+  }
   const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
   const dayName = getWeekdayNameForDate(curDate);
   const submitBtn = window.setButtonBusy(document.getElementById('op-submit-btn'), `⏳ Saving ${dayName}...`);
   try {
+    try { localStorage.removeItem(getDraftVaultKey(curDate)); } catch (e) {}
     const wtVal = document.getElementById('op-weight')?.value?.trim() || '';
     const stepsVal = document.getElementById('op-steps')?.value?.trim() || '';
     const calsVal = document.getElementById('op-cals')?.value?.trim() || '';

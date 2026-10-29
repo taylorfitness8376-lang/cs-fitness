@@ -972,6 +972,108 @@ def test_email_username_verification_morning_weight_and_teamup(client):
     assert "CS Sweat Conditioning" in ov_after_tu["checkin"]["notes"]
 
 
+def test_multi_day_checkin_and_garmin_persistence_across_restart(client):
+    """Verify multi-day check-ins, workout logs, daily moments, and Garmin credentials/tokens survive backup export + rehydration."""
+    # Log in as Ewan (profile_id=1)
+    client.post("/api/challenge/auth/login", json={"email": "taylor.ewan@gmail.com"})
+
+    # 1. Save Garmin sync credentials & token
+    integ_res = client.post("/api/challenge/integrations", json={
+        "garmin_email": "taylor.ewan@gmail.com",
+        "garmin_password": "mygarminsecretpassword",
+        "garmin_token_dump": '{"di_token":"valid_garmin_token_123"}',
+    }).get_json()
+    assert integ_res["garmin_email"] == "taylor.ewan@gmail.com"
+    assert integ_res["garmin_password_set"] == 1
+    assert integ_res["garmin_password_b64"] != ""
+    assert integ_res["garmin_token_dump"] == '{"di_token":"valid_garmin_token_123"}'
+
+    # 2. Save multiple consecutive days of check-ins (e.g. Oct 26, Oct 27, Oct 28)
+    for d_str, wt, steps, cals, prot, slp in [
+        ("2026-10-26", 83.2, 13400, 2150, 154, "8h 10m"),
+        ("2026-10-27", 83.0, 14100, 2120, 158, "7h 55m"),
+        ("2026-10-28", 82.8, 12950, 2170, 152, "8h 05m"),
+    ]:
+        c_res = client.post("/api/challenge/checkins", json={
+            "date": d_str,
+            "weight_kg": wt,
+            "steps": steps,
+            "calories": cals,
+            "protein_g": prot,
+            "water_l": 3.7,
+            "sleep": slp,
+            "training_type": "GYM",
+            "notes": f"Completed session on {d_str}",
+        }).get_json()
+        assert c_res["checkin"]["weight_kg"] == wt
+        assert c_res["checkin"]["steps"] == steps
+
+    # 3. Export full profile backup (includes daily_checkins, workout_logs, integrations with Garmin auth)
+    backup = client.get("/api/challenge/backup/export").get_json()
+    assert backup["ok"] is True
+    assert backup["integrations"]["garmin_email"] == "taylor.ewan@gmail.com"
+    assert backup["integrations"]["garmin_password_b64"] != ""
+    assert backup["integrations"]["garmin_token_dump"] == '{"di_token":"valid_garmin_token_123"}'
+    exported_dates = {c["date"] for c in backup["daily_checkins"]}
+    assert {"2026-10-26", "2026-10-27", "2026-10-28"}.issubset(exported_dates)
+
+    # 4. Simulate an ephemeral container restart wiping daily_checkins, workout_logs, and user_sync_integrations
+    from database import get_db
+    with client.application.app_context():
+        db = get_db()
+        db.execute("DELETE FROM daily_checkins WHERE profile_id=1 AND date >= '2026-10-26'")
+        db.execute("DELETE FROM user_sync_integrations WHERE profile_id=1")
+        db.commit()
+
+    # 5. Rehydrate via /api/challenge/backup/import (and verify workout_logs ON CONFLICT does not throw)
+    backup["workout_logs"] = [
+        {
+            "track": "mens",
+            "workout_num": 1,
+            "week_num": 2,
+            "row_key": "M1_A1",
+            "exercise_order": "A1",
+            "exercise_name": "BB Back Squat",
+            "target_sets": 4,
+            "target_reps": "8",
+            "weight_reps": "100kg x 8",
+            "set_logs_json": "[]",
+            "logged_date": "2026-10-26",
+            "notes": "Strong",
+        },
+        {
+            "track": "mens",
+            "workout_num": 2,
+            "week_num": 2,
+            "row_key": "M1_A1",
+            "exercise_order": "A1",
+            "exercise_name": "Incline DB Bench",
+            "target_sets": 4,
+            "target_reps": "10",
+            "weight_reps": "34kg x 10",
+            "set_logs_json": "[]",
+            "logged_date": "2026-10-27",
+            "notes": "Solid",
+        },
+    ]
+    imp_res = client.post("/api/challenge/backup/import", json=backup).get_json()
+    assert imp_res["ok"] is True
+    assert imp_res["restored"]["daily_checkins"] >= 3
+    assert imp_res["restored"]["workout_logs"] == 2
+    assert imp_res["restored"]["integrations"] == 1
+
+    # 6. Verify all 3 days + Garmin credentials/tokens are restored on the server
+    ov_oct28 = client.get("/api/challenge/overview?date=2026-10-28").get_json()
+    assert ov_oct28["checkin"]["weight_kg"] == 82.8
+    assert ov_oct28["checkin"]["steps"] == 12950
+    assert ov_oct28["checkin"]["sleep_mins"] == 485
+    assert ov_oct28["checkin"]["sleep_str"] == "8hrs 05 mins"
+    assert ov_oct28["integrations"]["garmin_email"] == "taylor.ewan@gmail.com"
+    assert ov_oct28["integrations"]["garmin_password_set"] == 1
+    assert ov_oct28["integrations"]["garmin_token_dump"] == '{"di_token":"valid_garmin_token_123"}'
+
+
+
 
 
 

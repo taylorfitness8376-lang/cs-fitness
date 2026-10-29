@@ -230,7 +230,7 @@ def _decode_secret(b64_str):
         return ""
 
 
-def _get_profile_integrations(db, profile_id=1, include_secrets=False):
+def _get_profile_integrations(db, profile_id=1, include_secrets=True):
     """Return isolated Garmin/Nutrition/Telegram integration settings for a specific profile_id."""
     import secrets
     _ensure_user_sync_integrations_table(db)
@@ -312,7 +312,12 @@ def _update_profile_integrations(db, profile_id, updates):
             ),
         )
     db.commit()
-    return _get_profile_integrations(db, pid)
+    try:
+        from challenge_blocks import auto_persist_profile_backup
+        auto_persist_profile_backup(db, pid)
+    except Exception:
+        pass
+    return _get_profile_integrations(db, pid, include_secrets=True)
 
 
 def _resolve_webhook_or_active_profile(db, data=None):
@@ -562,6 +567,11 @@ def _upsert_checkin(db, date_str, data, profile_id=1):
             ),
         )
     db.commit()
+    try:
+        from challenge_blocks import auto_persist_profile_backup
+        auto_persist_profile_backup(db, profile_id)
+    except Exception:
+        pass
     return dict(db.execute("SELECT * FROM daily_checkins WHERE date=? AND profile_id=?", (date_str, profile_id)).fetchone())
 
 
@@ -1214,22 +1224,28 @@ def api_challenge_sync_live():
 
     garmin_email = (data.get("garmin_email") or integ.get("garmin_email") or "").strip()
     raw_req_password = data.get("garmin_password") or ""
-    saved_password = _decode_secret(integ.get("garmin_password_b64", ""))
+    req_password_b64 = (data.get("garmin_password_b64") or "").strip()
+    req_token_dump = (data.get("garmin_token_dump") or "").strip()
+    saved_password = _decode_secret(req_password_b64 or integ.get("garmin_password_b64", ""))
     garmin_password = raw_req_password or saved_password
-    saved_token_dump = integ.get("garmin_token_dump") or ""
+    saved_token_dump = req_token_dump or integ.get("garmin_token_dump") or ""
     mfa_code = str(data.get("mfa_code") or "").strip()
     mfp_username = (data.get("mfp_username") or integ.get("mfp_username") or "").strip()
 
-    if garmin_email and raw_req_password:
-        _update_profile_integrations(
-            db,
-            pid,
-            {
-                "garmin_email": garmin_email,
-                "garmin_password_set": 1,
-                "garmin_password_b64": _encode_secret(raw_req_password),
-            },
-        )
+    pre_upd = {}
+    if garmin_email:
+        pre_upd["garmin_email"] = garmin_email
+    if raw_req_password:
+        pre_upd["garmin_password_set"] = 1
+        pre_upd["garmin_password_b64"] = _encode_secret(raw_req_password)
+    elif req_password_b64 and not integ.get("garmin_password_b64"):
+        pre_upd["garmin_password_set"] = 1
+        pre_upd["garmin_password_b64"] = req_password_b64
+    if req_token_dump and not integ.get("garmin_token_dump"):
+        pre_upd["garmin_token_dump"] = req_token_dump
+        pre_upd["garmin_connected"] = 1
+    if pre_upd:
+        _update_profile_integrations(db, pid, pre_upd)
 
     merged = {}
     messages = []
@@ -1289,6 +1305,7 @@ def api_challenge_sync_live():
         saved = dict(row) if row else _upsert_checkin(db, date_str, {}, pid)
 
     db.commit()
+    latest_integ = _get_profile_integrations(db, pid, include_secrets=True)
     return jsonify({
         "ok": garmin_ok or mfp_ok,
         "garmin_ok": garmin_ok,
@@ -1299,6 +1316,7 @@ def api_challenge_sync_live():
         "messages": messages,
         "date": date_str,
         "checkin": saved,
+        "integrations": latest_integ,
         "win_the_day": _compute_win_the_day_score(saved, profile, wk_info["step_target"]),
     })
 
@@ -1381,7 +1399,7 @@ def api_challenge_sync_webhook():
     return jsonify({"ok": True, "date": date_str, "checkin": saved, "profile_id": pid})
 
 
-@challenge_bp.route("/api/challenge/integrations", methods=["GET", "PUT"])
+@challenge_bp.route("/api/challenge/integrations", methods=["GET", "PUT", "POST"])
 def api_challenge_integrations():
     db = get_db()
     profile = _get_active_profile(db)
@@ -1401,6 +1419,12 @@ def api_challenge_integrations():
         updates["garmin_password_set"] = 1
         updates["garmin_connected"] = 1
         updates["garmin_password_b64"] = _encode_secret(data.get("garmin_password"))
+    elif data.get("garmin_password_b64"):
+        updates["garmin_password_set"] = 1
+        updates["garmin_password_b64"] = str(data.get("garmin_password_b64")).strip()
+    if data.get("garmin_token_dump"):
+        updates["garmin_token_dump"] = str(data.get("garmin_token_dump")).strip()
+        updates["garmin_connected"] = 1
     return jsonify(_update_profile_integrations(db, pid, updates))
 
 

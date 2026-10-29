@@ -1,12 +1,15 @@
 import bcrypt
+import hashlib
 import os
-import secrets
 
 # Change this password before deploying (or set ADMIN_PASSWORD env var)
 _RAW_PASSWORD = os.environ.get("ADMIN_PASSWORD", "csfit2024")
 PASSWORD_HASH = bcrypt.hashpw(_RAW_PASSWORD.encode(), bcrypt.gensalt())
 
-SECRET_KEY = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+SECRET_KEY = os.environ.get(
+    "SECRET_KEY",
+    hashlib.sha256(f"cs-fitness-persistent-key-{_RAW_PASSWORD}".encode("utf-8")).hexdigest(),
+)
 PORT = int(os.environ.get("PORT", 9090))
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))

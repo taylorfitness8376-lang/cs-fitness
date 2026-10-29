@@ -1,5 +1,8 @@
 {
   "client_name": "Ewan t",
+  "integrations": {
+    "garmin_email": "taylor.ewan@gmail.com"
+  },
   "daily_checkins": [
     {
       "id": 38,
