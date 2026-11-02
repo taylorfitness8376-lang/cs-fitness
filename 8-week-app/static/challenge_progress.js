@@ -519,9 +519,9 @@ function upgradeThreePhotoWeeklyVault() {
           <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" style="display:none" onchange="handleThreePoseCollageUpload(event)" />
         </label>
         <span>Compare:</span>
-        <select id="photo-cmp-wk-a" onchange="window._photoCompareState.userPickedWeeks=true;renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:122px"><option value="1" selected>Week 1 (Start)</option><option value="0">Start (Mon Day 1)</option><option value="2">Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
+        <select id="photo-cmp-wk-a" onchange="window._photoCompareState.userPickedWeeks=true;renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:128px"><option value="0" selected>Week 0 (Start)</option><option value="1">Week 1 (Start)</option><option value="2">Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
         <span>vs</span>
-        <select id="photo-cmp-wk-b" onchange="window._photoCompareState.userPickedWeeks=true;renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:122px"><option value="1">Week 1 (Start)</option><option value="0">Start (Mon Day 1)</option><option value="2" selected>Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
+        <select id="photo-cmp-wk-b" onchange="window._photoCompareState.userPickedWeeks=true;renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:128px"><option value="0">Week 0 (Start)</option><option value="1">Week 1 (Start)</option><option value="2" selected>Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
       </div>
     </div>
     <div id="photo-schedule-rule-banner" style="margin-bottom:0.65rem;padding:0.5rem 0.7rem;border-radius:8px;font-size:0.74rem"></div>
@@ -560,9 +560,8 @@ function _findPhotoForWeekAndPose(photos, wk, pose) {
 function _getBestCompareWeeks(photos) {
   const validPhotos = (photos || []).filter(p => p && p.photo_data_url);
   const rawWeeks = Array.from(new Set(validPhotos.map(p => Number(p.week_num)))).sort((a, b) => a - b);
-  const hasWk1 = rawWeeks.includes(1);
-  const baselineWk = hasWk1 ? 1 : (rawWeeks.includes(0) ? 0 : 1);
-  const laterWeeks = rawWeeks.filter(w => w > baselineWk);
+  const baselineWk = 0; // Always use Week 0 (Start) as baseline (_findPhotoForWeekAndPose resolves 0 <-> 1)
+  const laterWeeks = rawWeeks.filter(w => w >= 2);
   const latestWk = laterWeeks.length ? laterWeeks[laterWeeks.length - 1] : Math.max(2, getActiveSheetWeek());
   const prevWk = laterWeeks.length >= 2 ? laterWeeks[laterWeeks.length - 2] : baselineWk;
   return { baselineWk, latestWk, prevWk, allWeeksWithPhotos: rawWeeks };
@@ -637,8 +636,8 @@ window._photoCompareState = {
 
 function _getWeekLabelShort(w) {
   const n = Number(w);
-  if (n === 0) return 'Start (Day 1 Mon)';
-  if (n === 1) return 'Week 1 (Start)';
+  if (n === 0) return 'Week 0 (Start)';
+  if (n === 1) return 'Week 0/1 (Start)';
   return `Week ${n} (Fri)`;
 }
 
@@ -821,7 +820,7 @@ function renderInlineAndModalPhotoComparison() {
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:0.65rem">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <span style="font-size:0.82rem;font-weight:900;color:#fff">🔍 Side-by-Side Carousel: ${_getWeekLabelShort(wkA)} vs ${_getWeekLabelShort(wkB)}</span>
-            <button type="button" class="btn btn-sm ${isWk1VsLatest ? 'btn-green' : ''}" style="padding:2px 8px;font-size:0.68rem;font-weight:800" onclick="selectWeek1VsLatestCompare()" title="Compare Week 1 Starting Photos vs Latest Uploaded Week">⚡ Wk 1 vs Latest (Wk ${latestWk})</button>
+            <button type="button" class="btn btn-sm ${isWk1VsLatest ? 'btn-green' : ''}" style="padding:2px 8px;font-size:0.68rem;font-weight:800" onclick="selectWeek1VsLatestCompare()" title="Compare Week 0 Starting Photos vs Latest Uploaded Week">⚡ Wk 0 (Start) vs Latest (Wk ${latestWk})</button>
             ${prevWk !== baselineWk ? `<button type="button" class="btn btn-sm ${isPrevVsLatest ? 'btn-green' : ''}" style="padding:2px 8px;font-size:0.68rem;font-weight:800" onclick="selectPrevVsLatestCompare()">📈 Wk ${prevWk} vs Wk ${latestWk}</button>` : ''}
             ${deltaHtml}
           </div>
@@ -830,6 +829,7 @@ function renderInlineAndModalPhotoComparison() {
             ${poseTabsHtml}
             <button type="button" class="btn btn-sm" style="padding:4px 9px;font-size:0.72rem" onclick="stepPhotoComparePose(1)" title="Next Pose">Next ▶</button>
             <button type="button" class="btn btn-sm" style="padding:4px 9px;font-size:0.72rem" onclick="togglePhotoCompareZoom()" title="Toggle Fit vs Zoom Fill">${window._photoCompareState.zoomFill ? '🔍 Fit Body' : '🔎 Zoom Fill'}</button>
+            <button type="button" class="btn btn-green btn-sm" style="padding:4px 10px;font-size:0.72rem;font-weight:900" onclick="downloadWeek0VsLatestPhotosPng('${curPose}', this)" title="Download High-Res Week 0 vs Latest Side-by-Side PNG for Coach Chris">📸 Download Side-by-Side PNG</button>
             <button type="button" class="btn btn-green btn-sm" style="padding:4px 11px;font-size:0.74rem;font-weight:900" onclick="openPhotoCompareModal('${curPose}')">⛶ Full-Screen Compare</button>
           </div>
         </div>
@@ -870,7 +870,7 @@ function renderInlineAndModalPhotoComparison() {
     const pFocusA = _findPhotoForWeekAndPose(photos, wkA, focusPose);
     const pFocusB = _findPhotoForWeekAndPose(photos, wkB, focusPose);
     const deltaHtml = _buildWeightDeltaBadgeHtml(wkA, wkB, pFocusA, pFocusB);
-    const wkOptions = [1, 0, 2, 3, 4, 5, 6, 7, 8];
+    const wkOptions = [0, 1, 2, 3, 4, 5, 6, 7, 8];
     const buildOpts = (selWk) => wkOptions.map(w => `<option value="${w}" ${Number(selWk) === w ? 'selected' : ''}>${_getWeekLabelShort(w)}</option>`).join('');
 
     const modalStageHtml = curPose === 'ALL'
@@ -923,7 +923,7 @@ function renderInlineAndModalPhotoComparison() {
           <select onchange="setPhotoCompareWeeks(this.value, null)" style="width:auto;font-size:0.78rem;font-weight:800;padding:4px 8px">${buildOpts(wkA)}</select>
           <span style="font-weight:800;color:#94a3b8">vs</span>
           <select onchange="setPhotoCompareWeeks(null, this.value)" style="width:auto;font-size:0.78rem;font-weight:800;padding:4px 8px">${buildOpts(wkB)}</select>
-          <button type="button" class="btn btn-sm ${isWk1VsLatest ? 'btn-green' : ''}" onclick="selectWeek1VsLatestCompare()" style="padding:4px 9px;font-size:0.73rem;font-weight:800">⚡ Wk 1 vs Latest (Wk ${latestWk})</button>
+          <button type="button" class="btn btn-sm ${isWk1VsLatest ? 'btn-green' : ''}" onclick="selectWeek1VsLatestCompare()" style="padding:4px 9px;font-size:0.73rem;font-weight:800">⚡ Wk 0 (Start) vs Latest (Wk ${latestWk})</button>
           ${deltaHtml}
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -935,6 +935,7 @@ function renderInlineAndModalPhotoComparison() {
           `).join('')}
           <button type="button" class="btn btn-sm" onclick="stepPhotoComparePose(1)" style="padding:5px 10px;font-size:0.76rem">Next ▶</button>
           <button type="button" class="btn btn-sm" onclick="togglePhotoCompareZoom()" style="padding:5px 10px;font-size:0.76rem">${window._photoCompareState.zoomFill ? '🔍 Fit Body' : '🔎 Zoom Fill'}</button>
+          <button type="button" class="btn btn-green btn-sm" onclick="downloadWeek0VsLatestPhotosPng('${curPose}', this)" style="padding:5px 12px;font-size:0.76rem;font-weight:900">📸 Download PNG for Chris</button>
           <button type="button" class="btn btn-sm" onclick="closePhotoCompareModal()" style="padding:5px 12px;font-size:0.78rem;font-weight:900;background:rgba(248,113,113,0.2);border-color:#f87171;color:#fecaca">✕ Close (Esc)</button>
         </div>
       </div>
@@ -1591,94 +1592,175 @@ function knockOutWhiteBgToCanvas(img, removeWhite) {
   return off;
 }
 
+function _resolveTargetLatestPhotoWeek(wk, photos) {
+  const { latestWk } = _getBestCompareWeeks(photos);
+  const nWk = Number(wk);
+  if (nWk >= 2) {
+    const hasExactForSelected = (photos || []).some(p => Number(p.week_num) === nWk && p.photo_data_url);
+    if (hasExactForSelected) return nWk;
+  }
+  return latestWk || Math.max(2, nWk || 2);
+}
+
 window.renderWeeklyCheckinCardCanvas = async function() {
   const canvas = document.getElementById('weekly-checkin-card-canvas');
   if (!canvas) return;
+  if (canvas.width !== 1440) canvas.width = 1440;
+  if (canvas.height !== 1400) canvas.height = 1400;
   const ctx = canvas.getContext('2d');
   const wk = getActiveSheetWeek();
-  const prof = (STATE.overview && STATE.overview.profile) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.profile) || { client_name: 'Challenger', start_weight_kg: 80.0, target_weight_kg: 74.5, target_calories: 2173, target_protein_g: 150 };
-  const wkObj = ((window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.weeks) || []).find(w => Number(w.week_num) === wk) || {};
+  const prof = (STATE.overview && STATE.overview.profile) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.profile) || { client_name: 'Challenger', start_weight_kg: 88.6, target_weight_kg: 78.3, target_calories: 2173, target_protein_g: 150 };
   const photos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
+  const targetPhotoWk = _resolveTargetLatestPhotoWeek(wk, photos);
+  const effectiveReportWk = (wk >= 2) ? wk : targetPhotoWk;
+  const wkObj = ((window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.weeks) || []).find(w => Number(w.week_num) === effectiveReportWk)
+    || ((window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.weeks) || []).find(w => Number(w.week_num) === wk)
+    || {};
   const removeWhite = Boolean(document.getElementById('wk-card-cutout-toggle')?.checked);
 
+  const pStartSide = _findPhotoForWeekAndPose(photos, 0, 'Side');
+  const pLatestSide = _findPhotoForWeekAndPose(photos, targetPhotoWk, 'Side');
+  const startWt = _getWeekWeightForCompare(0, pStartSide) || Number(prof.start_weight_kg || 88.6);
+  const latestWt = _getWeekWeightForCompare(targetPhotoWk, pLatestSide) || Number(wkObj.avg_weight_kg || startWt);
+  const wtDelta = +(latestWt - startWt).toFixed(2);
+  const wtDeltaStr = `${wtDelta > 0 ? '+' : ''}${wtDelta} kg`;
+
   ctx.fillStyle = '#070A08';
-  ctx.fillRect(0, 0, 1200, 1350);
+  ctx.fillRect(0, 0, 1440, 1400);
   ctx.fillStyle = '#3DFF4F';
-  ctx.fillRect(0, 0, 1200, 10);
+  ctx.fillRect(0, 0, 1440, 10);
 
   // Header
   ctx.fillStyle = '#3DFF4F';
   ctx.font = '800 22px Inter, -apple-system, sans-serif';
-  ctx.fillText('CS FITNESS · 8-WEEK CHALLENGE CHECK-IN', 48, 58);
+  ctx.fillText(`CS FITNESS · 8-WEEK CHALLENGE WEEKLY REPORT (WEEK 0 START VS WEEK ${targetPhotoWk})`, 48, 56);
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = '900 44px Inter, -apple-system, sans-serif';
-  const wkTitle = wk === 0 ? 'PRE-COACHING PHOTOS & CHECK-IN' : (wk === 1 ? 'WEEK 1 (DAY 1) PHOTOS & CHECK-IN' : `WEEK ${wk} PROGRESS & CHECK-IN`);
-  ctx.fillText(wkTitle, 48, 110);
+  ctx.font = '900 42px Inter, -apple-system, sans-serif';
+  const wkTitle = `WEEK ${effectiveReportWk} CHECK-IN · WEEK 0 (START) vs WEEK ${targetPhotoWk} PHOTOS`;
+  ctx.fillText(wkTitle, 48, 106);
   ctx.fillStyle = '#94A3B8';
-  ctx.font = '600 22px Inter, -apple-system, sans-serif';
-  ctx.fillText(`Challenger: ${prof.client_name || 'Challenger'}   ·   Start: ${prof.start_weight_kg || 80.0} kg → Goal: ${prof.target_weight_kg || 74.5} kg`, 48, 146);
+  ctx.font = '700 21px Inter, -apple-system, sans-serif';
+  ctx.fillText(
+    `Challenger: ${prof.client_name || 'Ewan Taylor'}   ·   Week 0 Start: ${startWt.toFixed(1)} kg → Week ${targetPhotoWk}: ${latestWt.toFixed(1)} kg (${wtDeltaStr})   ·   Goal: ${prof.target_weight_kg || 78.3} kg`,
+    48,
+    144
+  );
 
-  // 5-Stat Strip
+  // 5-Stat Strip across 1440px
   const stats = [
-    ['AVG WEIGHT', wkObj.avg_weight_kg ? `${wkObj.avg_weight_kg} kg` : `${prof.start_weight_kg || 84.0} kg`, `Target ${wkObj.target_weight_kg || prof.target_weight_kg || 84.0} kg`],
+    ['START → LATEST WT', `${startWt.toFixed(1)} → ${latestWt.toFixed(1)} kg`, `Change: ${wtDeltaStr} (Goal ${prof.target_weight_kg || 78.3} kg)`],
     ['AVG STEPS', wkObj.avg_steps ? wkObj.avg_steps.toLocaleString() : '—', `Min ${(wkObj.target_steps || 10000).toLocaleString()}`],
     ['AVG CALORIES', wkObj.avg_calories ? `${wkObj.avg_calories} kcal` : '—', `Target ${prof.target_calories || 2173}`],
     ['AVG PROTEIN', wkObj.avg_protein_g ? `${wkObj.avg_protein_g} g` : '—', `Target ${prof.target_protein_g || 150}g`],
     ['SESSIONS', `${wkObj.gym_sessions || 0} GYM / ${wkObj.cardio_sessions || 0} CARDIO`, `${wkObj.days_logged || 0}/7 days logged`],
   ];
   stats.forEach((st, idx) => {
-    const sx = 48 + idx * 224;
+    const sx = 48 + idx * 272;
     ctx.fillStyle = '#0F1712';
     ctx.strokeStyle = '#1E2E23';
     ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.roundRect(sx, 168, 210, 88, 12); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#94A3B8'; ctx.font = '700 14px Inter, sans-serif'; ctx.fillText(st[0], sx + 16, 194);
-    ctx.fillStyle = '#3DFF4F'; ctx.font = '800 24px Inter, sans-serif'; ctx.fillText(st[1], sx + 16, 224);
-    ctx.fillStyle = '#64748B'; ctx.font = '600 13px Inter, sans-serif'; ctx.fillText(st[2], sx + 16, 244);
+    ctx.beginPath(); ctx.roundRect(sx, 166, 256, 88, 12); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#94A3B8'; ctx.font = '700 14px Inter, sans-serif'; ctx.fillText(st[0], sx + 16, 192);
+    ctx.fillStyle = '#3DFF4F'; ctx.font = '800 23px Inter, sans-serif'; ctx.fillText(st[1], sx + 16, 222);
+    ctx.fillStyle = '#64748B'; ctx.font = '600 13px Inter, sans-serif'; ctx.fillText(st[2], sx + 16, 242);
   });
-  await _drawThreePosesAndWriteupOnCard(ctx, wk, photos, removeWhite, wkObj);
+  await _drawThreePosesAndWriteupOnCard(ctx, effectiveReportWk, targetPhotoWk, photos, removeWhite, wkObj, startWt, latestWt);
 };
 
-async function _drawThreePosesAndWriteupOnCard(ctx, wk, photos, removeWhite, wkObj) {
+async function _drawThreePosesAndWriteupOnCard(ctx, wk, targetPhotoWk, photos, removeWhite, wkObj, startWt, latestWt) {
   const poses = ['Side', 'Front', 'Back'];
   for (let i = 0; i < poses.length; i++) {
     const pose = poses[i];
-    const px = 48 + i * 376, py = 278, pw = 352, ph = 640;
-    const grad = ctx.createRadialGradient(px + pw / 2, py + ph * 0.55, 20, px + pw / 2, py + ph * 0.55, 260);
-    grad.addColorStop(0, 'rgba(61, 255, 79, 0.16)');
-    grad.addColorStop(1, 'rgba(12, 18, 14, 0.95)');
+    const px = 48 + i * 456, py = 272, pw = 432, ph = 656;
+    const grad = ctx.createRadialGradient(px + pw / 2, py + ph * 0.55, 20, px + pw / 2, py + ph * 0.55, 290);
+    grad.addColorStop(0, 'rgba(61, 255, 79, 0.14)');
+    grad.addColorStop(1, 'rgba(12, 18, 14, 0.96)');
     ctx.fillStyle = grad;
-    ctx.strokeStyle = 'rgba(61, 255, 79, 0.45)';
+    ctx.strokeStyle = 'rgba(61, 255, 79, 0.5)';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.roundRect(px, py, pw, ph, 18); ctx.fill(); ctx.stroke();
 
-    const rec = photos.find(p => Number(p.week_num) === wk && p.pose === pose);
-    const img = rec && rec.photo_data_url ? await loadImageAsync(rec.photo_data_url) : null;
-    if (img) {
-      const processed = knockOutWhiteBgToCanvas(img, removeWhite);
-      const scale = Math.min((pw - 24) / processed.width, (ph - 76) / processed.height);
-      const dw = processed.width * scale, dh = processed.height * scale;
-      ctx.drawImage(processed, px + (pw - dw) / 2, py + 54 + (ph - 66 - dh) / 2, dw, dh);
-    } else {
-      ctx.fillStyle = '#475569';
-      ctx.font = '700 20px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(`Upload ${pose} Pose`, px + pw / 2, py + ph / 2 - 10);
-      ctx.font = '500 15px Inter, sans-serif';
-      ctx.fillText('or use Auto-Split 3-Pose Collage', px + pw / 2, py + ph / 2 + 20);
-      ctx.textAlign = 'left';
-    }
-    ctx.fillStyle = 'rgba(7, 10, 8, 0.85)';
-    ctx.beginPath(); ctx.roundRect(px + 14, py + 12, 140, 34, 8); ctx.fill();
+    // Pose Header Bar
+    ctx.fillStyle = 'rgba(7, 10, 8, 0.92)';
+    ctx.beginPath(); ctx.roundRect(px + 12, py + 10, pw - 24, 36, 10); ctx.fill();
     ctx.fillStyle = '#3DFF4F';
-    ctx.font = '800 16px Inter, sans-serif';
-    ctx.fillText(`${pose.toUpperCase()} POSE`, px + 26, py + 35);
+    ctx.font = '900 16px Inter, sans-serif';
+    ctx.fillText(`🧍 ${pose.toUpperCase()} POSE · WK 0 START vs WK ${targetPhotoWk}`, px + 22, py + 34);
+
+    const recStart = _findPhotoForWeekAndPose(photos, 0, pose);
+    const recLatest = _findPhotoForWeekAndPose(photos, targetPhotoWk, pose);
+
+    const subPanels = [
+      {
+        label: 'WEEK 0 (START)',
+        rec: recStart,
+        wt: (recStart && recStart.weight_kg) ? Number(recStart.weight_kg) : startWt,
+        sx: px + 10,
+        sy: py + 54,
+        sw: 201,
+        sh: ph - 66,
+        isLatest: false,
+      },
+      {
+        label: `WEEK ${targetPhotoWk} (LATEST)`,
+        rec: recLatest,
+        wt: (recLatest && recLatest.weight_kg) ? Number(recLatest.weight_kg) : latestWt,
+        sx: px + 221,
+        sy: py + 54,
+        sw: 201,
+        sh: ph - 66,
+        isLatest: true,
+      },
+    ];
+
+    for (const sp of subPanels) {
+      ctx.fillStyle = '#060A07';
+      ctx.strokeStyle = sp.isLatest ? 'rgba(61, 255, 79, 0.65)' : 'rgba(148, 163, 184, 0.35)';
+      ctx.lineWidth = sp.isLatest ? 2 : 1.5;
+      ctx.beginPath(); ctx.roundRect(sp.sx, sp.sy, sp.sw, sp.sh, 12); ctx.fill(); ctx.stroke();
+
+      // Sub-panel top badge (Week + Weight + Date)
+      ctx.fillStyle = sp.isLatest ? 'rgba(61, 255, 79, 0.16)' : 'rgba(30, 41, 59, 0.75)';
+      ctx.beginPath(); ctx.roundRect(sp.sx + 6, sp.sy + 6, sp.sw - 12, 44, 8); ctx.fill();
+
+      ctx.fillStyle = sp.isLatest ? '#3DFF4F' : '#E2E8F0';
+      ctx.font = '900 13px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(sp.label, sp.sx + sp.sw / 2, sp.sy + 24);
+
+      const dateStr = sp.rec && sp.rec.taken_date ? String(sp.rec.taken_date).slice(5) : '';
+      const wtStr = sp.wt ? `${Number(sp.wt).toFixed(1)} kg` : '';
+      const metaLine = [wtStr, dateStr].filter(Boolean).join(' · ');
+      ctx.fillStyle = '#94A3B8';
+      ctx.font = '700 12px Inter, sans-serif';
+      ctx.fillText(metaLine || pose, sp.sx + sp.sw / 2, sp.sy + 42);
+      ctx.textAlign = 'left';
+
+      const img = sp.rec && sp.rec.photo_data_url ? await loadImageAsync(sp.rec.photo_data_url) : null;
+      const imgBoxY = sp.sy + 56;
+      const imgBoxH = sp.sh - 64;
+      const imgBoxW = sp.sw - 12;
+      if (img) {
+        const processed = knockOutWhiteBgToCanvas(img, removeWhite);
+        const scale = Math.min(imgBoxW / processed.width, imgBoxH / processed.height);
+        const dw = processed.width * scale, dh = processed.height * scale;
+        ctx.drawImage(processed, sp.sx + 6 + (imgBoxW - dw) / 2, imgBoxY + (imgBoxH - dh) / 2, dw, dh);
+      } else {
+        ctx.fillStyle = '#475569';
+        ctx.font = '700 14px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`No ${sp.label}`, sp.sx + sp.sw / 2, imgBoxY + imgBoxH / 2 - 6);
+        ctx.font = '500 12px Inter, sans-serif';
+        ctx.fillText(`${pose} Photo`, sp.sx + sp.sw / 2, imgBoxY + imgBoxH / 2 + 14);
+        ctx.textAlign = 'left';
+      }
+    }
   }
   _drawWriteupBoxOnCard(ctx, wk, wkObj);
 }
 
 function _drawWriteupBoxOnCard(ctx, wk, wkObj) {
-  const bx = 48, by = 942, bw = 1104, bh = 368;
+  const bx = 48, by = 948, bw = 1344, bh = 412;
   ctx.fillStyle = '#0D1410';
   ctx.strokeStyle = '#3DFF4F';
   ctx.lineWidth = 2;
@@ -1686,30 +1768,47 @@ function _drawWriteupBoxOnCard(ctx, wk, wkObj) {
 
   ctx.fillStyle = '#3DFF4F';
   ctx.font = '800 20px Inter, sans-serif';
-  ctx.fillText(`📝 WEEKLY CHECK-IN WRITE-UP & NOTES (WEEK ${wk})`, bx + 28, by + 42);
+  ctx.fillText(`📝 WEEKLY CHECK-IN WRITE-UP & DAILY NOTES (WEEK ${wk})`, bx + 28, by + 40);
 
-  const rawText = (document.getElementById('wk-challenger-comments')?.value || wkObj.challenger_comments || 'Add your weekly write-up above — it renders live onto this Weekly Check-In PNG card!').trim();
+  const rawText = (
+    document.getElementById('wk-challenger-comments')?.value ||
+    document.getElementById('op-wk-comments')?.value ||
+    wkObj.challenger_comments ||
+    'Consistent training & nutrition all week. Week 0 (Start) vs Latest Progress Photos shown side-by-side above!'
+  ).trim();
   ctx.fillStyle = '#F8FAFC';
-  ctx.font = '500 25px Inter, -apple-system, sans-serif';
-  const words = rawText.split(/\s+/);
-  let line = '', y = by + 90;
-  for (let i = 0; i < words.length; i++) {
-    const test = line + words[i] + ' ';
-    if (ctx.measureText(test).width > bw - 56 && i > 0) {
-      ctx.fillText(line.trim(), bx + 28, y);
-      line = words[i] + ' ';
-      y += 38;
-      if (y > by + bh - 75) break;
-    } else {
-      line = test;
+  ctx.font = '500 22px Inter, -apple-system, sans-serif';
+  const lines = rawText.split(/\r?\n/);
+  let y = by + 80;
+  for (const paragraph of lines) {
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    if (!words.length) {
+      y += 18;
+      continue;
     }
+    let line = '';
+    for (let i = 0; i < words.length; i++) {
+      const test = line + words[i] + ' ';
+      if (ctx.measureText(test).width > bw - 56 && i > 0) {
+        ctx.fillText(line.trim(), bx + 28, y);
+        line = words[i] + ' ';
+        y += 32;
+        if (y > by + bh - 68) break;
+      } else {
+        line = test;
+      }
+    }
+    if (line.trim() && y <= by + bh - 60) {
+      ctx.fillText(line.trim(), bx + 28, y);
+      y += 34;
+    }
+    if (y > by + bh - 68) break;
   }
-  if (line.trim() && y <= by + bh - 65) ctx.fillText(line.trim(), bx + 28, y);
 
   ctx.fillStyle = '#94A3B8';
   ctx.font = '700 17px Inter, sans-serif';
-  const fb = wkObj.coach_feedback ? `💬 Coach Chris: ${wkObj.coach_feedback}` : '📲 Shared via CS Fitness 8-Week Challenge App · #CSFitness #WinTheDay';
-  ctx.fillText(fb.slice(0, 105), bx + 28, by + bh - 24);
+  const fb = wkObj.coach_feedback ? `💬 Coach Chris: ${wkObj.coach_feedback}` : '📲 Shared via CS Fitness 8-Week Challenge App · Week 0 (Start) vs Latest Side-by-Side Report';
+  ctx.fillText(fb.slice(0, 125), bx + 28, by + bh - 22);
 }
 
 window.downloadWeeklyCheckinPng = async function() {
@@ -1717,11 +1816,144 @@ window.downloadWeeklyCheckinPng = async function() {
   const canvas = document.getElementById('weekly-checkin-card-canvas');
   if (!canvas) return;
   const wk = getActiveSheetWeek();
+  const photos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
+  const targetPhotoWk = _resolveTargetLatestPhotoWeek(wk, photos);
   const a = document.createElement('a');
-  a.download = `cs-fitness-week-${wk}-checkin.png`;
+  a.download = `cs-fitness-wk0-vs-wk${targetPhotoWk}-weekly-report.png`;
   a.href = canvas.toDataURL('image/png');
   a.click();
-  showToast(`🖼️ Downloaded Stylised Week ${wk} Check-In PNG!`);
+  showToast(`🖼️ Downloaded Week 0 vs Week ${targetPhotoWk} Side-by-Side Weekly Report PNG!`);
+};
+
+window.downloadWeek0VsLatestPhotosPng = async function(poseOrAll, triggerBtn) {
+  const btn = window.setButtonBusy(triggerBtn, '⏳ Rendering Side-by-Side PNG...');
+  try {
+    const photos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
+    const wk = getActiveSheetWeek();
+    const targetPhotoWk = _resolveTargetLatestPhotoWeek(wk, photos);
+    const prof = (STATE.overview && STATE.overview.profile) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.profile) || { client_name: 'Ewan Taylor', start_weight_kg: 88.6, target_weight_kg: 78.3 };
+
+    const mode = (!poseOrAll || poseOrAll === 'ALL') ? 'ALL' : poseOrAll;
+    const poses = mode === 'ALL' ? ['Side', 'Front', 'Back'] : [mode];
+
+    const pStartRef = _findPhotoForWeekAndPose(photos, 0, poses[0]);
+    const pLatestRef = _findPhotoForWeekAndPose(photos, targetPhotoWk, poses[0]);
+    const startWt = _getWeekWeightForCompare(0, pStartRef) || Number(prof.start_weight_kg || 88.6);
+    const latestWt = _getWeekWeightForCompare(targetPhotoWk, pLatestRef) || startWt;
+    const wtDelta = +(latestWt - startWt).toFixed(2);
+    const wtDeltaStr = `${wtDelta > 0 ? '+' : ''}${wtDelta} kg`;
+
+    const off = document.createElement('canvas');
+    off.width = mode === 'ALL' ? 1800 : 1100;
+    off.height = 1160;
+    const ctx = off.getContext('2d');
+
+    ctx.fillStyle = '#070A08';
+    ctx.fillRect(0, 0, off.width, off.height);
+    ctx.fillStyle = '#3DFF4F';
+    ctx.fillRect(0, 0, off.width, 10);
+
+    ctx.fillStyle = '#3DFF4F';
+    ctx.font = '800 22px Inter, -apple-system, sans-serif';
+    ctx.fillText('CS FITNESS · 8-WEEK CHALLENGE PROGRESS PHOTOS FOR COACH CHRIS', 44, 54);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '900 40px Inter, -apple-system, sans-serif';
+    ctx.fillText(`WEEK 0 (START) vs WEEK ${targetPhotoWk} (LATEST) · SIDE-BY-SIDE`, 44, 102);
+    ctx.fillStyle = '#94A3B8';
+    ctx.font = '700 22px Inter, -apple-system, sans-serif';
+    ctx.fillText(
+      `${prof.client_name || 'Ewan Taylor'}   ·   Week 0 Start: ${startWt.toFixed(1)} kg → Week ${targetPhotoWk}: ${latestWt.toFixed(1)} kg (${wtDeltaStr})   ·   Goal: ${prof.target_weight_kg || 78.3} kg`,
+      44,
+      140
+    );
+
+    const topY = 166;
+    const boxH = 946;
+    const gap = 24;
+    const totalW = off.width - 88;
+    const poseBoxW = mode === 'ALL' ? Math.floor((totalW - gap * 2) / 3) : totalW;
+
+    for (let i = 0; i < poses.length; i++) {
+      const pose = poses[i];
+      const px = 44 + i * (poseBoxW + gap);
+      ctx.fillStyle = '#0C130E';
+      ctx.strokeStyle = 'rgba(61, 255, 79, 0.55)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(px, topY, poseBoxW, boxH, 18); ctx.fill(); ctx.stroke();
+
+      ctx.fillStyle = '#060A07';
+      ctx.beginPath(); ctx.roundRect(px + 14, topY + 12, poseBoxW - 28, 42, 10); ctx.fill();
+      ctx.fillStyle = '#3DFF4F';
+      ctx.font = '900 20px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`🧍 ${pose.toUpperCase()} POSE — WEEK 0 (START) vs WEEK ${targetPhotoWk}`, px + poseBoxW / 2, topY + 40);
+      ctx.textAlign = 'left';
+
+      const recStart = _findPhotoForWeekAndPose(photos, 0, pose);
+      const recLatest = _findPhotoForWeekAndPose(photos, targetPhotoWk, pose);
+      const subW = Math.floor((poseBoxW - 36) / 2);
+      const subH = boxH - 78;
+      const subY = topY + 64;
+
+      const cols = [
+        { label: 'WEEK 0 (START)', rec: recStart, wt: (recStart && recStart.weight_kg) ? Number(recStart.weight_kg) : startWt, sx: px + 12, isLatest: false },
+        { label: `WEEK ${targetPhotoWk} (LATEST)`, rec: recLatest, wt: (recLatest && recLatest.weight_kg) ? Number(recLatest.weight_kg) : latestWt, sx: px + 24 + subW, isLatest: true },
+      ];
+
+      for (const col of cols) {
+        ctx.fillStyle = '#050806';
+        ctx.strokeStyle = col.isLatest ? '#3DFF4F' : 'rgba(148, 163, 184, 0.4)';
+        ctx.lineWidth = col.isLatest ? 2.5 : 1.5;
+        ctx.beginPath(); ctx.roundRect(col.sx, subY, subW, subH, 14); ctx.fill(); ctx.stroke();
+
+        ctx.fillStyle = col.isLatest ? 'rgba(61, 255, 79, 0.16)' : 'rgba(30, 41, 59, 0.8)';
+        ctx.beginPath(); ctx.roundRect(col.sx + 8, subY + 8, subW - 16, 52, 10); ctx.fill();
+
+        ctx.fillStyle = col.isLatest ? '#3DFF4F' : '#F8FAFC';
+        ctx.font = '900 16px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(col.label, col.sx + subW / 2, subY + 30);
+
+        const dateStr = col.rec && col.rec.taken_date ? String(col.rec.taken_date) : '';
+        const wtStr = col.wt ? `${Number(col.wt).toFixed(1)} kg` : '';
+        ctx.fillStyle = '#94A3B8';
+        ctx.font = '700 14px Inter, sans-serif';
+        ctx.fillText([wtStr, dateStr].filter(Boolean).join(' · ') || pose, col.sx + subW / 2, subY + 50);
+        ctx.textAlign = 'left';
+
+        const img = col.rec && col.rec.photo_data_url ? await loadImageAsync(col.rec.photo_data_url) : null;
+        const iy = subY + 68;
+        const ih = subH - 78;
+        const iw = subW - 16;
+        if (img) {
+          const scale = Math.min(iw / img.width, ih / img.height);
+          const dw = img.width * scale, dh = img.height * scale;
+          ctx.drawImage(img, col.sx + 8 + (iw - dw) / 2, iy + (ih - dh) / 2, dw, dh);
+        } else {
+          ctx.fillStyle = '#475569';
+          ctx.font = '700 16px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`No ${col.label} ${pose}`, col.sx + subW / 2, iy + ih / 2);
+          ctx.textAlign = 'left';
+        }
+      }
+    }
+
+    const fileName = `Ewan_Taylor_Week0_vs_Week${targetPhotoWk}_${mode === 'ALL' ? 'All_3_Poses' : mode}_SideBySide.png`;
+    const dataUrl = off.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.download = fileName;
+    a.href = dataUrl;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    window.clearButtonBusy(btn, '✅ Side-by-Side PNG Ready!');
+    showToast(`📸 Downloaded ${fileName} (Week 0 Start vs Week ${targetPhotoWk} Side-by-Side) for Coach Chris!`);
+  } catch (err) {
+    window.clearButtonBusy(btn);
+    showToast('⚠️ Could not generate Side-by-Side PNG');
+  }
 };
 
 window.handleThreePoseCollageUpload = async function(event) {
@@ -3472,19 +3704,22 @@ function renderOnePagerWeekly() {
     opPhotosEl.innerHTML = slotsHtml + `
       <div style="grid-column:1 / -1;background:#08100b;border:1.5px solid rgba(61,255,79,0.4);border-radius:12px;padding:0.6rem;margin-top:0.25rem">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:0.45rem">
-          <span style="font-size:0.76rem;font-weight:900;color:#fff">🔍 Week 1 vs Latest (Week ${latestWk}) · ${cmpPose}</span>
+          <span style="font-size:0.76rem;font-weight:900;color:#fff">🔍 Week 0 (Start) vs Latest (Week ${latestWk}) · ${cmpPose}</span>
           ${deltaBadge}
-          <button type="button" class="btn btn-green btn-sm" style="padding:0.25rem 0.65rem;font-size:0.7rem;font-weight:900" onclick="selectWeek1VsLatestCompare();openPhotoCompareModal('${cmpPose}')">⛶ Full-Screen Carousel</button>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            <button type="button" class="btn btn-green btn-sm" style="padding:0.25rem 0.6rem;font-size:0.68rem;font-weight:900" onclick="downloadWeek0VsLatestPhotosPng('ALL', this)">📸 Download Wk 0 vs Latest PNG</button>
+            <button type="button" class="btn btn-sm" style="padding:0.25rem 0.6rem;font-size:0.68rem;font-weight:900" onclick="selectWeek1VsLatestCompare();openPhotoCompareModal('${cmpPose}')">⛶ Full-Screen</button>
+          </div>
         </div>
         <div style="display:flex;gap:5px;margin-bottom:0.45rem;flex-wrap:wrap">
           ${poses.map(pKey => `<button type="button" class="btn btn-sm ${cmpPose === pKey ? 'btn-green' : ''}" style="padding:2px 8px;font-size:0.68rem" onclick="setPhotoComparePose('${pKey}');renderOnePagerWeekly()">🧍 ${pKey}</button>`).join('')}
         </div>
         <div class="grid-2" style="gap:0.5rem">
           <div onclick="selectWeek1VsLatestCompare();openPhotoCompareModal('${cmpPose}')" style="background:#050806;border:1px solid rgba(61,255,79,0.35);border-radius:8px;padding:0.35rem;text-align:center;cursor:zoom-in">
-            <div style="font-size:0.68rem;font-weight:800;color:var(--green);margin-bottom:3px">Week 1 (Start) · ${cmpPose}</div>
+            <div style="font-size:0.68rem;font-weight:800;color:var(--green);margin-bottom:3px">Week 0 (Start) · ${cmpPose}</div>
             ${pBase && pBase.photo_data_url
               ? `<img src="${pBase.photo_data_url}" style="width:100%;height:175px;object-fit:contain;border-radius:6px;background:#030504"/>`
-              : `<div style="height:175px;display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">No Wk 1 ${cmpPose}</div>`}
+              : `<div style="height:175px;display:flex;align-items:center;justify-content:center;font-size:0.68rem;color:var(--muted)">No Wk 0 ${cmpPose}</div>`}
           </div>
           <div onclick="selectWeek1VsLatestCompare();openPhotoCompareModal('${cmpPose}')" style="background:#050806;border:1px solid rgba(61,255,79,0.35);border-radius:8px;padding:0.35rem;text-align:center;cursor:zoom-in">
             <div style="font-size:0.68rem;font-weight:800;color:var(--green);margin-bottom:3px">Latest (Week ${latestWk}) · ${cmpPose}</div>

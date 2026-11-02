@@ -319,7 +319,7 @@
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.65rem">
         <span class="card-title" style="font-size:1.1rem">📅 Weekly Summary &amp; Photos</span>
         <select id="op-week-select" style="width:auto;font-weight:700" onchange="changeOnePagerWeek(this.value)">
-          <option value="0">Start · Day 1 Mon (Photos + Wt)</option><option value="1" selected>Week 1 · Fri (No Photos)</option><option value="2">Week 2 · Fri (+ Photos)</option>
+          <option value="0">Week 0 · Start (Photos + Wt)</option><option value="1" selected>Week 1 · Fri (No Photos)</option><option value="2">Week 2 · Fri (+ Photos)</option>
           <option value="3">Week 3 · Fri (+ Photos)</option><option value="4">Week 4 · Fri (+ Photos)</option><option value="5">Week 5 · Fri (+ Photos)</option>
           <option value="6">Week 6 · Fri (+ Photos)</option><option value="7">Week 7 · Fri (+ Photos)</option><option value="8">Week 8 · Fri (Final Photos)</option>
         </select>
@@ -342,10 +342,11 @@
       </div>
       <div class="grid-2" style="gap:0.4rem;margin-bottom:0.4rem">
         <button class="btn btn-green" onclick="downloadCoachChrisExcel(this)">📊 Coach Chris Excel (.xlsx)</button>
-        <button class="btn btn-green" onclick="saveOnePagerWeekly()">✅ Update App</button>
+        <button class="btn btn-green" onclick="downloadWeek0VsLatestPhotosPng('ALL', this)">📸 Wk 0 vs Latest Photos PNG</button>
       </div>
-      <div class="grid-2" style="gap:0.4rem">
-        <button class="btn" onclick="saveOnePagerWeekly('png')">🖼️ Get PNG</button>
+      <div class="grid-3" style="gap:0.4rem">
+        <button class="btn btn-green" onclick="saveOnePagerWeekly()">✅ Update App</button>
+        <button class="btn" onclick="saveOnePagerWeekly('png')">🖼️ Weekly Report PNG</button>
         <button class="btn btn-blue" onclick="saveOnePagerWeekly('tg')">✈️ Telegram</button>
       </div>
     </div>
@@ -735,7 +736,7 @@
         <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
           <span class="card-title">📊 WEEKLY CHECK-IN SHEET &amp; ROLL-UP</span>
           <select id="ci-week-select" style="width:270px" onchange="loadWeekSheet(this.value)">
-            <option value="0" selected>Start Check-In · Day 1 Mon (19 Oct · Photos + Start Wt)</option>
+            <option value="0" selected>WEEK 0 · Start Check-In (19 Oct · Start Photos + Wt)</option>
             <option value="1">WEEK 1 · Fri Check-In (23 Oct · No Photos)</option>
             <option value="2">WEEK 2 · Fri Check-In (30 Oct · + 3 Photos)</option>
             <option value="3">WEEK 3 · Fri Check-In (06 Nov · + 3 Photos)</option>
@@ -841,8 +842,9 @@
         </div>
         <div style="display:flex;gap:0.45rem;flex-wrap:wrap">
           <button class="btn btn-green btn-sm" onclick="downloadCoachChrisExcel(this)">📊 Export Coach Chris Excel (.xlsx)</button>
+          <button class="btn btn-green btn-sm" onclick="downloadWeek0VsLatestPhotosPng('ALL', this)">📸 Download Wk 0 vs Latest Side-by-Side Photos PNG</button>
           <button class="btn btn-green btn-sm" onclick="submitWeeklyCheckinInApp()">✅ Submit Weekly Card &amp; Write-Up (In-App)</button>
-          <button class="btn btn-sm" onclick="downloadWeeklyCheckinPng()">🖼️ Download Weekly PNG</button>
+          <button class="btn btn-sm" onclick="downloadWeeklyCheckinPng()">🖼️ Download Weekly Report PNG (Wk 0 vs Latest)</button>
           <button class="btn btn-blue btn-sm" onclick="sendWeeklyTelegram()">✈️ Send PNG + Summary to Telegram</button>
         </div>
         <details style="margin-top:0.65rem;font-size:0.72rem;color:var(--muted)">
@@ -864,8 +866,8 @@
     <div class="card" id="weekly-stylised-png-studio-card" style="margin-top:0.85rem">
       <div class="card-header" style="flex-wrap:wrap;gap:0.5rem">
         <div>
-          <span class="card-title">🎨 Stylised Weekly Check-In Card (3 Photos + Write-Up PNG) &amp; Coach Week-over-Week View</span>
-          <div style="font-size:0.72rem;color:var(--muted);margin-top:2px">Auto-composes your 3 poses (Side · Front · Back), weekly stats &amp; write-up in CS Fitness dark neon style — ready for Telegram &amp; side-by-side Coach comparison.</div>
+          <span class="card-title">🎨 Weekly Report Card for Coach Chris (Week 0 Start vs Latest Side-by-Side + Write-Up PNG)</span>
+          <div style="font-size:0.72rem;color:var(--muted);margin-top:2px">Automatically places your <strong>Week 0 (Start)</strong> photos side-by-side with your <strong>Latest Week</strong> photos for all 3 poses (Side · Front · Back), plus your weekly stats &amp; write-up for Coach Chris.</div>
         </div>
         <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center">
           <label style="font-size:0.72rem;color:var(--green);display:flex;align-items:center;gap:4px;cursor:pointer">
@@ -877,14 +879,15 @@
             <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" style="display:none" onchange="handleThreePoseCollageUpload(event)" />
           </label>
           <button class="btn btn-green btn-sm" onclick="downloadCoachChrisExcel(this)">📊 Coach Chris Excel (.xlsx)</button>
-          <button class="btn btn-green btn-sm" onclick="downloadWeeklyCheckinPng()">🖼️ Download Weekly PNG</button>
+          <button class="btn btn-green btn-sm" onclick="downloadWeek0VsLatestPhotosPng('ALL', this)">📸 Side-by-Side Photos PNG (Wk 0 vs Latest)</button>
+          <button class="btn btn-green btn-sm" onclick="downloadWeeklyCheckinPng()">🖼️ Download Weekly Report PNG</button>
           <button class="btn btn-blue btn-sm" onclick="sendWeeklyTelegram()">✈️ Share via Telegram</button>
         </div>
       </div>
       <div class="grid-2" style="align-items:start">
         <div style="text-align:center;background:#060907;border:1px solid var(--border);border-radius:12px;padding:0.65rem">
-          <div style="font-size:0.72rem;font-weight:700;color:var(--green);margin-bottom:6px">🖼️ LIVE WEEKLY CHECK-IN PNG PREVIEW (1200×1350)</div>
-          <canvas id="weekly-checkin-card-canvas" width="1200" height="1350" style="width:100%;max-width:460px;height:auto;border-radius:10px;border:1px solid rgba(61,255,79,0.3);box-shadow:0 10px 28px rgba(0,0,0,0.55)"></canvas>
+          <div style="font-size:0.72rem;font-weight:700;color:var(--green);margin-bottom:6px">🖼️ LIVE WEEKLY REPORT PNG PREVIEW (WEEK 0 START vs LATEST SIDE-BY-SIDE · 1440×1400)</div>
+          <canvas id="weekly-checkin-card-canvas" width="1440" height="1400" style="width:100%;max-width:540px;height:auto;border-radius:10px;border:1px solid rgba(61,255,79,0.3);box-shadow:0 10px 28px rgba(0,0,0,0.55)"></canvas>
         </div>
         <div id="coach-wow-side-by-side-panel" style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:0.75rem"></div>
       </div>
