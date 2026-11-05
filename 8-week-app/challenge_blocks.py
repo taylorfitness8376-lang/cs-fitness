@@ -240,7 +240,7 @@ def ensure_blocks_and_auth_tables(db):
 
     # Ensure core enrolled challengers (including Alan Mackay) exist permanently across container restarts
     challenger_seeds = [
-        ("Alan Mackay", "alan", "alan@taylorfitness.co.uk", "mens", 86.0, 80.0, 18.0, 15.0, 150),
+        ("Alan Mackay", "alan", "", "mens", 86.0, 80.0, 18.0, 15.0, 150),
     ]
     for cname, uname, default_email, track, sw, tw, sbf, tbf, prot_g in challenger_seeds:
         p_row = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (cname,)).fetchone()
