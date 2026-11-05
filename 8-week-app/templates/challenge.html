@@ -12,8 +12,8 @@
 <body>
 <div class="app-shell">
 
-  <!-- Top Header -->
-  <header class="top-header">
+  <!-- Legacy Desktop Headers (Hidden in unified Challenger shell) -->
+  <header class="top-header" style="display:none !important">
     <div class="brand-row">
       <img src="/static/logo.jpg" alt="CS Fitness" class="brand-logo" />
       <div>
@@ -41,16 +41,31 @@
     </div>
   </header>
 
-  <!-- Live 7-Day Week Strip (Mon – Sun) -->
-  <div id="hdr-week-strip" style="display:grid;grid-template-columns:repeat(7,1fr);gap:0.3rem;margin-bottom:0.55rem"></div>
+  <div id="hdr-week-strip" style="display:none !important"></div>
+  <div id="mobile-onepager-bar" style="display:none !important">
+    <button class="btn btn-sm" id="btn-mode-daily1p" onclick="setOnePagerMode('daily')">📱 Daily Update</button>
+    <button class="btn btn-green btn-sm" id="btn-mode-checkin-desk" onclick="openDesktopTab('checkin')">📊 Weekly Check-In</button>
+    <button class="btn btn-sm" id="btn-mode-settings-desk" onclick="openDesktopTab('integrations')">⚙️ Settings</button>
+  </div>
 
-  <!-- Desktop Mode Bar (Daily Mobile-First / Weekly Check-In / Desktop Settings & Sync) -->
-  <div id="mobile-onepager-bar" style="display:flex;justify-content:space-between;align-items:center;gap:0.45rem;flex-wrap:wrap;padding:0.55rem 0.85rem;margin-bottom:0.55rem;background:#09110b;border:1px solid rgba(61,255,79,0.3);border-radius:12px">
-    <div style="font-size:0.78rem;font-weight:800;color:var(--green)">🖥️ DESKTOP &amp; MOBILE VIEWS · <span style="color:#cbd5e1;font-weight:600">Configure Garmin on Desktop → Capture Daily on Mobile → Weekly Check-In (Photos &amp; Commentary) on Desktop</span></div>
-    <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
-      <button class="btn btn-sm" id="btn-mode-daily1p" onclick="setOnePagerMode('daily')">📱 Daily Update (Mobile-First)</button>
-      <button class="btn btn-green btn-sm" id="btn-mode-checkin-desk" onclick="openDesktopTab('checkin')">📊 Weekly Check-In (Photos &amp; Commentary)</button>
-      <button class="btn btn-sm" id="btn-mode-settings-desk" onclick="openDesktopTab('integrations')">⚙️ Settings &amp; Sync (Garmin + 2FA)</button>
+  <!-- ========================================================= -->
+  <!-- UNIFIED CHALLENGER NAVIGATION BAR (MOBILE-FIRST SHELL)    -->
+  <!-- ========================================================= -->
+  <div id="challenger-unified-topbar" style="max-width:980px;margin:0 auto 0.65rem auto;display:flex;justify-content:space-between;align-items:center;gap:0.45rem;flex-wrap:wrap;padding:0.5rem 0.7rem;background:#09110b;border:1px solid var(--border);border-radius:12px">
+    <div style="display:flex;align-items:center;gap:0.5rem">
+      <img src="/static/logo.jpg" alt="CS" style="width:30px;height:30px;border-radius:7px;object-fit:cover" />
+      <div>
+        <div style="font-size:0.82rem;font-weight:900;color:#fff;letter-spacing:0.03em" id="op-client-name">CS FITNESS DAILY</div>
+        <div style="font-size:0.68rem;color:var(--green);font-weight:700" id="op-week-badge">8-Week Challenge</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:0.35rem;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-green btn-sm" id="nav-pill-daily" onclick="setOnePagerMode('daily')" style="font-size:0.74rem;padding:0.32rem 0.65rem">📱 Daily</button>
+      <button class="btn btn-sm" id="nav-pill-checkin" onclick="openDesktopTab('checkin')" style="font-size:0.74rem;padding:0.32rem 0.65rem">📸 Weekly Check-In</button>
+      <button class="btn btn-sm" id="nav-pill-workouts" onclick="openDesktopTab('workouts')" style="font-size:0.74rem;padding:0.32rem 0.65rem">🏋️ Workouts</button>
+      <button class="btn btn-sm" id="nav-pill-settings" onclick="openDesktopTab('integrations')" style="font-size:0.74rem;padding:0.32rem 0.65rem">⚙️ Setup</button>
+      <a href="/challenge/admin" id="op-admin-btn" class="btn btn-sm" style="display:none;text-decoration:none;font-size:0.72rem;padding:0.3rem 0.55rem;border-color:rgba(56,189,248,0.45);color:#38bdf8" title="Separate Coach &amp; Admin Portal">🛡️ Coach Portal ↗</a>
+      <a href="/api/challenge/auth/logout" class="btn btn-sm" style="text-decoration:none;font-size:0.72rem;padding:0.3rem 0.55rem">Sign Out</a>
     </div>
   </div>
 
@@ -58,22 +73,6 @@
   <!-- SIMPLIFIED MOBILE-FIRST DAILY VIEW (CLEARED SCREEN)       -->
   <!-- ========================================================= -->
   <div id="onepager-daily-view" style="display:none;max-width:480px;margin:0 auto;padding:0.2rem 0">
-    <!-- Minimal Top Bar: Challenger Name + Desktop / Admin / Sign Out -->
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.65rem;padding:0.45rem 0.65rem;background:#09110b;border:1px solid var(--border);border-radius:12px">
-      <div style="display:flex;align-items:center;gap:0.45rem">
-        <img src="/static/logo.jpg" alt="CS" style="width:28px;height:28px;border-radius:6px;object-fit:cover" />
-        <div>
-          <div style="font-size:0.78rem;font-weight:900;color:#fff;letter-spacing:0.03em" id="op-client-name">CS FITNESS DAILY</div>
-          <div style="font-size:0.66rem;color:var(--green);font-weight:700" id="op-week-badge">8-Week Challenge</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:0.35rem;align-items:center;flex-wrap:wrap">
-        <a href="/challenge/admin" id="op-admin-btn" class="btn btn-sm" style="display:none;text-decoration:none;font-size:0.7rem;padding:0.28rem 0.55rem">🛡️ Admin</a>
-        <button class="btn btn-sm" onclick="openDesktopTab('checkin')" style="font-size:0.7rem;padding:0.28rem 0.55rem" title="Open Desktop Weekly Check-In (Photos &amp; Commentary)">📊 Weekly Check-In</button>
-        <button class="btn btn-sm" onclick="openDesktopTab('integrations')" style="font-size:0.7rem;padding:0.28rem 0.55rem" title="Open Desktop Settings &amp; Garmin Setup (+ 2FA)">⚙️ Settings</button>
-        <a href="/api/challenge/auth/logout" class="btn btn-sm" style="text-decoration:none;font-size:0.7rem;padding:0.28rem 0.55rem">Sign Out</a>
-      </div>
-    </div>
 
     <div class="card" style="padding:1rem;border-radius:16px;border:1px solid rgba(61,255,79,0.28)">
       <!-- 1. Day Selector -->
@@ -835,10 +834,9 @@
         </div>
         <div id="wk-coach-feedback-box" style="padding:0.65rem;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);margin-bottom:0.65rem;font-size:0.76rem">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
-            <strong style="color:var(--green)">💬 Coach Chris Feedback (Telegram / In-App):</strong>
-            <button class="btn btn-sm" style="padding:2px 8px;font-size:0.66rem" onclick="promptQuickCoachNote()">✏️ Log Chris's Telegram Reply</button>
+            <strong style="color:var(--green)">💬 Coach Chris Feedback:</strong>
           </div>
-          <div id="wk-coach-feedback-text" style="color:var(--muted);margin-top:4px">No coach feedback logged yet for this week. Submit your check-in below or log Chris's Telegram voice/text feedback here.</div>
+          <div id="wk-coach-feedback-text" style="color:var(--muted);margin-top:4px">No coach feedback posted yet for this week.</div>
         </div>
         <div style="display:flex;gap:0.45rem;flex-wrap:wrap">
           <button class="btn btn-green btn-sm" onclick="downloadCoachChrisExcel(this)">📊 Export Coach Chris Excel (.xlsx)</button>
@@ -993,74 +991,19 @@
         </div>
       </div>
 
-      <!-- 2. My Account, Email & Password + Admin Portal Link -->
+      <!-- 2. My Account, Start Weight & Targets -->
       <div class="card">
         <div class="card-header">
-          <span class="card-title">🔐 2. My Account &amp; Sign-In Settings</span>
+          <span class="card-title">👤 2. My Account, Start Weight &amp; Targets</span>
           <span class="badge badge-green" id="my-acct-role-badge">Challenger</span>
         </div>
-        <p style="font-size:0.74rem;color:var(--muted);margin-bottom:0.65rem">
-          Manage your email address and password for signing in to the 8-Week Challenge app across your phone and laptop.
-        </p>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.55rem;margin-bottom:0.6rem">
-          <div>
-            <label class="field-label">Email Address</label>
-            <input type="email" id="my-acct-email" placeholder="you@example.com" />
-          </div>
-          <div>
-            <label class="field-label">New Password</label>
-            <input type="password" id="my-acct-new-pw" placeholder="At least 4 characters" />
-          </div>
-        </div>
-        <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">
-          <button class="btn btn-green btn-sm" onclick="saveMyAccountSettings()">💾 Save Email &amp; Password</button>
-          <a href="/api/challenge/auth/logout" class="btn btn-sm" style="text-decoration:none">🔄 Switch Account / Sign Out</a>
-        </div>
 
-        <div id="admin-portal-callout" style="display:none;margin-top:0.85rem;padding:0.75rem;background:rgba(61,255,79,0.08);border:1px solid rgba(61,255,79,0.4);border-radius:10px">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap">
-            <div>
-              <div style="font-size:0.82rem;font-weight:900;color:var(--green)">🛡️ Coach &amp; Admin Portal (Chris · Laura · Ewan)</div>
-              <div style="font-size:0.72rem;color:#cbd5e1;margin-top:0.15rem">
-                Manage 8-week blocks, add users, review weekly check-ins, inspect weekly sheets &amp; compare progress photos side-by-side.
-              </div>
-            </div>
-            <a href="/challenge/admin" class="btn btn-green btn-sm" style="text-decoration:none">🛡️ Open Coach Admin View →</a>
-          </div>
-        </div>
-
-        <!-- 3. Account Profile (Email Sign-In, Username & Email Verification) -->
-        <div style="margin-top:0.85rem;padding:0.75rem;background:var(--surface-2);border:1px solid var(--border);border-radius:10px">
+        <!-- Program Starting Weight & Targets (Coach Chris Front Sheet) -->
+        <div style="padding:0.75rem;background:var(--surface-2);border:1px solid rgba(61,255,79,0.35);border-radius:10px;margin-bottom:0.75rem">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem">
             <div>
-              <div style="font-size:0.82rem;font-weight:900;color:#fff">👤 3. Account Sign-In (Email + Username) &amp; Verification</div>
-              <div style="font-size:0.7rem;color:var(--muted)">Sign in with your Email address; your Username is your display handle.</div>
-            </div>
-            <span id="acct-email-verified-badge" class="badge badge-blue">Checking…</span>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem">
-            <div>
-              <label class="field-label">Email Address (Primary Sign-In)</label>
-              <input type="email" id="acct-email-input" placeholder="you@example.com" />
-            </div>
-            <div>
-              <label class="field-label">Username (@handle)</label>
-              <input type="text" id="acct-username-input" placeholder="your_username" />
-            </div>
-          </div>
-          <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">
-            <button type="button" class="btn btn-green btn-sm" onclick="saveMyAccountDetails()">💾 Update Email / Username</button>
-            <button type="button" class="btn btn-blue btn-sm" id="btn-resend-verify-email" onclick="resendMyVerificationEmail()" style="display:none">📧 Send / Open Verification Link</button>
-            <span id="acct-verify-status-msg" style="font-size:0.72rem;color:#cbd5e1"></span>
-          </div>
-        </div>
-
-        <!-- 4. Program Starting Weight & Targets (Coach Chris Front Sheet) -->
-        <div style="margin-top:0.85rem;padding:0.75rem;background:var(--surface-2);border:1px solid rgba(61,255,79,0.35);border-radius:10px">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem">
-            <div>
-              <div style="font-size:0.82rem;font-weight:900;color:var(--green)">⚖️ 4. Program Starting Weight &amp; Targets (Coach Chris Front Sheet)</div>
-              <div style="font-size:0.7rem;color:var(--muted)">Update your starting weight, goal weight, or daily macro targets (also updates your exported Coach Chris Excel file).</div>
+              <div style="font-size:0.82rem;font-weight:900;color:var(--green)">⚖️ Program Starting Weight &amp; Daily Targets</div>
+              <div style="font-size:0.7rem;color:var(--muted)">Updates your app targets and exported Coach Chris Excel file.</div>
             </div>
           </div>
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;margin-bottom:0.5rem">
@@ -1083,9 +1026,42 @@
           </div>
           <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">
             <button type="button" class="btn btn-green btn-sm" onclick="saveProgramStartWeight('prof-edit-start-wt', 'prof-edit-target-wt', 'prof-edit-cals', 'prof-edit-prot', false)">💾 Save Start Weight &amp; Targets</button>
-            <button type="button" class="btn btn-sm" onclick="saveProgramStartWeight('prof-edit-start-wt', 'prof-edit-target-wt', null, 'prof-edit-prot', true)" title="Recalculate Daily Calories &amp; Water from Start Weight using Coach Chris's Excel formula">🧮 Save &amp; Recalculate Macros from Start Weight</button>
+            <button type="button" class="btn btn-sm" onclick="saveProgramStartWeight('prof-edit-start-wt', 'prof-edit-target-wt', null, 'prof-edit-prot', true)" title="Recalculate Daily Calories &amp; Water from Start Weight using Coach Chris's Excel formula">🧮 Recalculate Macros from Start Weight</button>
           </div>
         </div>
+
+        <!-- Account Sign-In (Email, Username & Password) -->
+        <div style="padding:0.75rem;background:var(--surface-2);border:1px solid var(--border);border-radius:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem">
+            <div>
+              <div style="font-size:0.82rem;font-weight:900;color:#fff">🔐 Sign-In Credentials (Email, Username &amp; Password)</div>
+              <div style="font-size:0.7rem;color:var(--muted)">Manage your email address, @username handle, and password.</div>
+            </div>
+            <span id="acct-email-verified-badge" class="badge badge-blue">Checking…</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:0.55rem">
+            <div>
+              <label class="field-label">Email Address</label>
+              <input type="email" id="acct-email-input" placeholder="you@example.com" oninput="const m=document.getElementById('my-acct-email');if(m)m.value=this.value;" />
+              <input type="hidden" id="my-acct-email" />
+            </div>
+            <div>
+              <label class="field-label">Username (@handle)</label>
+              <input type="text" id="acct-username-input" placeholder="your_username" />
+            </div>
+            <div>
+              <label class="field-label">New Password (Optional)</label>
+              <input type="password" id="my-acct-new-pw" placeholder="Leave blank to keep current" />
+            </div>
+          </div>
+          <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">
+            <button type="button" class="btn btn-green btn-sm" onclick="saveMyAccountDetails(); if(document.getElementById('my-acct-new-pw')?.value){saveMyAccountSettings();}">💾 Save Account Settings</button>
+            <button type="button" class="btn btn-blue btn-sm" id="btn-resend-verify-email" onclick="resendMyVerificationEmail()" style="display:none">📧 Send Verification Link</button>
+            <a href="/api/challenge/auth/logout" class="btn btn-sm" style="text-decoration:none">🚪 Sign Out</a>
+            <span id="acct-verify-status-msg" style="font-size:0.72rem;color:#cbd5e1"></span>
+          </div>
+        </div>
+        <div id="admin-portal-callout" style="display:none"></div>
       </div>
     </div>
 

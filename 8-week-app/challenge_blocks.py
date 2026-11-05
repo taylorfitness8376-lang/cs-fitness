@@ -238,9 +238,47 @@ def ensure_blocks_and_auth_tables(db):
                 (p_row["id"], uname, default_email, "admin", secrets.token_urlsafe(12), secrets.token_urlsafe(18)),
             )
 
-    # Ensure every profile has a row in challenge_user_accounts
-    for p in db.execute("SELECT id, client_name FROM challenge_profiles").fetchall():
-        existing = db.execute("SELECT profile_id, verification_token FROM challenge_user_accounts WHERE profile_id=?", (p["id"],)).fetchone()
+    # Ensure core enrolled challengers (including Alan Mackay) exist permanently across container restarts
+    challenger_seeds = [
+        ("Alan Mackay", "alan", "alan@taylorfitness.co.uk", "mens", 86.0, 80.0, 18.0, 15.0, 150),
+    ]
+    for cname, uname, default_email, track, sw, tw, sbf, tbf, prot_g in challenger_seeds:
+        p_row = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (cname,)).fetchone()
+        if not p_row:
+            calc = calculate_challenge_targets(sw, tw, sbf, tbf, prot_g, "2026-10-19", "Weight Loss", False)
+            db.execute(
+                """INSERT INTO challenge_profiles (
+                    client_name, goal, start_date, end_date,
+                    start_weight_kg, target_weight_kg, start_body_fat_pct, target_body_fat_pct,
+                    lean_body_mass_kg, fat_mass_kg, to_lose_kg,
+                    target_calories, target_protein_g, target_fats_g, target_carbs_g,
+                    target_fibre_g, target_water_l, target_sleep_hrs,
+                    returning_member, workout_track, weekly_targets_json
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    cname, "Weight Loss", "2026-10-19", calc["end_date"],
+                    sw, tw, sbf, tbf,
+                    calc["lean_body_mass_kg"], calc["fat_mass_kg"], calc["to_lose_kg"],
+                    calc["target_calories"], calc["target_protein_g"], calc["target_fats_g"], calc["target_carbs_g"],
+                    calc["target_fibre_g"], calc["target_water_l"], calc["target_sleep_hrs"],
+                    0, track, json.dumps(calc["weekly_targets"]),
+                ),
+            )
+            p_row = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (cname,)).fetchone()
+        if p_row:
+            db.execute(
+                """INSERT INTO challenge_user_accounts (profile_id, username, email, role, invite_token, email_verified, verification_token)
+                   VALUES (?,?,?,?,?,0,?)
+                   ON CONFLICT(profile_id) DO UPDATE SET
+                       email=CASE WHEN challenge_user_accounts.email='' THEN excluded.email ELSE challenge_user_accounts.email END,
+                       invite_token=CASE WHEN challenge_user_accounts.invite_token='' THEN excluded.invite_token ELSE challenge_user_accounts.invite_token END""",
+                (p_row["id"], uname, default_email, "challenger", secrets.token_urlsafe(12), secrets.token_urlsafe(18)),
+            )
+
+    # Ensure every profile has a row in challenge_user_accounts and is enrolled in the active block
+    active_blk = db.execute("SELECT id FROM challenge_blocks WHERE block_code='2026-B5-OCT' OR status='Active' ORDER BY id LIMIT 1").fetchone()
+    for p in db.execute("SELECT id, client_name, returning_member FROM challenge_profiles").fetchall():
+        existing = db.execute("SELECT profile_id, verification_token, invite_token FROM challenge_user_accounts WHERE profile_id=?", (p["id"],)).fetchone()
         if not existing:
             slug = re.sub(r"[^a-z0-9]", "", p["client_name"].split()[0].lower()) or f"user{p['id']}"
             clash = db.execute("SELECT 1 FROM challenge_user_accounts WHERE username=?", (slug,)).fetchone()
@@ -254,10 +292,22 @@ def ensure_blocks_and_auth_tables(db):
                 ) VALUES (?,?,?,?,?,?,?)""",
                 (p["id"], uname, default_email, role, secrets.token_urlsafe(12), 1 if is_adm else 0, secrets.token_urlsafe(18)),
             )
-        elif not existing["verification_token"]:
+        else:
+            if not existing["verification_token"]:
+                db.execute(
+                    "UPDATE challenge_user_accounts SET verification_token=? WHERE profile_id=?",
+                    (secrets.token_urlsafe(18), p["id"]),
+                )
+            if not existing["invite_token"]:
+                db.execute(
+                    "UPDATE challenge_user_accounts SET invite_token=? WHERE profile_id=?",
+                    (secrets.token_urlsafe(12), p["id"]),
+                )
+        if active_blk and p["client_name"].lower() not in ("chris", "laura"):
             db.execute(
-                "UPDATE challenge_user_accounts SET verification_token=? WHERE profile_id=?",
-                (secrets.token_urlsafe(18), p["id"]),
+                """INSERT OR IGNORE INTO challenge_block_enrollments (block_id, profile_id, is_returning, joined_via)
+                   VALUES (?,?,?,?)""",
+                (active_blk["id"], p["id"], int(p["returning_member"] or 0), "Cohort Seed"),
             )
     _auto_seed_ewan_backup_if_empty(db)
     db.commit()
@@ -381,10 +431,18 @@ def _upsert_challenger_for_block(db, data, block_row):
     email = (data.get("email") or "").strip().lower()
     req_username = re.sub(r"[^a-z0-9_.-]", "", (data.get("username") or "").strip().lower())
     teamup_cid = str(data.get("teamup_customer_id") or "").strip()
+    req_invite_token = str(data.get("invite_token") or "").strip()
 
-    # Check if an account already exists by email, username, or teamup_customer_id so we reuse its profile
+    # Check if an account already exists by invite_token, email, username, teamup_customer_id, or client_name so we reuse its profile
     existing_by_acct = None
-    if email:
+    if req_invite_token:
+        existing_by_acct = db.execute(
+            """SELECT p.id, p.client_name FROM challenge_user_accounts a
+               JOIN challenge_profiles p ON p.id = a.profile_id
+               WHERE a.invite_token=? AND a.invite_token != ''""",
+            (req_invite_token,),
+        ).fetchone()
+    if not existing_by_acct and email:
         existing_by_acct = db.execute(
             """SELECT p.id, p.client_name FROM challenge_user_accounts a
                JOIN challenge_profiles p ON p.id = a.profile_id
@@ -405,10 +463,17 @@ def _upsert_challenger_for_block(db, data, block_row):
                WHERE a.teamup_customer_id=? AND a.teamup_customer_id != ''""",
             (teamup_cid,),
         ).fetchone()
+    if not existing_by_acct and cname:
+        existing_by_acct = db.execute(
+            "SELECT id, client_name FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)",
+            (cname,),
+        ).fetchone()
 
     if existing_by_acct and not cname:
         cname = existing_by_acct["client_name"]
     elif existing_by_acct and cname.lower() != existing_by_acct["client_name"].lower():
+        cname = existing_by_acct["client_name"]
+    elif existing_by_acct:
         cname = existing_by_acct["client_name"]
 
     if not cname and req_username:
@@ -560,6 +625,37 @@ def challenge_login_page():
     if active_prof:
         r = db.execute("SELECT * FROM challenge_user_accounts WHERE profile_id=?", (active_prof["id"],)).fetchone()
         active_acct = dict(r) if r else None
+
+    invite_token = (request.args.get("invite") or "").strip()
+    user_hint = (request.args.get("user") or "").strip().lower()
+    invited_user = None
+    if invite_token or user_hint:
+        q_row = None
+        if invite_token:
+            q_row = db.execute(
+                """SELECT p.*, a.username, a.email, a.invite_token, a.role,
+                          CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password
+                   FROM challenge_user_accounts a
+                   JOIN challenge_profiles p ON p.id = a.profile_id
+                   WHERE a.invite_token=?""",
+                (invite_token,),
+            ).fetchone()
+        if not q_row and user_hint:
+            q_row = db.execute(
+                """SELECT p.*, a.username, a.email, a.invite_token, a.role,
+                          CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password
+                   FROM challenge_user_accounts a
+                   JOIN challenge_profiles p ON p.id = a.profile_id
+                   WHERE LOWER(a.username)=? OR LOWER(p.client_name)=?""",
+                (user_hint, user_hint),
+            ).fetchone()
+        if q_row:
+            invited_user = dict(q_row)
+
+    email_prefill = request.args.get("email", "")
+    if not email_prefill and invited_user and invited_user.get("email"):
+        email_prefill = invited_user["email"]
+
     return render_template(
         "challenge_login.html",
         blocks=blocks,
@@ -567,8 +663,9 @@ def challenge_login_page():
         active_account=active_acct,
         is_authenticated=is_authed,
         invite_code=request.args.get("code", ""),
-        invite_token=request.args.get("invite", ""),
-        email_prefill=request.args.get("email", ""),
+        invite_token=invite_token or (invited_user["invite_token"] if invited_user else ""),
+        invited_user=invited_user,
+        email_prefill=email_prefill,
         verified_banner=request.args.get("verified", "") == "1",
     )
 
@@ -1215,8 +1312,7 @@ def api_challenge_blocks():
         accts = [
             dict(r)
             for r in db.execute(
-                """SELECT p.id AS profile_id, p.client_name, p.start_date, p.end_date, p.returning_member,
-                          p.target_calories, p.target_protein_g, a.email, a.username, a.role, a.invite_token,
+                """SELECT p.*, p.id AS profile_id, a.email, a.username, a.role, a.invite_token,
                           a.email_verified, a.teamup_customer_id, a.teamup_status,
                           CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password
                    FROM challenge_profiles p
@@ -1243,8 +1339,7 @@ def api_challenge_blocks():
         accts = [
             dict(r)
             for r in db.execute(
-                """SELECT p.id AS profile_id, p.client_name, p.start_date, p.end_date, p.returning_member,
-                          p.target_calories, p.target_protein_g, a.email, a.username, a.role,
+                """SELECT p.*, p.id AS profile_id, a.email, a.username, a.role,
                           a.email_verified, a.teamup_customer_id, a.teamup_status,
                           CASE WHEN a.password_hash != '' THEN 1 ELSE 0 END AS has_password
                    FROM challenge_profiles p
@@ -1264,6 +1359,7 @@ def api_challenge_blocks():
         "active_profile": active_prof,
         "block": dict(created_blk) if created_blk else None,
         "blocks": blocks,
+        "challengers": accts,
         "users": accts,
     })
 
@@ -1280,9 +1376,10 @@ def api_challenge_block_join_or_webhook():
     email = (data.get("email") or "").strip().lower()
 
     # Prevent a public invite signup from hijacking an existing Admin account (Chris, Laura, Ewan) or password-protected account
+    req_invite_token = str(data.get("invite_token") or "").strip()
     if not _is_current_user_admin(db):
         existing_acct = db.execute(
-            """SELECT p.id, p.client_name, a.role, a.password_hash, a.email
+            """SELECT p.id, p.client_name, a.role, a.password_hash, a.email, a.invite_token
                FROM challenge_profiles p
                LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
                WHERE LOWER(p.client_name)=LOWER(?) OR (? != '' AND LOWER(a.email)=LOWER(?))""",
@@ -1291,7 +1388,8 @@ def api_challenge_block_join_or_webhook():
         if existing_acct:
             ex_role = (existing_acct["role"] or "").lower()
             ex_name = (existing_acct["client_name"] or "").strip().lower()
-            if ex_role == "admin" or ex_name in ("ewan t", "chris", "laura") or existing_acct["password_hash"]:
+            valid_personal_invite = bool(req_invite_token and existing_acct["invite_token"] and req_invite_token == existing_acct["invite_token"])
+            if ex_role == "admin" or ex_name in ("ewan t", "chris", "laura") or (existing_acct["password_hash"] and not valid_personal_invite):
                 return jsonify({
                     "ok": False,
                     "error": "An account with this name or email already exists. Please use the Sign In tab instead.",

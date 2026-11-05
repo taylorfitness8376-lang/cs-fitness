@@ -1237,7 +1237,7 @@ function renderAdminsAndUsersDirectory() {
       <td>
         <span style="color:#cbd5e1">${c.email || '—'}</span>
         <span class="badge ${c.role === 'admin' ? 'badge-green' : 'badge-blue'}">${c.role || 'challenger'}</span>
-        ${c.email ? `<span class="badge ${c.email_verified ? 'badge-green' : ''}" style="margin-left:3px">${c.email_verified ? '✅ Verified' : '📧 Unverified'}</span>` : ''}
+        <span class="badge ${c.has_password ? 'badge-green' : ''}" style="margin-left:3px">${c.has_password ? '🔑 Active' : '⏳ Needs Invite'}</span>
         ${c.teamup_customer_id ? `<span class="badge badge-blue" style="margin-left:3px">🏋️ TeamUp: ${c.teamup_customer_id}</span>` : ''}
       </td>
       <td>${c.start_weight_kg} kg → <strong style="color:var(--green)">${c.target_weight_kg} kg</strong></td>
@@ -1248,6 +1248,7 @@ function renderAdminsAndUsersDirectory() {
       <td>${c.target_water_l}L</td>
       <td>
         <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
+          <button class="btn btn-blue btn-sm" onclick="copyChallengerInviteLink('${c.invite_token || ''}', '${c.username || ''}', '${(c.client_name || '').replace(/'/g, "\\'")}')" title="Copy personal invite/activation link">📨 Copy Invite</button>
           <button class="btn btn-green btn-sm" onclick="inspectSubmission(${c.id}, ${ADMIN_STATE.selectedWeek})">📊 Inspect</button>
           <button class="btn btn-sm" onclick="adminResetChallengerPassword(${c.id}, '${(c.client_name || '').replace(/'/g, "\\'")}')" title="Reset or clear challenger password">🔑 Reset PW</button>
         </div>
@@ -1255,6 +1256,20 @@ function renderAdminsAndUsersDirectory() {
     </tr>
   `).join('');
   loadTeamUpConfig();
+}
+
+function copyChallengerInviteLink(inviteToken, username, clientName) {
+  const param = inviteToken ? `invite=${encodeURIComponent(inviteToken)}` : `user=${encodeURIComponent(username || clientName)}`;
+  const url = `${window.location.origin}/challenge/login?${param}`;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url);
+  }
+  const msg = document.getElementById('adm-invite-msg');
+  if (msg) {
+    msg.innerHTML = `<div style="padding:0.65rem;border-radius:8px;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);margin-top:0.4rem">
+      📨 Copied invite link for <strong>${clientName}</strong>: <a href="${url}" target="_blank" style="color:#38bdf8">${url}</a>
+    </div>`;
+  }
 }
 
 async function loadTeamUpConfig() {

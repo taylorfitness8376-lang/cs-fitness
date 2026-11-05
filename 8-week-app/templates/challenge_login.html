@@ -94,30 +94,35 @@
       <div id="login-msg" style="font-size:0.8rem;color:var(--green);margin-top:0.7rem"></div>
 
       <div style="margin-top:1rem;padding-top:0.85rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;font-size:0.76rem;color:var(--muted)">
-        <span>New to the 8-Week Challenge? <a href="#" onclick="showAuthTab('invite');return false;" style="color:var(--green);font-weight:800;text-decoration:none">Create Account →</a></span>
-        <a href="#" onclick="submitEmailLogin(true);return false;" style="color:#38bdf8;font-weight:700;text-decoration:none">🛡️ Coach Portal Sign-In</a>
+        <span>Invited to the 8-Week Challenge? <a href="#" onclick="showAuthTab('invite');return false;" style="color:var(--green);font-weight:800;text-decoration:none">Activate / Create Account →</a></span>
       </div>
     </div>
 
     <!-- 2. Create Account / Join Block Panel (Email + Username) -->
     <div class="card" id="auth-panel-invite" style="display:none;padding:1.25rem;border-radius:16px">
       <div class="card-header" style="margin-bottom:0.85rem">
-        <span class="card-title" style="font-size:1.05rem">✨ Create Challenger Account</span>
-        <span class="badge badge-green">Sends Verification Email</span>
+        <span class="card-title" style="font-size:1.05rem">{% if invited_user %}👋 Welcome, {{ invited_user.client_name }}!{% else %}✨ Create Challenger Account{% endif %}</span>
+        <span class="badge badge-green">{% if invited_user %}Personal Invite{% else %}New Challenger{% endif %}</span>
       </div>
+      {% if invited_user %}
+      <div style="background:rgba(61,255,79,0.1);border:1px solid rgba(61,255,79,0.35);border-radius:10px;padding:0.65rem 0.8rem;margin-bottom:0.85rem;font-size:0.78rem;color:#e2e8f0">
+        Your profile for <strong>{{ invited_user.client_name }}</strong> is ready! Confirm your email address and set a password below to sign in to your personal 8-Week Challenge app.
+      </div>
+      {% endif %}
+      <input type="hidden" id="join-invite-token" value="{{ invited_user.invite_token if invited_user and invited_user.invite_token else invite_token }}" />
       <form onsubmit="event.preventDefault(); submitBlockJoin();" style="display:grid;gap:0.7rem">
         <div>
-          <label class="field-label" for="join-email">Email Address (Used for Sign-In &amp; Verification)</label>
-          <input type="email" autocomplete="email" id="join-email" class="auth-input-lg" value="{{ email_prefill }}" placeholder="you@example.com" oninput="suggestUsernameFromInputs()" required />
+          <label class="field-label" for="join-email">Email Address (Used for Sign-In)</label>
+          <input type="email" autocomplete="email" id="join-email" class="auth-input-lg" value="{{ (invited_user.email if invited_user and invited_user.email else email_prefill) }}" placeholder="you@example.com" oninput="suggestUsernameFromInputs()" required />
         </div>
         <div class="grid-2" style="margin-bottom:0;gap:0.55rem">
           <div>
             <label class="field-label" for="join-username">Username (Display ID)</label>
-            <input type="text" id="join-username" placeholder="e.g. alex_j" oninput="this.dataset.touched='1'" />
+            <input type="text" id="join-username" value="{{ invited_user.username if invited_user and invited_user.username else '' }}" placeholder="e.g. alan" {% if invited_user and invited_user.username %}data-touched="1"{% endif %} oninput="this.dataset.touched='1'" />
           </div>
           <div>
             <label class="field-label" for="join-name">Full Name</label>
-            <input type="text" id="join-name" placeholder="e.g. Sarah Jenkins" oninput="suggestUsernameFromInputs()" required />
+            <input type="text" id="join-name" value="{{ invited_user.client_name if invited_user else '' }}" placeholder="e.g. Alan Mackay" oninput="suggestUsernameFromInputs()" required />
           </div>
         </div>
         <div class="grid-2" style="margin-bottom:0;gap:0.55rem">
@@ -138,39 +143,39 @@
         </div>
 
         <details style="background:#080d0a;border:1px solid var(--border);border-radius:10px;padding:0.65rem 0.75rem">
-          <summary style="cursor:pointer;font-size:0.78rem;font-weight:800;color:#cbd5e1">⚙️ Starting Stats &amp; Targets (Optional — can also set in Desktop App)</summary>
+          <summary style="cursor:pointer;font-size:0.78rem;font-weight:800;color:#cbd5e1">⚙️ Starting Stats &amp; Targets (Optional — can also set in App)</summary>
           <div style="display:grid;gap:0.55rem;margin-top:0.65rem">
             <div class="grid-2" style="margin-bottom:0">
               <div>
                 <label class="field-label">Workout Track</label>
                 <select id="join-track">
-                  <option value="mens">Men's Workouts 1–4</option>
-                  <option value="ladies">Ladies' Workouts 1–4</option>
+                  <option value="mens" {% if not invited_user or invited_user.workout_track != 'ladies' %}selected{% endif %}>Men's Workouts 1–4</option>
+                  <option value="ladies" {% if invited_user and invited_user.workout_track == 'ladies' %}selected{% endif %}>Ladies' Workouts 1–4</option>
                 </select>
               </div>
               <div>
                 <label class="field-label">Protein Target (g)</label>
-                <input type="number" id="join-prot" value="150" />
+                <input type="number" id="join-prot" value="{{ invited_user.protein_g if invited_user and invited_user.protein_g else 150 }}" />
               </div>
             </div>
             <div class="grid-2" style="margin-bottom:0">
               <div>
                 <label class="field-label">Start Weight (kg)</label>
-                <input type="number" step="0.1" id="join-sw" value="80.0" />
+                <input type="number" step="0.1" id="join-sw" value="{{ invited_user.start_weight_kg if invited_user and invited_user.start_weight_kg else 84.0 }}" />
               </div>
               <div>
                 <label class="field-label">Target Weight (kg)</label>
-                <input type="number" step="0.1" id="join-tw" value="74.5" />
+                <input type="number" step="0.1" id="join-tw" value="{{ invited_user.target_weight_kg if invited_user and invited_user.target_weight_kg else 78.3 }}" />
               </div>
             </div>
             <div class="grid-2" style="margin-bottom:0">
               <div>
                 <label class="field-label">Start Body Fat (%)</label>
-                <input type="number" step="0.5" id="join-sbf" value="18.0" />
+                <input type="number" step="0.5" id="join-sbf" value="{{ invited_user.start_body_fat_pct if invited_user and invited_user.start_body_fat_pct else 18.0 }}" />
               </div>
               <div style="display:flex;align-items:end;padding-bottom:0.35rem">
                 <label style="font-size:0.74rem;display:flex;align-items:center;gap:0.4rem;cursor:pointer">
-                  <input type="checkbox" id="join-returning" style="width:auto" /> Returning Member (14k steps)
+                  <input type="checkbox" id="join-returning" style="width:auto" {% if invited_user and invited_user.returning_member %}checked{% endif %} /> Returning Member (14k steps)
                 </label>
               </div>
             </div>
@@ -178,7 +183,7 @@
         </details>
 
         <button type="submit" class="btn btn-green" style="width:100%;justify-content:center;padding:0.85rem;font-size:0.98rem;font-weight:900;border-radius:11px">
-          ✨ Create Account &amp; Send Verification Email
+          {% if invited_user %}✅ Activate My Account &amp; Sign In →{% else %}✨ Create Account &amp; Sign In →{% endif %}
         </button>
         <div id="join-msg" style="font-size:0.78rem;color:var(--green)"></div>
       </form>
@@ -268,7 +273,7 @@
     }
     if (window.location.search.includes('reset=')) {
       showAuthTab('password');
-    } else if (window.location.search.includes('code=') || window.location.search.includes('invite=')) {
+    } else if (window.location.search.includes('code=') || window.location.search.includes('invite=') || window.location.search.includes('user=')) {
       showAuthTab('invite');
     }
     async function requestPasswordResetCode() {
@@ -342,6 +347,7 @@
     async function submitBlockJoin() {
       const payload = {
         invite_code: document.getElementById('join-block-code').value,
+        invite_token: document.getElementById('join-invite-token')?.value || '',
         client_name: document.getElementById('join-name').value.trim(),
         username: document.getElementById('join-username').value.trim(),
         email: document.getElementById('join-email').value.trim(),

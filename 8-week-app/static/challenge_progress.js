@@ -3898,17 +3898,26 @@ window.saveOnePagerWeekly = async function(action) {
   if (action === 'tg') await window.sendWeeklyTelegram();
 };
 
+window.updateChallengerTopNav = function(activeKey) {
+  const pillMap = {
+    daily: 'nav-pill-daily',
+    checkin: 'nav-pill-checkin',
+    workouts: 'nav-pill-workouts',
+    integrations: 'nav-pill-settings'
+  };
+  Object.entries(pillMap).forEach(([k, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.className = (k === activeKey) ? 'btn btn-green btn-sm' : 'btn btn-sm';
+  });
+};
+
 window.openDesktopTab = function(tabName) {
+  const target = tabName || 'checkin';
   window.setOnePagerMode('full');
   if (typeof window.switchTab === 'function') {
-    window.switchTab(tabName || 'checkin');
+    window.switchTab(target);
   }
-  const bCheckin = document.getElementById('btn-mode-checkin-desk');
-  const bSettings = document.getElementById('btn-mode-settings-desk');
-  const bDaily = document.getElementById('btn-mode-daily1p');
-  if (bDaily) bDaily.className = 'btn btn-sm';
-  if (bCheckin) bCheckin.className = (tabName === 'checkin') ? 'btn btn-green btn-sm' : 'btn btn-sm';
-  if (bSettings) bSettings.className = (tabName === 'integrations') ? 'btn btn-green btn-sm' : 'btn btn-sm';
+  window.updateChallengerTopNav(target);
 };
 
 window.setOnePagerMode = function(mode) {
@@ -3920,30 +3929,27 @@ window.setOnePagerMode = function(mode) {
   const tabs = document.getElementById('main-tabs');
   const panels = document.querySelectorAll('.tab-panel');
 
+  // Always keep legacy stacked desktop headers hidden so the Challenger app stays clean & mobile-first
+  if (topHeader) topHeader.style.display = 'none';
+  if (weekStrip) weekStrip.style.display = 'none';
+  if (modeBar) modeBar.style.display = 'none';
+  if (tabs) tabs.style.display = 'none';
+
   if (mode === 'daily') {
-    // Clear the screen of everything else — show ONLY the Daily Mobile-First view
-    if (topHeader) topHeader.style.display = 'none';
-    if (weekStrip) weekStrip.style.display = 'none';
-    if (modeBar) modeBar.style.display = 'none';
-    if (tabs) tabs.style.display = 'none';
     panels.forEach(p => { p.style.display = 'none'; });
     if (wView) wView.style.display = 'none';
     if (dView) dView.style.display = 'block';
+    window.updateChallengerTopNav('daily');
     renderOnePagerViews();
   } else if (mode === 'weekly') {
-    if (tabs) tabs.style.display = 'none';
     panels.forEach(p => { p.style.display = 'none'; });
     if (dView) dView.style.display = 'none';
     if (wView) wView.style.display = 'block';
+    window.updateChallengerTopNav('checkin');
     renderOnePagerViews();
   } else {
-    // Desktop View: Weekly Check-In (Photos & Commentary) + Settings & Sync (Garmin + 2FA)
-    if (topHeader) topHeader.style.display = '';
-    if (weekStrip) weekStrip.style.display = 'grid';
-    if (modeBar) modeBar.style.display = 'flex';
     if (dView) dView.style.display = 'none';
     if (wView) wView.style.display = 'none';
-    if (tabs) tabs.style.display = 'grid';
     panels.forEach(p => { p.style.display = ''; });
   }
 };
