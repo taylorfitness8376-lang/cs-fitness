@@ -12,6 +12,9 @@ async function initRealDataAndProgress() {
   injectWeekOverWeekOnCheckinTab();
   upgradeThreePhotoWeeklyVault();
   upgradeIntegrationsSaveAndImport();
+  if (window._overviewLoadPromise) {
+    try { await window._overviewLoadPromise; } catch (e) {}
+  }
   await ensureServerRehydratedFromBrowserVault();
   if (typeof STATE !== 'undefined' && STATE && STATE.overview) {
     window.renderTodayDashboard(STATE.overview);
@@ -1641,7 +1644,7 @@ window.renderWeeklyCheckinCardCanvas = async function() {
   ctx.fillStyle = '#94A3B8';
   ctx.font = '700 21px Inter, -apple-system, sans-serif';
   ctx.fillText(
-    `Challenger: ${prof.client_name || 'Ewan Taylor'}   ·   Week 0 Start: ${startWt.toFixed(1)} kg → Week ${targetPhotoWk}: ${latestWt.toFixed(1)} kg (${wtDeltaStr})   ·   Goal: ${prof.target_weight_kg || 78.3} kg`,
+    `Challenger: ${prof.client_name || 'Challenger'}   ·   Week 0 Start: ${startWt.toFixed(1)} kg → Week ${targetPhotoWk}: ${latestWt.toFixed(1)} kg (${wtDeltaStr})   ·   Goal: ${prof.target_weight_kg || 78.3} kg`,
     48,
     144
   );
@@ -1831,7 +1834,7 @@ window.downloadWeek0VsLatestPhotosPng = async function(poseOrAll, triggerBtn) {
     const photos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
     const wk = getActiveSheetWeek();
     const targetPhotoWk = _resolveTargetLatestPhotoWeek(wk, photos);
-    const prof = (STATE.overview && STATE.overview.profile) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.profile) || { client_name: 'Ewan Taylor', start_weight_kg: 88.6, target_weight_kg: 78.3 };
+    const prof = (STATE.overview && STATE.overview.profile) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.profile) || { client_name: 'Challenger', start_weight_kg: 88.6, target_weight_kg: 78.3 };
 
     const mode = (!poseOrAll || poseOrAll === 'ALL') ? 'ALL' : poseOrAll;
     const poses = mode === 'ALL' ? ['Side', 'Front', 'Back'] : [mode];
@@ -1862,7 +1865,7 @@ window.downloadWeek0VsLatestPhotosPng = async function(poseOrAll, triggerBtn) {
     ctx.fillStyle = '#94A3B8';
     ctx.font = '700 22px Inter, -apple-system, sans-serif';
     ctx.fillText(
-      `${prof.client_name || 'Ewan Taylor'}   ·   Week 0 Start: ${startWt.toFixed(1)} kg → Week ${targetPhotoWk}: ${latestWt.toFixed(1)} kg (${wtDeltaStr})   ·   Goal: ${prof.target_weight_kg || 78.3} kg`,
+      `${prof.client_name || 'Challenger'}   ·   Week 0 Start: ${startWt.toFixed(1)} kg → Week ${targetPhotoWk}: ${latestWt.toFixed(1)} kg (${wtDeltaStr})   ·   Goal: ${prof.target_weight_kg || 78.3} kg`,
       44,
       140
     );
@@ -1939,7 +1942,8 @@ window.downloadWeek0VsLatestPhotosPng = async function(poseOrAll, triggerBtn) {
       }
     }
 
-    const fileName = `Ewan_Taylor_Week0_vs_Week${targetPhotoWk}_${mode === 'ALL' ? 'All_3_Poses' : mode}_SideBySide.png`;
+    const safeName = String(prof.client_name || 'Challenger').trim().replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'Challenger';
+    const fileName = `${safeName}_Week0_vs_Week${targetPhotoWk}_${mode === 'ALL' ? 'All_3_Poses' : mode}_SideBySide.png`;
     const dataUrl = off.toDataURL('image/png');
     const a = document.createElement('a');
     a.download = fileName;
@@ -2860,7 +2864,7 @@ function getFormattedShortDate(dateStr) {
 // ── MULTI-LAYER PERSISTENCE VAULT (Survives Ephemeral Container Restarts) ──
 function getActiveVaultProfileId() {
   const ov = (typeof STATE !== 'undefined' && STATE.overview) || {};
-  return Number((ov.profile && ov.profile.id) || 1);
+  return Number((ov.profile && ov.profile.id) || window._authedProfileId || 0);
 }
 
 function getCheckinsVaultKey(pid) {
@@ -2877,7 +2881,9 @@ function getDraftVaultKey(dateStr, pid) {
 
 window.getBrowserGarminVault = function(pid) {
   try {
-    const raw = localStorage.getItem(getGarminVaultKey(pid));
+    const targetPid = Number(pid || getActiveVaultProfileId() || 0);
+    if (targetPid <= 0) return {};
+    const raw = localStorage.getItem(getGarminVaultKey(targetPid));
     const parsed = raw ? JSON.parse(raw) : {};
     const ovIntg = (typeof STATE !== 'undefined' && STATE.overview && STATE.overview.integrations) || {};
     return {
@@ -2895,7 +2901,9 @@ window.getBrowserGarminVault = function(pid) {
 window.saveBrowserGarminVault = function(data, pid) {
   if (!data || typeof data !== 'object') return;
   try {
-    const curr = window.getBrowserGarminVault(pid);
+    const targetPid = Number(pid || getActiveVaultProfileId() || 0);
+    if (targetPid <= 0) return;
+    const curr = window.getBrowserGarminVault(targetPid);
     const merged = {
       garmin_email: data.garmin_email || curr.garmin_email || '',
       garmin_password_b64: data.garmin_password_b64 || curr.garmin_password_b64 || '',
@@ -2904,16 +2912,20 @@ window.saveBrowserGarminVault = function(data, pid) {
       garmin_connected: data.garmin_connected != null ? data.garmin_connected : (curr.garmin_connected || 0),
       updated_at: new Date().toISOString(),
     };
-    localStorage.setItem(getGarminVaultKey(pid), JSON.stringify(merged));
+    localStorage.setItem(getGarminVaultKey(targetPid), JSON.stringify(merged));
   } catch (e) {}
 };
 
 window.getBrowserCheckinsVault = function(pid) {
   try {
-    const raw = localStorage.getItem(getCheckinsVaultKey(pid));
-    return raw ? JSON.parse(raw) : { profile_id: pid || getActiveVaultProfileId(), daily_checkins: [], workout_logs: [], weekly_submissions: [] };
+    const targetPid = Number(pid || getActiveVaultProfileId() || 0);
+    if (targetPid <= 0) {
+      return { profile_id: 0, daily_checkins: [], workout_logs: [], weekly_submissions: [] };
+    }
+    const raw = localStorage.getItem(getCheckinsVaultKey(targetPid));
+    return raw ? JSON.parse(raw) : { profile_id: targetPid, daily_checkins: [], workout_logs: [], weekly_submissions: [] };
   } catch (e) {
-    return { profile_id: pid || getActiveVaultProfileId(), daily_checkins: [], workout_logs: [], weekly_submissions: [] };
+    return { profile_id: 0, daily_checkins: [], workout_logs: [], weekly_submissions: [] };
   }
 };
 
@@ -2936,7 +2948,8 @@ function hasMeaningfulCheckinData(c) {
 window.recordCheckinInBrowserVault = function(row, pid) {
   if (!row || !row.date) return;
   try {
-    const targetPid = pid || getActiveVaultProfileId();
+    const targetPid = Number(pid || getActiveVaultProfileId() || 0);
+    if (targetPid <= 0) return;
     const vault = window.getBrowserCheckinsVault(targetPid);
     const list = Array.isArray(vault.daily_checkins) ? vault.daily_checkins : [];
     const dStr = String(row.date).slice(0, 10);
@@ -3013,10 +3026,24 @@ window.pullServerBackupIntoBrowserVault = async function() {
 
 async function ensureServerRehydratedFromBrowserVault() {
   try {
+    if (window._overviewLoadPromise && (!STATE || !STATE.overview)) {
+      try { await window._overviewLoadPromise; } catch (e) {}
+    }
     const pid = getActiveVaultProfileId();
+    if (!pid || pid <= 0) return;
     const localVault = window.getBrowserCheckinsVault(pid);
     const garminVault = window.getBrowserGarminVault(pid);
     const ov = (typeof STATE !== 'undefined' && STATE.overview) || {};
+    if (
+      localVault &&
+      localVault.profile &&
+      localVault.profile.client_name &&
+      ov.profile &&
+      ov.profile.client_name &&
+      String(localVault.profile.client_name).trim().toLowerCase() !== String(ov.profile.client_name).trim().toLowerCase()
+    ) {
+      return;
+    }
     const serverIntg = ov.integrations || {};
 
     // Check if localVault has check-ins or Garmin auth that the server lost after a container restart

@@ -6,9 +6,20 @@ import re
 import secrets
 
 from database import get_db, calculate_challenge_targets, init_challenge_tables
-from challenge import _get_active_profile, _is_current_user_admin
+from challenge import (
+    _get_active_profile,
+    _is_current_user_admin,
+    _set_authenticated_session,
+    _check_challenge_api_auth,
+    _get_profile_integrations,
+)
 
 challenge_blocks_bp = Blueprint("challenge_blocks", __name__)
+
+
+@challenge_blocks_bp.before_request
+def _guard_challenge_blocks_bp_routes():
+    return _check_challenge_api_auth()
 
 
 DEFAULT_ANNUAL_BLOCKS = [
@@ -604,8 +615,8 @@ def api_challenge_verify_email():
     )
     db.commit()
 
-    session["challenge_profile_id"] = acct["profile_id"]
-    session["challenge_authed"] = True
+    prof = _get_active_profile(db, acct["profile_id"]) or dict(db.execute("SELECT * FROM challenge_profiles WHERE id=?", (acct["profile_id"],)).fetchone())
+    _set_authenticated_session(prof, dict(acct))
 
     if wants_json:
         return jsonify({
@@ -639,7 +650,7 @@ def api_challenge_resend_verification():
         ).fetchone()
     else:
         active_prof = _get_active_profile(db)
-        acct = db.execute("SELECT * FROM challenge_user_accounts WHERE profile_id=?", (active_prof["id"],)).fetchone()
+        acct = db.execute("SELECT * FROM challenge_user_accounts WHERE profile_id=?", (active_prof["id"],)).fetchone() if active_prof else None
 
     if not acct:
         return jsonify({"ok": False, "error": "Account not found."}), 404
@@ -663,8 +674,18 @@ def api_challenge_resend_verification():
 
 @challenge_blocks_bp.route("/api/challenge/auth/logout", methods=["POST", "GET"])
 def api_challenge_auth_logout():
-    session.pop("challenge_profile_id", None)
-    session.pop("challenge_authed", None)
+    for k in (
+        "challenge_profile_id",
+        "challenge_authed",
+        "challenge_client_name",
+        "challenge_email",
+        "challenge_username",
+        "challenge_role",
+        "challenge_start_weight_kg",
+        "challenge_target_weight_kg",
+        "challenge_workout_track",
+    ):
+        session.pop(k, None)
     if request.method == "GET":
         return redirect(url_for("challenge_blocks.challenge_login_page"))
     return jsonify({"ok": True})
@@ -674,7 +695,23 @@ def api_challenge_auth_logout():
 def api_challenge_auth_status():
     db = get_db()
     ensure_blocks_and_auth_tables(db)
+    is_authed = bool(session.get("challenge_authed"))
     prof = _get_active_profile(db)
+    if not prof:
+        enr = db.execute("SELECT * FROM challenge_blocks WHERE status='Active' LIMIT 1").fetchone()
+        return jsonify({
+            "ok": True,
+            "authenticated": False,
+            "profile_id": None,
+            "client_name": "",
+            "username": "",
+            "email": "",
+            "email_verified": False,
+            "teamup_customer_id": "",
+            "role": "guest",
+            "has_password": False,
+            "active_block": dict(enr) if enr else None,
+        })
     acct = db.execute("SELECT * FROM challenge_user_accounts WHERE profile_id=?", (prof["id"],)).fetchone()
     enr = db.execute(
         """SELECT b.* FROM challenge_block_enrollments e
@@ -686,7 +723,7 @@ def api_challenge_auth_status():
         enr = db.execute("SELECT * FROM challenge_blocks WHERE status='Active' LIMIT 1").fetchone()
     return jsonify({
         "ok": True,
-        "authenticated": bool(session.get("challenge_authed")),
+        "authenticated": is_authed,
         "profile_id": prof["id"],
         "client_name": prof["client_name"],
         "username": acct["username"] if acct else "",
@@ -728,8 +765,8 @@ def api_challenge_auth_login():
         db.execute("UPDATE challenge_user_accounts SET password_hash=?, updated_at=CURRENT_TIMESTAMP WHERE profile_id=?", (pw_hash, acct["profile_id"]))
         db.commit()
 
-    session["challenge_profile_id"] = acct["profile_id"]
-    session["challenge_authed"] = True
+    prof = dict(db.execute("SELECT * FROM challenge_profiles WHERE id=?", (acct["profile_id"],)).fetchone())
+    _set_authenticated_session(prof, dict(acct))
     return jsonify({
         "ok": True,
         "profile_id": acct["profile_id"],
@@ -810,6 +847,10 @@ def api_challenge_update_account():
            JOIN challenge_profiles p ON p.id = a.profile_id WHERE a.profile_id=?""",
         (pid,),
     ).fetchone()
+    if session.get("challenge_profile_id") and int(session.get("challenge_profile_id")) == int(pid):
+        prof_row = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (pid,)).fetchone()
+        if prof_row:
+            _set_authenticated_session(dict(prof_row), dict(updated))
     return jsonify({
         "ok": True,
         "profile_id": pid,
@@ -827,15 +868,24 @@ def api_challenge_set_password():
     db = get_db()
     ensure_blocks_and_auth_tables(db)
     data = request.get_json() or {}
-    active_prof = _get_active_profile(db)
-    pid = int(data.get("profile_id") or active_prof["id"])
-    if pid != int(active_prof["id"]) and not _is_current_user_admin(db):
-        return jsonify({"ok": False, "error": "Cannot modify another user's password."}), 403
     email = (data.get("email") or "").strip().lower()
     new_pw = str(data.get("new_password") or data.get("password") or "").strip()
     curr_pw = str(data.get("current_password") or "").strip()
 
-    acct = db.execute("SELECT * FROM challenge_user_accounts WHERE profile_id=?", (pid,)).fetchone()
+    active_prof = _get_active_profile(db)
+    if active_prof:
+        pid = int(data.get("profile_id") or active_prof["id"])
+        if pid != int(active_prof["id"]) and not _is_current_user_admin(db):
+            return jsonify({"ok": False, "error": "Cannot modify another user's password."}), 403
+        acct = db.execute("SELECT * FROM challenge_user_accounts WHERE profile_id=?", (pid,)).fetchone()
+    elif email:
+        acct = db.execute("SELECT * FROM challenge_user_accounts WHERE LOWER(email)=?", (email,)).fetchone()
+        if not acct:
+            return jsonify({"ok": False, "error": "Account not found."}), 404
+        pid = int(acct["profile_id"])
+    else:
+        return jsonify({"ok": False, "error": "Authentication required."}), 401
+
     if acct and acct["password_hash"]:
         if not curr_pw or not bcrypt.checkpw(curr_pw.encode("utf-8"), acct["password_hash"].encode("utf-8")):
             return jsonify({"ok": False, "error": "Current password is required to change an existing password."}), 401
@@ -914,12 +964,9 @@ def api_challenge_forgot_password():
         delivery.append("email")
 
     try:
-        intg = db.execute(
-            "SELECT telegram_bot_token, telegram_chat_id FROM sync_integrations WHERE profile_id=?",
-            (acct["profile_id"],),
-        ).fetchone()
-        tg_token = (intg["telegram_bot_token"] if intg and intg["telegram_bot_token"] else os.environ.get("TELEGRAM_BOT_TOKEN", "")).strip()
-        tg_chat = (intg["telegram_chat_id"] if intg and intg["telegram_chat_id"] else "").strip()
+        intg = _get_profile_integrations(db, acct["profile_id"], include_secrets=True)
+        tg_token = (intg.get("telegram_bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN", "")).strip()
+        tg_chat = (intg.get("telegram_chat_id") or "").strip()
         if tg_token and tg_chat:
             import urllib.request
             payload_bytes = json.dumps({
@@ -1032,8 +1079,9 @@ def api_challenge_reset_password():
     db.commit()
 
     if data.get("auto_sign_in", True):
-        session["challenge_profile_id"] = acct["profile_id"]
-        session["challenge_authed"] = True
+        prof_row = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (acct["profile_id"],)).fetchone()
+        if prof_row:
+            _set_authenticated_session(dict(prof_row), dict(acct))
 
     return jsonify({
         "ok": True,
@@ -1104,10 +1152,9 @@ def api_challenge_switch_user():
                 "error": "Only Coach & Admin accounts can switch between challenger profiles. Please sign in with your own email and password.",
             }), 403
 
-    session["challenge_profile_id"] = pid
-    session["challenge_authed"] = True
-    prof = _get_active_profile(db, pid)
-    return jsonify({"ok": True, "profile": prof, "client_name": prof["client_name"]})
+    prof = dict(db.execute("SELECT * FROM challenge_profiles WHERE id=?", (pid,)).fetchone())
+    _set_authenticated_session(prof, dict(acct) if acct else None)
+    return jsonify({"ok": True, "profile": _get_active_profile(db, pid), "client_name": prof["client_name"]})
 
 
 @challenge_blocks_bp.route("/api/challenge/blocks", methods=["GET", "POST"])
@@ -1266,8 +1313,12 @@ def api_challenge_block_join_or_webhook():
     v_res = _send_verification_email(db, prof["id"], request.host_url.rstrip("/"))
 
     if data.get("auto_sign_in", True):
-        session["challenge_profile_id"] = prof["id"]
-        session["challenge_authed"] = True
+        _set_authenticated_session(prof, acct)
+
+    try:
+        auto_persist_profile_backup(db, prof["id"])
+    except Exception:
+        pass
 
     return jsonify({
         "ok": True,
@@ -1505,37 +1556,66 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
     prof_data = payload.get("profile") or {}
     if prof_data and isinstance(prof_data, dict):
         exists_prof = db.execute("SELECT id FROM challenge_profiles WHERE id=?", (pid,)).fetchone()
+        sw = float(prof_data.get("start_weight_kg") or 80.0)
+        tw = float(prof_data.get("target_weight_kg") or round(sw * 0.93, 1))
+        sbf = float(prof_data.get("start_body_fat_pct") or 16.0)
+        tbf = float(prof_data.get("target_body_fat_pct") or 14.0)
+        sdate = str(prof_data.get("start_date") or prof_data.get("challenge_start") or "2026-10-19")[:10]
+        goal_str = str(prof_data.get("goal") or "Weight Loss")
+        ret_flag = bool(prof_data.get("returning_member"))
+        calc = calculate_challenge_targets(
+            start_weight_kg=sw,
+            target_weight_kg=tw,
+            start_body_fat_pct=sbf,
+            target_body_fat_pct=tbf,
+            protein_g=int(prof_data.get("target_protein_g") or 150),
+            start_date=sdate,
+            goal=goal_str,
+            returning_member=ret_flag,
+        )
+        wk_json = prof_data.get("weekly_targets_json")
+        if not wk_json:
+            wk_json = json.dumps(prof_data.get("weekly_targets") or calc["weekly_targets"])
+        elif not isinstance(wk_json, str):
+            wk_json = json.dumps(wk_json)
         if not exists_prof:
             try:
+                cname = (prof_data.get("client_name") or payload.get("client_name") or f"Challenger {pid}").strip()
+                clash = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?) AND id!=?", (cname, pid)).fetchone()
+                if clash:
+                    cname = f"{cname} ({pid})"
                 db.execute(
                     """INSERT INTO challenge_profiles (
-                        id, client_name, goal, cohort_name, pre_coaching_start, challenge_start, challenge_end,
+                        id, client_name, goal, start_date, end_date,
                         start_weight_kg, target_weight_kg, start_body_fat_pct, target_body_fat_pct,
-                        lean_body_mass_kg, fat_mass_kg, target_calories, target_protein_g, target_fats_g,
-                        target_carbs_g, target_fibre_g, target_water_l, returning_member, workout_track
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        lean_body_mass_kg, fat_mass_kg, to_lose_kg,
+                        target_calories, target_protein_g, target_fats_g, target_carbs_g,
+                        target_fibre_g, target_water_l, target_sleep_hrs,
+                        returning_member, workout_track, weekly_targets_json
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
                         pid,
-                        prof_data.get("client_name") or f"Challenger {pid}",
-                        prof_data.get("goal") or "Weight Loss",
-                        prof_data.get("cohort_name") or "October 2026 Cohort",
-                        prof_data.get("pre_coaching_start") or "2026-10-12",
-                        prof_data.get("challenge_start") or "2026-10-19",
-                        prof_data.get("challenge_end") or "2026-12-14",
-                        float(prof_data.get("start_weight_kg") or 80.0),
-                        float(prof_data.get("target_weight_kg") or 75.0),
-                        float(prof_data.get("start_body_fat_pct") or 18.0),
-                        float(prof_data.get("target_body_fat_pct") or 14.0),
-                        float(prof_data.get("lean_body_mass_kg") or 65.6),
-                        float(prof_data.get("fat_mass_kg") or 14.4),
-                        int(prof_data.get("target_calories") or 2020),
-                        int(prof_data.get("target_protein_g") or 150),
-                        int(prof_data.get("target_fats_g") or 67),
-                        int(prof_data.get("target_carbs_g") or 204),
+                        cname,
+                        calc["goal"],
+                        calc["start_date"],
+                        str(prof_data.get("end_date") or calc["end_date"])[:10],
+                        calc["start_weight_kg"],
+                        calc["target_weight_kg"],
+                        calc["start_body_fat_pct"],
+                        calc["target_body_fat_pct"],
+                        float(prof_data.get("lean_body_mass_kg") or calc["lean_body_mass_kg"]),
+                        float(prof_data.get("fat_mass_kg") or calc["fat_mass_kg"]),
+                        float(prof_data.get("to_lose_kg") or calc["to_lose_kg"]),
+                        int(prof_data.get("target_calories") or calc["target_calories"]),
+                        int(prof_data.get("target_protein_g") or calc["target_protein_g"]),
+                        int(prof_data.get("target_fats_g") or calc["target_fats_g"]),
+                        int(prof_data.get("target_carbs_g") or calc["target_carbs_g"]),
                         int(prof_data.get("target_fibre_g") or 30),
-                        float(prof_data.get("target_water_l") or 3.5),
-                        int(prof_data.get("returning_member") or 0),
-                        prof_data.get("workout_track") or "mens",
+                        float(prof_data.get("target_water_l") or calc["target_water_l"]),
+                        8.0,
+                        1 if ret_flag else 0,
+                        str(prof_data.get("workout_track") or "mens"),
+                        wk_json,
                     ),
                 )
             except Exception:
@@ -1543,22 +1623,6 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
         else:
             try:
                 if prof_data.get("start_weight_kg"):
-                    from database import calculate_challenge_targets
-                    sw = float(prof_data.get("start_weight_kg"))
-                    tw = float(prof_data.get("target_weight_kg") or 78.3)
-                    sbf = float(prof_data.get("start_body_fat_pct") or 16.0)
-                    tbf = float(prof_data.get("target_body_fat_pct") or 14.0)
-                    calc = calculate_challenge_targets(
-                        start_weight_kg=sw,
-                        target_weight_kg=tw,
-                        start_body_fat_pct=sbf,
-                        target_body_fat_pct=tbf,
-                        protein_g=int(prof_data.get("target_protein_g") or 150),
-                        start_date=prof_data.get("start_date") or "2026-10-19",
-                        goal=prof_data.get("goal") or "Weight Loss",
-                        returning_member=bool(prof_data.get("returning_member")),
-                    )
-                    wk_json = prof_data.get("weekly_targets_json") or json.dumps(calc["weekly_targets"])
                     db.execute(
                         """UPDATE challenge_profiles SET
                             start_weight_kg=?, target_weight_kg=?, start_body_fat_pct=?, target_body_fat_pct=?,

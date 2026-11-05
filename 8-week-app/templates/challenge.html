@@ -115,7 +115,7 @@
         </div>
         <div style="margin-top:0.5rem;padding-top:0.45rem;border-top:1px dashed rgba(61,255,79,0.28);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem">
           <div style="font-size:0.72rem;color:#cbd5e1">
-            🎯 Program Start: <strong id="op-start-wt-lbl" style="color:var(--green)">88.6 kg</strong> · Goal: <strong id="op-target-wt-lbl" style="color:#fff">78.3 kg</strong>
+            🎯 Program Start: <strong id="op-start-wt-lbl" style="color:var(--green)">— kg</strong> · Goal: <strong id="op-target-wt-lbl" style="color:#fff">— kg</strong>
           </div>
           <button type="button" class="btn btn-sm" style="padding:0.15rem 0.5rem;font-size:0.68rem" onclick="toggleStartWeightEditor()">✏️ Edit Start Weight</button>
         </div>
@@ -124,11 +124,11 @@
           <div class="grid-2" style="gap:0.45rem;margin-bottom:0.45rem">
             <div>
               <label class="field-label" style="font-size:0.64rem">Start Weight (kg)</label>
-              <input type="number" step="0.1" id="op-edit-start-wt" value="88.6" style="font-size:0.85rem;padding:0.35rem 0.5rem" />
+              <input type="number" step="0.1" id="op-edit-start-wt" value="" placeholder="e.g. 85.0" style="font-size:0.85rem;padding:0.35rem 0.5rem" />
             </div>
             <div>
               <label class="field-label" style="font-size:0.64rem">Target / Goal Weight (kg)</label>
-              <input type="number" step="0.1" id="op-edit-target-wt" value="78.3" style="font-size:0.85rem;padding:0.35rem 0.5rem" />
+              <input type="number" step="0.1" id="op-edit-target-wt" value="" placeholder="e.g. 78.0" style="font-size:0.85rem;padding:0.35rem 0.5rem" />
             </div>
           </div>
           <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
@@ -160,7 +160,7 @@
           <button type="button" class="btn btn-sm" onclick="toggleMobileGarminDrawer(false)" style="font-size:0.66rem;padding:0.15rem 0.45rem">✕ Close</button>
         </div>
         <div style="display:grid;grid-template-columns:1fr;gap:0.45rem;margin-bottom:0.5rem">
-          <input type="email" id="op-garmin-email" class="input" placeholder="Garmin Connect Email (e.g. taylor.ewan@gmail.com)" style="font-size:0.85rem;padding:0.5rem 0.65rem" />
+          <input type="email" id="op-garmin-email" class="input" placeholder="Garmin Connect Email (e.g. you@example.com)" style="font-size:0.85rem;padding:0.5rem 0.65rem" />
           <input type="password" id="op-garmin-password" class="input" placeholder="Garmin Password (saved encrypted on your device)" style="font-size:0.85rem;padding:0.5rem 0.65rem" />
         </div>
         <button type="button" class="btn btn-blue" id="op-garmin-save-sync-btn" onclick="saveAndSyncMobileGarmin()" style="width:100%;justify-content:center;padding:0.65rem;font-size:0.88rem;font-weight:900">
@@ -383,9 +383,9 @@
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem">
       <div style="font-size:0.78rem;color:var(--muted)">
         Challenger: <strong style="color:#fff" id="td-client-name">Challenger</strong> ·
-        Start: <strong style="color:#fff" id="td-start-weight">84.0kg (16% BF)</strong> →
-        Target: <strong style="color:var(--green)" id="td-target-weight">78.3kg (14% BF)</strong>
-        <span style="display:none" id="td-lbm">70.56kg</span>
+        Start: <strong style="color:#fff" id="td-start-weight">—</strong> →
+        Target: <strong style="color:var(--green)" id="td-target-weight">—</strong>
+        <span style="display:none" id="td-lbm">—</span>
       </div>
       <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center">
         <button class="btn btn-sm" onclick="stepActiveDate(-1)" title="Switch to Yesterday to verify completed day">◀ Verify Yesterday</button>
@@ -913,7 +913,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.55rem;margin-bottom:0.6rem">
           <div>
             <label class="field-label">Garmin Connect Email</label>
-            <input type="email" id="cfg-garmin-email" placeholder="ewan@example.com" />
+            <input type="email" id="cfg-garmin-email" placeholder="you@example.com" />
           </div>
           <div>
             <label class="field-label">Garmin Password</label>
@@ -940,7 +940,7 @@
               <option value="myfitnesspal">MyFitnessPal</option>
               <option value="yazio">Yazio</option>
             </select>
-            <input type="text" id="cfg-mfp-user" placeholder="ewantaylor" />
+            <input type="text" id="cfg-mfp-user" placeholder="your_username" />
           </div>
           <div>
             <label class="field-label">Telegram Bot Token (From @BotFather)</label>
@@ -1045,7 +1045,7 @@
             </div>
             <div>
               <label class="field-label">Username (@handle)</label>
-              <input type="text" id="acct-username-input" placeholder="ewantaylor" />
+              <input type="text" id="acct-username-input" placeholder="your_username" />
             </div>
           </div>
           <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">

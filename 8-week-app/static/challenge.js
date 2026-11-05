@@ -135,9 +135,27 @@ async function loadOverview(dateOverride) {
     btnYest.className = "btn btn-sm" + (targetDate === yestIso ? " btn-green" : "");
   }
 
-  const res = await fetch(`/api/challenge/overview?date=${encodeURIComponent(targetDate)}`);
-  const data = await res.json();
+  window._overviewLoadPromise = fetch(`/api/challenge/overview?date=${encodeURIComponent(targetDate)}`).then(async (res) => {
+    if (res.status === 401) {
+      window.location.href = "/challenge/login";
+      throw new Error("Unauthorized");
+    }
+    return res.json();
+  });
+  let data;
+  try {
+    data = await window._overviewLoadPromise;
+  } catch (err) {
+    return;
+  }
+  if (!data || data.error === "authentication_required") {
+    window.location.href = "/challenge/login";
+    return;
+  }
   STATE.overview = data;
+  if (data.profile && data.profile.id) {
+    window._authedProfileId = Number(data.profile.id);
+  }
   renderTodayDashboard(data);
   renderIntegrationsAndStaples(data);
 

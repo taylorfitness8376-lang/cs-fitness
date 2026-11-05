@@ -1217,6 +1217,122 @@ def test_mobile_daily_notes_carryover_to_weekly_sheet_and_excel(client):
         assert "High energy today, hit PB on incline press" in shared_strings_xml
 
 
+def test_multi_user_data_isolation_and_restart_recovery(client):
+    """Verify Alan's account has zero data leakage from Ewan, survives ephemeral DB resets, and TV Nov 9-13 schedule is seeded."""
+    from database import get_db, seed_default_tv_sessions
+
+    # 1. Unauthenticated requests must be rejected with 401 and never leak Ewan's profile
+    with client.session_transaction() as sess:
+        sess.clear()
+        sess["challenge_force_unauthed"] = True
+
+    unauthed_ov = client.get("/api/challenge/overview?date=2026-10-20")
+    assert unauthed_ov.status_code == 401
+    unauthed_st = client.get("/api/challenge/auth/status").get_json()
+    assert unauthed_st["authenticated"] is False
+    assert unauthed_st["client_name"] == ""
+    assert unauthed_st["profile_id"] is None
+
+    # 2. Enroll Alan as a challenger (profile_id > 1)
+    join_res = client.post("/api/challenge/blocks/join", json={
+        "invite_code": "CS-OCT2026",
+        "email": "alan@example.com",
+        "username": "alan_test",
+        "client_name": "Alan Tester",
+        "password": "alanpassword123",
+        "start_weight_kg": 92.5,
+        "target_weight_kg": 85.0,
+        "start_body_fat_pct": 20.0,
+        "protein_g": 170,
+    }).get_json()
+    assert join_res["ok"] is True
+    alan_pid = join_res["profile_id"]
+    assert alan_pid > 1
+
+    # Clear force_unauthed flag now that Alan is logged in
+    with client.session_transaction() as sess:
+        sess.pop("challenge_force_unauthed", None)
+
+    # 3. Verify Alan's overview, integrations, check-ins, and WhatsApp feed have zero Ewan data
+    alan_ov = client.get("/api/challenge/overview?date=2026-10-20").get_json()
+    assert alan_ov["profile"]["id"] == alan_pid
+    assert alan_ov["profile"]["client_name"] == "Alan Tester"
+    assert alan_ov["profile"]["start_weight_kg"] == 92.5
+    assert alan_ov["profile"]["target_weight_kg"] == 85.0
+    assert alan_ov["integrations"]["garmin_email"] == ""
+    assert alan_ov["checkin"]["steps"] == 0
+    assert alan_ov["checkin"]["weight_kg"] is None
+
+    # Attempting to pass ?profile_id=1 while logged in as Alan (challenger role) must still return Alan's profile
+    spoof_ov = client.get("/api/challenge/overview?date=2026-10-20&profile_id=1").get_json()
+    assert spoof_ov["profile"]["id"] == alan_pid
+    assert spoof_ov["profile"]["client_name"] == "Alan Tester"
+
+    wa_feed = client.get("/api/challenge/whatsapp/feed").get_json()
+    for msg in wa_feed.get("posts", []):
+        assert msg["sender"] != "Ewan t"
+
+    # 4. Log check-in and Garmin email for Alan and export backup
+    client.post("/api/challenge/checkins", json={
+        "date": "2026-10-20",
+        "weight_kg": 91.8,
+        "steps": 11500,
+        "calories": 2250,
+        "protein_g": 172,
+        "notes": "Alan upper body session",
+    })
+    client.post("/api/challenge/integrations", json={
+        "garmin_email": "alan.garmin@example.com",
+    })
+    alan_backup = client.get("/api/challenge/backup/export").get_json()
+    assert alan_backup["ok"] is True
+    assert alan_backup["profile"]["client_name"] == "Alan Tester"
+
+    # 5. Simulate ephemeral container restart wiping Alan's SQLite rows while his signed session cookie remains
+    with client.application.app_context():
+        db = get_db()
+        db.execute("DELETE FROM daily_checkins WHERE profile_id=?", (alan_pid,))
+        db.execute("DELETE FROM user_sync_integrations WHERE profile_id=?", (alan_pid,))
+        db.execute("DELETE FROM challenge_user_accounts WHERE profile_id=?", (alan_pid,))
+        db.execute("DELETE FROM challenge_profiles WHERE id=?", (alan_pid,))
+        db.commit()
+
+    # Alan's next request must auto-recover Alan's profile from his signed session (NOT fall back to Ewan t!)
+    recovered_ov = client.get("/api/challenge/overview?date=2026-10-20").get_json()
+    assert recovered_ov["profile"]["client_name"] == "Alan Tester"
+    assert recovered_ov["profile"]["start_weight_kg"] == 92.5
+
+    # And rehydrating Alan's backup payload succeeds for profile_id > 1
+    imp_res = client.post("/api/challenge/backup/import", json=alan_backup).get_json()
+    assert imp_res["ok"] is True
+    restored_ov = client.get("/api/challenge/overview?date=2026-10-20").get_json()
+    assert restored_ov["profile"]["client_name"] == "Alan Tester"
+    assert restored_ov["checkin"]["weight_kg"] == 91.8
+    assert restored_ov["checkin"]["steps"] == 11500
+    assert restored_ov["integrations"]["garmin_email"] == "alan.garmin@example.com"
+
+    # 6. Verify TV workouts and calendar schedule for Mon 9 Nov - Fri 13 Nov 2026 are seeded
+    with client.application.app_context():
+        db = get_db()
+        seed_default_tv_sessions(db)
+        db.commit()
+        cal_rows = db.execute(
+            """SELECT c.date, s.name
+               FROM calendar c
+               JOIN sessions s ON s.id = c.session_id
+               WHERE c.date BETWEEN '2026-11-09' AND '2026-11-13'
+               ORDER BY c.date"""
+        ).fetchall()
+        assert [ (r["date"], r["name"]) for r in cal_rows ] == [
+            ("2026-11-09", "CS Performance - Mon 9 Nov | Full Body"),
+            ("2026-11-10", "CS Performance - Tue 10 Nov | Cardio + Conditioning"),
+            ("2026-11-11", "CS Performance - Wed 11 Nov | Full Body"),
+            ("2026-11-12", "CS Performance - Thu 12 Nov | Active Rest"),
+            ("2026-11-13", "CS Performance - Fri 13 Nov | Full Body"),
+        ]
+
+
+
 
 
 

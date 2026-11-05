@@ -12,6 +12,8 @@ from challenge import (
     _get_active_profile,
     _resolve_webhook_or_active_profile,
     _is_current_user_admin,
+    _set_authenticated_session,
+    _check_challenge_api_auth,
     _get_profile_integrations,
     _update_profile_integrations,
     _encode_secret,
@@ -36,6 +38,11 @@ from sync_service import (
 )
 
 challenge_progress_bp = Blueprint("challenge_progress", __name__)
+
+
+@challenge_progress_bp.before_request
+def _guard_challenge_progress_bp_routes():
+    return _check_challenge_api_auth()
 
 
 def parse_workout_volume_kg(weight_reps_str, target_sets=1):
@@ -427,18 +434,25 @@ def api_update_profile_settings():
         ),
     )
     db.commit()
-    return jsonify({"ok": True, "profile": _get_active_profile(db, pid)})
+    updated_prof = _get_active_profile(db, pid)
+    if session.get("challenge_profile_id") and int(session.get("challenge_profile_id")) == int(pid):
+        _set_authenticated_session(updated_prof)
+    return jsonify({"ok": True, "profile": updated_prof})
 
 
 @challenge_progress_bp.route("/api/challenge/clear-fake-data", methods=["POST"])
 def api_clear_fake_data():
     """Remove pre-seeded demo/simulated check-in and activity rows when requested by the user."""
     db = get_db()
+    prof = _get_active_profile(db)
+    pid = int(prof["id"])
     db.execute(
-        "DELETE FROM daily_checkins WHERE sync_source_garmin IN ('Garmin Fenix 7', 'Garmin Connect (Fenix 7 + Index S2)', 'Garmin Connect (Simulated)')"
+        "DELETE FROM daily_checkins WHERE profile_id=? AND sync_source_garmin IN ('Garmin Fenix 7', 'Garmin Connect (Fenix 7 + Index S2)', 'Garmin Connect (Simulated)')",
+        (pid,),
     )
     db.execute(
-        "DELETE FROM daily_activities WHERE garmin_activity_id LIKE 'act-101%' OR garmin_activity_id LIKE 'garmin-%'"
+        "DELETE FROM daily_activities WHERE profile_id=? AND (garmin_activity_id LIKE 'act-101%' OR garmin_activity_id LIKE 'garmin-%')",
+        (pid,),
     )
     db.commit()
     return jsonify({"ok": True, "message": "Cleared demo data. Only real logged data will be shown."})
@@ -836,6 +850,8 @@ def api_sync_apple_health():
     db = get_db()
     data = request.get_json(silent=True) or {}
     profile = _resolve_webhook_or_active_profile(db, data)
+    if not profile:
+        return jsonify({"ok": False, "error": "Invalid or missing webhook token"}), 401
     pid = int(profile["id"])
     date_str = (data.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
     if data.get("simulate"):

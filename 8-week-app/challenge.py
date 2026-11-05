@@ -160,6 +160,26 @@ WORKOUT_TEMPLATES = {
 }
 
 
+def _set_authenticated_session(prof, acct=None):
+    """Persist full challenger identity in the signed Flask session cookie so profile recovery is deterministic across container restarts."""
+    if not prof:
+        return
+    session.permanent = True
+    session["challenge_authed"] = True
+    session["challenge_profile_id"] = int(prof["id"])
+    session["challenge_client_name"] = str(prof.get("client_name") or "").strip()
+    session["challenge_start_weight_kg"] = float(prof.get("start_weight_kg") or 80.0)
+    session["challenge_target_weight_kg"] = float(prof.get("target_weight_kg") or 74.5)
+    session["challenge_workout_track"] = str(prof.get("workout_track") or "mens")
+    if acct and isinstance(acct, dict):
+        if acct.get("email"):
+            session["challenge_email"] = str(acct.get("email") or "").strip()
+        if acct.get("username"):
+            session["challenge_username"] = str(acct.get("username") or "").strip()
+        if acct.get("role"):
+            session["challenge_role"] = str(acct.get("role") or "challenger").strip()
+
+
 def _is_current_user_admin(db):
     """Return True ONLY if the signed-in session user is one of the 3 Admins (Chris, Laura, Ewan)."""
     session_pid = session.get("challenge_profile_id")
@@ -172,9 +192,14 @@ def _is_current_user_admin(db):
             (int(session_pid),),
         ).fetchone()
         if not row:
-            return False
+            sess_role = (session.get("challenge_role") or "").lower()
+            sess_name = (session.get("challenge_client_name") or "").strip().lower()
+            return sess_role == "admin" or sess_name in ("ewan t", "chris", "laura")
         role = (row["role"] or "").lower()
         cname = (row["client_name"] or "").strip().lower()
+        sess_name = (session.get("challenge_client_name") or "").strip().lower()
+        if sess_name and cname != sess_name:
+            return (session.get("challenge_role") or "").lower() == "admin" or sess_name in ("ewan t", "chris", "laura")
         return role == "admin" or cname in ("ewan t", "chris", "laura")
     # In automated pytest runs without an explicit session, allow test helpers unless testing unauthed behavior
     if current_app.config.get("TESTING") and not session.get("challenge_force_unauthed"):
@@ -356,18 +381,116 @@ def _resolve_webhook_or_active_profile(db, data=None):
     return _get_active_profile(db)
 
 
+def _recover_or_create_session_profile(db, session_pid):
+    """Recover a challenger's profile by session email/client_name or recreate it if an ephemeral container restart wiped SQLite."""
+    sess_name = (session.get("challenge_client_name") or "").strip()
+    sess_email = (session.get("challenge_email") or "").strip()
+    sess_user = (session.get("challenge_username") or "").strip()
+    row = None
+    if sess_email:
+        try:
+            u_row = db.execute(
+                "SELECT profile_id FROM challenge_user_accounts WHERE LOWER(email)=LOWER(?)",
+                (sess_email,),
+            ).fetchone()
+            if u_row and u_row["profile_id"]:
+                row = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (int(u_row["profile_id"]),)).fetchone()
+        except Exception:
+            pass
+    if not row and sess_name:
+        row = db.execute("SELECT * FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (sess_name,)).fetchone()
+    if row:
+        if int(row["id"]) != int(session_pid or 0):
+            session["challenge_profile_id"] = int(row["id"])
+        return row
+    if not sess_name:
+        return None
+    # Ephemeral container restart wiped this challenger's row: recreate it cleanly with their stored session identity
+    sw = float(session.get("challenge_start_weight_kg") or 80.0)
+    tw = float(session.get("challenge_target_weight_kg") or 74.5)
+    track = str(session.get("challenge_workout_track") or "mens")
+    calc = calculate_challenge_targets(
+        start_weight_kg=sw,
+        target_weight_kg=tw,
+        start_body_fat_pct=18.0,
+        target_body_fat_pct=14.0,
+        protein_g=150,
+        start_date="2026-10-19",
+        goal="Weight Loss",
+        returning_member=False,
+    )
+    desired_id = int(session_pid) if session_pid and not db.execute("SELECT 1 FROM challenge_profiles WHERE id=?", (int(session_pid),)).fetchone() else None
+    if desired_id:
+        db.execute(
+            """INSERT INTO challenge_profiles (
+                id, client_name, goal, start_date, end_date,
+                start_weight_kg, target_weight_kg, start_body_fat_pct, target_body_fat_pct,
+                lean_body_mass_kg, fat_mass_kg, to_lose_kg,
+                target_calories, target_protein_g, target_fats_g, target_carbs_g,
+                target_fibre_g, target_water_l, target_sleep_hrs,
+                returning_member, workout_track, weekly_targets_json
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                desired_id, sess_name, calc["goal"], calc["start_date"], calc["end_date"],
+                calc["start_weight_kg"], calc["target_weight_kg"], calc["start_body_fat_pct"], calc["target_body_fat_pct"],
+                calc["lean_body_mass_kg"], calc["fat_mass_kg"], calc["to_lose_kg"],
+                calc["target_calories"], calc["target_protein_g"], calc["target_fats_g"], calc["target_carbs_g"],
+                30, calc["target_water_l"], 8.0, 0, track, json.dumps(calc["weekly_targets"]),
+            ),
+        )
+    else:
+        db.execute(
+            """INSERT INTO challenge_profiles (
+                client_name, goal, start_date, end_date,
+                start_weight_kg, target_weight_kg, start_body_fat_pct, target_body_fat_pct,
+                lean_body_mass_kg, fat_mass_kg, to_lose_kg,
+                target_calories, target_protein_g, target_fats_g, target_carbs_g,
+                target_fibre_g, target_water_l, target_sleep_hrs,
+                returning_member, workout_track, weekly_targets_json
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                sess_name, calc["goal"], calc["start_date"], calc["end_date"],
+                calc["start_weight_kg"], calc["target_weight_kg"], calc["start_body_fat_pct"], calc["target_body_fat_pct"],
+                calc["lean_body_mass_kg"], calc["fat_mass_kg"], calc["to_lose_kg"],
+                calc["target_calories"], calc["target_protein_g"], calc["target_fats_g"], calc["target_carbs_g"],
+                30, calc["target_water_l"], 8.0, 0, track, json.dumps(calc["weekly_targets"]),
+            ),
+        )
+    db.commit()
+    row = db.execute("SELECT * FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (sess_name,)).fetchone()
+    if row:
+        new_pid = int(row["id"])
+        session["challenge_profile_id"] = new_pid
+        try:
+            uname = sess_user or re.sub(r"[^a-z0-9]", "", sess_name.split()[0].lower()) or f"user{new_pid}"
+            db.execute(
+                """INSERT OR IGNORE INTO challenge_user_accounts (profile_id, username, email, role)
+                   VALUES (?,?,?,?)""",
+                (new_pid, uname, sess_email or f"{uname}@taylorfitness.co.uk", session.get("challenge_role") or "challenger"),
+            )
+            db.commit()
+        except Exception:
+            pass
+    return row
+
+
 def _get_active_profile(db, profile_id=None):
     session_pid = session.get("challenge_profile_id")
     is_admin = _is_current_user_admin(db)
+    row = None
     if session_pid:
         if profile_id is not None and int(profile_id) != int(session_pid) and is_admin:
             pid = int(profile_id)
+            row = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (pid,)).fetchone()
         else:
             pid = int(session_pid)
-        row = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (pid,)).fetchone()
+            row = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (pid,)).fetchone()
+            sess_name = (session.get("challenge_client_name") or "").strip()
+            if not row or (sess_name and (row["client_name"] or "").strip().lower() != sess_name.lower()):
+                row = _recover_or_create_session_profile(db, pid)
     elif profile_id is not None and is_admin:
         row = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (int(profile_id),)).fetchone()
-    else:
+    elif current_app.config.get("TESTING") and not session.get("challenge_force_unauthed"):
         row = db.execute("SELECT * FROM challenge_profiles WHERE client_name='Ewan t'").fetchone()
         if not row:
             row = db.execute("SELECT * FROM challenge_profiles ORDER BY id LIMIT 1").fetchone()
@@ -815,6 +938,45 @@ def _build_week_sheet(db, profile, week_num):
     }
 
 
+_PUBLIC_CHALLENGE_API_PATHS = {
+    "/api/challenge/auth/login",
+    "/api/challenge/auth/logout",
+    "/api/challenge/auth/status",
+    "/api/challenge/auth/forgot-password",
+    "/api/challenge/auth/forgot-password-request",
+    "/api/challenge/auth/reset-password",
+    "/api/challenge/auth/set-password",
+    "/api/challenge/auth/password",
+    "/api/challenge/auth/verify-email",
+    "/api/challenge/auth/resend-verification",
+    "/api/challenge/blocks/join",
+    "/api/challenge/blocks/webhook",
+    "/api/challenge/blocks/webhook/enroll",
+    "/api/challenge/teamup/webhook",
+    "/api/challenge/sync/webhook",
+    "/api/challenge/sync/apple-health",
+    "/api/challenge/telegram/webhook",
+}
+
+
+def _check_challenge_api_auth():
+    """Guard /api/challenge/* endpoints from unauthenticated access outside TESTING."""
+    if not request.path.startswith("/api/challenge/"):
+        return None
+    if request.path in _PUBLIC_CHALLENGE_API_PATHS:
+        return None
+    if session.get("challenge_authed"):
+        return None
+    if current_app.config.get("TESTING") and not session.get("challenge_force_unauthed"):
+        return None
+    return jsonify({"ok": False, "error": "Authentication required", "authenticated": False, "login_url": "/challenge/login"}), 401
+
+
+@challenge_bp.before_request
+def _guard_challenge_bp_routes():
+    return _check_challenge_api_auth()
+
+
 @challenge_bp.route("/challenge")
 def challenge_page():
     if not session.get("challenge_authed") and (
@@ -872,7 +1034,7 @@ def api_challenge_overview():
     wtd = _compute_win_the_day_score(checkin, profile, wk_info["step_target"])
     wa_share = format_daily_whatsapp_caption(checkin, profile, wk_info["week_num"], wk_info["step_target"])
     current_sheet = _build_week_sheet(db, profile, wk_info.get("sheet_week_num", 0))
-    integ = _get_profile_integrations(db, profile["id"])
+    integ = _get_profile_integrations(db, profile["id"], include_secrets=True)
     tg_text = format_weekly_telegram_summary(profile, wk_info.get("sheet_week_num", 0), current_sheet["rows"], current_sheet["averages"])
     tg_info = send_telegram_message("", "", tg_text, integ.get("coach_telegram_handle", "csfitness_chris"))
     current_sheet["telegram_summary"] = tg_text
@@ -989,12 +1151,15 @@ def api_challenge_profile():
     except Exception:
         pass
     db.commit()
+    updated_prof = _get_active_profile(db, profile["id"])
+    if session.get("challenge_profile_id") and int(session.get("challenge_profile_id")) == int(profile["id"]):
+        _set_authenticated_session(updated_prof)
     try:
         from challenge_blocks import auto_persist_profile_backup
         auto_persist_profile_backup(db, profile["id"])
     except Exception:
         pass
-    return jsonify(_get_active_profile(db, profile["id"]))
+    return jsonify(updated_prof)
 
 
 @challenge_bp.route("/api/challenge/calculate", methods=["POST"])
@@ -1469,6 +1634,8 @@ def api_challenge_sync_webhook():
     db = get_db()
     data = request.get_json() or {}
     profile = _resolve_webhook_or_active_profile(db, data)
+    if not profile:
+        return jsonify({"ok": False, "error": "Invalid or missing webhook token"}), 401
     pid = int(profile["id"])
     date_str = (data.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
     merged = parse_apple_health_payload(data, target_date=date_str)
@@ -1484,7 +1651,7 @@ def api_challenge_integrations():
     profile = _get_active_profile(db)
     pid = int(profile["id"])
     if request.method == "GET":
-        return jsonify(_get_profile_integrations(db, pid))
+        return jsonify(_get_profile_integrations(db, pid, include_secrets=False))
     data = request.get_json() or {}
     updates = {}
     for k in (
@@ -1615,18 +1782,28 @@ def api_challenge_telegram_webhook():
 @challenge_bp.route("/api/challenge/whatsapp/feed", methods=["GET", "POST"])
 def api_challenge_whatsapp_feed():
     db = get_db()
+    profile = _get_active_profile(db)
+    is_admin = _is_current_user_admin(db)
+    cname = (profile.get("client_name") if profile else "Challenger") or "Challenger"
+    first_name = cname.split()[0] if cname else "Challenger"
     if request.method == "POST":
         data = request.get_json() or {}
-        sender = data.get("sender") or "Ewan t"
+        sender = data.get("sender") or cname
         msg = data.get("message") or ""
-        tags = re.findall(r"#[A-Za-z0-9_]+", msg) or ["#Ewan", "#steps", "#macros", "#winTheDay"]
+        tags = re.findall(r"#[A-Za-z0-9_]+", msg) or [f"#{first_name}", "#steps", "#macros", "#winTheDay"]
         steps_val = data.get("steps")
         db.execute(
             "INSERT INTO whatsapp_posts (sender, role, posted_at, message, hashtags_json, steps_extracted, category) VALUES (?,?,?,?,?,?,?)",
             (sender, data.get("role", "member"), datetime.now().strftime("%Y-%m-%d %H:%M"), msg, json.dumps(tags), steps_val, "accountability"),
         )
         db.commit()
-    rows = db.execute("SELECT * FROM whatsapp_posts ORDER BY id DESC LIMIT 40").fetchall()
+    if is_admin:
+        rows = db.execute("SELECT * FROM whatsapp_posts ORDER BY id DESC LIMIT 40").fetchall()
+    else:
+        rows = db.execute(
+            "SELECT * FROM whatsapp_posts WHERE role='coach' OR LOWER(sender)=LOWER(?) OR LOWER(sender)=LOWER(?) ORDER BY id DESC LIMIT 40",
+            (cname, first_name),
+        ).fetchall()
     posts = []
     for r in rows:
         d = dict(r)
