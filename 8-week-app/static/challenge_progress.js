@@ -3121,7 +3121,7 @@ document.addEventListener('visibilitychange', () => {
 
 let _onePagerAutoSaveTimer = null;
 window.scheduleOnePagerAutoSave = function() {
-  const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
+  const curDate = window._onePagerInputDate || (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
   const wtVal = document.getElementById('op-weight')?.value?.trim() || '';
   const stepsVal = document.getElementById('op-steps')?.value?.trim() || '';
   const calsVal = document.getElementById('op-cals')?.value?.trim() || '';
@@ -3251,13 +3251,18 @@ window.saveAndSyncMobileGarmin = async function() {
         garmin_token_dump: gv.garmin_token_dump || '',
       }),
     });
-    const data = await res.json();
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      throw new Error(`Garmin sync returned HTTP ${res.status}`);
+    }
     if (data.integrations) {
       window.saveBrowserGarminVault(data.integrations);
     }
     await loadOverview(STATE.date);
     await refreshProgressSummary();
-    renderOnePagerViews();
+    renderOnePagerViews(true);
     window.clearButtonBusy(btn, '✅ Garmin Saved & Synced!');
     window.toggleMobileGarminDrawer(false);
     showToast(data.garmin_status || '✅ Garmin login saved & synced!');
@@ -3289,7 +3294,12 @@ window.triggerMobileGarminSync = async function() {
         garmin_token_dump: gv.garmin_token_dump || '',
       }),
     });
-    const data = await res.json();
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      throw new Error(`Garmin sync returned HTTP ${res.status}`);
+    }
     if (data.integrations) {
       window.saveBrowserGarminVault(data.integrations);
     }
@@ -3298,7 +3308,7 @@ window.triggerMobileGarminSync = async function() {
     }
     await loadOverview(STATE.date);
     await refreshProgressSummary();
-    renderOnePagerViews();
+    renderOnePagerViews(true);
     const msg = (data.messages && data.messages.join(' · ')) || 'Garmin sync completed';
     if (data.ok) {
       if (statusEl) {
@@ -3332,12 +3342,31 @@ function renderMobileDailyWeekStrip() {
   if (!stripEl) return;
   const ov = (typeof STATE !== 'undefined' && STATE.overview) || {};
   const sheet = ov.current_week_sheet || {};
-  const rows = sheet.rows || [];
+  const activeDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
+  let rows = Array.isArray(sheet.rows) ? sheet.rows.slice() : [];
   const vault = window.getBrowserCheckinsVault();
   const vaultByDate = {};
   (vault.daily_checkins || []).forEach(c => {
     if (c && c.date) vaultByDate[String(c.date).slice(0, 10)] = c;
   });
+
+  const activeInRows = rows.some(r => String(r.date || '').slice(0, 10) === activeDate);
+  if (!rows.length || !activeInRows) {
+    const dt = new Date(activeDate + 'T12:00:00');
+    if (!isNaN(dt.getTime())) {
+      const dow = dt.getDay();
+      const diffToMon = dow === 0 ? -6 : 1 - dow;
+      const mon = new Date(dt);
+      mon.setDate(dt.getDate() + diffToMon);
+      const shortNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      rows = shortNames.map((sn, idx) => {
+        const d = new Date(mon);
+        d.setDate(mon.getDate() + idx);
+        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return Object.assign({ date: iso, day_short: sn }, vaultByDate[iso] || {});
+      });
+    }
+  }
 
   if (!rows.length) {
     stripEl.innerHTML = '';
@@ -3346,33 +3375,46 @@ function renderMobileDailyWeekStrip() {
   const titleEl = document.getElementById('op-week-strip-title');
   const loggedCnt = rows.filter(r => hasMeaningfulCheckinData(r) || hasMeaningfulCheckinData(vaultByDate[r.date])).length;
   if (titleEl) {
-    titleEl.textContent = `${sheet.label || 'THIS WEEK'} · ${loggedCnt}/7 DAYS SAVED`;
+    titleEl.textContent = `${(activeInRows && sheet.label) ? sheet.label : 'SELECTED WEEK'} · ${loggedCnt}/7 DAYS SAVED`;
   }
 
   stripEl.innerHTML = rows.map(r => {
-    const vc = vaultByDate[r.date] || {};
+    const rDate = String(r.date || '').slice(0, 10);
+    const vc = vaultByDate[rDate] || {};
     const wt = r.weight_kg || vc.weight_kg;
     const st = r.steps || vc.steps;
     const hasData = hasMeaningfulCheckinData(r) || hasMeaningfulCheckinData(vc);
-    const isSelected = r.date === STATE.date;
-    const shortDay = r.day_short || (r.day_name || '').slice(0, 3) || r.date.slice(8, 10);
+    const isSelected = rDate === activeDate;
+    const shortDay = r.day_short || (r.day_name || '').slice(0, 3) || rDate.slice(8, 10);
     const subTxt = wt ? `${Number(wt).toFixed(1)}k` : (st ? `${Math.round(Number(st) / 1000)}k` : (hasData ? '✓' : '·'));
-    return `<button type="button" onclick="loadOverview('${r.date}')" style="padding:0.32rem 0.1rem;border-radius:8px;cursor:pointer;background:${isSelected ? 'rgba(61,255,79,0.22)' : (hasData ? 'rgba(61,255,79,0.08)' : 'var(--surface-2)')};border:1.5px solid ${isSelected ? 'var(--green)' : (hasData ? 'rgba(61,255,79,0.42)' : 'var(--border)')};color:#fff;text-align:center">
-      <div style="font-size:0.62rem;font-weight:800;color:${hasData ? 'var(--green)' : '#94a3b8'}">${shortDay}</div>
+    return `<button type="button" onclick="loadOverview('${rDate}')" style="padding:0.32rem 0.1rem;border-radius:8px;cursor:pointer;background:${isSelected ? 'rgba(61,255,79,0.22)' : (hasData ? 'rgba(61,255,79,0.08)' : 'var(--surface-2)')};border:1.5px solid ${isSelected ? 'var(--green)' : (hasData ? 'rgba(61,255,79,0.42)' : 'var(--border)')};color:#fff;text-align:center">
+      <div style="font-size:0.62rem;font-weight:800;color:${isSelected || hasData ? 'var(--green)' : '#94a3b8'}">${shortDay}</div>
       <div style="font-size:0.68rem;font-weight:900;margin-top:1px;color:${hasData ? '#fff' : 'var(--muted)'}">${hasData ? '✓ ' + subTxt : '·'}</div>
     </button>`;
   }).join('');
   renderWeeklyWorkoutsAndDailyNotesContext(sheet);
 }
 
-function renderOnePagerViews() {
+function renderOnePagerViews(forceUpdateInputs) {
   const ov = (typeof STATE !== 'undefined' && STATE.overview) || {};
-  const serverC = ov.checkin || {};
+  const rawServerC = ov.checkin || {};
   const prof = ov.profile || {};
   const intg = Object.assign({}, window.getBrowserGarminVault(), ov.integrations || {});
   const wkInfo = ov.week_info || {};
   const curDate = (typeof STATE !== 'undefined' && STATE.date) || new Date().toISOString().slice(0, 10);
   const dayName = getWeekdayNameForDate(curDate);
+  const dayChanged = Boolean(forceUpdateInputs) || (window._lastRenderedOnePagerDate !== curDate);
+  window._lastRenderedOnePagerDate = curDate;
+  window._onePagerInputDate = curDate;
+
+  // Only merge ov.checkin if its date matches curDate; otherwise check current_week_sheet.rows for curDate
+  const serverCDate = String(rawServerC.date || ov.date || '').slice(0, 10);
+  let serverC = {};
+  if (serverCDate === curDate) {
+    serverC = rawServerC;
+  } else if (ov.current_week_sheet && Array.isArray(ov.current_week_sheet.rows)) {
+    serverC = ov.current_week_sheet.rows.find(r => String(r.date || '').slice(0, 10) === curDate) || {};
+  }
 
   // Merge server check-in with local browser vault + any unsaved draft for curDate so data never blanks out
   const vault = window.getBrowserCheckinsVault();
@@ -3393,7 +3435,7 @@ function renderOnePagerViews() {
       c[k] = draftRow[k];
     }
   });
-  if (hasMeaningfulCheckinData(serverC)) {
+  if (serverCDate === curDate && hasMeaningfulCheckinData(serverC)) {
     window.recordCheckinInBrowserVault(serverC);
   }
 
@@ -3446,7 +3488,7 @@ function renderOnePagerViews() {
 
   const setVal = (id, v) => {
     const el = document.getElementById(id);
-    if (el && document.activeElement !== el) {
+    if (el && (dayChanged || document.activeElement !== el)) {
       el.value = v ?? '';
       el.placeholder = '';
     }

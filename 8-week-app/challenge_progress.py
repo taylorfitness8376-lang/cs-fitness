@@ -32,6 +32,7 @@ from excel_service import (
 )
 from sync_service import (
     fetch_live_garmin_data,
+    get_garmin_token_dir,
     fetch_live_mfp_data,
     format_weekly_telegram_summary,
     send_telegram_message,
@@ -706,7 +707,7 @@ def api_sync_connect_and_save():
 
     garmin_status = "Not configured — enter Garmin email & password above."
     mfp_status = "Not configured — enter MyFitnessPal username above."
-    token_dir = os.path.expanduser("~/.garminconnect") if pid == 1 else os.path.expanduser(f"~/.garminconnect_p{pid}")
+    token_dir = get_garmin_token_dir(pid)
     needs_mfa = False
     needs_password = False
 

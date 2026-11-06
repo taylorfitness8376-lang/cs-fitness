@@ -14,6 +14,7 @@ from sync_service import (
     parse_garmin_payload,
     parse_nutrition_payload,
     fetch_live_garmin_data,
+    get_garmin_token_dir,
     fetch_live_mfp_data,
     generate_simulated_sync_payload,
     format_daily_whatsapp_caption,
@@ -676,8 +677,7 @@ def _upsert_checkin(db, date_str, data, profile_id=1):
             ),
         )
     else:
-        db.execute(
-            """INSERT INTO daily_checkins (
+        insert_sql = """INSERT INTO daily_checkins (
                 profile_id, date, weight_kg, weigh_time, training_type, steps,
                 protein_g, calories, carbs_g, fats_g, fibre_g, water_l,
                 sleep_mins, sleep_str, sleep_score, body_battery, resting_hr,
@@ -685,21 +685,26 @@ def _upsert_checkin(db, date_str, data, profile_id=1):
                 morning_steps_banked, checkpoint_12pm_5k, checkpoint_5pm_10k,
                 mindset_win, class_attended, sync_source_garmin, sync_source_nutrition,
                 updated_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)""",
-            (
-                profile_id, curr["date"], curr["weight_kg"], curr["weigh_time"],
-                curr["training_type"], int(curr["steps"] or 0), int(curr["protein_g"] or 0),
-                int(curr["calories"] or 0), int(curr["carbs_g"] or 0), int(curr["fats_g"] or 0),
-                int(curr["fibre_g"] or 0), float(curr["water_l"] or 0.0),
-                int(curr["sleep_mins"] or 0), curr["sleep_str"], curr["sleep_score"],
-                curr["body_battery"], curr["resting_hr"], curr["stick_to_plan"],
-                curr["notes"], int(curr["caffeine_cutoff_met"] or 0),
-                int(curr["electrolytes_taken"] or 0), int(curr["morning_steps_banked"] or 0),
-                int(curr["checkpoint_12pm_5k"] or 0), int(curr["checkpoint_5pm_10k"] or 0),
-                curr["mindset_win"], curr["class_attended"],
-                curr["sync_source_garmin"], curr["sync_source_nutrition"],
-            ),
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)"""
+        insert_params = (
+            profile_id, curr["date"], curr["weight_kg"], curr["weigh_time"],
+            curr["training_type"], int(curr["steps"] or 0), int(curr["protein_g"] or 0),
+            int(curr["calories"] or 0), int(curr["carbs_g"] or 0), int(curr["fats_g"] or 0),
+            int(curr["fibre_g"] or 0), float(curr["water_l"] or 0.0),
+            int(curr["sleep_mins"] or 0), curr["sleep_str"], curr["sleep_score"],
+            curr["body_battery"], curr["resting_hr"], curr["stick_to_plan"],
+            curr["notes"], int(curr["caffeine_cutoff_met"] or 0),
+            int(curr["electrolytes_taken"] or 0), int(curr["morning_steps_banked"] or 0),
+            int(curr["checkpoint_12pm_5k"] or 0), int(curr["checkpoint_5pm_10k"] or 0),
+            curr["mindset_win"], curr["class_attended"],
+            curr["sync_source_garmin"], curr["sync_source_nutrition"],
         )
+        try:
+            db.execute(insert_sql, insert_params)
+        except Exception:
+            from database import migrate_multiuser_unique_constraints
+            migrate_multiuser_unique_constraints(db)
+            db.execute(insert_sql, insert_params)
     db.commit()
     try:
         from challenge_blocks import auto_persist_profile_backup
@@ -1017,7 +1022,39 @@ def api_challenge_overview():
 
     row = db.execute("SELECT * FROM daily_checkins WHERE date=? AND profile_id=?", (date_str, profile["id"])).fetchone()
     if not row:
-        checkin = _upsert_checkin(db, date_str, {}, profile["id"])
+        try:
+            checkin = _upsert_checkin(db, date_str, {}, profile["id"])
+        except Exception:
+            checkin = {
+                "profile_id": profile["id"],
+                "date": date_str,
+                "weight_kg": None,
+                "weigh_time": "06:30",
+                "training_type": "REST",
+                "steps": 0,
+                "protein_g": 0,
+                "calories": 0,
+                "carbs_g": 0,
+                "fats_g": 0,
+                "fibre_g": 0,
+                "water_l": 0.0,
+                "sleep_mins": 0,
+                "sleep_str": "",
+                "sleep_score": None,
+                "body_battery": None,
+                "resting_hr": None,
+                "stick_to_plan": "Y",
+                "notes": "",
+                "caffeine_cutoff_met": 0,
+                "electrolytes_taken": 0,
+                "morning_steps_banked": 0,
+                "checkpoint_12pm_5k": 0,
+                "checkpoint_5pm_10k": 0,
+                "mindset_win": "",
+                "class_attended": "",
+                "sync_source_garmin": "",
+                "sync_source_nutrition": "",
+            }
     else:
         checkin = dict(row)
 
@@ -1498,8 +1535,8 @@ def api_challenge_sync_live():
     needs_mfa = False
     needs_password = False
 
-    # 1. Live Garmin Connect sync (isolated token dir per profile_id)
-    token_dir = os.path.expanduser("~/.garminconnect") if pid == 1 else os.path.expanduser(f"~/.garminconnect_p{pid}")
+    # 1. Live Garmin Connect sync (isolated persistent token dir per profile_id)
+    token_dir = get_garmin_token_dir(pid)
     if (
         garmin_email
         or mfa_code

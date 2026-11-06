@@ -117,6 +117,12 @@ async function loadOverview(dateOverride) {
   const todayIso = getTodayIsoDate();
   const yestIso = getOffsetIsoDate(todayIso, -1);
   const targetDate = dateOverride || (dateInput && dateInput.value) || STATE.date || todayIso;
+  const dateChanged = STATE.date && STATE.date !== targetDate;
+  if (dateChanged && document.activeElement && typeof document.activeElement.blur === "function") {
+    try {
+      document.activeElement.blur();
+    } catch (e) {}
+  }
   STATE.date = targetDate;
   if (dateInput) dateInput.value = targetDate;
 
@@ -135,10 +141,24 @@ async function loadOverview(dateOverride) {
     btnYest.className = "btn btn-sm" + (targetDate === yestIso ? " btn-green" : "");
   }
 
+  // Immediately re-render the mobile 1-Pager and week strip for targetDate before network fetch completes
+  if (STATE.overview && STATE.overview.current_week_sheet) {
+    renderHeaderWeekStrip(STATE.overview.current_week_sheet, targetDate);
+  }
+  if (typeof window.renderOnePagerViews === "function") {
+    try {
+      window.renderOnePagerViews(true);
+    } catch (e) {}
+  }
+
+  const reqSeq = (window._overviewReqSeq = (window._overviewReqSeq || 0) + 1);
   window._overviewLoadPromise = fetch(`/api/challenge/overview?date=${encodeURIComponent(targetDate)}`).then(async (res) => {
     if (res.status === 401) {
       window.location.href = "/challenge/login";
       throw new Error("Unauthorized");
+    }
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
     }
     return res.json();
   });
@@ -146,6 +166,14 @@ async function loadOverview(dateOverride) {
   try {
     data = await window._overviewLoadPromise;
   } catch (err) {
+    if (typeof window.renderOnePagerViews === "function") {
+      try {
+        window.renderOnePagerViews(true);
+      } catch (e) {}
+    }
+    return;
+  }
+  if (reqSeq !== window._overviewReqSeq) {
     return;
   }
   if (!data || data.error === "authentication_required") {
@@ -170,6 +198,11 @@ async function loadOverview(dateOverride) {
   if (data.current_week_sheet) {
     renderHeaderWeekStrip(data.current_week_sheet, targetDate);
     renderWeekSheetData(data.current_week_sheet);
+  }
+  if (typeof window.renderOnePagerViews === "function") {
+    try {
+      window.renderOnePagerViews(true);
+    } catch (e) {}
   }
 }
 

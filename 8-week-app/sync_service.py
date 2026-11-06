@@ -682,6 +682,9 @@ class _BuiltinGarminClient:
         return False
 
     def _try_browser_cookies(self):
+        import sys
+        if os.environ.get("RENDER") or sys.platform.startswith("linux"):
+            return False
         try:
             import browser_cookie3
             for loader in (browser_cookie3.chrome, browser_cookie3.safari, browser_cookie3.firefox, browser_cookie3.edge):
@@ -961,6 +964,39 @@ def _garmin_token_backend(garmin_obj):
     return getattr(garmin_obj, "garth", None)
 
 
+def get_garmin_token_dir(profile_id=1):
+    """Return a persistent per-profile directory for Garmin Connect tokens (backed by DATA_DIR on Render)."""
+    import os
+    import shutil
+    pid = int(profile_id or 1)
+    base_data_dir = None
+    try:
+        import config
+        base_data_dir = getattr(config, "DATA_DIR", None)
+    except Exception:
+        pass
+    if not base_data_dir:
+        db_env = os.environ.get("DATABASE_PATH", "")
+        if db_env:
+            base_data_dir = os.path.dirname(os.path.abspath(db_env))
+        else:
+            base_data_dir = os.path.expanduser("~")
+    token_dir = os.path.join(base_data_dir, "garmin_tokens", f"p{pid}")
+    legacy_dir = os.path.expanduser("~/.garminconnect") if pid == 1 else os.path.expanduser(f"~/.garminconnect_p{pid}")
+    try:
+        if not os.path.exists(token_dir) and os.path.isdir(legacy_dir):
+            os.makedirs(os.path.dirname(token_dir), exist_ok=True)
+            shutil.copytree(legacy_dir, token_dir, dirs_exist_ok=True)
+        legacy_cookie = f"{legacy_dir}_session.json"
+        new_cookie = f"{token_dir}_session.json"
+        if not os.path.exists(new_cookie) and os.path.isfile(legacy_cookie):
+            os.makedirs(os.path.dirname(token_dir), exist_ok=True)
+            shutil.copy2(legacy_cookie, new_cookie)
+    except Exception:
+        pass
+    return token_dir
+
+
 def _clean_legacy_garth_tokens(token_dir):
     """Remove legacy garth oauth1_token.json / oauth2_token.json files when upgrading to garminconnect 0.3+."""
     import os
@@ -1132,20 +1168,15 @@ def fetch_live_garmin_data(
                             client.login(token_dir)
                     except Exception as first_login_exc:
                         err_lower = str(first_login_exc).lower()
-                        if "mfa" in err_lower or "verification" in err_lower or "2fa" in err_lower:
+                        if "mfa" in err_lower or "verification" in err_lower or "2fa" in err_lower or "401" in err_lower or "unauthorized" in err_lower or "429" in err_lower or "too many" in err_lower:
                             raise
-                        try:
-                            client = Garmin(email, password)
-                            client.login()
-                            token_dump_out = _dump_garmin_tokens(client, token_dir, token_dump_out)
-                        except Exception:
-                            builtin_kw = {"email": email, "cookie_path": cookie_file}
-                            builtin_kw["pass" + "word"] = password
-                            client = _BuiltinGarminClient(**builtin_kw)
-                            client.login()
-                            if os.path.exists(cookie_file):
-                                with open(cookie_file, "r", encoding="utf-8") as f:
-                                    token_dump_out = f.read()
+                        builtin_kw = {"email": email, "cookie_path": cookie_file}
+                        builtin_kw["pass" + "word"] = password
+                        client = _BuiltinGarminClient(**builtin_kw)
+                        client.login()
+                        if os.path.exists(cookie_file):
+                            with open(cookie_file, "r", encoding="utf-8") as f:
+                                token_dump_out = f.read()
         except ImportError:
             if saved_token_dump and not os.path.exists(cookie_file) and saved_token_dump.startswith("{"):
                 try:

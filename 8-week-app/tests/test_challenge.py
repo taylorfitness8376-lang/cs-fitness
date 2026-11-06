@@ -1332,6 +1332,85 @@ def test_multi_user_data_isolation_and_restart_recovery(client):
         ]
 
 
+def test_legacy_daily_checkins_unique_date_migration_and_day_switch(client):
+    """Verify legacy single-column UNIQUE(date) on daily_checkins is auto-migrated to UNIQUE(profile_id, date) so switching days or syncing Garmin never 500s."""
+    from database import get_db
+
+    # Simulate an existing DB that still had legacy `date TEXT NOT NULL UNIQUE`
+    with client.application.app_context():
+        db = get_db()
+        db.execute("DROP TABLE IF EXISTS daily_checkins_legacy_tmp")
+        db.execute(
+            """CREATE TABLE daily_checkins_legacy_tmp (
+                id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_id            INTEGER NOT NULL DEFAULT 1,
+                date                  TEXT NOT NULL UNIQUE,
+                weight_kg             REAL,
+                weigh_time            TEXT NOT NULL DEFAULT '06:30',
+                training_type         TEXT NOT NULL DEFAULT 'REST',
+                steps                 INTEGER NOT NULL DEFAULT 0,
+                protein_g             INTEGER NOT NULL DEFAULT 0,
+                calories              INTEGER NOT NULL DEFAULT 0,
+                carbs_g               INTEGER NOT NULL DEFAULT 0,
+                fats_g                INTEGER NOT NULL DEFAULT 0,
+                fibre_g               INTEGER NOT NULL DEFAULT 0,
+                water_l               REAL NOT NULL DEFAULT 0.0,
+                sleep_mins            INTEGER NOT NULL DEFAULT 0,
+                sleep_str             TEXT NOT NULL DEFAULT '',
+                sleep_score           INTEGER,
+                body_battery          INTEGER,
+                resting_hr            INTEGER,
+                stick_to_plan         TEXT NOT NULL DEFAULT 'Y',
+                notes                 TEXT NOT NULL DEFAULT '',
+                caffeine_cutoff_met   INTEGER NOT NULL DEFAULT 0,
+                electrolytes_taken    INTEGER NOT NULL DEFAULT 0,
+                morning_steps_banked  INTEGER NOT NULL DEFAULT 0,
+                checkpoint_12pm_5k    INTEGER NOT NULL DEFAULT 0,
+                checkpoint_5pm_10k    INTEGER NOT NULL DEFAULT 0,
+                mindset_win           TEXT NOT NULL DEFAULT '',
+                class_attended        TEXT NOT NULL DEFAULT '',
+                sync_source_garmin    TEXT NOT NULL DEFAULT '',
+                sync_source_nutrition TEXT NOT NULL DEFAULT '',
+                updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )"""
+        )
+        # Insert a row on 2026-11-04 (Wed 4 Nov) belonging to another profile (profile_id=6)
+        db.execute(
+            "INSERT INTO daily_checkins_legacy_tmp (profile_id, date, steps) VALUES (6, '2026-11-04', 0)"
+        )
+        db.execute(
+            "INSERT INTO daily_checkins_legacy_tmp (profile_id, date, weight_kg, steps) VALUES (1, '2026-11-06', 84.5, 17435)"
+        )
+        db.execute("DROP TABLE daily_checkins")
+        db.execute("ALTER TABLE daily_checkins_legacy_tmp RENAME TO daily_checkins")
+        db.commit()
+
+    # Log in as Ewan (profile_id=1) and switch from Fri 6 Nov (2026-11-06) to Wed 4 Nov (2026-11-04)
+    client.post("/api/challenge/auth/login", json={"email": "taylor.ewan@gmail.com"})
+    r_fri = client.get("/api/challenge/overview?date=2026-11-06")
+    assert r_fri.status_code == 200
+    assert r_fri.get_json()["checkin"]["date"] == "2026-11-06"
+    assert r_fri.get_json()["checkin"]["steps"] == 17435
+
+    r_wed = client.get("/api/challenge/overview?date=2026-11-04")
+    assert r_wed.status_code == 200
+    wed_data = r_wed.get_json()
+    assert wed_data["date"] == "2026-11-04"
+    assert wed_data["checkin"]["date"] == "2026-11-04"
+    assert wed_data["checkin"]["profile_id"] == 1
+
+    # Saving check-in data on 2026-11-04 for profile_id=1 must succeed without colliding with profile_id=6
+    r_save = client.post("/api/challenge/checkins", json={
+        "date": "2026-11-04",
+        "weight_kg": 84.8,
+        "steps": 13100,
+    })
+    assert r_save.status_code == 200
+    assert r_save.get_json()["checkin"]["weight_kg"] == 84.8
+    assert r_save.get_json()["checkin"]["steps"] == 13100
+
+
+
 
 
 

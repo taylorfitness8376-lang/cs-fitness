@@ -270,6 +270,120 @@ def calculate_challenge_targets(
     }
 
 
+def migrate_multiuser_unique_constraints(db):
+    """Rebuild daily_checkins / workout_logs if an existing DB still has legacy single-user UNIQUE constraints."""
+    try:
+        dc_row = db.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='daily_checkins'"
+        ).fetchone()
+        dc_sql = (dc_row["sql"] if dc_row else "") or ""
+        if dc_sql and "UNIQUE(profile_id, date)" not in dc_sql and "UNIQUE (profile_id, date)" not in dc_sql:
+            db.execute("DROP TABLE IF EXISTS daily_checkins_mig")
+            db.execute(
+                """CREATE TABLE daily_checkins_mig (
+                    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+                    profile_id            INTEGER NOT NULL DEFAULT 1,
+                    date                  TEXT NOT NULL,
+                    weight_kg             REAL,
+                    weigh_time            TEXT NOT NULL DEFAULT '06:30',
+                    training_type         TEXT NOT NULL DEFAULT 'REST',
+                    steps                 INTEGER NOT NULL DEFAULT 0,
+                    protein_g             INTEGER NOT NULL DEFAULT 0,
+                    calories              INTEGER NOT NULL DEFAULT 0,
+                    carbs_g               INTEGER NOT NULL DEFAULT 0,
+                    fats_g                INTEGER NOT NULL DEFAULT 0,
+                    fibre_g               INTEGER NOT NULL DEFAULT 0,
+                    water_l               REAL NOT NULL DEFAULT 0.0,
+                    sleep_mins            INTEGER NOT NULL DEFAULT 0,
+                    sleep_str             TEXT NOT NULL DEFAULT '',
+                    sleep_score           INTEGER,
+                    body_battery          INTEGER,
+                    resting_hr            INTEGER,
+                    stick_to_plan         TEXT NOT NULL DEFAULT 'Y',
+                    notes                 TEXT NOT NULL DEFAULT '',
+                    caffeine_cutoff_met   INTEGER NOT NULL DEFAULT 0,
+                    electrolytes_taken    INTEGER NOT NULL DEFAULT 0,
+                    morning_steps_banked  INTEGER NOT NULL DEFAULT 0,
+                    checkpoint_12pm_5k    INTEGER NOT NULL DEFAULT 0,
+                    checkpoint_5pm_10k    INTEGER NOT NULL DEFAULT 0,
+                    mindset_win           TEXT NOT NULL DEFAULT '',
+                    class_attended        TEXT NOT NULL DEFAULT '',
+                    sync_source_garmin    TEXT NOT NULL DEFAULT '',
+                    sync_source_nutrition TEXT NOT NULL DEFAULT '',
+                    updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(profile_id, date)
+                )"""
+            )
+            existing_cols = {
+                r["name"] for r in db.execute("PRAGMA table_info(daily_checkins)").fetchall()
+            }
+            target_cols = [
+                "id", "profile_id", "date", "weight_kg", "weigh_time", "training_type",
+                "steps", "protein_g", "calories", "carbs_g", "fats_g", "fibre_g", "water_l",
+                "sleep_mins", "sleep_str", "sleep_score", "body_battery", "resting_hr",
+                "stick_to_plan", "notes", "caffeine_cutoff_met", "electrolytes_taken",
+                "morning_steps_banked", "checkpoint_12pm_5k", "checkpoint_5pm_10k",
+                "mindset_win", "class_attended", "sync_source_garmin", "sync_source_nutrition",
+                "updated_at",
+            ]
+            common_cols = [c for c in target_cols if c in existing_cols]
+            cols_csv = ", ".join(common_cols)
+            db.execute(
+                f"INSERT OR REPLACE INTO daily_checkins_mig ({cols_csv}) SELECT {cols_csv} FROM daily_checkins ORDER BY id ASC"
+            )
+            db.execute("DROP TABLE daily_checkins")
+            db.execute("ALTER TABLE daily_checkins_mig RENAME TO daily_checkins")
+            db.commit()
+    except Exception:
+        pass
+
+    try:
+        wl_row = db.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='workout_logs'"
+        ).fetchone()
+        wl_sql = (wl_row["sql"] if wl_row else "") or ""
+        if wl_sql and "UNIQUE(profile_id, track, workout_num, week_num, row_key)" not in wl_sql:
+            db.execute("DROP TABLE IF EXISTS workout_logs_mig")
+            db.execute(
+                """CREATE TABLE workout_logs_mig (
+                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                    profile_id     INTEGER NOT NULL DEFAULT 1,
+                    track          TEXT NOT NULL DEFAULT 'mens',
+                    workout_num    INTEGER NOT NULL,
+                    week_num       INTEGER NOT NULL,
+                    row_key        TEXT NOT NULL,
+                    exercise_order TEXT NOT NULL,
+                    exercise_name  TEXT NOT NULL,
+                    target_sets    INTEGER NOT NULL DEFAULT 1,
+                    target_reps    TEXT NOT NULL DEFAULT '',
+                    weight_reps    TEXT NOT NULL DEFAULT '',
+                    set_logs_json  TEXT NOT NULL DEFAULT '[]',
+                    logged_date    TEXT NOT NULL DEFAULT '',
+                    notes          TEXT NOT NULL DEFAULT '',
+                    updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(profile_id, track, workout_num, week_num, row_key)
+                )"""
+            )
+            existing_cols = {
+                r["name"] for r in db.execute("PRAGMA table_info(workout_logs)").fetchall()
+            }
+            target_cols = [
+                "id", "profile_id", "track", "workout_num", "week_num", "row_key",
+                "exercise_order", "exercise_name", "target_sets", "target_reps",
+                "weight_reps", "set_logs_json", "logged_date", "notes", "updated_at",
+            ]
+            common_cols = [c for c in target_cols if c in existing_cols]
+            cols_csv = ", ".join(common_cols)
+            db.execute(
+                f"INSERT OR REPLACE INTO workout_logs_mig ({cols_csv}) SELECT {cols_csv} FROM workout_logs ORDER BY id ASC"
+            )
+            db.execute("DROP TABLE workout_logs")
+            db.execute("ALTER TABLE workout_logs_mig RENAME TO workout_logs")
+            db.commit()
+    except Exception:
+        pass
+
+
 def init_challenge_tables(db):
     import json
 
@@ -470,6 +584,8 @@ def init_challenge_tables(db):
             UNIQUE(profile_id, week_num)
         );
     """)
+
+    migrate_multiuser_unique_constraints(db)
 
     # Seed Ewan's profile if not present
     existing = db.execute("SELECT id FROM challenge_profiles WHERE client_name = ?", ("Ewan t",)).fetchone()
