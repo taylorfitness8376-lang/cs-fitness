@@ -1444,6 +1444,110 @@ def test_weekly_checkin_persistence_and_cropped_photos_restore(client):
     assert wk3_row["submission_status"] == "Submitted"
 
 
+def test_saturday_to_friday_summary_start_weight_share_report_and_cohort_onboarding(client):
+    """Verify:
+    1. Workouts tab pill removed from Challenger topbar.
+    2. Week-over-Week Start Weight (Week 0) is pinned to profile.start_weight_kg (88.6 kg) with total_delta_kg.
+    3. Weekly Summary (Weeks 1..8) spans Saturday to Friday (Sat..Fri).
+    4. Shareable Coach Chris HTML page (/challenge/share/<pid>/<week>) renders Side-by-Side photos, Write-Up, Sat-Fri Summary, and Week-over-Week table.
+    5. Admin Post-Payment Cohort Bulk Invite (/api/challenge/admin/invite-users) handles New vs Returning cohort members + 1st-login Onboarding (/api/challenge/onboarding).
+    """
+    client.post("/api/challenge/auth/login", json={"email": "taylor.ewan@gmail.com"})
+
+    # 1. Challenger UI has no Workouts topbar pill and includes Coach Chris Web Report + 1st-Login Block Setup modal
+    html = client.get("/challenge").get_data(as_text=True)
+    assert 'id="nav-pill-workouts"' not in html
+    assert "openCoachChrisWebReport" in html
+    assert 'id="first-login-onboarding-modal"' in html
+
+    # 2. Update Start Weight to 88.6 kg and verify Week 0 in Week-over-Week uses 88.6 kg (not pre-coaching daily average)
+    prof_res = client.post("/api/challenge/profile", json={
+        "start_weight_kg": 88.6,
+        "target_weight_kg": 78.3,
+    }).get_json()
+    assert prof_res["start_weight_kg"] == 88.6
+
+    summary = client.get("/api/challenge/progress/summary").get_json()
+    wk0 = next(w for w in summary["weeks"] if w["week_num"] == 0)
+    assert wk0["avg_weight_kg"] == 88.6
+    assert wk0["weight_change_vs_prev_kg"] == 0.0
+    assert wk0["total_delta_kg"] == 0.0
+
+    # 3. Verify Weekly Summary for Week 3 spans Saturday to Friday (Sat -> Fri)
+    wk3_sheet = client.get("/api/challenge/week/3").get_json()
+    day_names = [r["day_name"] for r in wk3_sheet["rows"]]
+    assert day_names == ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"]
+    assert wk3_sheet["start_date"] == "2026-10-31"
+    assert wk3_sheet["end_date"] == "2026-11-06"
+
+    # 4. Verify Shareable Coach Chris Weekly Report HTML page (/challenge/share/1/3)
+    share_res = client.get("/challenge/share/1/3")
+    assert share_res.status_code == 200
+    share_html = share_res.get_data(as_text=True)
+    assert "Side-by-Side Progress Photos" in share_html
+    assert "1. Write-Up of the Week" in share_html
+    assert "2. Summary of the Week (Saturday" in share_html
+    assert "3. Week-over-Week Progress" in share_html
+    assert "88.60 kg" in share_html
+
+    # 5. Admin Post-Payment Cohort Bulk Invite: create a new block, invite a new user + a returning user
+    blk_res = client.post("/api/challenge/blocks", json={
+        "name": "January 2027 8-Week Transformation Block",
+        "pre_coaching_Start": "2027-01-04",
+        "week1_monday": "2027-01-11",
+    }).get_json()
+    assert blk_res["ok"] is True
+    jan_block_id = blk_res["block"]["id"]
+
+    inv_res = client.post("/api/challenge/admin/invite-users", json={
+        "block_id": jan_block_id,
+        "send_email": False,
+        "entries": [
+            "Emma Watson, emma.new@example.com",
+            "Ewan Taylor, taylor.ewan@gmail.com",
+        ],
+    }).get_json()
+    assert inv_res["ok"] is True
+    assert inv_res["count"] == 2
+    by_email = {i["email"]: i for i in inv_res["invited"]}
+    assert by_email["emma.new@example.com"]["is_returning"] is False
+    assert "invite=" in by_email["emma.new@example.com"]["signup_url"]
+    assert by_email["taylor.ewan@gmail.com"]["is_returning"] is True
+    assert "returning=1" in by_email["taylor.ewan@gmail.com"]["signup_url"]
+
+    # 6. New user joins with First Name, Last Name, Age, Start Weight and completes 1st-Login Block Setup
+    join_emma = client.post("/api/challenge/blocks/join", json={
+        "invite_code": blk_res["block"]["invite_code"],
+        "first_name": "Emma",
+        "last_name": "Watson",
+        "age": 34,
+        "email": "emma.new@example.com",
+        "password": "emmapassword123",
+        "start_weight_kg": 68.4,
+        "target_weight_kg": 62.0,
+        "initial_checkin_notes": "Excited for Block 1! Focusing on 10k steps and 140g protein.",
+    }).get_json()
+    assert join_emma["ok"] is True
+
+    ob_res = client.post("/api/challenge/onboarding", json={
+        "first_name": "Emma",
+        "last_name": "Watson",
+        "age": 34,
+        "start_weight_kg": 68.2,
+        "target_weight_kg": 62.0,
+        "start_body_fat_pct": 22.0,
+        "initial_checkin_notes": "Day 1 morning fasted weigh-in complete & 3 starting photos uploaded.",
+    }).get_json()
+    assert ob_res["ok"] is True
+    assert ob_res["profile"]["first_name"] == "Emma"
+    assert ob_res["profile"]["last_name"] == "Watson"
+    assert ob_res["profile"]["age"] == 34
+    assert ob_res["profile"]["start_weight_kg"] == 68.2
+    assert ob_res["profile"]["onboarding_completed"] == 1
+    assert "Day 1 morning fasted" in ob_res["profile"]["initial_checkin_notes"]
+
+
+
 
 
 

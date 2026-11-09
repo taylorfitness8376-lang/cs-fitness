@@ -118,9 +118,22 @@ def compute_week_over_week(db, profile):
     """Build Week-over-Week summary (Pre-Coaching Wk 0 + Weeks 1..8) with workouts, photos & in-app check-in status."""
     _ensure_weekly_submissions_table(db)
     start_dt = datetime.strptime(profile.get("start_date", "2026-10-19")[:10], "%Y-%m-%d")
-    start_w = float(profile.get("start_weight_kg") or 84.0)
+    start_w = round(float(profile.get("start_weight_kg") or 84.0), 2)
     prev_avg_w = start_w
     weeks = []
+
+    # Purge any legacy demo 83.7kg pre-coaching rows on profile 1 so Start weight stays pinned to start_weight_kg
+    if int(profile.get("id") or 0) == 1 and start_w > 85.0:
+        try:
+            db.execute(
+                "DELETE FROM daily_checkins WHERE profile_id=1 AND date < '2026-10-17' AND weight_kg IS NOT NULL AND weight_kg < 84.5"
+            )
+            db.execute(
+                "UPDATE weekly_submissions SET avg_weight_kg=? WHERE profile_id=1 AND week_num=0",
+                (start_w,),
+            )
+        except Exception:
+            pass
 
     subs = {
         r["week_num"]: dict(r)
@@ -139,15 +152,21 @@ def compute_week_over_week(db, profile):
             and (r.get("steps", 0) > 0 or r.get("calories", 0) > 0 or r.get("weight_kg") is not None)
         ]
         weights = [float(r["weight_kg"]) for r in real_rows if r.get("weight_kg") is not None]
-        avg_w = round(sum(weights) / len(weights), 2) if weights else 0.0
+        if wk == 0:
+            avg_w = start_w
+            wow_diff = 0.0
+            tot_diff = 0.0
+            prev_avg_w = start_w
+        else:
+            avg_w = round(sum(weights) / len(weights), 2) if weights else 0.0
+            wow_diff = round(avg_w - prev_avg_w, 2) if avg_w > 0 else None
+            tot_diff = round(avg_w - start_w, 2) if avg_w > 0 else None
+            if avg_w > 0:
+                prev_avg_w = avg_w
         avg_steps = int(round(sum(int(r.get("steps") or 0) for r in real_rows) / len(real_rows))) if real_rows else 0
         avg_cals = int(round(sum(int(r.get("calories") or 0) for r in real_rows) / len(real_rows))) if real_rows else 0
         avg_prot = int(round(sum(int(r.get("protein_g") or 0) for r in real_rows) / len(real_rows))) if real_rows else 0
         days_on_plan = sum(1 for r in real_rows if r.get("stick_to_plan") == "Y")
-        wow_diff = round(avg_w - prev_avg_w, 2) if avg_w > 0 else None
-        tot_diff = round(avg_w - start_w, 2) if avg_w > 0 else None
-        if avg_w > 0:
-            prev_avg_w = avg_w
 
         acts = db.execute(
             "SELECT category, distance_km, garmin_activity_id FROM daily_activities WHERE profile_id=? AND date>=? AND date<=?",
@@ -192,6 +211,7 @@ def compute_week_over_week(db, profile):
             "wow_diff_kg": wow_diff,
             "weight_change_vs_prev_kg": wow_diff,
             "total_diff_kg": tot_diff,
+            "total_delta_kg": tot_diff,
             "avg_steps": avg_steps,
             "step_target": sheet["step_target"],
             "target_steps": sheet["step_target"],
@@ -214,6 +234,7 @@ def compute_week_over_week(db, profile):
             "card_data_url": sub.get("card_data_url", ""),
             "submitted_at": sub.get("submitted_at", ""),
             "reviewed_at": sub.get("reviewed_at", ""),
+            "share_url": f"/challenge/share/{profile['id']}/{wk}",
         })
     return weeks
 
@@ -346,7 +367,14 @@ def api_submit_weekly_checkin():
         auto_persist_profile_backup(db, pid)
     except Exception:
         pass
-    return jsonify({"ok": True, "week_num": week_num, "status": "Submitted", "submitted_at": now_str})
+    share_path = f"/challenge/share/{pid}/{week_num}"
+    return jsonify({
+        "ok": True,
+        "week_num": week_num,
+        "status": "Submitted",
+        "submitted_at": now_str,
+        "share_url": share_path,
+    })
 
 
 @challenge_progress_bp.route("/api/challenge/weekly-checkin/review", methods=["POST"])
@@ -444,6 +472,17 @@ def api_update_profile_settings():
             json.dumps(calc["weekly_targets"]), pid,
         ),
     )
+    try:
+        db.execute(
+            "UPDATE weekly_submissions SET avg_weight_kg=? WHERE profile_id=? AND week_num=0",
+            (start_w, pid),
+        )
+        db.execute(
+            "UPDATE progress_photos SET weight_kg=? WHERE profile_id=? AND week_num=0",
+            (start_w, pid),
+        )
+    except Exception:
+        pass
     db.commit()
     updated_prof = _get_active_profile(db, pid)
     if session.get("challenge_profile_id") and int(session.get("challenge_profile_id")) == int(pid):
@@ -504,8 +543,12 @@ def api_upload_week_photo():
         taken_date = (request.form.get("taken_date") or datetime.now().strftime("%Y-%m-%d"))[:10]
         weight_kg = float(request.form["weight_kg"]) if request.form.get("weight_kg") else None
         notes = request.form.get("notes", "")
+        crop_portrait = str(request.form.get("crop_portrait", "1")).lower() not in ("0", "false", "no")
         photo_data_url = normalize_image_bytes_to_jpeg_data_url(
-            raw_bytes, filename=fobj.filename or "photo.heic", mime_type=fobj.mimetype or ""
+            raw_bytes,
+            filename=fobj.filename or "photo.heic",
+            mime_type=fobj.mimetype or "",
+            crop_portrait=crop_portrait,
         )
     else:
         data = request.get_json(silent=True) or {}
@@ -513,7 +556,10 @@ def api_upload_week_photo():
         pose = data.get("pose", "Front")
         taken_date = (data.get("taken_date") or datetime.now().strftime("%Y-%m-%d"))[:10]
         weight_kg = data.get("weight_kg")
-        photo_data_url = normalize_image_data_url(data.get("photo_data_url", ""))
+        crop_portrait = bool(data.get("crop_portrait", True))
+        photo_data_url = normalize_image_data_url(
+            data.get("photo_data_url", ""), crop_portrait=crop_portrait
+        )
         notes = data.get("notes", "")
 
     if pose not in ("Front", "Side", "Back"):
@@ -555,19 +601,22 @@ def api_convert_photo_heic():
         if request.files and "file" in request.files:
             fobj = request.files["file"]
             max_dim = int(request.form.get("max_dim") or 900)
+            crop_portrait = str(request.form.get("crop_portrait", "1")).lower() not in ("0", "false", "no")
             data_url = normalize_image_bytes_to_jpeg_data_url(
                 fobj.read(),
                 filename=fobj.filename or "upload.heic",
                 mime_type=fobj.mimetype or "",
                 max_dim=max_dim,
+                crop_portrait=crop_portrait,
             )
             return jsonify({"ok": True, "data_url": data_url, "photo_data_url": data_url})
         data = request.get_json(silent=True) or {}
         raw_durl = data.get("data_url") or data.get("photo_data_url") or ""
         max_dim = int(data.get("max_dim") or 900)
+        crop_portrait = bool(data.get("crop_portrait", True))
         if not raw_durl:
             return jsonify({"ok": False, "error": "Missing file or data_url"}), 400
-        out_url = normalize_image_data_url(raw_durl, max_dim=max_dim)
+        out_url = normalize_image_data_url(raw_durl, max_dim=max_dim, crop_portrait=crop_portrait)
         return jsonify({"ok": True, "data_url": out_url, "photo_data_url": out_url})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
@@ -978,6 +1027,116 @@ def api_daily_journey_moments():
         (pid, date_str),
     ).fetchall()
     return jsonify({"ok": True, "date": date_str, "moments": [dict(r) for r in rows]})
+
+
+@challenge_progress_bp.route("/challenge/share/<int:pid>", defaults={"week_num": None}, methods=["GET"])
+@challenge_progress_bp.route("/challenge/share/<int:pid>/<int:week_num>", methods=["GET"])
+def challenge_coach_share_report(pid, week_num):
+    """Public mobile & desktop HTML Weekly Check-In Summary page for Coach Chris."""
+    db = get_db()
+    _ensure_weekly_submissions_table(db)
+    row = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (pid,)).fetchone()
+    if not row:
+        row = db.execute("SELECT * FROM challenge_profiles ORDER BY id LIMIT 1").fetchone()
+    profile = dict(row)
+    actual_pid = int(profile["id"])
+
+    wow = compute_week_over_week(db, profile)
+    if week_num is None:
+        req_wk = request.args.get("week", type=int)
+        if req_wk is not None:
+            week_num = req_wk
+        else:
+            # Default to latest week with photos, submission, or logged days
+            active_wks = [
+                w["week_num"] for w in wow
+                if w["week_num"] > 0 and (
+                    w.get("submission_status") in ("Submitted", "Reviewed")
+                    or w.get("photos_count", 0) > 0
+                    or w.get("days_logged", 0) > 0
+                )
+            ]
+            week_num = max(active_wks) if active_wks else 3
+    week_num = max(0, min(8, int(week_num)))
+
+    week_sheet = _build_week_sheet(db, profile, week_num)
+    wk_summary = next((w for w in wow if w["week_num"] == week_num), wow[0] if wow else {})
+    start_summary = next((w for w in wow if w["week_num"] == 0), {})
+
+    all_photos = [
+        dict(r) for r in db.execute(
+            "SELECT * FROM progress_photos WHERE profile_id=? ORDER BY week_num, id", (actual_pid,)
+        ).fetchall()
+    ]
+    start_photos = {p["pose"]: p for p in all_photos if int(p["week_num"]) == 0}
+    curr_photos = {p["pose"]: p for p in all_photos if int(p["week_num"]) == week_num}
+
+    pose_pairs = []
+    for pose in ("Side", "Front", "Back"):
+        sp = start_photos.get(pose)
+        cp = curr_photos.get(pose)
+        pose_pairs.append({
+            "pose": pose,
+            "start_photo": sp,
+            "curr_photo": cp,
+            "start_weight_kg": (sp.get("weight_kg") if sp and sp.get("weight_kg") else profile.get("start_weight_kg")),
+            "curr_weight_kg": (cp.get("weight_kg") if cp and cp.get("weight_kg") else wk_summary.get("avg_weight_kg")),
+        })
+
+    # Collect daily notes from the Saturday-Friday sheet as a fallback if write-up is blank
+    auto_notes = [
+        f"{r['day_short']} ({r['date'][5:]}): {r['combined_notes']}"
+        for r in week_sheet.get("rows", [])
+        if r.get("combined_notes")
+    ]
+
+    return render_template(
+        "challenge_report.html",
+        profile=profile,
+        week_num=week_num,
+        week_sheet=week_sheet,
+        wk_summary=wk_summary,
+        start_summary=start_summary,
+        wow=wow,
+        pose_pairs=pose_pairs,
+        auto_notes=auto_notes,
+    )
+
+
+@challenge_progress_bp.route("/challenge/share/<int:pid>/<int:week_num>/feedback", methods=["POST"])
+def challenge_coach_share_feedback(pid, week_num):
+    """Allow Coach Chris to save feedback directly from the shared Weekly Check-In web page."""
+    db = get_db()
+    _ensure_weekly_submissions_table(db)
+    data = request.get_json(silent=True) or request.form or {}
+    feedback = (data.get("coach_feedback") or "").strip()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    existing = db.execute(
+        "SELECT id FROM weekly_submissions WHERE profile_id=? AND week_num=?", (pid, int(week_num))
+    ).fetchone()
+    if existing:
+        db.execute(
+            """UPDATE weekly_submissions SET
+                status='Reviewed', coach_feedback=?, reviewed_at=?, updated_at=CURRENT_TIMESTAMP
+               WHERE id=?""",
+            (feedback, now_str, existing["id"]),
+        )
+    else:
+        db.execute(
+            """INSERT INTO weekly_submissions
+               (profile_id, week_num, status, coach_feedback, reviewed_at)
+               VALUES (?,?,'Reviewed',?,?)""",
+            (pid, int(week_num), feedback, now_str),
+        )
+    db.commit()
+    try:
+        from challenge_blocks import auto_persist_profile_backup
+        auto_persist_profile_backup(db, pid)
+    except Exception:
+        pass
+    return jsonify({"ok": True, "week_num": int(week_num), "status": "Reviewed", "reviewed_at": now_str, "coach_feedback": feedback})
+
 
 
 

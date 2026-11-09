@@ -53,8 +53,10 @@
     }
     .pose-img-box img {
       width: 100%;
-      height: 240px;
-      object-fit: contain;
+      aspect-ratio: 1 / 2;
+      height: 260px;
+      object-fit: cover;
+      object-position: center top;
       border-radius: 6px;
       cursor: pointer;
     }
@@ -103,7 +105,8 @@
         <option value="7">Week 7 · Fri Check-In (+ 3 Photos)</option>
         <option value="8">Week 8 · Fri Check-In (Final Photos)</option>
       </select>
-      <button class="btn btn-green btn-sm" onclick="window.location.href='/api/challenge/export/excel?profile_id='+(document.getElementById('admin-challenger-select')?.value||1)+'&week_num='+(document.getElementById('admin-week-select')?.value||1)">📊 Export Coach Chris Excel (.xlsx)</button>
+      <button class="btn btn-green btn-sm" onclick="window.open('/challenge/share/'+(document.getElementById('admin-challenger-select')?.value||1)+'/'+(document.getElementById('admin-week-select')?.value||1), '_blank')">🔗 Open Coach Chris Web Report</button>
+      <button class="btn btn-sm" onclick="window.location.href='/api/challenge/export/excel?profile_id='+(document.getElementById('admin-challenger-select')?.value||1)+'&week_num='+(document.getElementById('admin-week-select')?.value||1)">📊 Excel (.xlsx)</button>
       <button class="btn btn-sm" onclick="openChallengerInMainApp()">👁️ Open in Challenger App</button>
     </div>
   </div>
@@ -446,36 +449,75 @@
        MODULE 6: CREATE & ADD NEW USERS + MANAGE 3 ADMINS (CHRIS, LAURA, EWAN)
        ========================================================================= -->
   <section class="tab-panel" id="admin-panel-users">
+    <!-- Step 1-4 Streamlined Cohort Invite Card (Payment Processed -> Add Email -> Welcome Email & Smart Password/Cohort Access) -->
+    <div class="card" style="border-color:rgba(61,255,79,0.55);margin-bottom:0.85rem">
+      <div class="card-header">
+        <span class="card-title">📨 Quick Cohort Invite — Add Users by Email &amp; Send Welcome Sign-Up Links (Post-Payment)</span>
+        <span class="badge badge-green">New Password Flow + Returning Member Auto-Detection</span>
+      </div>
+      <p style="font-size:0.75rem;color:#cbd5e1;margin-bottom:0.65rem">
+        Paste one or more email addresses (one per line, or <code>First Last &lt;email@domain.com&gt;</code>) once payment is processed.
+        <strong>New users</strong> receive a Welcome Email + Sign-Up Link to set their password and complete Day 1 Block Setup (Name, Age, Start Weight, 3 Starting Photos &amp; Initial Notes).
+        <strong>Previous block members</strong> keep their login and are automatically granted access to the new cohort block (14k steps/day).
+      </p>
+      <div style="display:grid;grid-template-columns:260px 1fr auto;gap:0.6rem;align-items:start">
+        <div>
+          <label class="field-label">Select 8-Week Cohort Block</label>
+          <select id="bulk-invite-block"></select>
+          <div style="margin-top:0.45rem;font-size:0.7rem;color:var(--muted)">
+            Or share the cohort sign-up URL directly with paid members:
+            <button class="btn btn-sm" style="margin-top:0.25rem;width:100%" onclick="copySelectedBlockSignupUrl()">📋 Copy Cohort Sign-Up Link</button>
+          </div>
+        </div>
+        <div>
+          <label class="field-label">Challenger Email Addresses (One per line or comma-separated)</label>
+          <textarea id="bulk-invite-emails" rows="3" placeholder="alan@example.com&#10;Sarah Jenkins <sarah@example.com>"></textarea>
+        </div>
+        <div style="padding-top:1.25rem">
+          <button class="btn btn-green" onclick="adminBulkInviteCohortUsers()">📨 Add to Cohort &amp; Send Welcome Email</button>
+        </div>
+      </div>
+      <div id="bulk-invite-results" style="margin-top:0.65rem"></div>
+    </div>
+
     <div class="grid-2">
       <!-- Add New Challenger Form -->
       <div class="card" style="border-color:rgba(61,255,79,0.45)">
         <div class="card-header">
-          <span class="card-title">➕ Add / Onboard New Challenger</span>
+          <span class="card-title">➕ Add / Edit Individual Challenger Details</span>
           <span class="badge badge-green">Chris's Formula Engine</span>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.55rem">
           <div>
-            <label class="field-label">Challenger Full Name</label>
-            <input type="text" id="new-user-name" placeholder="e.g. Alex Morgan" />
+            <label class="field-label">First Name</label>
+            <input type="text" id="new-user-first-name" placeholder="e.g. Alan" oninput="syncAdminNewUserFullName()" />
           </div>
           <div>
-            <label class="field-label">Username (@handle)</label>
-            <input type="text" id="new-user-username" placeholder="e.g. alexmorgan" />
+            <label class="field-label">Last Name</label>
+            <input type="text" id="new-user-last-name" placeholder="e.g. Mackay" oninput="syncAdminNewUserFullName()" />
+          </div>
+          <div>
+            <label class="field-label">Full Display Name</label>
+            <input type="text" id="new-user-name" placeholder="e.g. Alan Mackay" />
+          </div>
+          <div>
+            <label class="field-label">Age</label>
+            <input type="number" id="new-user-age" min="14" max="99" placeholder="e.g. 42" />
           </div>
           <div>
             <label class="field-label">Email Address (Primary Sign-In)</label>
-            <input type="email" id="new-user-email" placeholder="alex@example.com" />
+            <input type="email" id="new-user-email" placeholder="alan@example.com" />
           </div>
           <div>
-            <label class="field-label">Initial Password (Optional)</label>
-            <input type="password" id="new-user-pass" placeholder="Or user sets on first sign-in" />
+            <label class="field-label">Initial Password (Optional — blank = user sets on 1st login)</label>
+            <input type="password" id="new-user-pass" placeholder="Leave blank for new password flow" />
           </div>
           <div style="grid-column: 1 / -1">
             <label class="field-label">Assign to 8-Week Block</label>
             <select id="new-user-block"></select>
           </div>
           <div>
-            <label class="field-label">Start Weight (kg)</label>
+            <label class="field-label">Start Weight for Block (kg)</label>
             <input type="number" step="0.1" id="new-user-sw" value="82.0" />
           </div>
           <div>
@@ -495,18 +537,16 @@
             <input type="number" id="new-user-prot" value="150" />
           </div>
           <div>
-            <label class="field-label">Workout Track</label>
-            <select id="new-user-track">
-              <option value="mens">Men's Workouts 1–4</option>
-              <option value="ladies">Ladies' Workouts 1–4</option>
-            </select>
+            <label class="field-label">Username (@handle — auto if blank)</label>
+            <input type="text" id="new-user-username" placeholder="e.g. alan" />
+            <input type="hidden" id="new-user-track" value="mens" />
           </div>
         </div>
         <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
           <label style="font-size:0.74rem;display:flex;align-items:center;gap:0.35rem;cursor:pointer">
             <input type="checkbox" id="new-user-returning" style="width:auto" /> Returning Member (Starts at 14,000 steps/day)
           </label>
-          <button class="btn btn-green btn-sm" onclick="adminCreateChallenger()">➕ Create Challenger &amp; Generate Targets</button>
+          <button class="btn btn-green btn-sm" onclick="adminCreateChallenger()">➕ Add Challenger &amp; Send Invite</button>
         </div>
         <div id="new-user-result-box" style="margin-top:0.55rem;font-size:0.75rem;color:var(--green)"></div>
       </div>
@@ -1170,10 +1210,73 @@ function renderAdminBlocksSection() {
   const fromSel = document.getElementById('adm-roll-from');
   const toSel = document.getElementById('adm-roll-to');
   const userBlkSel = document.getElementById('new-user-block');
+  const bulkBlkSel = document.getElementById('bulk-invite-block');
   const opts = blocks.map(b => `<option value="${b.id}" data-code="${b.invite_code}">${b.name} (${b.invite_code})</option>`).join('');
+  const codeOpts = blocks.map(b => `<option value="${b.invite_code}">${b.name} (${b.invite_code})</option>`).join('');
   if (fromSel) fromSel.innerHTML = opts;
   if (toSel) toSel.innerHTML = opts;
-  if (userBlkSel) userBlkSel.innerHTML = blocks.map(b => `<option value="${b.invite_code}">${b.name} (${b.invite_code})</option>`).join('');
+  if (userBlkSel) userBlkSel.innerHTML = codeOpts;
+  if (bulkBlkSel) bulkBlkSel.innerHTML = codeOpts;
+}
+
+function syncAdminNewUserFullName() {
+  const fn = (document.getElementById('new-user-first-name')?.value || '').trim();
+  const ln = (document.getElementById('new-user-last-name')?.value || '').trim();
+  const fullEl = document.getElementById('new-user-name');
+  if (fullEl) fullEl.value = [fn, ln].filter(Boolean).join(' ');
+}
+
+function copySelectedBlockSignupUrl() {
+  const code = document.getElementById('bulk-invite-block')?.value || 'CS-OCT2026';
+  const url = `${window.location.origin}/challenge/login?code=${encodeURIComponent(code)}&signup=1`;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url);
+  }
+  showAdminToast(`📋 Copied Cohort Sign-Up Link (${code})!`);
+}
+
+async function adminBulkInviteCohortUsers() {
+  const invite_code = document.getElementById('bulk-invite-block')?.value || 'CS-OCT2026';
+  const emails_text = document.getElementById('bulk-invite-emails')?.value || '';
+  const box = document.getElementById('bulk-invite-results');
+  if (!emails_text.trim()) {
+    if (box) box.innerHTML = `<div style="color:#f87171;font-size:0.76rem">Please enter at least one email address.</div>`;
+    return;
+  }
+  const res = await fetch('/api/challenge/admin/invite-users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ invite_code, emails_text }),
+  }).then(r => r.json());
+  if (!res.ok) {
+    if (box) box.innerHTML = `<div style="color:#f87171;font-size:0.76rem">${res.error || 'Could not invite users'}</div>`;
+    return;
+  }
+  if (box) {
+    box.innerHTML = `
+      <div style="padding:0.7rem;border-radius:10px;background:rgba(61,255,79,0.1);border:1px solid var(--green)">
+        <div style="font-weight:900;color:var(--green);margin-bottom:0.4rem">✅ ${res.message}</div>
+        <div style="display:grid;gap:0.4rem">
+          ${(res.invited || []).map(u => `
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;padding:0.45rem 0.6rem;background:#080b09;border:1px solid var(--border);border-radius:8px;font-size:0.75rem">
+              <div>
+                <strong style="color:#fff">${u.client_name}</strong> (<span style="color:#38bdf8">${u.email}</span>)
+                <span class="badge ${u.is_existing_user ? 'badge-blue' : 'badge-green'}" style="margin-left:4px">${u.flow_label}</span>
+                <span class="badge" style="margin-left:4px">${u.email_sent ? '📧 Email Sent' : '📋 Link Ready'}</span>
+              </div>
+              <div style="display:flex;gap:0.35rem;align-items:center">
+                <input type="text" readonly value="${u.signup_url}" style="width:270px;font-size:0.7rem;padding:0.2rem 0.45rem" onclick="this.select()" />
+                <button class="btn btn-green btn-sm" onclick="navigator.clipboard.writeText('${u.signup_url}');showAdminToast('📋 Copied link for ${u.email}!')">📋 Copy Link</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+  document.getElementById('bulk-invite-emails').value = '';
+  showAdminToast(`✅ Invited ${res.count} user(s) to ${res.block.name}!`);
+  await initAdminPortal();
 }
 
 async function adminCreateBlock() {
@@ -1350,9 +1453,13 @@ async function saveAdminAccountRow(profileId) {
 }
 
 async function adminCreateChallenger() {
+  syncAdminNewUserFullName();
   const payload = {
     invite_code: document.getElementById('new-user-block').value || 'CS-OCT2026',
+    first_name: document.getElementById('new-user-first-name')?.value || '',
+    last_name: document.getElementById('new-user-last-name')?.value || '',
     client_name: document.getElementById('new-user-name').value,
+    age: document.getElementById('new-user-age')?.value || null,
     username: document.getElementById('new-user-username')?.value || '',
     email: document.getElementById('new-user-email').value,
     password: document.getElementById('new-user-pass').value,
@@ -1361,7 +1468,7 @@ async function adminCreateChallenger() {
     start_body_fat_pct: parseFloat(document.getElementById('new-user-sbf').value || '18'),
     target_body_fat_pct: parseFloat(document.getElementById('new-user-tbf').value || '15'),
     protein_g: parseInt(document.getElementById('new-user-prot').value || '150', 10),
-    workout_track: document.getElementById('new-user-track').value,
+    workout_track: document.getElementById('new-user-track')?.value || 'mens',
     returning_member: document.getElementById('new-user-returning').checked,
     auto_sign_in: false,
   };

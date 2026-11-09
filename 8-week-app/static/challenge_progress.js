@@ -27,6 +27,9 @@ async function initRealDataAndProgress() {
   renderSavedIntegrationStatus();
   await refreshProgressSummary();
   await pullServerBackupIntoBrowserVault();
+  if (typeof window.checkFirstLoginOnboardingPrompt === 'function') {
+    window.checkFirstLoginOnboardingPrompt();
+  }
 }
 
 async function refreshProgressSummary() {
@@ -435,54 +438,61 @@ function injectWeekOverWeekOnCheckinTab() {
   const card = document.createElement('div');
   card.id = 'wow-progress-card';
   card.className = 'card';
-  panel.insertBefore(card, panel.children[2] || null);
+  panel.appendChild(card);
 }
 
 function renderWeekOverWeekTable() {
   const card = document.getElementById('wow-progress-card');
   if (!card || !window.PROGRESS_SUMMARY) return;
   const curWk = getActiveSheetWeek();
+  const prof = (STATE.overview && STATE.overview.profile) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.profile) || {};
+  const startWt = Number(prof.start_weight_kg || 88.6);
   const rowsHtml = (PROGRESS_SUMMARY.weeks || []).map(w => {
     const isCur = w.week_num === curWk;
-    const wtStr = w.avg_weight_kg !== null ? `${w.avg_weight_kg.toFixed(2)} kg` : '—';
-    const deltaStr = w.weight_change_vs_prev_kg !== null
-      ? `<span style="color:${w.weight_change_vs_prev_kg <= 0 ? '#3DFF4F' : '#f87171'}">${w.weight_change_vs_prev_kg > 0 ? '+' : ''}${w.weight_change_vs_prev_kg.toFixed(2)} kg</span>`
+    const avgW = w.week_num === 0 ? startWt : w.avg_weight_kg;
+    const wtStr = avgW !== null && avgW !== undefined ? `${Number(avgW).toFixed(2)} kg` : '—';
+    const deltaVal = w.week_num === 0 ? 0.0 : w.weight_change_vs_prev_kg;
+    const deltaStr = deltaVal !== null && deltaVal !== undefined
+      ? `<span style="color:${deltaVal <= 0 ? '#3DFF4F' : '#f87171'};font-weight:700">${deltaVal > 0 ? '+' : ''}${Number(deltaVal).toFixed(2)} kg</span>`
+      : '—';
+    const totVal = w.week_num === 0 ? 0.0 : (avgW !== null && avgW !== undefined ? +(Number(avgW) - startWt).toFixed(2) : w.total_delta_kg);
+    const totStr = totVal !== null && totVal !== undefined
+      ? `<span style="color:${totVal <= 0 ? '#3DFF4F' : '#f87171'};font-weight:800">${totVal > 0 ? '+' : ''}${Number(totVal).toFixed(2)} kg</span>`
       : '—';
     const stepsStr = w.avg_steps > 0 ? `${w.avg_steps.toLocaleString()} / ${(w.target_steps/1000).toFixed(0)}k` : '—';
     const calStr = w.avg_calories > 0 ? `${w.avg_calories} kcal · ${w.avg_protein_g}g P` : '—';
-    const volStr = w.workout_volume_kg > 0 ? `${w.workout_volume_kg.toLocaleString()} kg (${w.workout_sets_logged}s)` : '—';
     const pBadge = w.photos_count >= 3
       ? `✅ 3/3`
       : (w.week_num === 1 && w.photos_count === 0)
       ? `<span style="color:#38bdf8;font-weight:700">🚫 No Photos (Wk 1 Fri)</span>`
-      : `${w.photos_count}/3 (${w.poses_logged.join(',') || 'none'})`;
+      : `${w.photos_count}/3`;
     const wkLabel = w.week_num === 0
       ? `Start (Mon Day 1)`
       : w.week_num === 1
-      ? `Week 1 (Fri · No Photos)`
-      : `Week ${w.week_num} (Fri)`;
+      ? `Week 1 (Sat–Fri)`
+      : `Week ${w.week_num} (Sat–Fri)`;
     return `<tr style="${isCur ? 'background:rgba(61,255,79,0.1);font-weight:700;' : ''}cursor:pointer" onclick="document.getElementById('ci-week-select').value='${w.week_num}';loadWeekSheet('${w.week_num}')">
       <td><strong>${wkLabel}</strong></td>
       <td>${w.days_logged}/7</td>
-      <td>${wtStr} <small style="color:var(--muted)">(T:${w.target_weight_kg})</small></td>
+      <td><strong>${wtStr}</strong> <small style="color:var(--muted)">(T:${w.target_weight_kg})</small></td>
       <td>${deltaStr}</td>
+      <td>${totStr}</td>
       <td>${stepsStr}</td>
       <td>${calStr}</td>
       <td>${w.gym_sessions} GYM / ${w.cardio_sessions} CARDIO</td>
-      <td>${volStr}</td>
       <td>${pBadge}</td>
     </tr>`;
   }).join('');
 
   card.innerHTML = `
     <div class="card-header">
-      <div class="card-title">📈 Week-over-Week Progress Comparison (Click any week to view)</div>
-      <span class="badge badge-green">Pre-Coaching + Weeks 1–8</span>
+      <div class="card-title">📈 3. Week-over-Week Progress (Start: ${startWt.toFixed(2)} kg → Goal: ${Number(prof.target_weight_kg || 78.3).toFixed(2)} kg)</div>
+      <span class="badge badge-green">Click any week to view</span>
     </div>
     <div class="table-wrap">
       <table class="cs-table">
         <thead>
-          <tr><th>Week</th><th>Days</th><th>Avg Wt (Target)</th><th>Δ vs Prev Wk</th><th>Avg Steps</th><th>Avg Cal & Prot</th><th>Sessions</th><th>Strength Volume</th><th>3 Photos</th></tr>
+          <tr><th>Week</th><th>Days</th><th>Avg Wt (Target)</th><th>Δ vs Prev Wk</th><th>Total Δ vs Start</th><th>Avg Steps</th><th>Avg Cal &amp; Prot</th><th>Sessions</th><th>Photos</th></tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
       </table>
@@ -490,7 +500,7 @@ function renderWeekOverWeekTable() {
   `;
 }
 
-// ── 3 PROGRESS PHOTOS (FRONT, SIDE, BACK) & WEEKLY SUBMISSION ────────────────
+// ── 3 PROGRESS PHOTOS (SIDE, FRONT, BACK) SIDE-BY-SIDE & CROPPED TO FRAME ───
 function upgradeThreePhotoWeeklyVault() {
   const listEl = document.getElementById('photos-vault-list');
   if (!listEl) return;
@@ -500,7 +510,7 @@ function upgradeThreePhotoWeeklyVault() {
   card.innerHTML = `
     <div class="card-header" style="flex-wrap:wrap;gap:6px">
       <div class="card-title" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        <span>📸 Weekly 3-Photo Check-In (Side · Front · Back)</span>
+        <span>📸 Side-by-Side Progress Pictures (Side · Front · Back)</span>
         <select id="photo-upload-wk-select" onchange="changePhotoUploadWeek(this.value)" style="width:auto;font-size:0.74rem;font-weight:800;padding:2px 8px">
           <option value="0">Start · Day 1 Mon</option>
           <option value="1">Week 1 · Fri</option>
@@ -514,23 +524,23 @@ function upgradeThreePhotoWeeklyVault() {
         </select>
       </div>
       <div style="display:flex;gap:6px;align-items:center;font-size:0.74rem;flex-wrap:wrap">
-        <label class="btn btn-green btn-sm" style="cursor:pointer;padding:2px 8px;font-size:0.68rem" title="Select 1, 2 or 3 photos (including iPhone .HEIC) to upload into Side, Front & Back">
-          📤 Upload All 3 Photos (.HEIC / JPG)
+        <label class="btn btn-green btn-sm" style="cursor:pointer;padding:3px 9px;font-size:0.7rem" title="Select 1, 2 or 3 photos (auto-cropped & fitted to frame)">
+          📤 Upload All 3 Photos
           <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" multiple style="display:none" onchange="handleMultiPoseUpload(event)" />
         </label>
-        <label class="btn btn-sm" style="cursor:pointer;padding:2px 8px;font-size:0.68rem" title="Auto-slice a 3-pose collage into Side, Front & Back">
+        <label class="btn btn-sm" style="cursor:pointer;padding:3px 9px;font-size:0.7rem" title="Auto-slice a 3-pose collage into Side, Front & Back">
           ✂️ Split 3-Pose Collage
           <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" style="display:none" onchange="handleThreePoseCollageUpload(event)" />
         </label>
         <span>Compare:</span>
-        <select id="photo-cmp-wk-a" onchange="window._photoCompareState.userPickedWeeks=true;renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:128px"><option value="0" selected>Week 0 (Start)</option><option value="1">Week 1 (Start)</option><option value="2">Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
+        <select id="photo-cmp-wk-a" onchange="window._photoCompareState.userPickedWeeks=true;renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:120px"><option value="0" selected>Start (Day 1)</option><option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option><option value="5">Week 5</option><option value="6">Week 6</option><option value="7">Week 7</option><option value="8">Week 8</option></select>
         <span>vs</span>
-        <select id="photo-cmp-wk-b" onchange="window._photoCompareState.userPickedWeeks=true;renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:128px"><option value="0">Week 0 (Start)</option><option value="1">Week 1 (Start)</option><option value="2" selected>Wk 2 (Fri)</option><option value="3">Wk 3 (Fri)</option><option value="4">Wk 4 (Fri)</option><option value="5">Wk 5 (Fri)</option><option value="6">Wk 6 (Fri)</option><option value="7">Wk 7 (Fri)</option><option value="8">Wk 8 (Fri)</option></select>
+        <select id="photo-cmp-wk-b" onchange="window._photoCompareState.userPickedWeeks=true;renderThreePhotoSlots();renderCoachWowSideBySide()" style="width:120px"><option value="0">Start (Day 1)</option><option value="1">Week 1</option><option value="2">Week 2</option><option value="3" selected>Week 3</option><option value="4">Week 4</option><option value="5">Week 5</option><option value="6">Week 6</option><option value="7">Week 7</option><option value="8">Week 8</option></select>
       </div>
     </div>
-    <div id="photo-schedule-rule-banner" style="margin-bottom:0.65rem;padding:0.5rem 0.7rem;border-radius:8px;font-size:0.74rem"></div>
-    <div id="three-photo-slots" class="grid-3" style="margin-bottom:0.75rem"></div>
-    <div id="three-photo-comparison"></div>
+    <div id="photo-schedule-rule-banner" style="display:none"></div>
+    <div id="three-photo-slots" class="grid-3" style="gap:0.75rem"></div>
+    <div id="three-photo-comparison" style="display:none"></div>
   `;
 }
 
@@ -577,53 +587,53 @@ function renderThreePhotoSlots() {
   const wk = getActiveSheetWeek();
   const upSel = document.getElementById('photo-upload-wk-select');
   if (upSel && upSel.value !== String(wk)) upSel.value = String(wk);
-  const lbl = document.getElementById('photo-active-wk-label');
-  if (lbl) {
-    lbl.textContent = wk === 0
-      ? 'Start Check-In · Day 1 Monday'
-      : wk === 1
-      ? 'Week 1 · Friday Check-In'
-      : `Week ${wk} · Friday Check-In`;
-  }
-  const ruleBanner = document.getElementById('photo-schedule-rule-banner');
-  if (ruleBanner) {
-    if (wk === 1) {
-      ruleBanner.style.background = 'rgba(56,189,248,0.12)';
-      ruleBanner.style.border = '1px solid rgba(56,189,248,0.4)';
-      ruleBanner.style.color = '#e0f2fe';
-      ruleBanner.innerHTML = 'ℹ️ <strong>Week 1 Friday Check-In:</strong> Starting photos were taken Day 1 Monday, or you can upload/update Week 1 Friday photos below (supports iPhone <code>.HEIC</code> &amp; <code>.JPG</code>).';
-    } else if (wk === 0) {
-      ruleBanner.style.background = 'rgba(61,255,79,0.10)';
-      ruleBanner.style.border = '1px solid rgba(61,255,79,0.35)';
-      ruleBanner.style.color = '#dcfce7';
-      ruleBanner.innerHTML = '📸 <strong>Start Check-In (Day 1 Monday):</strong> Upload your 3 Starting Photos (Side · Front · Back — supports iPhone <code>.HEIC</code> &amp; <code>.JPG</code>) &amp; log your fasted Starting Weight.';
-    } else {
-      ruleBanner.style.background = 'rgba(61,255,79,0.10)';
-      ruleBanner.style.border = '1px solid rgba(61,255,79,0.35)';
-      ruleBanner.style.color = '#dcfce7';
-      ruleBanner.innerHTML = `📸 <strong>Week ${wk} Friday Check-In:</strong> Upload your 3 Friday Progress Photos (Side · Front · Back — supports iPhone <code>.HEIC</code> &amp; <code>.JPG</code>) alongside your Friday weigh-in.`;
-    }
-  }
   const photos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
   const poses = ['Side', 'Front', 'Back'];
+  const { baselineWk, latestWk } = _getBestCompareWeeks(photos);
+  const selAEl = document.getElementById('photo-cmp-wk-a');
+  const selBEl = document.getElementById('photo-cmp-wk-b');
+  if (!window._photoCompareState.userPickedWeeks) {
+    if (selAEl) selAEl.value = String(baselineWk);
+    if (selBEl) selBEl.value = String(wk >= 2 ? wk : latestWk);
+  }
+  const wkA = Number(selAEl ? selAEl.value : baselineWk);
+  const wkB = Number(selBEl ? selBEl.value : (wk >= 2 ? wk : latestWk));
 
   slotsEl.innerHTML = poses.map(pose => {
-    const rec = _findPhotoForWeekAndPose(photos, wk, pose);
-    const noPhotoNeededWk1 = wk === 1 && !rec;
-    const imgHtml = rec && rec.photo_data_url
-      ? `<img src="${rec.photo_data_url}" onclick="openPhotoCompareModal('${pose}')" title="Click to open Full-Screen Side-by-Side Comparison (${pose})" style="width:100%;height:150px;object-fit:contain;background:#070a08;border-radius:8px;margin-bottom:6px;border:1px solid var(--green);cursor:zoom-in"/>`
-      : `<div style="width:100%;height:150px;border-radius:8px;border:1px dashed ${noPhotoNeededWk1 ? 'rgba(56,189,248,0.45)' : 'var(--border)'};display:flex;align-items:center;justify-content:center;color:${noPhotoNeededWk1 ? '#38bdf8' : 'var(--muted)'};font-size:0.72rem;padding:0.4rem;margin-bottom:6px">${noPhotoNeededWk1 ? '📷 Optional on Wk 1 Fri (or tap below to upload)' : rec ? '✅ Logged' : `No ${pose} photo`}</div>`;
-    return `<div style="padding:0.6rem;border-radius:10px;background:var(--surface-2);border:1px solid ${rec ? 'var(--green)' : 'var(--border)'};text-align:center">
-      <div style="font-weight:700;font-size:0.78rem;margin-bottom:4px">${rec ? '✅' : '📷'} ${pose} Pose (${wk === 0 ? 'Start Mon' : 'Wk ' + wk + ' Fri'})</div>
-      ${imgHtml}
-      <div style="font-size:0.68rem;color:var(--muted);margin-bottom:6px">${rec ? `${rec.taken_date}${rec.weight_kg ? ' · ' + rec.weight_kg + 'kg' : ''}` : 'Supports iPhone .HEIC & JPG'}</div>
-      <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
-        <label class="btn btn-green btn-sm" style="cursor:pointer;display:inline-block">
-          📤 ${rec ? 'Replace' : 'Upload'} ${pose}
+    const pA = _findPhotoForWeekAndPose(photos, wkA, pose);
+    const pB = _findPhotoForWeekAndPose(photos, wkB, pose);
+    const recActive = _findPhotoForWeekAndPose(photos, wk, pose);
+    const wtA = _getWeekWeightForCompare(wkA, pA);
+    const wtB = _getWeekWeightForCompare(wkB, pB);
+
+    const renderFrame = (rec, wNum, wtVal) => {
+      const lbl = wNum === 0 ? 'START' : `WEEK ${wNum}`;
+      return `<div style="background:#050806;border:1px solid ${rec ? 'rgba(61,255,79,0.5)' : 'var(--border)'};border-radius:10px;padding:5px;text-align:center">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.66rem;font-weight:800;color:#cbd5e1;margin-bottom:4px;padding:0 2px">
+          <span style="color:${wNum === wkB ? 'var(--green)' : '#cbd5e1'}">${lbl}</span>
+          <span style="color:var(--green)">${wtVal ? wtVal.toFixed(1) + 'kg' : ''}</span>
+        </div>
+        ${rec && rec.photo_data_url
+          ? `<img src="${rec.photo_data_url}" onclick="openPhotoCompareModal('${pose}')" title="Click to enlarge ${pose} comparison" style="width:100%;aspect-ratio:1/2;max-height:290px;object-fit:cover;object-position:center top;background:#040605;border-radius:7px;display:block;cursor:zoom-in"/>`
+          : `<div style="width:100%;aspect-ratio:1/2;max-height:290px;border-radius:7px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.7rem;padding:0.4rem">No ${pose} (${lbl})</div>`}
+      </div>`;
+    };
+
+    return `<div style="padding:0.65rem;border-radius:12px;background:var(--surface-2);border:1px solid ${recActive ? 'rgba(61,255,79,0.45)' : 'var(--border)'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-weight:900;font-size:0.84rem;color:var(--green)">🧍 ${pose.toUpperCase()} POSE</span>
+        <button type="button" class="btn btn-sm" style="padding:2px 8px;font-size:0.66rem" onclick="openPhotoCompareModal('${pose}')">⛶ Full Screen</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.45rem;margin-bottom:8px">
+        ${renderFrame(pA, wkA, wtA)}
+        ${renderFrame(pB, wkB, wtB)}
+      </div>
+      <div style="display:flex;gap:5px;justify-content:center;flex-wrap:wrap">
+        <label class="btn btn-green btn-sm" style="cursor:pointer;font-size:0.7rem;padding:3px 9px">
+          📤 ${recActive ? 'Replace' : 'Upload'} ${pose} (${wk === 0 ? 'Start' : 'Wk ' + wk})
           <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" style="display:none" onchange="handlePoseFileSelect(event, ${wk}, '${pose}')"/>
         </label>
-        ${rec ? `<button type="button" class="btn btn-sm" style="padding:2px 7px;font-size:0.66rem" onclick="openPhotoCompareModal('${pose}')" title="Compare ${pose} side-by-side in full screen">⛶</button>` : ''}
-        ${rec ? `<button type="button" class="btn btn-sm" style="padding:2px 7px;font-size:0.66rem;color:#fca5a5" onclick="deletePosePhoto(${wk}, '${pose}')" title="Remove ${pose} photo">🗑️</button>` : ''}
+        ${recActive ? `<button type="button" class="btn btn-sm" style="padding:3px 7px;font-size:0.66rem;color:#fca5a5" onclick="deletePosePhoto(${wk}, '${pose}')" title="Remove ${pose} photo">🗑️</button>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -633,7 +643,7 @@ function renderThreePhotoSlots() {
 
 window._photoCompareState = {
   pose: 'Side', // 'Side' | 'Front' | 'Back' | 'ALL'
-  zoomFill: false,
+  zoomFill: true,
   modalOpen: false,
   userPickedWeeks: false,
 };
@@ -2227,6 +2237,157 @@ window.testAppleHealthSync = async function() {
     showToast(`🍎 Apple Health + MFP test synced for ${data.date}!`);
   }
 };
+
+// ── SHAREABLE WEB PAGE REPORT FOR COACH CHRIS (/challenge/share/<pid>/<week>) ─
+window.openCoachChrisWebReport = async function(copyToClipboard) {
+  const prof = (STATE.overview && STATE.overview.profile) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.profile) || {};
+  const pid = Number(prof.id || 1);
+  const wk = Math.max(1, Number(getActiveSheetWeek() || 3));
+  const sharePath = `/challenge/share/${pid}/${wk}`;
+  const fullUrl = `${window.location.origin}${sharePath}`;
+  if (copyToClipboard) {
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      showToast(`🔗 Copied Coach Chris Web Report Link: ${fullUrl}`);
+    } catch (e) {
+      window.prompt('Copy this Web Report URL for Coach Chris:', fullUrl);
+    }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(fullUrl);
+  } catch (e) {}
+  window.open(sharePath, '_blank');
+  showToast(`🌐 Opened Week ${wk} Web Report for Coach Chris (& copied link to clipboard)!`);
+};
+
+// ── 1ST-LOGIN BLOCK SETUP WIZARD (START PHOTOS + PROFILE + INITIAL NOTES) ────
+window.checkFirstLoginOnboardingPrompt = function() {
+  const params = new URLSearchParams(window.location.search || '');
+  const forceSetup = params.get('setup') === '1';
+  const prof = (STATE.overview && STATE.overview.profile) || {};
+  if (!prof || !prof.id) return;
+  if (forceSetup) {
+    window.openFirstLoginOnboardingModal();
+  }
+};
+
+window.openFirstLoginOnboardingModal = function() {
+  const modal = document.getElementById('first-login-onboarding-modal');
+  if (!modal) return;
+  const prof = (STATE.overview && STATE.overview.profile) || {};
+  const parts = String(prof.client_name || '').trim().split(/\s+/);
+  const fName = prof.first_name || parts[0] || '';
+  const lName = prof.last_name || parts.slice(1).join(' ') || '';
+
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val !== undefined && val !== null) el.value = val;
+  };
+  setVal('ob-first-name', fName);
+  setVal('ob-last-name', lName);
+  setVal('ob-age', prof.age || '');
+  setVal('ob-start-weight', prof.start_weight_kg || 88.6);
+  setVal('ob-target-weight', prof.target_weight_kg || 78.3);
+  setVal('ob-start-bf', prof.start_body_fat_pct || 16);
+  setVal('ob-initial-notes', prof.initial_checkin_notes || '');
+
+  window.renderOnboardingStartingPhotos();
+  modal.style.display = 'block';
+};
+
+window.closeFirstLoginOnboardingModal = function() {
+  const modal = document.getElementById('first-login-onboarding-modal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.renderOnboardingStartingPhotos = function() {
+  const grid = document.getElementById('ob-starting-photos-grid');
+  if (!grid) return;
+  const photos = (STATE.overview && STATE.overview.progress_photos) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.photos) || [];
+  const poses = ['Side', 'Front', 'Back'];
+  grid.innerHTML = poses.map(pose => {
+    const rec = _findPhotoForWeekAndPose(photos, 0, pose);
+    return `<div style="padding:0.55rem;border-radius:10px;background:#070b08;border:1px solid ${rec ? 'var(--green)' : 'var(--border)'};text-align:center">
+      <div style="font-size:0.74rem;font-weight:800;color:${rec ? 'var(--green)' : '#cbd5e1'};margin-bottom:4px">${rec ? '✅' : '📷'} ${pose} Pose (Start)</div>
+      ${rec && rec.photo_data_url
+        ? `<img src="${rec.photo_data_url}" style="width:100%;aspect-ratio:1/2;max-height:220px;object-fit:cover;object-position:center top;border-radius:7px;margin-bottom:6px;display:block"/>`
+        : `<div style="width:100%;aspect-ratio:1/2;max-height:220px;border-radius:7px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.68rem;margin-bottom:6px">No Start ${pose}</div>`}
+      <label class="btn btn-green btn-sm" style="cursor:pointer;font-size:0.68rem;padding:3px 9px">
+        📤 ${rec ? 'Replace' : 'Upload'} ${pose}
+        <input type="file" accept="image/*,.heic,.heif,.HEIC,.HEIF" style="display:none" onchange="handleOnboardingPoseUpload(event, '${pose}')"/>
+      </label>
+    </div>`;
+  }).join('');
+};
+
+window.handleOnboardingPoseUpload = async function(event, pose) {
+  await window.handlePoseFileSelect(event, 0, pose);
+  window.renderOnboardingStartingPhotos();
+};
+
+window.handleOnboardingMultiPhotoUpload = async function(event) {
+  const files = Array.from((event.target && event.target.files) || []).slice(0, 3);
+  if (!files.length) return;
+  const poses = ['Side', 'Front', 'Back'];
+  const sw = Number(document.getElementById('ob-start-weight')?.value || (STATE.overview?.profile?.start_weight_kg) || 88.6);
+  showToast(`📸 Uploading & auto-cropping ${files.length} Starting Photo(s)...`);
+  for (let i = 0; i < files.length; i++) {
+    const dataUrl = await compressImageFileToDataUrl(files[i], 960, 0.86);
+    const res = await fetch('/api/challenge/photos/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        week_num: 0,
+        pose: poses[i],
+        taken_date: STATE.date,
+        weight_kg: sw,
+        photo_data_url: dataUrl,
+      }),
+    });
+    const data = await res.json();
+    if (data.ok && STATE.overview) STATE.overview.progress_photos = data.photos;
+  }
+  await refreshProgressSummary();
+  renderThreePhotoSlots();
+  window.renderOnboardingStartingPhotos();
+  showToast('✅ Starting Photos uploaded, cropped & fitted to frame!');
+};
+
+window.saveFirstLoginOnboarding = async function() {
+  const statusEl = document.getElementById('ob-save-status');
+  if (statusEl) {
+    statusEl.style.color = '#38bdf8';
+    statusEl.textContent = '⏳ Saving Block Setup...';
+  }
+  const payload = {
+    first_name: (document.getElementById('ob-first-name')?.value || '').trim(),
+    last_name: (document.getElementById('ob-last-name')?.value || '').trim(),
+    age: document.getElementById('ob-age')?.value || null,
+    start_weight_kg: Number(document.getElementById('ob-start-weight')?.value || 88.6),
+    target_weight_kg: Number(document.getElementById('ob-target-weight')?.value || 78.3),
+    start_body_fat_pct: Number(document.getElementById('ob-start-bf')?.value || 16),
+    initial_checkin_notes: (document.getElementById('ob-initial-notes')?.value || '').trim(),
+  };
+  const res = await fetch('/api/challenge/onboarding', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    await loadOverview(STATE.date);
+    await refreshProgressSummary();
+    const curWk = document.getElementById('ci-week-select')?.value || 3;
+    if (typeof loadWeekSheet === 'function') await loadWeekSheet(curWk);
+    window.closeFirstLoginOnboardingModal();
+    showToast('✅ Day 1 Block Setup saved (Start Weight, Starting Photos & Initial Notes)!');
+  } else if (statusEl) {
+    statusEl.style.color = '#f87171';
+    statusEl.textContent = data.error || 'Could not save setup';
+  }
+};
+
 
 const DAILY_MOMENT_SLOTS = [
   { key: 'Breakfast', label: 'Photo 1 · Breakfast / Meal 1', icon: '🍳', tag: '#breakfast' },

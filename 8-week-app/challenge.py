@@ -803,28 +803,34 @@ def _sync_checkin_from_activities(db, date_str, profile_id=1):
 
 
 def _build_week_sheet(db, profile, week_num):
-    """Build exact 7-day CHECK IN Comp Based table + Excel AVERAGEIF formulas for week_num."""
+    """Build exact 7-day CHECK IN Comp Based table (Saturday -> Friday ending on Friday check-in) for week_num."""
     start_str = profile.get("start_date", "2026-10-19")[:10]
     dt_start = datetime.strptime(start_str, "%Y-%m-%d")
     if int(week_num) == 0:
-        # Pre-coaching week (12 Oct - 18 Oct 2026)
+        # Pre-coaching / Start week (Monday - Sunday leading into Day 1)
         wk_Monday = dt_start - timedelta(days=7)
+        wk_start = wk_Monday
         step_target = 10000
         target_w = profile.get("start_weight_kg", 84.0)
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        day_initials = ["M", "T", "W", "T", "F", "S", "S"]
     else:
         wk_Monday = dt_start + timedelta(days=(int(week_num) - 1) * 7)
+        checkin_friday = wk_Monday + timedelta(days=4)
+        # 7-day check-in window runs Saturday -> Friday (ending on Friday check-in day)
+        wk_start = checkin_friday - timedelta(days=6)
         step_target = 10000 + (min(8, int(week_num)) - 1) * 1000
         target_w = round(float(profile.get("start_weight_kg", 84.0)) * (0.99 ** max(0, int(week_num) - 1)), 2)
+        day_names = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"]
+        day_initials = ["S", "S", "M", "T", "W", "T", "F"]
 
-    day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    day_initials = ["M", "T", "W", "T", "F", "S", "S"]
     rows = []
     cals_list, steps_list, weights_list, prots_list = [], [], [], []
     days_on_plan = 0
     days_logged = 0
 
     for i in range(7):
-        d_str = (wk_Monday + timedelta(days=i)).strftime("%Y-%m-%d")
+        d_str = (wk_start + timedelta(days=i)).strftime("%Y-%m-%d")
         row = db.execute("SELECT * FROM daily_checkins WHERE date=? AND profile_id=?", (d_str, profile.get("id", 1))).fetchone()
         if row:
             r = dict(row)
@@ -886,8 +892,9 @@ def _build_week_sheet(db, profile, week_num):
         r["combined_notes"] = combined_notes
         r["notes"] = combined_notes
         r["day_short"] = day_names[i]
+        r["day_name"] = day_names[i]
         r["day_initial"] = day_initials[i]
-        r["is_friday_checkin"] = (int(week_num) >= 1 and i == 4)
+        r["is_friday_checkin"] = (int(week_num) >= 1 and day_names[i] == "Fri")
         r["is_start_checkin_day"] = (d_str == start_str)
         r["step_green"] = (r.get("steps") or 0) >= step_target
         r["protein_green"] = (r.get("protein_g") or 0) >= (profile.get("target_protein_g", 150) - 5)
@@ -896,7 +903,10 @@ def _build_week_sheet(db, profile, week_num):
 
     avg_cals = round(sum(cals_list) / len(cals_list), 1) if cals_list else 0.0
     avg_steps = round(sum(steps_list) / len(steps_list), 0) if steps_list else 0.0
-    avg_weight = round(sum(weights_list) / len(weights_list), 2) if weights_list else 0.0
+    if int(week_num) == 0:
+        avg_weight = round(float(profile.get("start_weight_kg") or 84.0), 2)
+    else:
+        avg_weight = round(sum(weights_list) / len(weights_list), 2) if weights_list else 0.0
     avg_prot = round(sum(prots_list) / len(prots_list), 1) if prots_list else 0.0
 
     # Excel weight loss formula: =1-(M_curr/D_start) or week-over-week % change
@@ -922,8 +932,9 @@ def _build_week_sheet(db, profile, week_num):
 
     return {
         "week_num": wk_int,
-        "start_date": wk_Monday.strftime("%Y-%m-%d"),
-        "end_date": (wk_Monday + timedelta(days=6)).strftime("%Y-%m-%d"),
+        "start_date": wk_start.strftime("%Y-%m-%d"),
+        "end_date": (wk_start + timedelta(days=6)).strftime("%Y-%m-%d"),
+        "window_label": "Monday – Sunday (Baseline)" if wk_int == 0 else "Saturday – Friday",
         "checkin_day": checkin_day,
         "checkin_date": checkin_date,
         "photos_required": photos_required,
@@ -1182,8 +1193,14 @@ def api_challenge_profile():
             """UPDATE progress_photos
                SET weight_kg=?
                WHERE profile_id=? AND week_num IN (0, 1)
-                 AND (weight_kg IS NULL OR ABS(weight_kg - ?) < 0.05)""",
+                 AND (weight_kg IS NULL OR ABS(weight_kg - ?) < 0.05 OR week_num = 0)""",
             (calc["start_weight_kg"], profile["id"], old_start_w),
+        )
+        db.execute(
+            """UPDATE weekly_submissions
+               SET avg_weight_kg=?
+               WHERE profile_id=? AND week_num = 0""",
+            (calc["start_weight_kg"], profile["id"]),
         )
     except Exception:
         pass

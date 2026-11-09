@@ -152,6 +152,15 @@ def ensure_blocks_and_auth_tables(db):
         "ALTER TABLE challenge_user_accounts ADD COLUMN verified_at TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE challenge_user_accounts ADD COLUMN teamup_customer_id TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE challenge_user_accounts ADD COLUMN teamup_status TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE challenge_profiles ADD COLUMN first_name TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE challenge_profiles ADD COLUMN last_name TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE challenge_profiles ADD COLUMN age INTEGER",
+        "ALTER TABLE challenge_profiles ADD COLUMN initial_checkin_notes TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE challenge_profiles ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE challenge_block_enrollments ADD COLUMN block_start_weight_kg REAL",
+        "ALTER TABLE challenge_block_enrollments ADD COLUMN initial_checkin_notes TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE challenge_block_enrollments ADD COLUMN onboarding_completed INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE challenge_block_enrollments ADD COLUMN welcome_email_sent INTEGER NOT NULL DEFAULT 0",
     ):
         try:
             db.execute(col_sql)
@@ -335,6 +344,23 @@ def ensure_blocks_and_auth_tables(db):
                 (active_blk["id"], p["id"], int(p["returning_member"] or 0), "Cohort Seed"),
             )
     _auto_seed_ewan_backup_if_empty(db)
+    # Backfill first_name, last_name, and onboarding_completed for existing users with photos/check-ins
+    try:
+        for prow in db.execute("SELECT id, client_name, first_name, last_name, onboarding_completed FROM challenge_profiles").fetchall():
+            parts = (prow["client_name"] or "").strip().split(None, 1)
+            fn = prow["first_name"] or (parts[0] if parts else "")
+            ln = prow["last_name"] or (parts[1] if len(parts) > 1 else ("Taylor" if prow["id"] == 1 else ""))
+            has_w0_photos = db.execute(
+                "SELECT COUNT(*) AS c FROM progress_photos WHERE profile_id=? AND week_num=0 AND photo_data_url != ''",
+                (prow["id"],),
+            ).fetchone()["c"] >= 1
+            onb = 1 if (prow["onboarding_completed"] or has_w0_photos or prow["id"] == 1) else 0
+            db.execute(
+                "UPDATE challenge_profiles SET first_name=?, last_name=?, onboarding_completed=? WHERE id=?",
+                (fn, ln, onb, prow["id"]),
+            )
+    except Exception:
+        pass
     db.commit()
     if db_key:
         _ENSURED_BLOCK_DBS.add(db_key)
@@ -453,12 +479,86 @@ def _send_verification_email(db, profile_id, base_url=None):
     }
 
 
+def _send_block_welcome_email(db, profile_id, block_row, is_returning_user=False, base_url=None):
+    """Send cohort block welcome email (New Password flow for new users, direct Block Access flow for returning users)."""
+    acct = db.execute(
+        """SELECT a.*, p.client_name, p.first_name FROM challenge_user_accounts a
+           JOIN challenge_profiles p ON p.id = a.profile_id
+           WHERE a.profile_id=?""",
+        (profile_id,),
+    ).fetchone()
+    if not acct:
+        return {"sent": False, "welcome_url": "", "full_welcome_url": ""}
+
+    host_prefix = (base_url or "").rstrip("/")
+    b_name = block_row.get("name") or "CS Fitness 8-Week Challenge"
+    inv_code = block_row.get("invite_code") or "CS-OCT2026"
+    invite_tok = acct["invite_token"] or secrets.token_urlsafe(12)
+    greet_name = (acct["first_name"] or acct["client_name"] or "Challenger").split()[0]
+
+    if is_returning_user:
+        rel_url = f"/challenge/login?email={acct['email']}&code={inv_code}&returning=1"
+        full_url = f"{host_prefix}{rel_url}" if host_prefix else rel_url
+        subject = f"Welcome Back to {b_name} — Your Cohort Access is Ready!"
+        text_body = (
+            f"Hi {greet_name},\n\n"
+            f"Your payment has been processed and your access to {b_name} ({block_row.get('start_date', '')}) is now unlocked!\n"
+            f"Since you have already been in a previous block, sign in with your existing password:\n\n"
+            f"{full_url}\n\n"
+            f"On your 1st login for this block, you'll be prompted to enter your new block starting weight, upload your 3 starting photos (Side, Front, Back), and add your initial check-in notes for Coach Chris.\n"
+        )
+        html_body = (
+            f"<div style='font-family:sans-serif;max-width:540px;padding:24px;background:#0a0f0c;color:#f8fafc;border-radius:12px;border:1px solid #3DFF4F'>"
+            f"<h2 style='color:#3DFF4F;margin-top:0'>WELCOME BACK · {b_name}</h2>"
+            f"<p>Hi <strong>{greet_name}</strong>,</p>"
+            f"<p>You have been added to <strong>{b_name}</strong> (starting <strong>{block_row.get('start_date', '')}</strong>). Since you already have a CS Fitness account from a previous cohort, sign in using your existing password:</p>"
+            f"<p style='margin:24px 0'><a href='{full_url}' style='background:#3DFF4F;color:#050806;padding:12px 22px;border-radius:8px;font-weight:800;text-decoration:none;display:inline-block'>🚀 Sign In &amp; Complete Day 1 Block Setup →</a></p>"
+            f"<p style='font-size:13px;color:#cbd5e1'>On 1st login for this block, enter your starting weight, upload your 3 starting photos (Side, Front, Back), and capture your initial check-in notes.</p>"
+            f"</div>"
+        )
+    else:
+        rel_url = f"/challenge/login?invite={invite_tok}&email={acct['email']}&code={inv_code}"
+        full_url = f"{host_prefix}{rel_url}" if host_prefix else rel_url
+        subject = f"Welcome to {b_name} — Set Your Password & Complete Day 1 Setup"
+        text_body = (
+            f"Hi {greet_name},\n\n"
+            f"Welcome to the CS Fitness 8-Week Challenge ({b_name}, starting {block_row.get('start_date', '')})!\n"
+            f"Click your personal sign-up link below to create your password, confirm your profile details (First Name, Last Name, Age, Starting Weight), upload your 3 starting photos, and add your initial check-in notes:\n\n"
+            f"{full_url}\n\n"
+            f"Cohort Block Code: {inv_code}\n"
+        )
+        html_body = (
+            f"<div style='font-family:sans-serif;max-width:540px;padding:24px;background:#0a0f0c;color:#f8fafc;border-radius:12px;border:1px solid #3DFF4F'>"
+            f"<h2 style='color:#3DFF4F;margin-top:0'>WELCOME TO {b_name.upper()}</h2>"
+            f"<p>Hi <strong>{greet_name}</strong>,</p>"
+            f"<p>You are enrolled in <strong>{b_name}</strong> (starting <strong>{block_row.get('start_date', '')}</strong>). Click your personal onboarding link below to create your password and complete your Day 1 Setup (starting weight, 3 starting photos &amp; initial check-in notes):</p>"
+            f"<p style='margin:24px 0'><a href='{full_url}' style='background:#3DFF4F;color:#050806;padding:12px 22px;border-radius:8px;font-weight:800;text-decoration:none;display:inline-block'>✅ Set Password &amp; Start Cohort Setup →</a></p>"
+            f"<p style='font-size:12px;color:#94a3b8'>Cohort Code: <strong>{inv_code}</strong> · Direct Link: {full_url}</p>"
+            f"</div>"
+        )
+
+    mail_res = _send_challenge_email(acct["email"], subject, text_body, html_body)
+    return {
+        "sent": mail_res["sent"],
+        "method": mail_res["method"],
+        "is_returning_user": bool(is_returning_user),
+        "welcome_url": rel_url,
+        "full_welcome_url": full_url,
+    }
+
+
 def _upsert_challenger_for_block(db, data, block_row):
+    first_name = (data.get("first_name") or "").strip()
+    last_name = (data.get("last_name") or "").strip()
     cname = (data.get("client_name") or data.get("name") or "").strip()
+    if not cname and (first_name or last_name):
+        cname = f"{first_name} {last_name}".strip()
     email = (data.get("email") or "").strip().lower()
     req_username = re.sub(r"[^a-z0-9_.-]", "", (data.get("username") or "").strip().lower())
     teamup_cid = str(data.get("teamup_customer_id") or "").strip()
     req_invite_token = str(data.get("invite_token") or "").strip()
+    age_val = int(data["age"]) if str(data.get("age") or "").strip().isdigit() else None
+    init_notes = (data.get("initial_checkin_notes") or "").strip()
 
     # Check if an account already exists by invite_token, email, username, teamup_customer_id, or client_name so we reuse its profile
     existing_by_acct = None
@@ -510,7 +610,27 @@ def _upsert_challenger_for_block(db, data, block_row):
     if not cname:
         raise ValueError("Name or email is required")
 
-    returning = bool(data.get("returning_member", False))
+    if not first_name and cname:
+        parts = cname.split(None, 1)
+        first_name = parts[0] if parts else ""
+        if not last_name and len(parts) > 1:
+            last_name = parts[1]
+
+    # Check if user was already in a previous block or already has a password set
+    prior_enroll_cnt = 0
+    existing_has_pw = False
+    if existing_by_acct:
+        prior_enroll_cnt = db.execute(
+            "SELECT COUNT(*) AS c FROM challenge_block_enrollments WHERE profile_id=? AND block_id!=?",
+            (existing_by_acct["id"], block_row["id"]),
+        ).fetchone()["c"]
+        pw_row = db.execute(
+            "SELECT password_hash FROM challenge_user_accounts WHERE profile_id=?",
+            (existing_by_acct["id"],),
+        ).fetchone()
+        existing_has_pw = bool(pw_row and pw_row["password_hash"])
+
+    returning = bool(data.get("returning_member", False)) or (prior_enroll_cnt > 0)
     start_w = float(data.get("start_weight_kg") or 80.0)
     target_w = float(data.get("target_weight_kg") or round(start_w * 0.93, 1))
     start_bf = float(data.get("start_body_fat_pct") or 18.0)
@@ -531,14 +651,19 @@ def _upsert_challenger_for_block(db, data, block_row):
 
     db.execute(
         """INSERT INTO challenge_profiles (
-            client_name, goal, start_date, end_date,
+            client_name, first_name, last_name, age, initial_checkin_notes, onboarding_completed,
+            goal, start_date, end_date,
             start_weight_kg, target_weight_kg, start_body_fat_pct, target_body_fat_pct,
             lean_body_mass_kg, fat_mass_kg, to_lose_kg,
             target_calories, target_protein_g, target_fats_g, target_carbs_g,
             target_fibre_g, target_water_l, target_sleep_hrs,
             returning_member, workout_track, weekly_targets_json
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(client_name) DO UPDATE SET
+            first_name=CASE WHEN excluded.first_name != '' THEN excluded.first_name ELSE challenge_profiles.first_name END,
+            last_name=CASE WHEN excluded.last_name != '' THEN excluded.last_name ELSE challenge_profiles.last_name END,
+            age=COALESCE(excluded.age, challenge_profiles.age),
+            initial_checkin_notes=CASE WHEN excluded.initial_checkin_notes != '' THEN excluded.initial_checkin_notes ELSE challenge_profiles.initial_checkin_notes END,
             goal=excluded.goal, start_date=excluded.start_date, end_date=excluded.end_date,
             start_weight_kg=excluded.start_weight_kg, target_weight_kg=excluded.target_weight_kg,
             start_body_fat_pct=excluded.start_body_fat_pct, target_body_fat_pct=excluded.target_body_fat_pct,
@@ -550,6 +675,11 @@ def _upsert_challenger_for_block(db, data, block_row):
             weekly_targets_json=excluded.weekly_targets_json""",
         (
             cname,
+            first_name,
+            last_name,
+            age_val,
+            init_notes,
+            1 if data.get("onboarding_completed") else 0,
             calc["goal"],
             calc["start_date"],
             calc["end_date"],
@@ -576,11 +706,16 @@ def _upsert_challenger_for_block(db, data, block_row):
     pid = prof["id"]
 
     db.execute(
-        """INSERT INTO challenge_block_enrollments (block_id, profile_id, is_returning, joined_via, payment_ref)
-           VALUES (?,?,?,?,?)
+        """INSERT INTO challenge_block_enrollments (
+               block_id, profile_id, is_returning, joined_via, payment_ref,
+               block_start_weight_kg, initial_checkin_notes, onboarding_completed
+           )
+           VALUES (?,?,?,?,?,?,?,?)
            ON CONFLICT(block_id, profile_id) DO UPDATE SET
                is_returning=excluded.is_returning,
                joined_via=excluded.joined_via,
+               block_start_weight_kg=COALESCE(excluded.block_start_weight_kg, challenge_block_enrollments.block_start_weight_kg),
+               initial_checkin_notes=CASE WHEN excluded.initial_checkin_notes != '' THEN excluded.initial_checkin_notes ELSE challenge_block_enrollments.initial_checkin_notes END,
                payment_ref=CASE WHEN excluded.payment_ref != '' THEN excluded.payment_ref ELSE challenge_block_enrollments.payment_ref END""",
         (
             block_row["id"],
@@ -588,6 +723,9 @@ def _upsert_challenger_for_block(db, data, block_row):
             1 if returning else 0,
             data.get("joined_via", "Invite / Signup"),
             str(data.get("payment_ref") or ""),
+            start_w,
+            init_notes,
+            1 if data.get("onboarding_completed") else 0,
         ),
     )
 
@@ -1292,11 +1430,11 @@ def api_challenge_blocks():
             return jsonify({"ok": False, "error": "Only Coach & Admin accounts can create cohort blocks."}), 403
         data = request.get_json() or {}
         name = (data.get("name") or "").strip()
-        start_date = (data.get("start_date") or "2027-01-11")[:10]
+        start_date = (data.get("start_date") or data.get("week1_monday") or "2027-01-11")[:10]
         if not name:
             return jsonify({"ok": False, "error": "Block name is required"}), 400
         dt_start = datetime.strptime(start_date, "%Y-%m-%d")
-        pre_dt = (dt_start - timedelta(days=7)).strftime("%Y-%m-%d")
+        pre_dt = (data.get("pre_coaching_date") or data.get("pre_coaching_Start") or (dt_start - timedelta(days=7)).strftime("%Y-%m-%d"))[:10]
         end_dt = (dt_start + timedelta(days=56)).strftime("%Y-%m-%d")
         b_code = (data.get("block_code") or f"{dt_start.strftime('%Y')}-B-{dt_start.strftime('%b').upper()}").strip().upper()
         inv_code = (data.get("invite_code") or f"CS-{dt_start.strftime('%b%Y').upper()}").strip().upper()
@@ -1306,17 +1444,27 @@ def api_challenge_blocks():
         if status == "Active":
             db.execute("UPDATE challenge_blocks SET status='Completed' WHERE status='Active' AND start_date < ?", (start_date,))
 
-        db.execute(
-            """INSERT INTO challenge_blocks (block_code, name, pre_coaching_date, start_date, end_date, status, invite_code, gap_note)
-               VALUES (?,?,?,?,?,?,?,?)
-               ON CONFLICT(block_code) DO UPDATE SET
-                   name=excluded.name, pre_coaching_date=excluded.pre_coaching_date,
-                   start_date=excluded.start_date, end_date=excluded.end_date,
-                   status=excluded.status, invite_code=excluded.invite_code, gap_note=excluded.gap_note""",
-            (b_code, name, pre_dt, start_date, end_dt, status, inv_code, gap_note),
-        )
-        db.commit()
-        created_blk = db.execute("SELECT * FROM challenge_blocks WHERE block_code=?", (b_code,)).fetchone()
+        existing_blk = db.execute(
+            "SELECT * FROM challenge_blocks WHERE block_code=? OR invite_code=?",
+            (b_code, inv_code),
+        ).fetchone()
+        if existing_blk:
+            db.execute(
+                """UPDATE challenge_blocks
+                   SET name=?, pre_coaching_date=?, start_date=?, end_date=?, status=?, gap_note=?
+                   WHERE id=?""",
+                (name, pre_dt, start_date, end_dt, status, gap_note, existing_blk["id"]),
+            )
+            db.commit()
+            created_blk = db.execute("SELECT * FROM challenge_blocks WHERE id=?", (existing_blk["id"],)).fetchone()
+        else:
+            db.execute(
+                """INSERT INTO challenge_blocks (block_code, name, pre_coaching_date, start_date, end_date, status, invite_code, gap_note)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (b_code, name, pre_dt, start_date, end_dt, status, inv_code, gap_note),
+            )
+            db.commit()
+            created_blk = db.execute("SELECT * FROM challenge_blocks WHERE block_code=?", (b_code,)).fetchone()
     else:
         created_blk = None
 
@@ -2463,6 +2611,253 @@ def api_challenge_admin_cohort_summary():
         "with_photos": sum(1 for r in roster if r["photos_count"] > 0),
     }
     return jsonify({"ok": True, "week": week_num, "kpis": kpis, "roster": roster})
+
+
+@challenge_blocks_bp.route("/api/challenge/admin/invite-users", methods=["POST"])
+def api_challenge_admin_invite_users():
+    """Add one or more users (email addresses / names) to a Cohort Block after payment is processed.
+    - New users receive a Welcome Email with a personal 'Set New Password & Day 1 Setup' link.
+    - Returning users from a previous block keep their existing password and receive a 'Welcome Back — Access Unlocked' email.
+    """
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    if not _is_current_user_admin(db):
+        return jsonify({"ok": False, "error": "Only Coach & Admin accounts can invite users to a cohort block."}), 403
+
+    data = request.get_json() or {}
+    block_id = int(data.get("block_id") or 0)
+    block_code = (data.get("block_code") or data.get("invite_code") or "").strip().upper()
+    block_row = None
+    if block_id:
+        block_row = db.execute("SELECT * FROM challenge_blocks WHERE id=?", (block_id,)).fetchone()
+    if not block_row and block_code:
+        block_row = db.execute(
+            "SELECT * FROM challenge_blocks WHERE UPPER(block_code)=? OR UPPER(invite_code)=?",
+            (block_code, block_code),
+        ).fetchone()
+    if not block_row:
+        block_row = db.execute("SELECT * FROM challenge_blocks WHERE status='Active' ORDER BY start_date DESC LIMIT 1").fetchone()
+    block_dict = dict(block_row)
+
+    # Support either structured `users` list, `entries` list, single fields, or bulk `emails_text` (one per line: `email, First Last`)
+    raw_items = []
+    for list_key in ("users", "entries"):
+        if isinstance(data.get(list_key), list):
+            for entry in data[list_key]:
+                if isinstance(entry, dict):
+                    raw_items.append(entry)
+                elif isinstance(entry, str) and entry.strip():
+                    parts = [p.strip() for p in re.split(r"[,;\t]+", entry.strip()) if p.strip()]
+                    em = next((p for p in parts if "@" in p), "")
+                    nm = next((p for p in parts if "@" not in p), "")
+                    raw_items.append({"email": em, "client_name": nm})
+    if data.get("emails_text"):
+        for line in str(data["emails_text"]).splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            parts = [p.strip() for p in re.split(r"[,;\t]+", line) if p.strip()]
+            em = next((p for p in parts if "@" in p), "")
+            nm = next((p for p in parts if "@" not in p), "")
+            raw_items.append({"email": em, "client_name": nm})
+    if not raw_items and (data.get("email") or data.get("client_name") or data.get("first_name")):
+        raw_items.append(data)
+
+    if not raw_items:
+        return jsonify({"ok": False, "error": "Please enter at least one email address or user name."}), 400
+
+    base_url = request.host_url.rstrip("/")
+    results = []
+    for item in raw_items:
+        em = (item.get("email") or "").strip().lower()
+        existing_acct = None
+        if em:
+            existing_acct = db.execute(
+                """SELECT a.*, p.client_name FROM challenge_user_accounts a
+                   JOIN challenge_profiles p ON p.id = a.profile_id
+                   WHERE LOWER(a.email)=?""",
+                (em,),
+            ).fetchone()
+        was_existing_member = bool(existing_acct is not None)
+
+        prof, acct = _upsert_challenger_for_block(
+            db,
+            {
+                "email": em,
+                "first_name": item.get("first_name") or "",
+                "last_name": item.get("last_name") or "",
+                "client_name": item.get("client_name") or item.get("name") or "",
+                "age": item.get("age"),
+                "start_weight_kg": item.get("start_weight_kg") or 80.0,
+                "target_weight_kg": item.get("target_weight_kg"),
+                "payment_ref": item.get("payment_ref") or data.get("payment_ref") or "Payment Confirmed",
+                "joined_via": "Cohort Admin Invite",
+                "returning_member": True if was_existing_member else bool(item.get("returning_member", False)),
+                "onboarding_completed": False,
+            },
+            block_dict,
+        )
+        # Ensure new block enrollment starts with onboarding_completed=0 so 1st login prompts for starting photos & notes
+        db.execute(
+            """UPDATE challenge_block_enrollments
+               SET onboarding_completed=0, welcome_email_sent=1
+               WHERE block_id=? AND profile_id=?""",
+            (block_dict["id"], prof["id"]),
+        )
+        if not was_existing_member and prof["id"] != 1:
+            db.execute("UPDATE challenge_profiles SET onboarding_completed=0 WHERE id=?", (prof["id"],))
+        db.commit()
+
+        welcome_res = _send_block_welcome_email(
+            db,
+            prof["id"],
+            block_dict,
+            is_returning_user=was_existing_member,
+            base_url=base_url,
+        )
+        results.append({
+            "profile_id": prof["id"],
+            "client_name": prof["client_name"],
+            "first_name": prof.get("first_name") or "",
+            "last_name": prof.get("last_name") or "",
+            "email": acct["email"],
+            "username": acct["username"],
+            "is_returning": was_existing_member,
+            "flow": "returning_block_access" if was_existing_member else "new_password_setup",
+            "welcome_email_sent": welcome_res["sent"],
+            "signup_url": welcome_res["welcome_url"],
+            "welcome_url": welcome_res["welcome_url"],
+            "full_welcome_url": welcome_res["full_welcome_url"],
+        })
+
+    return jsonify({
+        "ok": True,
+        "block": block_dict,
+        "cohort_signup_url": f"{base_url}/challenge/login?code={block_dict['invite_code']}&signup=1",
+        "count": len(results),
+        "invited_count": len(results),
+        "invited": results,
+    })
+
+
+@challenge_blocks_bp.route("/api/challenge/onboarding", methods=["GET", "POST"])
+def api_challenge_first_login_onboarding():
+    """Get or complete 1st-login Cohort Block setup (First/Last Name, Age, Start Weight, 3 Starting Photos, Initial Check-In Notes)."""
+    from challenge_progress import _ensure_weekly_submissions_table
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    _ensure_weekly_submissions_table(db)
+    profile = _get_active_profile(db)
+    pid = int(profile["id"])
+
+    if request.method == "GET":
+        w0_photos = [
+            dict(r)
+            for r in db.execute(
+                "SELECT pose, weight_kg, taken_date, photo_data_url FROM progress_photos WHERE profile_id=? AND week_num=0",
+                (pid,),
+            ).fetchall()
+        ]
+        w0_sub = db.execute(
+            "SELECT challenger_comments FROM weekly_submissions WHERE profile_id=? AND week_num=0",
+            (pid,),
+        ).fetchone()
+        return jsonify({
+            "ok": True,
+            "profile_id": pid,
+            "first_name": profile.get("first_name") or (profile.get("client_name") or "").split()[0],
+            "last_name": profile.get("last_name") or "",
+            "client_name": profile.get("client_name") or "",
+            "age": profile.get("age"),
+            "start_weight_kg": profile.get("start_weight_kg"),
+            "target_weight_kg": profile.get("target_weight_kg"),
+            "target_protein_g": profile.get("target_protein_g"),
+            "target_calories": profile.get("target_calories"),
+            "initial_checkin_notes": (
+                profile.get("initial_checkin_notes")
+                or (w0_sub["challenger_comments"] if w0_sub else "")
+                or ""
+            ),
+            "onboarding_completed": bool(profile.get("onboarding_completed")),
+            "starting_photos": w0_photos,
+        })
+
+    data = request.get_json() or {}
+    first_name = (data.get("first_name") or profile.get("first_name") or "").strip()
+    last_name = (data.get("last_name") or profile.get("last_name") or "").strip()
+    cname = (data.get("client_name") or "").strip()
+    if not cname and (first_name or last_name):
+        # Preserve Ewan t's exact canonical name if pid == 1
+        cname = profile["client_name"] if pid == 1 else f"{first_name} {last_name}".strip()
+    if not cname:
+        cname = profile["client_name"]
+
+    age_val = int(data["age"]) if str(data.get("age") or "").strip().isdigit() else profile.get("age")
+    start_w = float(data.get("start_weight_kg") or profile.get("start_weight_kg") or 84.0)
+    target_w = float(data.get("target_weight_kg") or profile.get("target_weight_kg") or round(start_w * 0.93, 1))
+    prot_g = int(data.get("target_protein_g") or profile.get("target_protein_g") or 150)
+    init_notes = (data.get("initial_checkin_notes") or "").strip()
+
+    calc = calculate_challenge_targets(
+        start_weight_kg=start_w,
+        target_weight_kg=target_w,
+        start_body_fat_pct=float(profile.get("start_body_fat_pct") or 16.0),
+        target_body_fat_pct=float(profile.get("target_body_fat_pct") or 14.0),
+        protein_g=prot_g,
+        start_date=(profile.get("start_date") or "2026-10-19")[:10],
+        goal=data.get("goal") or profile.get("goal") or "Weight Loss",
+        returning_member=bool(profile.get("returning_member")),
+    )
+
+    db.execute(
+        """UPDATE challenge_profiles SET
+            client_name=?, first_name=?, last_name=?, age=?,
+            initial_checkin_notes=?, onboarding_completed=1,
+            start_weight_kg=?, target_weight_kg=?,
+            lean_body_mass_kg=?, fat_mass_kg=?, to_lose_kg=?,
+            target_calories=?, target_protein_g=?, target_fats_g=?, target_carbs_g=?,
+            target_water_l=?, weekly_targets_json=?
+           WHERE id=?""",
+        (
+            cname, first_name, last_name, age_val,
+            init_notes,
+            start_w, target_w,
+            calc["lean_body_mass_kg"], calc["fat_mass_kg"], calc["to_lose_kg"],
+            calc["target_calories"], prot_g, calc["target_fats_g"], calc["target_carbs_g"],
+            calc["target_water_l"], json.dumps(calc["weekly_targets"]),
+            pid,
+        ),
+    )
+    db.execute(
+        "UPDATE challenge_block_enrollments SET block_start_weight_kg=?, initial_checkin_notes=?, onboarding_completed=1 WHERE profile_id=?",
+        (start_w, init_notes, pid),
+    )
+    # Also save initial_checkin_notes and start_w into Week 0 weekly_submissions
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+    w0_photos_cnt = db.execute(
+        "SELECT COUNT(*) AS c FROM progress_photos WHERE profile_id=? AND week_num=0 AND photo_data_url != ''",
+        (pid,),
+    ).fetchone()["c"]
+    db.execute(
+        """INSERT INTO weekly_submissions (profile_id, week_num, status, challenger_comments, avg_weight_kg, photos_count, submitted_at)
+           VALUES (?, 0, 'Submitted', ?, ?, ?, ?)
+           ON CONFLICT(profile_id, week_num) DO UPDATE SET
+               challenger_comments=CASE WHEN excluded.challenger_comments != '' THEN excluded.challenger_comments ELSE weekly_submissions.challenger_comments END,
+               avg_weight_kg=excluded.avg_weight_kg,
+               photos_count=excluded.photos_count,
+               updated_at=CURRENT_TIMESTAMP""",
+        (pid, init_notes, start_w, w0_photos_cnt, now_str),
+    )
+    db.execute("UPDATE progress_photos SET weight_kg=? WHERE profile_id=? AND week_num=0", (start_w, pid))
+    db.commit()
+    try:
+        auto_persist_profile_backup(db, pid)
+    except Exception:
+        pass
+    updated_prof = _get_active_profile(db, pid)
+    _set_authenticated_session(updated_prof)
+    return jsonify({"ok": True, "profile": updated_prof, "onboarding_completed": True})
+
 
 
 

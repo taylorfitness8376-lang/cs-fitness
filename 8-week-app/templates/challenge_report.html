@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ profile.client_name }} · {% if week_num == 0 %}Start Baseline{% else %}Week {{ week_num }}{% endif %} Check-In Summary · CS Fitness</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #060907;
+      --card: #0e1410;
+      --card2: #121a15;
+      --border: rgba(61, 255, 79, 0.22);
+      --neon: #3DFF4F;
+      --gold: #F5A623;
+      --cyan: #25D4FF;
+      --danger: #FF5252;
+      --text: #F3F7F4;
+      --muted: #8FA395;
+      --font-head: 'Barlow Condensed', sans-serif;
+      --font-body: 'Inter', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top, #102115 0%, var(--bg) 55%);
+      color: var(--text);
+      font-family: var(--font-body);
+      line-height: 1.45;
+      padding: 18px 14px 48px;
+    }
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 14px 18px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 14px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand img {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      border: 1px solid var(--neon);
+      object-fit: cover;
+    }
+    .brand h1 {
+      margin: 0;
+      font-family: var(--font-head);
+      font-size: 1.65rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      line-height: 1.05;
+    }
+    .brand .sub {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 13px;
+      border-radius: 9px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: var(--card2);
+      color: var(--text);
+    }
+    .btn.primary {
+      background: var(--neon);
+      color: #041206;
+      border-color: var(--neon);
+    }
+    .week-pills {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 4px 2px 12px;
+      margin-bottom: 6px;
+    }
+    .week-pill {
+      padding: 7px 13px;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      text-decoration: none;
+      color: var(--muted);
+      background: var(--card);
+      border: 1px solid rgba(255,255,255,0.1);
+      white-space: nowrap;
+    }
+    .week-pill.active {
+      background: var(--neon);
+      color: #041206;
+      border-color: var(--neon);
+      font-weight: 800;
+    }
+    .week-pill.has-data {
+      border-color: rgba(61,255,79,0.45);
+      color: var(--text);
+    }
+    .section-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-family: var(--font-head);
+      font-size: 1.28rem;
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--neon);
+      margin: 0;
+    }
+    .section-sub {
+      font-size: 0.76rem;
+      color: var(--muted);
+    }
+    /* Side-by-Side Progress Photos Grid */
+    .poses-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 900px) {
+      .poses-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .pose-card {
+      background: var(--card2);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .pose-card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .pose-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .photo-slot {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .photo-frame {
+      width: 100%;
+      aspect-ratio: 1 / 2;
+      background: #050806;
+      border-radius: 9px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.12);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .photo-frame.curr {
+      border-color: rgba(61,255,79,0.55);
+    }
+    .photo-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center top;
+      display: block;
+      cursor: zoom-in;
+    }
+    .photo-badge {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--muted);
+      padding: 0 2px;
+    }
+    .photo-badge strong {
+      font-family: var(--font-mono);
+      color: var(--text);
+    }
+    .photo-badge.curr strong {
+      color: var(--neon);
+    }
+    /* Write-Up Card */
+    .writeup-box {
+      background: rgba(61,255,79,0.05);
+      border: 1px solid rgba(61,255,79,0.28);
+      border-radius: 11px;
+      padding: 14px 16px;
+      font-size: 0.92rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      color: var(--text);
+    }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .kpi-card {
+      background: var(--card2);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .kpi-label {
+      font-size: 0.66rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .kpi-val {
+      font-family: var(--font-mono);
+      font-size: 1.18rem;
+      font-weight: 800;
+      margin-top: 3px;
+    }
+    .kpi-sub {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .table-scroll {
+      overflow-x: auto;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+    }
+    th {
+      background: rgba(255,255,255,0.04);
+      color: var(--muted);
+      font-size: 0.67rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      text-align: left;
+      padding: 9px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.09);
+      white-space: nowrap;
+    }
+    td {
+      padding: 9px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      vertical-align: middle;
+    }
+    tr.active-row {
+      background: rgba(61,255,79,0.09);
+    }
+    .mono { font-family: var(--font-mono); }
+    .pill-ok {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 99px;
+      font-size: 0.66rem;
+      font-weight: 800;
+      background: rgba(61,255,79,0.16);
+      color: var(--neon);
+    }
+    .pill-warn {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 99px;
+      font-size: 0.66rem;
+      font-weight: 800;
+      background: rgba(245,166,35,0.16);
+      color: var(--gold);
+    }
+    @media print {
+      body { background: #060907; padding: 0; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- Top Header -->
+    <div class="topbar">
+      <div class="brand">
+        <img src="/static/logo.jpg" alt="CS Fitness" />
+        <div>
+          <h1>{{ profile.client_name }} · {% if week_num == 0 %}Start (Day 1 Baseline){% else %}Week {{ week_num }} Weekly Summary{% endif %}</h1>
+          <div class="sub">
+            CS Fitness 8-Week Challenge · Goal: <strong style="color:var(--text);">{{ profile.goal }}</strong>
+            · Start Weight: <strong class="mono" style="color:var(--text);">{{ "%.2f"|format(profile.start_weight_kg or 84.0) }} kg</strong>
+            → Target: <strong class="mono" style="color:var(--neon);">{{ "%.2f"|format(profile.target_weight_kg or 78.3) }} kg</strong>
+          </div>
+        </div>
+      </div>
+      <div class="actions no-print">
+        <button class="btn primary" onclick="copyReportUrl()">📋 Copy Link for Chris</button>
+        <a class="btn" href="/api/challenge/export/excel?profile_id={{ profile.id }}&week_num={{ week_num }}">📊 Download Excel (.xlsx)</a>
+        <button class="btn" onclick="window.print()">🖨️ Print / PDF</button>
+        <a class="btn" href="/challenge">← Back to App</a>
+      </div>
+    </div>
+
+    <!-- Week Selector Pills -->
+    <div class="week-pills no-print">
+      {% for w in wow %}
+      <a href="/challenge/share/{{ profile.id }}/{{ w.week_num }}"
+         class="week-pill {% if w.week_num == week_num %}active{% elif w.days_logged > 0 or w.photos_count > 0 or w.challenger_comments %}has-data{% endif %}">
+        {% if w.week_num == 0 %}Start (Day 1){% else %}Week {{ w.week_num }}{% endif %}
+        {% if w.avg_weight_kg %} · {{ "%.1f"|format(w.avg_weight_kg) }}kg{% endif %}
+      </a>
+      {% endfor %}
+    </div>
+
+    <!-- SIDE-BY-SIDE PROGRESS PICTURES (Side, Front, Back) -->
+    <div class="section-card">
+      <div class="section-header">
+        <h2 class="section-title">📸 Side-by-Side Progress Photos (Start vs {% if week_num == 0 %}Start{% else %}Week {{ week_num }}{% endif %})</h2>
+        <div class="section-sub">Cropped & fitted 1:2 portrait comparison · Tap any photo to zoom full-screen</div>
+      </div>
+      <div class="poses-grid">
+        {% for pair in pose_pairs %}
+        <div class="pose-card">
+          <div class="pose-card-head">
+            <span style="color:var(--neon);">{{ pair.pose }} Pose</span>
+            <span class="mono" style="font-size:0.7rem;color:var(--muted);">Start vs {% if week_num == 0 %}Start{% else %}Wk {{ week_num }}{% endif %}</span>
+          </div>
+          <div class="pose-pair">
+            <!-- Start Photo -->
+            <div class="photo-slot">
+              <div class="photo-badge">
+                <span>START (WK 0)</span>
+                <strong>{{ "%.1f"|format(pair.start_weight_kg or profile.start_weight_kg) }}kg</strong>
+              </div>
+              <div class="photo-frame">
+                {% if pair.start_photo and pair.start_photo.photo_data_url %}
+                <img src="{{ pair.start_photo.photo_data_url }}" alt="Start {{ pair.pose }}" onclick="openZoom(this.src, 'Start · {{ pair.pose }} Pose')" />
+                {% else %}
+                <span style="font-size:0.72rem;color:var(--muted);text-align:center;padding:8px;">No Start {{ pair.pose }} photo</span>
+                {% endif %}
+              </div>
+            </div>
+            <!-- Current Selected Week Photo -->
+            <div class="photo-slot">
+              <div class="photo-badge curr">
+                <span>{% if week_num == 0 %}START{% else %}WEEK {{ week_num }}{% endif %}</span>
+                <strong>{% if pair.curr_weight_kg %}{{ "%.2f"|format(pair.curr_weight_kg) }}kg{% else %}—{% endif %}</strong>
+              </div>
+              <div class="photo-frame curr">
+                {% if pair.curr_photo and pair.curr_photo.photo_data_url %}
+                <img src="{{ pair.curr_photo.photo_data_url }}" alt="Week {{ week_num }} {{ pair.pose }}" onclick="openZoom(this.src, 'Week {{ week_num }} · {{ pair.pose }} Pose')" />
+                {% elif week_num == 1 %}
+                <span style="font-size:0.72rem;color:var(--gold);text-align:center;padding:10px;">Week 1 Friday<br>(No photos required)</span>
+                {% else %}
+                <span style="font-size:0.72rem;color:var(--muted);text-align:center;padding:8px;">No Wk {{ week_num }} {{ pair.pose }} photo yet</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- 1. WRITE-UP OF THE WEEK (Directly under the side-by-side pictures) -->
+    <div class="section-card">
+      <div class="section-header">
+        <h2 class="section-title">1. Write-Up of the Week ({% if week_num == 0 %}Day 1 Initial Check-In Notes{% else %}Week {{ week_num }} Recap{% endif %})</h2>
+        <div class="section-sub">
+          {% if wk_summary.submitted_at %}Submitted {{ wk_summary.submitted_at }}{% else %}Weekly Check-In Recap{% endif %}
+        </div>
+      </div>
+      {% if wk_summary.challenger_comments %}
+      <div class="writeup-box">{{ wk_summary.challenger_comments }}</div>
+      {% elif auto_notes %}
+      <div class="writeup-box">{{ auto_notes|join('\n') }}</div>
+      {% else %}
+      <div class="writeup-box" style="color:var(--muted);">No weekly write-up entered for this week yet.</div>
+      {% endif %}
+
+      <!-- Coach Chris Feedback Box -->
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+          <label for="coach-feedback-input" style="font-size:0.74rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:0.05em;">
+            💬 Coach Chris Feedback & Notes for {{ profile.client_name }}
+          </label>
+          <span id="coach-feedback-status" style="font-size:0.72rem;color:var(--muted);">
+            {% if wk_summary.reviewed_at %}Reviewed {{ wk_summary.reviewed_at }}{% endif %}
+          </span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <textarea id="coach-feedback-input" rows="2" placeholder="Add Coach Chris feedback or macro/step adjustments for next week..." style="flex:1;min-width:240px;background:#070b08;border:1px solid rgba(245,166,35,0.35);color:var(--text);border-radius:9px;padding:9px 11px;font-family:var(--font-body);font-size:0.84rem;">{{ wk_summary.coach_feedback or '' }}</textarea>
+          <button class="btn primary no-print" onclick="saveCoachFeedback()" style="align-self:flex-end;padding:10px 16px;">💾 Save Coach Feedback</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. SUMMARY OF THE WEEK (SATURDAY TO FRIDAY) -->
+    <div class="section-card">
+      <div class="section-header">
+        <h2 class="section-title">2. Summary of the Week ({{ week_sheet.window_label or 'Saturday – Friday' }} · {{ week_sheet.start_date }} to {{ week_sheet.end_date }})</h2>
+        <div class="section-sub">Check-In Day: <strong style="color:var(--text);">{{ week_sheet.checkin_day }} ({{ week_sheet.checkin_date }})</strong></div>
+      </div>
+
+      <!-- That Week's KPI Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Week Avg Weight</div>
+          <div class="kpi-val" style="color:var(--neon);">
+            {% if wk_summary.avg_weight_kg %}{{ "%.2f"|format(wk_summary.avg_weight_kg) }} kg{% else %}—{% endif %}
+          </div>
+          <div class="kpi-sub">
+            Target: {{ "%.2f"|format(week_sheet.target_weight_kg) }} kg
+            {% if wk_summary.wow_diff_kg is not none and week_num > 0 %}
+            · WoW: <strong style="color:{% if wk_summary.wow_diff_kg <= 0 %}var(--neon){% else %}var(--gold){% endif %};">{{ "%+.2f"|format(wk_summary.wow_diff_kg) }} kg</strong>
+            {% endif %}
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Total vs Start ({{ "%.2f"|format(profile.start_weight_kg) }}kg)</div>
+          <div class="kpi-val" style="color:{% if (wk_summary.total_diff_kg or 0) <= 0 %}var(--neon){% else %}var(--gold){% endif %};">
+            {% if wk_summary.total_diff_kg is not none %}{{ "%+.2f"|format(wk_summary.total_diff_kg) }} kg{% else %}0.00 kg{% endif %}
+          </div>
+          <div class="kpi-sub">Goal Weight: {{ "%.2f"|format(profile.target_weight_kg) }} kg</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Avg Daily Steps</div>
+          <div class="kpi-val">{{ "{:,}".format(wk_summary.avg_steps or 0) }}</div>
+          <div class="kpi-sub">Min Target: {{ "{:,}".format(week_sheet.step_target) }}/day</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Avg Calories & Protein</div>
+          <div class="kpi-val">{{ "{:,}".format(wk_summary.avg_calories or 0) }} <span style="font-size:0.75rem;color:var(--muted);">kcal</span> · {{ wk_summary.avg_protein_g or 0 }}g</div>
+          <div class="kpi-sub">Target: {{ "{:,}".format(profile.target_calories) }} kcal · {{ profile.target_protein_g }}g P</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Adherence & Sessions</div>
+          <div class="kpi-val" style="color:var(--cyan);">{{ wk_summary.days_on_plan or 0 }}/{{ wk_summary.days_logged or 0 }} <span style="font-size:0.76rem;">days</span></div>
+          <div class="kpi-sub">{{ wk_summary.gym_sessions or 0 }} Gym · {{ wk_summary.cardio_sessions or 0 }} Cardio{% if wk_summary.run_km %} ({{ "%.1f"|format(wk_summary.run_km) }}km){% endif %}</div>
+        </div>
+      </div>
+
+      <!-- 7-Day Saturday -> Friday Table -->
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Day</th>
+              <th>Date</th>
+              <th>Weight (kg)</th>
+              <th>Training</th>
+              <th>Steps (vs {{ "{:,}".format(week_sheet.step_target) }})</th>
+              <th>Protein ({{ profile.target_protein_g }}g)</th>
+              <th>Calories ({{ profile.target_calories }})</th>
+              <th>Sleep</th>
+              <th>Plan</th>
+              <th>Workouts & Daily Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in week_sheet.rows %}
+            <tr class="{% if r.is_friday_checkin or r.is_start_checkin_day %}active-row{% endif %}">
+              <td style="font-weight:800;white-space:nowrap;">
+                {{ r.day_short }}
+                {% if r.is_friday_checkin %}<span class="pill-ok" style="margin-left:4px;">FRI CHECK-IN</span>{% endif %}
+                {% if r.is_start_checkin_day %}<span class="pill-ok" style="margin-left:4px;">DAY 1 START</span>{% endif %}
+              </td>
+              <td class="mono" style="color:var(--muted);white-space:nowrap;">{{ r.date }}</td>
+              <td class="mono" style="font-weight:700;">
+                {% if r.weight_kg %}{{ "%.2f"|format(r.weight_kg) }} kg{% else %}<span style="color:var(--muted);">—</span>{% endif %}
+              </td>
+              <td style="font-weight:700;color:var(--cyan);white-space:nowrap;">{{ r.training_type or 'REST' }}</td>
+              <td class="mono" style="font-weight:700;color:{% if r.step_green %}var(--neon){% elif r.steps > 0 %}var(--gold){% else %}var(--muted){% endif %};">
+                {% if r.steps > 0 %}{{ "{:,}".format(r.steps) }}{% else %}—{% endif %}
+              </td>
+              <td class="mono" style="font-weight:700;color:{% if r.protein_green %}var(--neon){% elif r.protein_g > 0 %}var(--gold){% else %}var(--muted){% endif %};">
+                {% if r.protein_g > 0 %}{{ r.protein_g }}g{% else %}—{% endif %}
+              </td>
+              <td class="mono" style="font-weight:700;color:{% if r.calories_green %}var(--neon){% elif r.calories > 0 %}var(--gold){% else %}var(--muted){% endif %};">
+                {% if r.calories > 0 %}{{ "{:,}".format(r.calories) }}{% else %}—{% endif %}
+              </td>
+              <td class="mono" style="color:var(--muted);">
+                {% if r.sleep_str %}{{ r.sleep_str }}{% elif r.sleep_mins and r.sleep_mins > 0 %}{{ (r.sleep_mins // 60) }}h {{ "%02d"|format(r.sleep_mins % 60) }}m{% else %}—{% endif %}
+              </td>
+              <td>
+                {% if r.stick_to_plan == 'Y' %}<span class="pill-ok">YES</span>
+                {% elif r.stick_to_plan == 'N' %}<span class="pill-warn">NO</span>
+                {% else %}<span style="color:var(--muted);">—</span>{% endif %}
+              </td>
+              <td style="color:var(--text);min-width:210px;">{{ r.combined_notes or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 3. WEEK-OVER-WEEK PROGRESS TABLE (Directly underneath that week's data) -->
+    <div class="section-card">
+      <div class="section-header">
+        <h2 class="section-title">3. Week-over-Week Progress (Start Baseline → Week 8)</h2>
+        <div class="section-sub">Start Weight Baseline: <strong class="mono" style="color:var(--text);">{{ "%.2f"|format(profile.start_weight_kg) }} kg</strong> · Goal: <strong class="mono" style="color:var(--neon);">{{ "%.2f"|format(profile.target_weight_kg) }} kg</strong></div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Week</th>
+              <th>Window (Sat – Fri)</th>
+              <th>Days On Plan</th>
+              <th>Avg Weight (vs Target)</th>
+              <th>WoW Δ</th>
+              <th>Total Δ vs Start</th>
+              <th>Avg Steps (vs Min)</th>
+              <th>Avg Cals & Protein</th>
+              <th>Gym / Cardio</th>
+              <th>Photos</th>
+              <th>Summary Link</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for w in wow %}
+            <tr class="{% if w.week_num == week_num %}active-row{% endif %}">
+              <td style="font-weight:800;white-space:nowrap;">{{ w.label }}</td>
+              <td class="mono" style="font-size:0.7rem;color:var(--muted);white-space:nowrap;">{{ w.start_date[5:] }} → {{ w.end_date[5:] }}</td>
+              <td class="mono">{{ w.days_on_plan }}/{{ w.days_logged }}d</td>
+              <td class="mono" style="font-weight:700;">
+                {% if w.avg_weight_kg %}
+                  {{ "%.2f"|format(w.avg_weight_kg) }} kg
+                  <span style="font-size:0.68rem;color:var(--muted);">(T:{{ "%.1f"|format(w.target_weight_kg) }})</span>
+                {% else %}—{% endif %}
+              </td>
+              <td class="mono" style="font-weight:700;color:{% if w.week_num == 0 %}var(--muted){% elif w.wow_diff_kg is not none and w.wow_diff_kg <= 0 %}var(--neon){% elif w.wow_diff_kg is not none %}var(--gold){% else %}var(--muted){% endif %};">
+                {% if w.week_num == 0 %}Baseline
+                {% elif w.wow_diff_kg is not none %}{{ "%+.2f"|format(w.wow_diff_kg) }} kg
+                {% else %}—{% endif %}
+              </td>
+              <td class="mono" style="font-weight:700;color:{% if w.week_num == 0 %}var(--muted){% elif w.total_diff_kg is not none and w.total_diff_kg <= 0 %}var(--neon){% elif w.total_diff_kg is not none %}var(--gold){% else %}var(--muted){% endif %};">
+                {% if w.week_num == 0 %}0.00 kg
+                {% elif w.total_diff_kg is not none %}{{ "%+.2f"|format(w.total_diff_kg) }} kg
+                {% else %}—{% endif %}
+              </td>
+              <td class="mono" style="color:{% if w.avg_steps >= w.step_target and w.avg_steps > 0 %}var(--neon){% elif w.avg_steps > 0 %}var(--text){% else %}var(--muted){% endif %};">
+                {% if w.avg_steps > 0 %}{{ "{:,}".format(w.avg_steps) }} <span style="font-size:0.66rem;color:var(--muted);">/{{ (w.step_target // 1000) }}k</span>{% else %}—{% endif %}
+              </td>
+              <td class="mono">
+                {% if w.avg_calories > 0 or w.avg_protein_g > 0 %}{{ "{:,}".format(w.avg_calories) }} kcal · {{ w.avg_protein_g }}g P{% else %}—{% endif %}
+              </td>
+              <td class="mono">{{ w.gym_sessions }} Gym · {{ w.cardio_sessions }} Cardio{% if w.run_km %} ({{ "%.1f"|format(w.run_km) }}km){% endif %}</td>
+              <td class="mono">
+                {% if w.week_num == 1 and w.photos_count == 0 %}
+                  <span style="color:var(--muted);font-size:0.68rem;">No Photos Wk 1</span>
+                {% else %}
+                  <span style="color:{% if w.photos_count >= 3 %}var(--neon){% elif w.photos_count > 0 %}var(--gold){% else %}var(--muted){% endif %};font-weight:700;">{{ w.photos_count }}/3</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="/challenge/share/{{ profile.id }}/{{ w.week_num }}" style="color:var(--neon);font-weight:700;text-decoration:none;font-size:0.72rem;">View →</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fullscreen Photo Zoom Modal -->
+  <div id="zoom-modal" onclick="this.style.display='none'" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;align-items:center;justify-content:center;flex-direction:column;padding:16px;">
+    <div id="zoom-caption" style="color:var(--neon);font-weight:800;margin-bottom:10px;font-size:0.9rem;"></div>
+    <img id="zoom-img" src="" alt="Zoom" style="max-width:95vw;max-height:86vh;border-radius:12px;border:2px solid var(--neon);object-fit:contain;" />
+  </div>
+
+  <script>
+    function openZoom(src, title) {
+      document.getElementById('zoom-img').src = src;
+      document.getElementById('zoom-caption').textContent = title || '';
+      document.getElementById('zoom-modal').style.display = 'flex';
+    }
+    function copyReportUrl() {
+      const url = window.location.href;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+          alert('✅ Copied Coach Chris Summary Link:\n' + url);
+        });
+      } else {
+        prompt('Copy link for Coach Chris:', url);
+      }
+    }
+    async function saveCoachFeedback() {
+      const box = document.getElementById('coach-feedback-input');
+      const statusEl = document.getElementById('coach-feedback-status');
+      if (!box) return;
+      statusEl.textContent = 'Saving...';
+      try {
+        const res = await fetch('/challenge/share/{{ profile.id }}/{{ week_num }}/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ coach_feedback: box.value })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          statusEl.style.color = 'var(--neon)';
+          statusEl.textContent = '✅ Saved Coach Feedback (' + data.reviewed_at + ')';
+        } else {
+          statusEl.textContent = '⚠️ Could not save';
+        }
+      } catch (e) {
+        statusEl.textContent = '⚠️ Error saving feedback';
+      }
+    }
+  </script>
+</body>
+</html>

@@ -952,12 +952,59 @@ def import_chris_excel_bytes(
     }
 
 
+def _crop_and_fit_portrait_image(im, target_w: int = 400, target_h: int = 800):
+    """Auto-trim dark/solid letterbox borders and fit/crop to a uniform 1:2 portrait frame."""
+    from PIL import Image, ImageChops
+
+    w, h = im.size
+    if w > 40 and h > 40:
+        # Trim near-black or uniform letterbox margins around phone screenshots
+        for bg_color in ((0, 0, 0), im.getpixel((0, 0)), im.getpixel((w - 1, h - 1))):
+            try:
+                bg = Image.new("RGB", im.size, bg_color)
+                diff = ImageChops.difference(im, bg)
+                diff = ImageChops.add(diff, diff, 2.0, -28)
+                bbox = diff.getbbox()
+                if bbox:
+                    bw = bbox[2] - bbox[0]
+                    bh = bbox[3] - bbox[1]
+                    if bw >= w * 0.25 and bh >= h * 0.25 and (bw < w * 0.97 or bh < h * 0.97):
+                        pad_x = max(0, int(bw * 0.02))
+                        pad_y = max(0, int(bh * 0.02))
+                        im = im.crop((
+                            max(0, bbox[0] - pad_x),
+                            max(0, bbox[1] - pad_y),
+                            min(w, bbox[2] + pad_x),
+                            min(h, bbox[3] + pad_y),
+                        ))
+                        w, h = im.size
+                        break
+            except Exception:
+                pass
+
+    target_ratio = float(target_w) / float(target_h)  # 0.5 (1:2 portrait)
+    cur_ratio = float(w) / float(max(1, h))
+    if cur_ratio > target_ratio * 1.04:
+        # Image is wider than 1:2 -> center-crop width so body fills the frame
+        new_w = max(1, int(round(h * target_ratio)))
+        left = max(0, (w - new_w) // 2)
+        im = im.crop((left, 0, left + new_w, h))
+    elif cur_ratio < target_ratio * 0.96:
+        # Image is taller than 1:2 -> crop height keeping upper/center body (top-biased)
+        new_h = max(1, int(round(w / target_ratio)))
+        top = max(0, int((h - new_h) * 0.18))
+        im = im.crop((0, top, w, min(h, top + new_h)))
+
+    return im.resize((target_w, target_h), Image.LANCZOS)
+
+
 def normalize_image_bytes_to_jpeg_data_url(
     raw_bytes: bytes,
     filename: str = "",
     mime_type: str = "",
     max_dim: int = 900,
     quality: int = 82,
+    crop_portrait: bool = False,
 ) -> str:
     """Convert any image bytes (including iPhone .HEIC / .HEIF, PNG, WebP, JPEG) into a resized JPEG data URL."""
     if not raw_bytes:
@@ -983,10 +1030,13 @@ def normalize_image_bytes_to_jpeg_data_url(
             im = bg
         elif im.mode == "L":
             im = im.convert("RGB")
-        w, h = im.size
-        if max(w, h) > max_dim:
-            scale = max_dim / float(max(w, h))
-            im = im.resize((max(1, int(round(w * scale))), max(1, int(round(h * scale)))), Image.LANCZOS)
+        if crop_portrait:
+            im = _crop_and_fit_portrait_image(im, target_w=400, target_h=800)
+        else:
+            w, h = im.size
+            if max(w, h) > max_dim:
+                scale = max_dim / float(max(w, h))
+                im = im.resize((max(1, int(round(w * scale))), max(1, int(round(h * scale)))), Image.LANCZOS)
         out = io.BytesIO()
         im.save(out, format="JPEG", quality=quality, optimize=True)
         b64 = base64.b64encode(out.getvalue()).decode("ascii")
@@ -1039,8 +1089,10 @@ def normalize_image_bytes_to_jpeg_data_url(
     return f"data:{mime};base64,{b64}"
 
 
-def normalize_image_data_url(data_url: str, max_dim: int = 900, quality: int = 82) -> str:
-    """Ensure a data:image/... URL is browser-displayable JPEG/PNG (converting data:image/heic if needed)."""
+def normalize_image_data_url(
+    data_url: str, max_dim: int = 900, quality: int = 82, crop_portrait: bool = False
+) -> str:
+    """Ensure a data:image/... URL is browser-displayable JPEG/PNG (and optionally cropped/fitted to 1:2 portrait)."""
     s = str(data_url or "").strip()
     if not s or not s.startswith("data:"):
         return s
@@ -1061,10 +1113,15 @@ def normalize_image_data_url(data_url: str, max_dim: int = 900, quality: int = 8
         b"mif1",
         b"msf1",
     )
-    if "heic" in mime or "heif" in mime or "octet-stream" in mime or is_heic_bytes:
+    if crop_portrait or "heic" in mime or "heif" in mime or "octet-stream" in mime or is_heic_bytes:
         try:
             return normalize_image_bytes_to_jpeg_data_url(
-                raw_bytes, filename="upload.heic", mime_type=mime, max_dim=max_dim, quality=quality
+                raw_bytes,
+                filename="upload.heic" if is_heic_bytes else "upload.jpg",
+                mime_type=mime,
+                max_dim=max_dim,
+                quality=quality,
+                crop_portrait=crop_portrait,
             )
         except Exception:
             return s
