@@ -1489,6 +1489,9 @@ def test_saturday_to_friday_summary_start_weight_share_report_and_cohort_onboard
     assert "2. Summary of the Week (Saturday" in share_html
     assert "3. Week-over-Week Progress" in share_html
     assert "88.60 kg" in share_html
+    assert "openCoachCompareModal" in share_html
+    assert "stepCoachPose" in share_html
+    assert "object-fit: contain" in share_html
 
     # 5. Admin Post-Payment Cohort Bulk Invite: create a new block, invite a new user + a returning user
     blk_res = client.post("/api/challenge/blocks", json={

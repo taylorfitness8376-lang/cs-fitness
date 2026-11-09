@@ -539,8 +539,8 @@ function upgradeThreePhotoWeeklyVault() {
       </div>
     </div>
     <div id="photo-schedule-rule-banner" style="display:none"></div>
-    <div id="three-photo-slots" class="grid-3" style="gap:0.75rem"></div>
-    <div id="three-photo-comparison" style="display:none"></div>
+    <div id="three-photo-slots" class="grid-3" style="gap:0.75rem;margin-bottom:0.75rem"></div>
+    <div id="three-photo-comparison"></div>
   `;
 }
 
@@ -614,8 +614,8 @@ function renderThreePhotoSlots() {
           <span style="color:var(--green)">${wtVal ? wtVal.toFixed(1) + 'kg' : ''}</span>
         </div>
         ${rec && rec.photo_data_url
-          ? `<img src="${rec.photo_data_url}" onclick="openPhotoCompareModal('${pose}')" title="Click to enlarge ${pose} comparison" style="width:100%;aspect-ratio:1/2;max-height:290px;object-fit:cover;object-position:center top;background:#040605;border-radius:7px;display:block;cursor:zoom-in"/>`
-          : `<div style="width:100%;aspect-ratio:1/2;max-height:290px;border-radius:7px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.7rem;padding:0.4rem">No ${pose} (${lbl})</div>`}
+          ? `<img src="${rec.photo_data_url}" onclick="openPhotoCompareModal('${pose}')" title="Click to enlarge ${pose} comparison" style="width:100%;aspect-ratio:1/2;max-height:310px;object-fit:contain;object-position:center center;background:#040605;border-radius:7px;display:block;cursor:zoom-in"/>`
+          : `<div style="width:100%;aspect-ratio:1/2;max-height:310px;border-radius:7px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:0.7rem;padding:0.4rem">No ${pose} (${lbl})</div>`}
       </div>`;
     };
 
@@ -643,7 +643,7 @@ function renderThreePhotoSlots() {
 
 window._photoCompareState = {
   pose: 'Side', // 'Side' | 'Front' | 'Back' | 'ALL'
-  zoomFill: true,
+  zoomFill: false,
   modalOpen: false,
   userPickedWeeks: false,
 };

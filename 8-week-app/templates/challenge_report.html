@@ -209,8 +209,8 @@
     .photo-frame img {
       width: 100%;
       height: 100%;
-      object-fit: cover;
-      object-position: center top;
+      object-fit: contain;
+      object-position: center center;
       display: block;
       cursor: zoom-in;
     }
@@ -359,29 +359,63 @@
       {% endfor %}
     </div>
 
-    <!-- SIDE-BY-SIDE PROGRESS PICTURES (Side, Front, Back) -->
+    <!-- SIDE-BY-SIDE PROGRESS PICTURES (Side, Front, Back) + INTERACTIVE CLICK-THROUGH CAROUSEL -->
     <div class="section-card">
-      <div class="section-header">
-        <h2 class="section-title">📸 Side-by-Side Progress Photos (Start vs {% if week_num == 0 %}Start{% else %}Week {{ week_num }}{% endif %})</h2>
-        <div class="section-sub">Cropped & fitted 1:2 portrait comparison · Tap any photo to zoom full-screen</div>
+      <div class="section-header" style="align-items:center;">
+        <div>
+          <h2 class="section-title">📸 Side-by-Side Progress Photos (<span id="compare-header-label">Start vs {% if week_num == 0 %}Start{% else %}Week {{ week_num }}{% endif %}</span>)</h2>
+          <div class="section-sub">Full picture kept in view · Click through Side / Front / Back or open Full-Screen Side-by-Side Compare</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <label style="font-size:0.72rem;color:var(--muted);font-weight:700;">Compare:
+            <select id="coach-compare-wk-a" onchange="updateCoachPhotoCompare()" style="background:var(--card2);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:4px 8px;font-weight:700;font-size:0.76rem;margin-left:4px;">
+              <option value="0" selected>Start (Wk 0)</option>
+              {% for w in range(2, 9) %}
+              <option value="{{ w }}">Week {{ w }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <span style="font-size:0.72rem;color:var(--muted);font-weight:800;">vs</span>
+          <select id="coach-compare-wk-b" onchange="updateCoachPhotoCompare()" style="background:var(--card2);color:var(--neon);border:1px solid var(--border-neon);border-radius:7px;padding:4px 8px;font-weight:800;font-size:0.76rem;">
+            <option value="0" {% if week_num == 0 %}selected{% endif %}>Start (Wk 0)</option>
+            {% for w in range(2, 9) %}
+            <option value="{{ w }}" {% if week_num == w or (week_num == 1 and w == 2) %}selected{% endif %}>Week {{ w }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn-action" style="padding:6px 11px;font-size:0.75rem;" onclick="openCoachCompareModal()">⛶ Full-Screen Compare</button>
+        </div>
       </div>
-      <div class="poses-grid">
+
+      <!-- Interactive Pose Click-Through Bar (Side / Front / Back / All 3 Poses + Prev/Next) -->
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:8px 10px;background:var(--card2);border:1px solid rgba(255,255,255,0.08);border-radius:10px;">
+        <button type="button" class="week-pill" onclick="stepCoachPose(-1)">◀ Prev Pose</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">
+          <button type="button" id="pose-tab-ALL" class="week-pill active" onclick="setCoachPose('ALL')">🖼️ All 3 Poses</button>
+          <button type="button" id="pose-tab-Side" class="week-pill" onclick="setCoachPose('Side')">🧍 Side Pose</button>
+          <button type="button" id="pose-tab-Front" class="week-pill" onclick="setCoachPose('Front')">🧍 Front Pose</button>
+          <button type="button" id="pose-tab-Back" class="week-pill" onclick="setCoachPose('Back')">🧍 Back Pose</button>
+        </div>
+        <button type="button" class="week-pill" onclick="stepCoachPose(1)">Next Pose ▶</button>
+      </div>
+
+      <!-- Dynamic / Server-rendered Pose Cards -->
+      <div id="coach-poses-grid" class="poses-grid">
         {% for pair in pose_pairs %}
-        <div class="pose-card">
+        <div class="pose-card" data-pose="{{ pair.pose }}">
           <div class="pose-card-head">
             <span style="color:var(--neon);">{{ pair.pose }} Pose</span>
-            <span class="mono" style="font-size:0.7rem;color:var(--muted);">Start vs {% if week_num == 0 %}Start{% else %}Wk {{ week_num }}{% endif %}</span>
+            <button type="button" class="week-pill" style="padding:3px 8px;font-size:0.68rem;" onclick="openCoachCompareModal('{{ pair.pose }}')">🔍 Click-Through Full Screen</button>
           </div>
           <div class="pose-pair">
             <!-- Start Photo -->
             <div class="photo-slot">
               <div class="photo-badge">
-                <span>START (WK 0)</span>
-                <strong>{{ "%.1f"|format(pair.start_weight_kg or profile.start_weight_kg) }}kg</strong>
+                <span class="slot-a-label">START (WK 0)</span>
+                <strong class="slot-a-weight">{{ "%.1f"|format(pair.start_weight_kg or profile.start_weight_kg) }}kg</strong>
               </div>
-              <div class="photo-frame">
+              <div class="photo-frame slot-a-frame" onclick="openCoachCompareModal('{{ pair.pose }}')">
                 {% if pair.start_photo and pair.start_photo.photo_data_url %}
-                <img src="{{ pair.start_photo.photo_data_url }}" alt="Start {{ pair.pose }}" onclick="openZoom(this.src, 'Start · {{ pair.pose }} Pose')" />
+                <img src="{{ pair.start_photo.photo_data_url }}" alt="Start {{ pair.pose }}" />
                 {% else %}
                 <span style="font-size:0.72rem;color:var(--muted);text-align:center;padding:8px;">No Start {{ pair.pose }} photo</span>
                 {% endif %}
@@ -390,12 +424,12 @@
             <!-- Current Selected Week Photo -->
             <div class="photo-slot">
               <div class="photo-badge curr">
-                <span>{% if week_num == 0 %}START{% else %}WEEK {{ week_num }}{% endif %}</span>
-                <strong>{% if pair.curr_weight_kg %}{{ "%.2f"|format(pair.curr_weight_kg) }}kg{% else %}—{% endif %}</strong>
+                <span class="slot-b-label">{% if week_num == 0 %}START{% else %}WEEK {{ week_num }}{% endif %}</span>
+                <strong class="slot-b-weight">{% if pair.curr_weight_kg %}{{ "%.2f"|format(pair.curr_weight_kg) }}kg{% else %}—{% endif %}</strong>
               </div>
-              <div class="photo-frame curr">
+              <div class="photo-frame curr slot-b-frame" onclick="openCoachCompareModal('{{ pair.pose }}')">
                 {% if pair.curr_photo and pair.curr_photo.photo_data_url %}
-                <img src="{{ pair.curr_photo.photo_data_url }}" alt="Week {{ week_num }} {{ pair.pose }}" onclick="openZoom(this.src, 'Week {{ week_num }} · {{ pair.pose }} Pose')" />
+                <img src="{{ pair.curr_photo.photo_data_url }}" alt="Week {{ week_num }} {{ pair.pose }}" />
                 {% elif week_num == 1 %}
                 <span style="font-size:0.72rem;color:var(--gold);text-align:center;padding:10px;">Week 1 Friday<br>(No photos required)</span>
                 {% else %}
@@ -612,18 +646,220 @@
     </div>
   </div>
 
-  <!-- Fullscreen Photo Zoom Modal -->
-  <div id="zoom-modal" onclick="this.style.display='none'" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;align-items:center;justify-content:center;flex-direction:column;padding:16px;">
-    <div id="zoom-caption" style="color:var(--neon);font-weight:800;margin-bottom:10px;font-size:0.9rem;"></div>
-    <img id="zoom-img" src="" alt="Zoom" style="max-width:95vw;max-height:86vh;border-radius:12px;border:2px solid var(--neon);object-fit:contain;" />
+  <!-- Fullscreen Side-by-Side Click-Through Comparison Modal for Coach Chris -->
+  <div id="coach-compare-modal" style="display:none;position:fixed;inset:0;background:rgba(4,7,5,0.96);z-index:9999;flex-direction:column;padding:14px 18px;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid rgba(61,255,79,0.28);margin-bottom:12px;">
+      <div>
+        <div style="font-size:0.7rem;color:var(--neon);font-weight:800;text-transform:uppercase;letter-spacing:0.08em;">CS Performance · Full-Picture Side-by-Side Comparison</div>
+        <div id="modal-compare-title" style="font-size:1.05rem;font-weight:900;color:#fff;">{{ profile.client_name }} · Side Pose</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        <button type="button" class="week-pill" onclick="stepCoachPose(-1)">◀ Prev</button>
+        <button type="button" id="modal-tab-Side" class="week-pill" onclick="setCoachPose('Side')">🧍 Side</button>
+        <button type="button" id="modal-tab-Front" class="week-pill" onclick="setCoachPose('Front')">🧍 Front</button>
+        <button type="button" id="modal-tab-Back" class="week-pill" onclick="setCoachPose('Back')">🧍 Back</button>
+        <button type="button" id="modal-tab-ALL" class="week-pill" onclick="setCoachPose('ALL')">🖼️ All 3</button>
+        <button type="button" class="week-pill" onclick="stepCoachPose(1)">Next ▶</button>
+        <button type="button" class="btn-action secondary" style="padding:6px 12px;font-size:0.78rem;border-color:rgba(255,82,82,0.5);color:#ff5252;" onclick="closeCoachCompareModal()">✕ Close (Esc)</button>
+      </div>
+    </div>
+    <div id="coach-compare-modal-body" style="flex:1;display:flex;align-items:center;justify-content:center;min-height:0;"></div>
+    <div style="text-align:center;font-size:0.72rem;color:var(--muted);padding-top:8px;">
+      Use ◀ / ▶ buttons, keyboard Left/Right arrows, or swipe left/right on mobile to click through Side · Front · Back · All 3 Poses. Full picture is always kept in view.
+    </div>
   </div>
 
   <script>
-    function openZoom(src, title) {
-      document.getElementById('zoom-img').src = src;
-      document.getElementById('zoom-caption').textContent = title || '';
-      document.getElementById('zoom-modal').style.display = 'flex';
+    const ALL_PHOTOS = {{ (all_photos or [])|tojson }};
+    const WOW_ROWS = {{ (wow or [])|tojson }};
+    const START_WEIGHT_KG = {{ (profile.start_weight_kg or 88.6)|tojson }};
+    const CLIENT_NAME = {{ (profile.client_name or 'Challenger')|tojson }};
+    const POSES_ORDER = ['Side', 'Front', 'Back', 'ALL'];
+    let currentCoachPose = 'ALL';
+    let coachModalOpen = false;
+
+    function getWeekWeight(wk) {
+      if (Number(wk) === 0) return START_WEIGHT_KG;
+      const row = WOW_ROWS.find(r => Number(r.week_num) === Number(wk));
+      return row && row.avg_weight_kg != null ? Number(row.avg_weight_kg) : null;
     }
+
+    function getPhotoRecord(wk, pose) {
+      return ALL_PHOTOS.find(p => Number(p.week_num) === Number(wk) && p.pose === pose) || null;
+    }
+
+    function weekLabel(wk) {
+      return Number(wk) === 0 ? 'Start (Wk 0)' : ('Week ' + wk);
+    }
+
+    function setCoachPose(pose) {
+      currentCoachPose = pose;
+      updateCoachPhotoCompare();
+    }
+
+    function stepCoachPose(dir) {
+      const idx = POSES_ORDER.indexOf(currentCoachPose);
+      const nextIdx = (idx + dir + POSES_ORDER.length) % POSES_ORDER.length;
+      currentCoachPose = POSES_ORDER[nextIdx];
+      updateCoachPhotoCompare();
+    }
+
+    function renderCompareSlotHtml(wk, pose, isHighlight, forModal) {
+      const rec = getPhotoRecord(wk, pose);
+      const wt = (rec && rec.weight_kg != null) ? Number(rec.weight_kg) : getWeekWeight(wk);
+      const wtStr = wt != null ? wt.toFixed(Number(wk) === 0 ? 1 : 2) + 'kg' : '—';
+      const lbl = Number(wk) === 0 ? 'START (WK 0)' : ('WEEK ' + wk);
+      const maxH = forModal ? '74vh' : '440px';
+      return `
+        <div class="photo-slot" style="min-width:0;">
+          <div class="photo-badge ${isHighlight ? 'curr' : ''}">
+            <span>${lbl} · ${pose.toUpperCase()}</span>
+            <strong>${wtStr}</strong>
+          </div>
+          <div class="photo-frame ${isHighlight ? 'curr' : ''}" style="max-height:${maxH};background:#050806;" onclick="openCoachCompareModal('${pose}')">
+            ${rec && rec.photo_data_url
+              ? `<img src="${rec.photo_data_url}" alt="${lbl} ${pose}" style="width:100%;height:100%;max-height:${maxH};object-fit:contain;object-position:center center;display:block;" />`
+              : `<span style="font-size:0.75rem;color:var(--muted);text-align:center;padding:12px;">No ${lbl} ${pose} photo</span>`
+            }
+          </div>
+        </div>
+      `;
+    }
+
+    function updateCoachPhotoCompare() {
+      const selA = document.getElementById('coach-compare-wk-a');
+      const selB = document.getElementById('coach-compare-wk-b');
+      const wkA = selA ? Number(selA.value) : 0;
+      const wkB = selB ? Number(selB.value) : {{ week_num }};
+
+      const hdr = document.getElementById('compare-header-label');
+      if (hdr) hdr.textContent = `${weekLabel(wkA)} vs ${weekLabel(wkB)}`;
+
+      POSES_ORDER.forEach(p => {
+        const t1 = document.getElementById('pose-tab-' + p);
+        if (t1) t1.classList.toggle('active', p === currentCoachPose);
+        const t2 = document.getElementById('modal-tab-' + p);
+        if (t2) t2.classList.toggle('active', p === currentCoachPose);
+      });
+
+      const grid = document.getElementById('coach-poses-grid');
+      if (grid) {
+        if (currentCoachPose === 'ALL') {
+          grid.style.gridTemplateColumns = '';
+          grid.innerHTML = ['Side', 'Front', 'Back'].map(pose => `
+            <div class="pose-card" data-pose="${pose}">
+              <div class="pose-card-head">
+                <span style="color:var(--neon);">${pose} Pose</span>
+                <button type="button" class="week-pill" style="padding:3px 8px;font-size:0.68rem;" onclick="openCoachCompareModal('${pose}')">🔍 Full Screen</button>
+              </div>
+              <div class="pose-pair">
+                ${renderCompareSlotHtml(wkA, pose, false, false)}
+                ${renderCompareSlotHtml(wkB, pose, true, false)}
+              </div>
+            </div>
+          `).join('');
+        } else {
+          const pose = currentCoachPose;
+          grid.style.gridTemplateColumns = '1fr';
+          grid.innerHTML = `
+            <div class="pose-card" data-pose="${pose}" style="max-width:760px;margin:0 auto;width:100%;">
+              <div class="pose-card-head">
+                <span style="color:var(--neon);font-size:0.95rem;">🧍 ${pose} Pose — Side-by-Side Comparison (${weekLabel(wkA)} vs ${weekLabel(wkB)})</span>
+                <div style="display:flex;gap:6px;">
+                  <button type="button" class="week-pill" style="padding:3px 9px;font-size:0.7rem;" onclick="stepCoachPose(-1)">◀ Prev</button>
+                  <button type="button" class="week-pill" style="padding:3px 9px;font-size:0.7rem;" onclick="stepCoachPose(1)">Next ▶</button>
+                  <button type="button" class="week-pill" style="padding:3px 9px;font-size:0.7rem;" onclick="openCoachCompareModal('${pose}')">⛶ Full Screen</button>
+                </div>
+              </div>
+              <div class="pose-pair" style="gap:14px;">
+                ${renderCompareSlotHtml(wkA, pose, false, false)}
+                ${renderCompareSlotHtml(wkB, pose, true, false)}
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      if (coachModalOpen) {
+        renderCoachModalBody(wkA, wkB);
+      }
+    }
+
+    function renderCoachModalBody(wkA, wkB) {
+      const body = document.getElementById('coach-compare-modal-body');
+      const title = document.getElementById('modal-compare-title');
+      if (!body) return;
+      const poseTitle = currentCoachPose === 'ALL' ? 'All 3 Poses (Side · Front · Back)' : (currentCoachPose + ' Pose');
+      if (title) title.textContent = `${CLIENT_NAME} · ${poseTitle} (${weekLabel(wkA)} vs ${weekLabel(wkB)})`;
+
+      if (currentCoachPose === 'ALL') {
+        body.innerHTML = `
+          <div class="poses-grid" style="width:100%;max-width:1180px;">
+            ${['Side', 'Front', 'Back'].map(pose => `
+              <div class="pose-card" onclick="setCoachPose('${pose}')" style="cursor:pointer;">
+                <div class="pose-card-head">
+                  <span style="color:var(--neon);">${pose} Pose</span>
+                  <span style="font-size:0.68rem;color:var(--muted);">Click to focus ${pose}</span>
+                </div>
+                <div class="pose-pair">
+                  ${renderCompareSlotHtml(wkA, pose, false, true)}
+                  ${renderCompareSlotHtml(wkB, pose, true, true)}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } else {
+        const pose = currentCoachPose;
+        body.innerHTML = `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%;max-width:900px;align-items:center;">
+            ${renderCompareSlotHtml(wkA, pose, false, true)}
+            ${renderCompareSlotHtml(wkB, pose, true, true)}
+          </div>
+        `;
+      }
+    }
+
+    function openCoachCompareModal(pose) {
+      if (pose) {
+        currentCoachPose = pose;
+      } else if (currentCoachPose === 'ALL') {
+        currentCoachPose = 'Side';
+      }
+      coachModalOpen = true;
+      const modal = document.getElementById('coach-compare-modal');
+      if (modal) modal.style.display = 'flex';
+      updateCoachPhotoCompare();
+    }
+
+    function closeCoachCompareModal() {
+      coachModalOpen = false;
+      const modal = document.getElementById('coach-compare-modal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (!coachModalOpen) return;
+      if (e.key === 'Escape') closeCoachCompareModal();
+      if (e.key === 'ArrowLeft') stepCoachPose(-1);
+      if (e.key === 'ArrowRight') stepCoachPose(1);
+    });
+
+    (function attachTouchSwipe() {
+      let startX = null;
+      const modal = document.getElementById('coach-compare-modal');
+      if (!modal) return;
+      modal.addEventListener('touchstart', e => {
+        if (e.touches && e.touches.length === 1) startX = e.touches[0].clientX;
+      }, { passive: true });
+      modal.addEventListener('touchend', e => {
+        if (startX === null || !e.changedTouches || !e.changedTouches.length) return;
+        const dx = e.changedTouches[0].clientX - startX;
+        startX = null;
+        if (Math.abs(dx) > 45) stepCoachPose(dx < 0 ? 1 : -1);
+      }, { passive: true });
+    })();
+
     function copyReportUrl() {
       const url = window.location.href;
       if (navigator.clipboard && navigator.clipboard.writeText) {

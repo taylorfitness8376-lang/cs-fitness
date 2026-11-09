@@ -1065,7 +1065,8 @@ def challenge_coach_share_report(pid, week_num):
 
     all_photos = [
         dict(r) for r in db.execute(
-            "SELECT * FROM progress_photos WHERE profile_id=? ORDER BY week_num, id", (actual_pid,)
+            "SELECT id, profile_id, week_num, pose, taken_date, weight_kg, notes, photo_data_url FROM progress_photos WHERE profile_id=? ORDER BY week_num, id",
+            (actual_pid,),
         ).fetchall()
     ]
     start_photos = {p["pose"]: p for p in all_photos if int(p["week_num"]) == 0}
@@ -1099,6 +1100,7 @@ def challenge_coach_share_report(pid, week_num):
         start_summary=start_summary,
         wow=wow,
         pose_pairs=pose_pairs,
+        all_photos=all_photos,
         auto_notes=auto_notes,
     )
 
