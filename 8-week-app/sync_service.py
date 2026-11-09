@@ -1110,6 +1110,11 @@ def fetch_live_garmin_data(
                         client = Garmin(email or None, None)
                         _restore_garmin_tokens(client, token_dir, saved_token_dump)
                         client.login(token_dir)
+                        if not getattr(client, "display_name", None) and hasattr(client, "_load_profile_and_settings"):
+                            try:
+                                client._load_profile_and_settings()
+                            except Exception:
+                                pass
                         if getattr(client, "display_name", None):
                             logged_in = True
                             token_dump_out = _dump_garmin_tokens(client, token_dir, token_dump_out)
@@ -1119,7 +1124,7 @@ def fetch_live_garmin_data(
                         logged_in = False
                     if not logged_in and (saved_token_dump.startswith("{") or os.path.exists(cookie_file)):
                         try:
-                            if saved_token_dump.startswith("{"):
+                            if saved_token_dump.startswith("{") and ("oauth1" in saved_token_dump or "oauth2" in saved_token_dump):
                                 with open(cookie_file, "w", encoding="utf-8") as f:
                                     f.write(saved_token_dump)
                             builtin_client = _BuiltinGarminClient(email=email, cookie_path=cookie_file)
@@ -1442,7 +1447,7 @@ def format_daily_whatsapp_caption(checkin, profile, week_num=1, step_target=1000
 
     lines = [
         f"🔥 *CS FITNESS 8-WEEK CHALLENGE — WK {week_num} DAILY CHECK-IN* 🔥",
-        f"📅 {checkin.get('date', '')} | {profile.get('client_name', 'Ewan t')}",
+        f"📅 {checkin.get('date', '')} | {profile.get('client_name', 'Ewan Taylor')}",
         f"👟 Steps: *{steps:,}* / {step_target:,} {'✅' if steps >= step_target else '⏳'}",
         f"🥩 Protein: *{prot}g* / {profile.get('target_protein_g', 150)}g {'✅' if prot >= int(profile.get('target_protein_g', 150)) else '⏳'}",
         f"🔥 Calories: *{cal:,} kcal* / {profile.get('target_calories', 2173):,} kcal",
@@ -1472,7 +1477,7 @@ def format_weekly_telegram_summary(profile, week_num, week_rows, averages):
 
     lines = [
         f"📋 *CS FITNESS — WEEK {week_num} of 8 CHECK-IN*",
-        f"👤 Client: *{profile.get('client_name', 'Ewan t')}* ({profile.get('goal', 'Weight Loss')})",
+        f"👤 Client: *{profile.get('client_name', 'Ewan Taylor')}* ({profile.get('goal', 'Weight Loss')})",
         f"🎯 Targets: {profile.get('target_calories', 2173)} kcal | {profile.get('target_protein_g', 150)}g P | {step_target:,} steps | {profile.get('target_water_l', 3.66)}L H2O",
         "",
         "`Day | Wt(kg) | Type   | Steps  | Prot | Cals | Plan`",

@@ -233,14 +233,29 @@ def ensure_blocks_and_auth_tables(db):
            WHERE sync_source_garmin IN ('Garmin Fenix 7', 'Garmin Connect (Fenix 7 + Index S2)', 'Garmin Connect (Simulated)')"""
     )
 
-    # Ensure the 3 Admin accounts (Ewan, Chris, Laura) exist
+    # Migrate profile_id=1 from legacy "Ewan t" to "Ewan Taylor"
+    try:
+        db.execute(
+            """UPDATE challenge_profiles
+               SET client_name='Ewan Taylor',
+                   first_name='Ewan',
+                   last_name='Taylor'
+               WHERE id=1 AND (LOWER(client_name) IN ('ewan t', 'ewan') OR LOWER(COALESCE(last_name, '')) IN ('', 't'))"""
+        )
+    except Exception:
+        pass
+
+    # Ensure the 3 Admin accounts (Ewan Taylor, Chris, Laura) exist
     admin_seeds = [
-        ("Ewan t", "ewan", "taylor.ewan@gmail.com", "mens"),
+        ("Ewan Taylor", "ewan", "taylor.ewan@gmail.com", "mens"),
         ("Chris", "chris", "chris@cs.fitness", "mens"),
         ("Laura", "laura", "laura@cs.fitness", "ladies"),
     ]
     for cname, uname, default_email, track in admin_seeds:
-        p_row = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (cname,)).fetchone()
+        if cname == "Ewan Taylor":
+            p_row = db.execute("SELECT id FROM challenge_profiles WHERE id=1 OR LOWER(client_name) IN ('ewan taylor', 'ewan t') ORDER BY id LIMIT 1").fetchone()
+        else:
+            p_row = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (cname,)).fetchone()
         if not p_row:
             calc = calculate_challenge_targets(80.0, 75.0, 16.0, 14.0, 150, "2026-10-19", "Coach / Admin", False)
             db.execute(
@@ -317,8 +332,8 @@ def ensure_blocks_and_auth_tables(db):
             slug = re.sub(r"[^a-z0-9]", "", p["client_name"].split()[0].lower()) or f"user{p['id']}"
             clash = db.execute("SELECT 1 FROM challenge_user_accounts WHERE username=?", (slug,)).fetchone()
             uname = f"{slug}{p['id']}" if clash else slug
-            default_email = "taylor.ewan@gmail.com" if p["client_name"] == "Ewan t" else f"{uname}@taylorfitness.co.uk"
-            is_adm = p["client_name"].lower() in ("ewan t", "chris", "laura")
+            default_email = "taylor.ewan@gmail.com" if p["client_name"].lower() in ("ewan taylor", "ewan t") else f"{uname}@taylorfitness.co.uk"
+            is_adm = p["client_name"].lower() in ("ewan taylor", "ewan t", "chris", "laura")
             role = "admin" if is_adm else "challenger"
             db.execute(
                 """INSERT OR IGNORE INTO challenge_user_accounts (
@@ -739,7 +754,7 @@ def _upsert_challenger_for_block(db, data, block_row):
     teamup_cid = str(data.get("teamup_customer_id") or "").strip()
     teamup_st = str(data.get("teamup_status") or ("Linked" if teamup_cid else "")).strip()
     is_admin_caller = _is_current_user_admin(db)
-    if cname.strip().lower() in ("ewan t", "chris", "laura"):
+    if cname.strip().lower() in ("ewan taylor", "ewan t", "chris", "laura"):
         role = "admin"
     elif is_admin_caller and data.get("role") in ("challenger", "coach", "admin"):
         role = data.get("role")
@@ -1564,7 +1579,7 @@ def api_challenge_block_join_or_webhook():
             ex_role = (existing_acct["role"] or "").lower()
             ex_name = (existing_acct["client_name"] or "").strip().lower()
             valid_personal_invite = bool(req_invite_token and existing_acct["invite_token"] and req_invite_token == existing_acct["invite_token"])
-            if ex_role == "admin" or ex_name in ("ewan t", "chris", "laura") or (existing_acct["password_hash"] and not valid_personal_invite):
+            if ex_role == "admin" or ex_name in ("ewan taylor", "ewan t", "chris", "laura") or (existing_acct["password_hash"] and not valid_personal_invite):
                 return jsonify({
                     "ok": False,
                     "error": "An account with this name or email already exists. Please use the Sign In tab instead.",
@@ -1854,6 +1869,8 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
         if not exists_prof:
             try:
                 cname = (prof_data.get("client_name") or payload.get("client_name") or f"Challenger {pid}").strip()
+                if pid == 1 and cname.lower() in ("ewan t", "ewan", "ewan taylor"):
+                    cname = "Ewan Taylor"
                 clash = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?) AND id!=?", (cname, pid)).fetchone()
                 if clash:
                     cname = f"{cname} ({pid})"
@@ -1895,6 +1912,10 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
                 pass
         else:
             try:
+                if pid == 1:
+                    db.execute(
+                        "UPDATE challenge_profiles SET client_name='Ewan Taylor', first_name='Ewan', last_name='Taylor' WHERE id=1"
+                    )
                 if prof_data.get("start_weight_kg"):
                     db.execute(
                         """UPDATE challenge_profiles SET
@@ -2000,9 +2021,9 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
                 weigh_time=CASE WHEN excluded.weigh_time != '' THEN excluded.weigh_time ELSE daily_checkins.weigh_time END,
                 training_type=CASE WHEN excluded.training_type != '' AND excluded.training_type != 'REST' THEN excluded.training_type ELSE daily_checkins.training_type END,
                 class_attended=CASE WHEN excluded.class_attended != '' THEN excluded.class_attended ELSE daily_checkins.class_attended END,
-                steps=CASE WHEN excluded.steps > 0 THEN excluded.steps ELSE daily_checkins.steps END,
-                protein_g=CASE WHEN excluded.protein_g > 0 THEN excluded.protein_g ELSE daily_checkins.protein_g END,
-                calories=CASE WHEN excluded.calories > 0 THEN excluded.calories ELSE daily_checkins.calories END,
+                steps=MAX(excluded.steps, COALESCE(daily_checkins.steps, 0)),
+                protein_g=MAX(excluded.protein_g, COALESCE(daily_checkins.protein_g, 0)),
+                calories=MAX(excluded.calories, COALESCE(daily_checkins.calories, 0)),
                 carbs_g=CASE WHEN excluded.carbs_g > 0 THEN excluded.carbs_g ELSE daily_checkins.carbs_g END,
                 fats_g=CASE WHEN excluded.fats_g > 0 THEN excluded.fats_g ELSE daily_checkins.fats_g END,
                 fibre_g=CASE WHEN excluded.fibre_g > 0 THEN excluded.fibre_g ELSE daily_checkins.fibre_g END,
@@ -2267,8 +2288,13 @@ def _auto_seed_ewan_backup_if_empty(db):
             except Exception:
                 pass
         cnt = db.execute("SELECT COUNT(*) AS c FROM daily_checkins WHERE profile_id=1 AND date >= '2026-10-19'").fetchone()["c"]
-        p1 = db.execute("SELECT start_weight_kg FROM challenge_profiles WHERE id=1").fetchone()
+        p1 = db.execute("SELECT client_name, start_weight_kg FROM challenge_profiles WHERE id=1").fetchone()
         sw1 = float(p1["start_weight_kg"]) if p1 and p1["start_weight_kg"] else 84.0
+        cname1 = (p1["client_name"] or "") if p1 else ""
+        wk3_fri = db.execute(
+            "SELECT steps FROM daily_checkins WHERE profile_id=1 AND date='2026-11-06'"
+        ).fetchone()
+        wk3_fri_steps = int(wk3_fri["steps"] or 0) if wk3_fri else 0
         wk3_sub = db.execute(
             "SELECT challenger_comments FROM weekly_submissions WHERE profile_id=1 AND week_num=3"
         ).fetchone()
@@ -2280,7 +2306,15 @@ def _auto_seed_ewan_backup_if_empty(db):
             "SELECT LENGTH(photo_data_url) AS plen FROM progress_photos WHERE profile_id=1 AND week_num=0 AND pose='Front'"
         ).fetchone()
         wk0_needs_crop = not wk0_front or int(wk0_front["plen"] or 0) > 35000 or int(wk0_front["plen"] or 0) < 1000
-        if cnt < 5 or abs(sw1 - 84.0) < 0.05 or not has_wk3_comments or wk3_photos < 3 or wk0_needs_crop:
+        if (
+            cnt < 21
+            or wk3_fri_steps < 1000
+            or cname1 != "Ewan Taylor"
+            or abs(sw1 - 84.0) < 0.05
+            or not has_wk3_comments
+            or wk3_photos < 3
+            or wk0_needs_crop
+        ):
             seed_path = os.path.join(data_dir, "ewan_seed_backup.json")
             if not os.path.exists(seed_path):
                 seed_path = os.path.join(local_data_dir, "ewan_seed_backup.json")
@@ -2288,6 +2322,9 @@ def _auto_seed_ewan_backup_if_empty(db):
                 with open(seed_path, "r") as f:
                     payload = json.load(f)
                 _restore_backup_payload(db, payload, target_profile_id=1)
+        db.execute(
+            "UPDATE challenge_profiles SET client_name='Ewan Taylor', first_name='Ewan', last_name='Taylor' WHERE id=1"
+        )
     except Exception:
         pass
 
@@ -2341,7 +2378,7 @@ def api_challenge_list_admins():
                   p.client_name
            FROM challenge_user_accounts a
            JOIN challenge_profiles p ON p.id = a.profile_id
-           WHERE a.role='admin' OR LOWER(p.client_name) IN ('ewan t', 'chris', 'laura')
+           WHERE a.role='admin' OR LOWER(p.client_name) IN ('ewan taylor', 'ewan t', 'chris', 'laura')
            ORDER BY p.id"""
     ).fetchall()
     return jsonify({"ok": True, "admins": [dict(r) for r in rows]})
@@ -2787,10 +2824,10 @@ def api_challenge_first_login_onboarding():
     last_name = (data.get("last_name") or profile.get("last_name") or "").strip()
     cname = (data.get("client_name") or "").strip()
     if not cname and (first_name or last_name):
-        # Preserve Ewan t's exact canonical name if pid == 1
-        cname = profile["client_name"] if pid == 1 else f"{first_name} {last_name}".strip()
+        # Preserve Ewan Taylor's exact canonical name if pid == 1
+        cname = "Ewan Taylor" if pid == 1 else f"{first_name} {last_name}".strip()
     if not cname:
-        cname = profile["client_name"]
+        cname = "Ewan Taylor" if pid == 1 else profile["client_name"]
 
     age_val = int(data["age"]) if str(data.get("age") or "").strip().isdigit() else profile.get("age")
     start_w = float(data.get("start_weight_kg") or profile.get("start_weight_kg") or 84.0)

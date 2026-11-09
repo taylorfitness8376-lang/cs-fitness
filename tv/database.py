@@ -588,7 +588,7 @@ def init_challenge_tables(db):
     migrate_multiuser_unique_constraints(db)
 
     # Seed Ewan's profile if not present
-    existing = db.execute("SELECT id FROM challenge_profiles WHERE client_name = ?", ("Ewan t",)).fetchone()
+    existing = db.execute("SELECT id FROM challenge_profiles WHERE client_name IN ('Ewan Taylor', 'Ewan t')").fetchone()
     if not existing:
         calc = calculate_challenge_targets(
             start_weight_kg=84.0,
@@ -610,7 +610,7 @@ def init_challenge_tables(db):
                 returning_member, workout_track, weekly_targets_json
             ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
-                "Ewan t", calc["goal"], calc["start_date"], calc["end_date"],
+                "Ewan Taylor", calc["goal"], calc["start_date"], calc["end_date"],
                 calc["start_weight_kg"], calc["target_weight_kg"],
                 calc["start_body_fat_pct"], calc["target_body_fat_pct"],
                 calc["lean_body_mass_kg"], calc["fat_mass_kg"], calc["to_lose_kg"],

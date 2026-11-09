@@ -45,7 +45,7 @@ def test_challenge_page_and_overview(client):
     assert b"CS FITNESS" in res.data
 
     ov = client.get("/api/challenge/overview?date=2026-10-17").get_json()
-    assert ov["profile"]["client_name"] == "Ewan t"
+    assert ov["profile"]["client_name"] == "Ewan Taylor"
     assert ov["profile"]["target_calories"] == 2173
     assert ov["checkin"]["steps"] == 0
     assert len(ov["staple_meals"]) >= 10
@@ -355,7 +355,7 @@ def test_coach_admin_portal_and_three_admins(client):
     admins_res = client.get("/api/challenge/admin/admins").get_json()
     assert admins_res["ok"] is True
     names = {a["client_name"].lower() for a in admins_res["admins"]}
-    assert {"ewan t", "chris", "laura"}.issubset(names)
+    assert {"ewan taylor", "chris", "laura"}.issubset(names)
 
     # 4. Update Chris's admin email address
     chris_row = [a for a in admins_res["admins"] if a["client_name"].lower() == "chris"][0]
@@ -370,7 +370,7 @@ def test_coach_admin_portal_and_three_admins(client):
     # 5. Challenger deep-dive endpoint returns weekly sheet, trajectory & photos for comparison
     det = client.get("/api/challenge/admin/challenger-detail?profile_id=1&week=1").get_json()
     assert det["ok"] is True
-    assert det["profile"]["client_name"] == "Ewan t"
+    assert det["profile"]["client_name"] == "Ewan Taylor"
     assert len(det["week_over_week"]) == 9
     assert len(det["week_sheet"]["days"]) == 7
 
@@ -378,7 +378,7 @@ def test_coach_admin_portal_and_three_admins(client):
     ros = client.get("/api/challenge/admin/cohort-summary?week=1").get_json()
     assert ros["ok"] is True
     assert ros["kpis"]["total_challengers"] >= 1
-    assert any(r["client_name"] == "Ewan t" for r in ros["roster"])
+    assert any(r["client_name"] == "Ewan Taylor" for r in ros["roster"])
 
 
 def test_monday_start_friday_checkin_and_workout_delete(client):
@@ -575,7 +575,7 @@ def test_multi_user_data_isolation_for_alan_vs_ewan(client):
     cohort_sum = client.get("/api/challenge/admin/cohort-summary?week=1").get_json()
     assert cohort_sum["ok"] is True
     names = [r["client_name"] for r in cohort_sum["roster"]]
-    assert "Ewan t" in names
+    assert "Ewan Taylor" in names
     assert "Alan" in names
 
 
@@ -1270,7 +1270,7 @@ def test_multi_user_data_isolation_and_restart_recovery(client):
 
     wa_feed = client.get("/api/challenge/whatsapp/feed").get_json()
     for msg in wa_feed.get("posts", []):
-        assert msg["sender"] != "Ewan t"
+        assert msg["sender"] not in ("Ewan Taylor", "Ewan t")
 
     # 4. Log check-in and Garmin email for Alan and export backup
     client.post("/api/challenge/checkins", json={
@@ -1548,6 +1548,57 @@ def test_saturday_to_friday_summary_start_weight_share_report_and_cohort_onboard
     assert ob_res["profile"]["start_weight_kg"] == 68.2
     assert ob_res["profile"]["onboarding_completed"] == 1
     assert "Day 1 morning fasted" in ob_res["profile"]["initial_checkin_notes"]
+
+
+def test_ewan_taylor_week3_share_report_and_training_inference(client):
+    """Verify Ewan Taylor title, Week 3 share report data, training_type auto-inference, and sleep formatting."""
+    import json
+    import os
+    import sqlite3
+    from challenge_blocks import _restore_backup_payload, ensure_blocks_and_auth_tables
+
+    # Sync on-disk data/gym.db with ewan_seed_backup.json as well
+    repo_db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "gym.db"))
+    seed_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "ewan_seed_backup.json"))
+    if os.path.exists(repo_db_path) and os.path.exists(seed_path):
+        conn = sqlite3.connect(repo_db_path)
+        conn.row_factory = sqlite3.Row
+        ensure_blocks_and_auth_tables(conn)
+        with open(seed_path, "r") as f:
+            payload = json.load(f)
+        _restore_backup_payload(conn, payload, target_profile_id=1)
+        conn.execute(
+            "UPDATE challenge_profiles SET client_name='Ewan Taylor', first_name='Ewan', last_name='Taylor' WHERE id=1"
+        )
+        conn.commit()
+        conn.close()
+
+    # Load seed payload into test client for profile 1
+    with open(seed_path, "r") as f:
+        seed_payload = json.load(f)
+    imp = client.post("/api/challenge/backup/import", json=seed_payload).get_json()
+    assert imp["ok"] is True
+
+    # Also test bare numeric sleep_str ("7" -> "7hrs 00 mins") and REST training_type inference
+    client.post("/api/challenge/checkins", json={
+        "date": "2026-11-05",
+        "training_type": "REST",
+        "sleep_str": "7",
+        "notes": "EMOM",
+        "class_attended": "Street Running (2.96km @ 23:31 /km)",
+    })
+
+    share_resp = client.get("/challenge/share/1/3")
+    assert share_resp.status_code == 200
+    html = share_resp.get_data(as_text=True)
+    assert "Ewan Taylor · Week 3 Check-In Summary" in html
+    assert "Ewan Taylor · Week 3 Weekly Summary" in html
+    assert "30,392" in html
+    assert "40,352" in html
+    assert "15,420" in html
+    assert "7hrs 00 mins" in html
+    assert "3 Gym · 5 Cardio" in html
+
 
 
 

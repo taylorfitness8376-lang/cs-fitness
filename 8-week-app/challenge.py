@@ -195,13 +195,13 @@ def _is_current_user_admin(db):
         if not row:
             sess_role = (session.get("challenge_role") or "").lower()
             sess_name = (session.get("challenge_client_name") or "").strip().lower()
-            return sess_role == "admin" or sess_name in ("ewan t", "chris", "laura")
+            return sess_role == "admin" or sess_name in ("ewan taylor", "ewan t", "chris", "laura")
         role = (row["role"] or "").lower()
         cname = (row["client_name"] or "").strip().lower()
         sess_name = (session.get("challenge_client_name") or "").strip().lower()
-        if sess_name and cname != sess_name:
-            return (session.get("challenge_role") or "").lower() == "admin" or sess_name in ("ewan t", "chris", "laura")
-        return role == "admin" or cname in ("ewan t", "chris", "laura")
+        if sess_name and cname != sess_name and not ({cname, sess_name} <= {"ewan taylor", "ewan t"}):
+            return (session.get("challenge_role") or "").lower() == "admin" or sess_name in ("ewan taylor", "ewan t", "chris", "laura")
+        return role == "admin" or cname in ("ewan taylor", "ewan t", "chris", "laura")
     # In automated pytest runs without an explicit session, allow test helpers unless testing unauthed behavior
     if current_app.config.get("TESTING") and not session.get("challenge_force_unauthed"):
         return True
@@ -487,12 +487,17 @@ def _get_active_profile(db, profile_id=None):
             pid = int(session_pid)
             row = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (pid,)).fetchone()
             sess_name = (session.get("challenge_client_name") or "").strip()
-            if not row or (sess_name and (row["client_name"] or "").strip().lower() != sess_name.lower()):
+            row_name = (row["client_name"] or "").strip() if row else ""
+            if not row or (
+                sess_name
+                and row_name.lower() != sess_name.lower()
+                and not (pid == 1 and {row_name.lower(), sess_name.lower()} <= {"ewan taylor", "ewan t"})
+            ):
                 row = _recover_or_create_session_profile(db, pid)
     elif profile_id is not None and is_admin:
         row = db.execute("SELECT * FROM challenge_profiles WHERE id=?", (int(profile_id),)).fetchone()
     elif current_app.config.get("TESTING") and not session.get("challenge_force_unauthed"):
-        row = db.execute("SELECT * FROM challenge_profiles WHERE client_name='Ewan t'").fetchone()
+        row = db.execute("SELECT * FROM challenge_profiles WHERE client_name IN ('Ewan Taylor', 'Ewan t') ORDER BY id LIMIT 1").fetchone()
         if not row:
             row = db.execute("SELECT * FROM challenge_profiles ORDER BY id LIMIT 1").fetchone()
     if not row:
@@ -887,6 +892,37 @@ def _build_week_sheet(db, profile, week_num):
                 combined_notes = workout_note or f"📝 {daily_ctx}"
         else:
             combined_notes = workout_note
+
+        # Auto-infer training_type if saved as REST/empty while workout/activity notes exist
+        tt_val = str(r.get("training_type") or "REST").strip().upper()
+        if tt_val in ("", "REST") and (workout_note or day_acts):
+            act_cats = {str(a.get("category") or "").upper() for a in day_acts if a.get("category")}
+            wn_low = workout_note.lower()
+            has_gym = ("GYM" in act_cats) or any(
+                k in wn_low for k in ("strength", "gym", "hyrox", "emom", "cs performance", "cs fitness", "weights", "squat", "deadlift", "bench")
+            )
+            has_cardio = ("CARDIO" in act_cats) or any(
+                k in wn_low for k in ("running", "run ", "run)", "cycling", "cycle", "hyrox", "cardio", "row", "swim", "/km")
+            )
+            if has_gym and has_cardio:
+                r["training_type"] = "GYM & CARDIO"
+            elif has_gym:
+                r["training_type"] = "GYM"
+            elif has_cardio:
+                r["training_type"] = "CARDIO"
+
+        # Normalize bare numeric sleep strings (e.g. "7" -> "7hrs 00 mins")
+        s_str = str(r.get("sleep_str") or "").strip()
+        s_mins = int(r.get("sleep_mins") or 0)
+        if s_str and re.fullmatch(r"\d+(\.\d+)?", s_str):
+            hrs_f = float(s_str)
+            tot_m = int(round(hrs_f * 60)) if hrs_f <= 24 else int(round(hrs_f))
+            r["sleep_str"] = f"{tot_m // 60}hrs {tot_m % 60:02d} mins"
+            if not s_mins:
+                r["sleep_mins"] = tot_m
+        elif not s_str and s_mins > 0:
+            r["sleep_str"] = f"{s_mins // 60}hrs {s_mins % 60:02d} mins"
+
         r["workout_note"] = workout_note
         r["daily_note"] = daily_ctx
         r["combined_notes"] = combined_notes

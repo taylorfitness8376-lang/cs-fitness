@@ -3238,15 +3238,14 @@ async function ensureServerRehydratedFromBrowserVault() {
     const localVault = window.getBrowserCheckinsVault(pid);
     const garminVault = window.getBrowserGarminVault(pid);
     const ov = (typeof STATE !== 'undefined' && STATE.overview) || {};
-    if (
-      localVault &&
-      localVault.profile &&
-      localVault.profile.client_name &&
-      ov.profile &&
-      ov.profile.client_name &&
-      String(localVault.profile.client_name).trim().toLowerCase() !== String(ov.profile.client_name).trim().toLowerCase()
-    ) {
+    const localName = String((localVault && localVault.profile && localVault.profile.client_name) || '').trim().toLowerCase();
+    const serverName = String((ov.profile && ov.profile.client_name) || '').trim().toLowerCase();
+    const bothEwan = (pid === 1) && ['ewan t', 'ewan taylor', 'ewan'].includes(localName) && ['ewan t', 'ewan taylor', 'ewan'].includes(serverName);
+    if (localName && serverName && localName !== serverName && !bothEwan) {
       return;
+    }
+    if (bothEwan && localVault && localVault.profile) {
+      localVault.profile.client_name = 'Ewan Taylor';
     }
     const serverIntg = ov.integrations || {};
 
@@ -3273,6 +3272,9 @@ async function ensureServerRehydratedFromBrowserVault() {
           if (!sc || !hasMeaningfulCheckinData(sc)) {
             needsCheckinRestore = true;
             break;
+          }
+          if (Number(sc.steps || 0) > Number(lc.steps || 0)) {
+            lc.steps = Number(sc.steps);
           }
           if (
             (lc.weight_kg && !sc.weight_kg) ||

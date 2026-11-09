@@ -8,6 +8,7 @@ data/gym.db
 *.db-wal
 *.db-shm
 data/.garmin_tokens/
+data/garmin_tokens/
 .DS_Store
 Archive.zip
 Archive 2.zip

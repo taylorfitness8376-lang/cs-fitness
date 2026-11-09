@@ -433,7 +433,7 @@ def generate_chris_excel_bytes(db, profile: dict, selected_week: int = None) -> 
         s1_root = ET.fromstring(s1_raw)
         s1_cells = _index_cells(s1_root)
 
-        client_name = str(profile.get("client_name") or "Ewan t").strip()
+        client_name = str(profile.get("client_name") or "Ewan Taylor").strip()
         goal = str(profile.get("goal") or "Weight Loss").strip()
         start_w = float(profile.get("start_weight_kg") or 84.0)
         target_w = float(profile.get("target_weight_kg") or 78.3)
