@@ -62,7 +62,19 @@ def require_auth(f):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    from challenge import _is_current_user_admin
+    from challenge_blocks import ensure_blocks_and_auth_tables
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    is_authed = bool(session.get("challenge_authed") and session.get("challenge_profile_id"))
+    is_admin = bool(is_authed and _is_current_user_admin(db))
+    return render_template(
+        "index.html",
+        is_admin=is_admin,
+        is_authenticated=is_authed,
+        active_client_name=session.get("challenge_client_name") or "",
+        active_email=session.get("challenge_email") or "",
+    )
 
 
 @app.route("/tv")

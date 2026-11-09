@@ -3657,6 +3657,10 @@ function renderOnePagerViews(forceUpdateInputs) {
   if (adminBtn) {
     adminBtn.style.display = ov.is_admin ? 'inline-flex' : 'none';
   }
+  const hdrAdminBtn = document.getElementById('hdr-admin-btn');
+  if (hdrAdminBtn) {
+    hdrAdminBtn.style.display = ov.is_admin ? 'inline-flex' : 'none';
+  }
 
   const dayHeading = document.getElementById('op-weekday-heading');
   if (dayHeading) dayHeading.textContent = dayName;

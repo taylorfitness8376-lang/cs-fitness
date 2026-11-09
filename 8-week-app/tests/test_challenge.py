@@ -329,7 +329,7 @@ def test_cohort_blocks_enroll_rollover_and_auth(client):
     })
     assert non_admin_roll.status_code == 403
 
-    client.post("/api/challenge/auth/login", json={"email": "taylor.ewan@gmail.com"})
+    client.post("/api/challenge/auth/login", json={"email": "taylor.ewan@googlemail.com", "password": "csfitness"})
     roll_res = client.post("/api/challenge/blocks/rollover", json={
         "from_block_id": active_block["id"],
         "to_block_id": upcoming_block["id"],
@@ -351,11 +351,14 @@ def test_coach_admin_portal_and_three_admins(client):
     assert adm_page.status_code == 200
     assert "COACH &amp; ADMIN PORTAL" in adm_page.get_data(as_text=True)
 
-    # 3. 3 Admins (Chris, Laura, Ewan) are configured
+    # 3. 3 Admins (Chris, Laura, Ewan Admin) are configured
     admins_res = client.get("/api/challenge/admin/admins").get_json()
     assert admins_res["ok"] is True
     names = {a["client_name"].lower() for a in admins_res["admins"]}
-    assert {"ewan taylor", "chris", "laura"}.issubset(names)
+    assert {"ewan (admin)", "chris", "laura"}.issubset(names)
+    ewan_adm = next(a for a in admins_res["admins"] if a["email"] == "taylor.ewan@googlemail.com")
+    assert ewan_adm["role"] == "admin"
+    assert ewan_adm["has_password"] == 1
 
     # 4. Update Chris's admin email address
     chris_row = [a for a in admins_res["admins"] if a["client_name"].lower() == "chris"][0]
@@ -564,10 +567,10 @@ def test_multi_user_data_isolation_for_alan_vs_ewan(client):
     assert len(alan_blocks["users"]) == 1
     assert alan_blocks["users"][0]["profile_id"] == alan_pid
 
-    # 9. Admin (Ewan) signs in and CAN access Admin endpoints and view both Ewan & Alan
+    # 9. Admin (Ewan Admin: taylor.ewan@googlemail.com / csfitness) signs in and CAN access Admin endpoints and view both Ewan & Alan
     login_ewan = client.post("/api/challenge/auth/login", json={
-        "email": "taylor.ewan@gmail.com",
-        "password": "ewanadminpassword",
+        "email": "taylor.ewan@googlemail.com",
+        "password": "csfitness",
     }).get_json()
     assert login_ewan["ok"] is True
     assert login_ewan["role"] == "admin"
@@ -577,6 +580,7 @@ def test_multi_user_data_isolation_for_alan_vs_ewan(client):
     names = [r["client_name"] for r in cohort_sum["roster"]]
     assert "Ewan Taylor" in names
     assert "Alan" in names
+    assert "Ewan (Admin)" not in names
 
 
 def test_coach_chris_excel_export_import_and_heic_photos(client):
@@ -1493,7 +1497,8 @@ def test_saturday_to_friday_summary_start_weight_share_report_and_cohort_onboard
     assert "stepCoachPose" in share_html
     assert "object-fit: contain" in share_html
 
-    # 5. Admin Post-Payment Cohort Bulk Invite: create a new block, invite a new user + a returning user
+    # 5. Admin Post-Payment Cohort Bulk Invite: sign in as Admin, create a new block, invite a new user + a returning user
+    client.post("/api/challenge/auth/login", json={"email": "taylor.ewan@googlemail.com", "password": "csfitness"})
     blk_res = client.post("/api/challenge/blocks", json={
         "name": "January 2027 8-Week Transformation Block",
         "pre_coaching_Start": "2027-01-04",
@@ -1600,20 +1605,60 @@ def test_ewan_taylor_week3_share_report_and_training_inference(client):
     assert "3 Gym · 5 Cardio" in html
 
 
+def test_separate_ewan_admin_account_and_admin_only_landing_page(client):
+    """Verify:
+    1. Ewan's user account (taylor.ewan@gmail.com, profile_id=1) is a regular challenger (role='challenger', is_admin=False)
+       and does NOT see the Admin Page on the landing page (/) or /challenge, nor can it access /challenge/admin.
+    2. Ewan's separate Admin account (taylor.ewan@googlemail.com, password='csfitness') has role='admin',
+       sees the Admin Page card on the landing page (/) and /challenge, and has full access to /challenge/admin.
+    """
+    # 1. Log in as Ewan's regular user account (taylor.ewan@gmail.com)
+    user_login = client.post("/api/challenge/auth/login", json={
+        "email": "taylor.ewan@gmail.com",
+    }).get_json()
+    assert user_login["ok"] is True
+    assert user_login["profile_id"] == 1
+    assert user_login["role"] == "challenger"
 
+    ov_user = client.get("/api/challenge/overview?date=2026-11-06").get_json()
+    assert ov_user["is_admin"] is False
 
+    landing_user = client.get("/").get_data(as_text=True)
+    assert 'id="landing-admin-card"' not in landing_user
 
+    challenge_user = client.get("/challenge").get_data(as_text=True)
+    assert 'id="op-admin-btn" class="btn btn-sm" style="display:none' in challenge_user
 
+    adm_deny = client.get("/challenge/admin")
+    assert adm_deny.status_code in (301, 302)
+    assert "/challenge/login" in adm_deny.headers["Location"]
+    assert client.get("/api/challenge/admin/cohort-summary").status_code == 403
 
+    # 2. Separate Admin account (taylor.ewan@googlemail.com) requires password 'csfitness'
+    bad_pw = client.post("/api/challenge/auth/login", json={
+        "email": "taylor.ewan@googlemail.com",
+        "password": "wrongpassword",
+    })
+    assert bad_pw.status_code == 401
 
+    adm_login = client.post("/api/challenge/auth/login", json={
+        "email": "taylor.ewan@googlemail.com",
+        "password": "csfitness",
+    }).get_json()
+    assert adm_login["ok"] is True
+    assert adm_login["role"] == "admin"
+    assert adm_login["profile_id"] != 1
 
+    ov_adm = client.get("/api/challenge/overview?date=2026-11-06").get_json()
+    assert ov_adm["is_admin"] is True
 
+    landing_adm = client.get("/").get_data(as_text=True)
+    assert 'id="landing-admin-card"' in landing_adm
+    assert "8-Week Coach &amp; Admin Page" in landing_adm
 
+    challenge_adm = client.get("/challenge").get_data(as_text=True)
+    assert 'id="op-admin-btn" class="btn btn-sm" style="display:inline-flex' in challenge_adm
 
-
-
-
-
-
-
-
+    adm_ok = client.get("/challenge/admin")
+    assert adm_ok.status_code == 200
+    assert "COACH &amp; ADMIN PORTAL" in adm_ok.get_data(as_text=True)

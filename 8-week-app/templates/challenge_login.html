@@ -41,7 +41,10 @@
         </div>
       </div>
       {% if is_authenticated %}
-      <div style="display:flex;gap:0.4rem">
+      <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+        {% if active_account and active_account.role == 'admin' %}
+        <a href="/challenge/admin" class="btn btn-blue btn-sm" style="text-decoration:none">🛡️ Admin Page →</a>
+        {% endif %}
         <a href="/challenge" class="btn btn-green btn-sm" style="text-decoration:none">Open App →</a>
         <a href="/api/challenge/auth/logout" class="btn btn-sm" style="text-decoration:none;border-color:rgba(248,113,113,0.4);color:#f87171">Sign Out</a>
       </div>
@@ -356,12 +359,12 @@
       }
       if (forceAdminView && data.role !== 'admin') {
         msg.style.color = '#fbbf24';
-        msg.textContent = '⚠️ Coach & Admin Portal is restricted to Coaches (Chris, Laura, Ewan). Opening your personal tracker...';
+        msg.textContent = '⚠️ Coach & Admin Portal is restricted to Admins (taylor.ewan@googlemail.com, Chris, Laura). Opening your personal tracker...';
         setTimeout(() => { window.location.href = '/challenge'; }, 800);
         return;
       }
-      const isCoachOnly = ['chris', 'laura'].includes((data.client_name || '').toLowerCase());
-      const dest = (forceAdminView || (data.role === 'admin' && isCoachOnly)) ? '/challenge/admin' : '/challenge';
+      const isAdminAccount = data.role === 'admin' || ['chris', 'laura', 'ewan (admin)', 'ewan admin'].includes((data.client_name || '').toLowerCase());
+      const dest = (forceAdminView || isAdminAccount || window.location.search.includes('admin=1')) && data.role === 'admin' ? '/challenge/admin' : '/challenge';
       msg.style.color = 'var(--green)';
       msg.textContent = `✅ Signed in as ${data.client_name} (@${data.username || 'user'})! Redirecting...`;
       setTimeout(() => { window.location.href = dest; }, 400);

@@ -182,11 +182,11 @@ def _set_authenticated_session(prof, acct=None):
 
 
 def _is_current_user_admin(db):
-    """Return True ONLY if the signed-in session user is one of the 3 Admins (Chris, Laura, Ewan)."""
+    """Return True ONLY if the signed-in session user is one of the 3 Admins (Chris, Laura, or Ewan's separate admin account taylor.ewan@googlemail.com)."""
     session_pid = session.get("challenge_profile_id")
     if session_pid:
         row = db.execute(
-            """SELECT p.client_name, a.role
+            """SELECT p.client_name, a.role, a.email
                FROM challenge_profiles p
                LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
                WHERE p.id=?""",
@@ -194,14 +194,28 @@ def _is_current_user_admin(db):
         ).fetchone()
         if not row:
             sess_role = (session.get("challenge_role") or "").lower()
+            sess_email = (session.get("challenge_email") or "").strip().lower()
             sess_name = (session.get("challenge_client_name") or "").strip().lower()
-            return sess_role == "admin" or sess_name in ("ewan taylor", "ewan t", "chris", "laura")
+            return (
+                sess_role == "admin"
+                or sess_email == "taylor.ewan@googlemail.com"
+                or sess_name in ("ewan (admin)", "ewan admin", "chris", "laura")
+            )
         role = (row["role"] or "").lower()
+        email = (row["email"] or "").strip().lower()
         cname = (row["client_name"] or "").strip().lower()
         sess_name = (session.get("challenge_client_name") or "").strip().lower()
         if sess_name and cname != sess_name and not ({cname, sess_name} <= {"ewan taylor", "ewan t"}):
-            return (session.get("challenge_role") or "").lower() == "admin" or sess_name in ("ewan taylor", "ewan t", "chris", "laura")
-        return role == "admin" or cname in ("ewan taylor", "ewan t", "chris", "laura")
+            return (
+                (session.get("challenge_role") or "").lower() == "admin"
+                or (session.get("challenge_email") or "").strip().lower() == "taylor.ewan@googlemail.com"
+                or sess_name in ("ewan (admin)", "ewan admin", "chris", "laura")
+            )
+        return (
+            role == "admin"
+            or email == "taylor.ewan@googlemail.com"
+            or cname in ("ewan (admin)", "ewan admin", "chris", "laura")
+        )
     # In automated pytest runs without an explicit session, allow test helpers unless testing unauthed behavior
     if current_app.config.get("TESTING") and not session.get("challenge_force_unauthed"):
         return True
@@ -1035,7 +1049,10 @@ def challenge_page():
         not current_app.config.get("TESTING") or session.get("challenge_force_unauthed")
     ):
         return redirect(url_for("challenge_blocks.challenge_login_page"))
-    return render_template("challenge.html")
+    from challenge_blocks import ensure_blocks_and_auth_tables
+    db = get_db()
+    ensure_blocks_and_auth_tables(db)
+    return render_template("challenge.html", is_admin=_is_current_user_admin(db))
 
 
 @challenge_bp.route("/challenge/guide")
@@ -1143,8 +1160,12 @@ def api_challenge_overview():
         ).fetchall()
     ]
 
+    from challenge_blocks import ensure_blocks_and_auth_tables
+    ensure_blocks_and_auth_tables(db)
+
     return jsonify({
         "date": date_str,
+        "is_admin": _is_current_user_admin(db),
         "profile": profile,
         "week_info": wk_info,
         "checkin": checkin,

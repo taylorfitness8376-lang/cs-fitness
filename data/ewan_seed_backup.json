@@ -1284,7 +1284,7 @@
     "email_verified": 1,
     "password_hash": "",
     "profile_id": 1,
-    "role": "admin",
+    "role": "challenger",
     "username": "ewan"
   },
   "weekly_submissions": [

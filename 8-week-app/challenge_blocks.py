@@ -77,6 +77,7 @@ DEFAULT_ANNUAL_BLOCKS = [
 
 
 _ENSURED_BLOCK_DBS = set()
+_DEFAULT_CSFITNESS_PW_HASH = bcrypt.hashpw(b"csfitness", bcrypt.gensalt()).decode("utf-8")
 
 
 def ensure_blocks_and_auth_tables(db):
@@ -94,11 +95,16 @@ def ensure_blocks_and_auth_tables(db):
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='challenge_user_accounts'"
             ).fetchone()
             has_ewan = (
-                db.execute("SELECT 1 FROM challenge_user_accounts WHERE profile_id=1").fetchone()
+                db.execute("SELECT 1 FROM challenge_user_accounts WHERE profile_id=1 AND role='challenger'").fetchone()
                 if has_acct
                 else None
             )
-            if has_acct and has_ewan:
+            has_ewan_admin = (
+                db.execute("SELECT 1 FROM challenge_user_accounts WHERE LOWER(email)='taylor.ewan@googlemail.com' AND role='admin'").fetchone()
+                if has_acct
+                else None
+            )
+            if has_acct and has_ewan and has_ewan_admin:
                 return
         except Exception:
             pass
@@ -233,7 +239,7 @@ def ensure_blocks_and_auth_tables(db):
            WHERE sync_source_garmin IN ('Garmin Fenix 7', 'Garmin Connect (Fenix 7 + Index S2)', 'Garmin Connect (Simulated)')"""
     )
 
-    # Migrate profile_id=1 from legacy "Ewan t" to "Ewan Taylor"
+    # Migrate profile_id=1 from legacy "Ewan t" to "Ewan Taylor" and keep it as Ewan's personal Challenger account
     try:
         db.execute(
             """UPDATE challenge_profiles
@@ -242,33 +248,40 @@ def ensure_blocks_and_auth_tables(db):
                    last_name='Taylor'
                WHERE id=1 AND (LOWER(client_name) IN ('ewan t', 'ewan') OR LOWER(COALESCE(last_name, '')) IN ('', 't'))"""
         )
+        p1_row = db.execute("SELECT id FROM challenge_profiles WHERE id=1").fetchone()
+        if p1_row:
+            db.execute(
+                """INSERT INTO challenge_user_accounts (profile_id, username, email, role, invite_token, email_verified, verification_token)
+                   VALUES (1, 'ewan', 'taylor.ewan@gmail.com', 'challenger', ?, 1, ?)
+                   ON CONFLICT(profile_id) DO UPDATE SET
+                       role='challenger',
+                       email=CASE WHEN challenge_user_accounts.email='' OR LOWER(challenge_user_accounts.email)='taylor.ewan@googlemail.com' THEN 'taylor.ewan@gmail.com' ELSE challenge_user_accounts.email END""",
+                (secrets.token_urlsafe(12), secrets.token_urlsafe(18)),
+            )
     except Exception:
         pass
 
-    # Ensure the 3 Admin accounts (Ewan Taylor, Chris, Laura) exist
+    # Ensure the 3 separate Admin accounts (Ewan Admin: taylor.ewan@googlemail.com / csfitness, Chris, Laura) exist
     admin_seeds = [
-        ("Ewan Taylor", "ewan", "taylor.ewan@gmail.com", "mens"),
-        ("Chris", "chris", "chris@cs.fitness", "mens"),
-        ("Laura", "laura", "laura@cs.fitness", "ladies"),
+        ("Ewan (Admin)", "ewan_admin", "taylor.ewan@googlemail.com", "mens", _DEFAULT_CSFITNESS_PW_HASH),
+        ("Chris", "chris", "chris@cs.fitness", "mens", ""),
+        ("Laura", "laura", "laura@cs.fitness", "ladies", ""),
     ]
-    for cname, uname, default_email, track in admin_seeds:
-        if cname == "Ewan Taylor":
-            p_row = db.execute("SELECT id FROM challenge_profiles WHERE id=1 OR LOWER(client_name) IN ('ewan taylor', 'ewan t') ORDER BY id LIMIT 1").fetchone()
-        else:
-            p_row = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (cname,)).fetchone()
+    for cname, uname, default_email, track, default_pw_hash in admin_seeds:
+        p_row = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (cname,)).fetchone()
         if not p_row:
             calc = calculate_challenge_targets(80.0, 75.0, 16.0, 14.0, 150, "2026-10-19", "Coach / Admin", False)
             db.execute(
                 """INSERT INTO challenge_profiles (
-                    client_name, goal, start_date, end_date,
+                    client_name, first_name, last_name, goal, start_date, end_date,
                     start_weight_kg, target_weight_kg, start_body_fat_pct, target_body_fat_pct,
                     lean_body_mass_kg, fat_mass_kg, to_lose_kg,
                     target_calories, target_protein_g, target_fats_g, target_carbs_g,
                     target_fibre_g, target_water_l, target_sleep_hrs,
-                    returning_member, workout_track, weekly_targets_json
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    returning_member, workout_track, weekly_targets_json, onboarding_completed
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)""",
                 (
-                    cname, "Coach / Admin", "2026-10-19", calc["end_date"],
+                    cname, cname.split()[0], "Taylor" if "ewan" in cname.lower() else "", "Coach / Admin", "2026-10-19", calc["end_date"],
                     80.0, 75.0, 16.0, 14.0,
                     calc["lean_body_mass_kg"], calc["fat_mass_kg"], calc["to_lose_kg"],
                     calc["target_calories"], calc["target_protein_g"], calc["target_fats_g"], calc["target_carbs_g"],
@@ -279,13 +292,15 @@ def ensure_blocks_and_auth_tables(db):
             p_row = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (cname,)).fetchone()
         if p_row:
             db.execute(
-                """INSERT INTO challenge_user_accounts (profile_id, username, email, role, invite_token, email_verified, verification_token)
-                   VALUES (?,?,?,?,?,1,?)
+                """INSERT INTO challenge_user_accounts (profile_id, username, email, password_hash, role, invite_token, email_verified, verification_token)
+                   VALUES (?,?,?,?,?,?,1,?)
                    ON CONFLICT(profile_id) DO UPDATE SET role='admin',
                        email_verified=1,
-                       email=CASE WHEN challenge_user_accounts.email='' THEN excluded.email ELSE challenge_user_accounts.email END""",
-                (p_row["id"], uname, default_email, "admin", secrets.token_urlsafe(12), secrets.token_urlsafe(18)),
+                       email=CASE WHEN challenge_user_accounts.email='' THEN excluded.email ELSE challenge_user_accounts.email END,
+                       password_hash=CASE WHEN challenge_user_accounts.password_hash='' AND excluded.password_hash!='' THEN excluded.password_hash ELSE challenge_user_accounts.password_hash END""",
+                (p_row["id"], uname, default_email, default_pw_hash, "admin", secrets.token_urlsafe(12), secrets.token_urlsafe(18)),
             )
+            db.execute("DELETE FROM challenge_block_enrollments WHERE profile_id=?", (p_row["id"],))
 
     # Ensure core enrolled challengers (including Alan Mackay) exist permanently across container restarts
     challenger_seeds = [
@@ -333,7 +348,7 @@ def ensure_blocks_and_auth_tables(db):
             clash = db.execute("SELECT 1 FROM challenge_user_accounts WHERE username=?", (slug,)).fetchone()
             uname = f"{slug}{p['id']}" if clash else slug
             default_email = "taylor.ewan@gmail.com" if p["client_name"].lower() in ("ewan taylor", "ewan t") else f"{uname}@taylorfitness.co.uk"
-            is_adm = p["client_name"].lower() in ("ewan taylor", "ewan t", "chris", "laura")
+            is_adm = p["client_name"].lower() in ("ewan (admin)", "ewan admin", "chris", "laura")
             role = "admin" if is_adm else "challenger"
             db.execute(
                 """INSERT OR IGNORE INTO challenge_user_accounts (
@@ -352,7 +367,7 @@ def ensure_blocks_and_auth_tables(db):
                     "UPDATE challenge_user_accounts SET invite_token=? WHERE profile_id=?",
                     (secrets.token_urlsafe(12), p["id"]),
                 )
-        if active_blk and p["client_name"].lower() not in ("chris", "laura"):
+        if active_blk and p["client_name"].lower() not in ("chris", "laura", "ewan (admin)", "ewan admin"):
             db.execute(
                 """INSERT OR IGNORE INTO challenge_block_enrollments (block_id, profile_id, is_returning, joined_via)
                    VALUES (?,?,?,?)""",
@@ -754,7 +769,7 @@ def _upsert_challenger_for_block(db, data, block_row):
     teamup_cid = str(data.get("teamup_customer_id") or "").strip()
     teamup_st = str(data.get("teamup_status") or ("Linked" if teamup_cid else "")).strip()
     is_admin_caller = _is_current_user_admin(db)
-    if cname.strip().lower() in ("ewan taylor", "ewan t", "chris", "laura"):
+    if cname.strip().lower() in ("ewan (admin)", "ewan admin", "chris", "laura") or email == "taylor.ewan@googlemail.com":
         role = "admin"
     elif is_admin_caller and data.get("role") in ("challenger", "coach", "admin"):
         role = data.get("role")
@@ -1579,7 +1594,7 @@ def api_challenge_block_join_or_webhook():
             ex_role = (existing_acct["role"] or "").lower()
             ex_name = (existing_acct["client_name"] or "").strip().lower()
             valid_personal_invite = bool(req_invite_token and existing_acct["invite_token"] and req_invite_token == existing_acct["invite_token"])
-            if ex_role == "admin" or ex_name in ("ewan taylor", "ewan t", "chris", "laura") or (existing_acct["password_hash"] and not valid_personal_invite):
+            if ex_role == "admin" or ex_name in ("ewan (admin)", "ewan admin", "ewan taylor", "ewan t", "chris", "laura") or (existing_acct["password_hash"] and not valid_personal_invite):
                 return jsonify({
                     "ok": False,
                     "error": "An account with this name or email already exists. Please use the Sign In tab instead.",
@@ -1950,6 +1965,7 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
         try:
             exists_acct = db.execute("SELECT profile_id FROM challenge_user_accounts WHERE profile_id=?", (pid,)).fetchone()
             if not exists_acct:
+                restored_role = "challenger" if pid == 1 else (acct_data.get("role") or "challenger")
                 db.execute(
                     """INSERT OR IGNORE INTO challenge_user_accounts
                        (profile_id, username, email, password_hash, role, email_verified)
@@ -1959,7 +1975,7 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
                         acct_data.get("username"),
                         acct_data.get("email") or "",
                         acct_data.get("password_hash") or "",
-                        acct_data.get("role") or "challenger",
+                        restored_role,
                         int(acct_data.get("email_verified") or 1),
                     ),
                 )
@@ -2356,13 +2372,11 @@ def api_challenge_backup_import():
 
 @challenge_blocks_bp.route("/challenge/admin")
 def challenge_admin_page():
-    """Dedicated Coach & Admin Portal for Chris, Laura, and Ewan."""
+    """Dedicated Coach & Admin Portal for Chris, Laura, and Ewan (taylor.ewan@googlemail.com)."""
     db = get_db()
     ensure_blocks_and_auth_tables(db)
     if not _is_current_user_admin(db):
-        if session.get("challenge_authed"):
-            return redirect("/challenge")
-        return redirect(url_for("challenge_blocks.challenge_login_page"))
+        return redirect(url_for("challenge_blocks.challenge_login_page", admin="1"))
     return render_template("challenge_admin.html")
 
 
@@ -2378,7 +2392,7 @@ def api_challenge_list_admins():
                   p.client_name
            FROM challenge_user_accounts a
            JOIN challenge_profiles p ON p.id = a.profile_id
-           WHERE a.role='admin' OR LOWER(p.client_name) IN ('ewan taylor', 'ewan t', 'chris', 'laura')
+           WHERE a.role='admin' OR LOWER(p.client_name) IN ('ewan (admin)', 'ewan admin', 'chris', 'laura')
            ORDER BY p.id"""
     ).fetchall()
     return jsonify({"ok": True, "admins": [dict(r) for r in rows]})
@@ -2547,7 +2561,8 @@ def api_challenge_admin_cohort_summary():
                LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
                LEFT JOIN challenge_block_enrollments e ON e.profile_id = p.id
                LEFT JOIN challenge_blocks b ON b.id = e.block_id
-               WHERE LOWER(p.client_name) NOT IN ('chris', 'laura')
+               WHERE LOWER(p.client_name) NOT IN ('chris', 'laura', 'ewan (admin)', 'ewan admin')
+                 AND COALESCE(a.role, 'challenger') != 'admin'
                ORDER BY p.id ASC"""
         ).fetchall()
     ]

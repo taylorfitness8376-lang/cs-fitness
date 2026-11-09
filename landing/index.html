@@ -173,9 +173,24 @@
       <div class="brand-pill">⚡ CS FITNESS · PERFORMANCE &amp; COACHING</div>
       <h1>CS <span>FITNESS</span> HUB</h1>
       <p>Select your application below — Daily 8-Week Challenge Tracking, Mobile 1-Pagers, or the CS Fitness Gym TV Display &amp; Schedule CMS.</p>
+      <div style="margin-top:0.9rem;display:flex;justify-content:center;align-items:center;gap:0.6rem;flex-wrap:wrap">
+        {% if is_authenticated %}
+          <span style="font-size:0.78rem;color:#cbd5e1;background:var(--surface-2);border:1px solid rgba(255,255,255,0.12);padding:0.4rem 0.85rem;border-radius:999px">
+            👤 Signed in as <strong>{{ active_client_name }}</strong>{% if active_email %} ({{ active_email }}){% endif %}
+            {% if is_admin %}<span style="color:var(--green);font-weight:900;margin-left:0.35rem">· ADMIN</span>{% endif %}
+          </span>
+          {% if is_admin %}
+            <a href="/challenge/admin" class="btn btn-primary" style="flex:0;padding:0.45rem 0.95rem;font-size:0.78rem;border-radius:999px">🛡️ Open Admin Page →</a>
+          {% endif %}
+          <a href="/challenge/login" class="btn" style="padding:0.42rem 0.85rem;font-size:0.76rem;border-radius:999px">Switch Account</a>
+        {% else %}
+          <a href="/challenge/login" class="btn" style="padding:0.45rem 0.9rem;font-size:0.78rem;border-radius:999px">🔐 Challenger Sign In</a>
+          <a href="/challenge/login?admin=1" class="btn" style="padding:0.45rem 0.9rem;font-size:0.78rem;border-radius:999px;border-color:rgba(56,189,248,0.45);color:var(--blue)">🛡️ Admin Sign In</a>
+        {% endif %}
+      </div>
     </header>
 
-    <main class="grid">
+    <main class="grid" {% if is_admin %}style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));"{% endif %}>
       <!-- Sub-App 1: 8-Week Challenge & Life App -->
       <section class="app-card">
         <div>
@@ -191,10 +206,33 @@
         <div class="btn-row">
           <a href="/challenge" class="btn btn-primary">🚀 Open 8-Week App</a>
           <a href="/challenge/login" class="btn">🔐 Sign In / Join Block</a>
+          {% if is_admin %}
+            <a href="/challenge/admin" class="btn" style="border-color:rgba(61,255,79,0.5);color:var(--green)">🛡️ Admin Page</a>
+          {% endif %}
           <a href="/challenge?mode=daily" class="btn">☀️ Daily 1-Pager</a>
           <a href="/challenge?mode=weekly" class="btn">📅 Weekly 1-Pager</a>
         </div>
       </section>
+
+      {% if is_admin %}
+      <!-- Sub-App Admin: 8-Week Challenge Admin Page (Visible ONLY to Admins) -->
+      <section class="app-card" id="landing-admin-card" style="border-color:rgba(61,255,79,0.45)">
+        <div>
+          <span class="card-badge badge-green">Admin Only · /challenge/admin</span>
+          <h2>8-Week Coach &amp; Admin Page</h2>
+          <p>Restricted strictly to Coach &amp; Admin accounts (Chris, Laura, Ewan Admin). Manage cohort blocks, challenger invites, weekly check-ins, and progress photos.</p>
+          <ul class="feature-list">
+            <li>🛡️ Cohort Block Roster &amp; Challenger Invites</li>
+            <li>📊 Weekly Check-In Review &amp; Side-by-Side Photos</li>
+            <li>🔑 Admin Account &amp; Challenger Management</li>
+          </ul>
+        </div>
+        <div class="btn-row">
+          <a href="/challenge/admin" class="btn btn-primary">🛡️ Open Admin Page</a>
+          <a href="/challenge" class="btn">📱 Challenger View</a>
+        </div>
+      </section>
+      {% endif %}
 
       <!-- Sub-App 2: CS Fitness TV Display & CMS -->
       <section class="app-card">
