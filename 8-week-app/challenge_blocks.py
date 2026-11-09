@@ -76,7 +76,32 @@ DEFAULT_ANNUAL_BLOCKS = [
 ]
 
 
+_ENSURED_BLOCK_DBS = set()
+
+
 def ensure_blocks_and_auth_tables(db):
+    db_key = None
+    try:
+        for r in db.execute("PRAGMA database_list").fetchall():
+            if r["name"] == "main":
+                db_key = r["file"] or None
+                break
+    except Exception:
+        db_key = None
+    if db_key and db_key in _ENSURED_BLOCK_DBS:
+        try:
+            has_acct = db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='challenge_user_accounts'"
+            ).fetchone()
+            has_ewan = (
+                db.execute("SELECT 1 FROM challenge_user_accounts WHERE profile_id=1").fetchone()
+                if has_acct
+                else None
+            )
+            if has_acct and has_ewan:
+                return
+        except Exception:
+            pass
     init_challenge_tables(db)
     db.execute(
         """CREATE TABLE IF NOT EXISTS challenge_blocks (
@@ -311,6 +336,8 @@ def ensure_blocks_and_auth_tables(db):
             )
     _auto_seed_ewan_backup_if_empty(db)
     db.commit()
+    if db_key:
+        _ENSURED_BLOCK_DBS.add(db_key)
 
 
 def _send_challenge_email(to_email, subject, text_body, html_body=None):
@@ -1912,17 +1939,43 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
         pass
 
     try:
+        from challenge_progress import _ensure_weekly_submissions_table
+        _ensure_weekly_submissions_table(db)
         for s in payload.get("weekly_submissions", []):
+            w_num = int(s["week_num"]) if s.get("week_num") is not None else 0
             db.execute(
-                """INSERT INTO weekly_submissions (profile_id, week_num, challenger_comments, coach_feedback, status, card_data_url)
-                   VALUES (?,?,?,?,?,?)
+                """INSERT INTO weekly_submissions (
+                       profile_id, week_num, challenger_comments, coach_feedback,
+                       status, card_data_url, avg_weight_kg, avg_steps,
+                       avg_calories, avg_protein_g, photos_count, submitted_at, reviewed_at
+                   )
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(profile_id, week_num) DO UPDATE SET
-                       challenger_comments=excluded.challenger_comments,
+                       challenger_comments=CASE WHEN excluded.challenger_comments != '' THEN excluded.challenger_comments ELSE weekly_submissions.challenger_comments END,
                        coach_feedback=CASE WHEN excluded.coach_feedback != '' THEN excluded.coach_feedback ELSE weekly_submissions.coach_feedback END,
-                       status=excluded.status""",
+                       status=CASE WHEN excluded.status != '' THEN excluded.status ELSE weekly_submissions.status END,
+                       card_data_url=CASE WHEN excluded.card_data_url != '' THEN excluded.card_data_url ELSE COALESCE(weekly_submissions.card_data_url, '') END,
+                       avg_weight_kg=COALESCE(excluded.avg_weight_kg, weekly_submissions.avg_weight_kg),
+                       avg_steps=CASE WHEN excluded.avg_steps > 0 THEN excluded.avg_steps ELSE weekly_submissions.avg_steps END,
+                       avg_calories=CASE WHEN excluded.avg_calories > 0 THEN excluded.avg_calories ELSE weekly_submissions.avg_calories END,
+                       avg_protein_g=CASE WHEN excluded.avg_protein_g > 0 THEN excluded.avg_protein_g ELSE weekly_submissions.avg_protein_g END,
+                       photos_count=CASE WHEN excluded.photos_count > 0 THEN excluded.photos_count ELSE weekly_submissions.photos_count END,
+                       submitted_at=CASE WHEN excluded.submitted_at != '' THEN excluded.submitted_at ELSE weekly_submissions.submitted_at END,
+                       reviewed_at=CASE WHEN excluded.reviewed_at != '' THEN excluded.reviewed_at ELSE weekly_submissions.reviewed_at END""",
                 (
-                    pid, int(s.get("week_num") or 0), s.get("challenger_comments") or "",
-                    s.get("coach_feedback") or "", s.get("status") or "Submitted", s.get("card_data_url") or "",
+                    pid,
+                    w_num,
+                    s.get("challenger_comments") or "",
+                    s.get("coach_feedback") or "",
+                    s.get("status") or "Submitted",
+                    s.get("card_data_url") or "",
+                    s.get("avg_weight_kg"),
+                    int(s.get("avg_steps") or 0),
+                    int(s.get("avg_calories") or 0),
+                    int(s.get("avg_protein_g") or 0),
+                    int(s.get("photos_count") or 0),
+                    s.get("submitted_at") or "",
+                    s.get("reviewed_at") or "",
                 ),
             )
             counts["weekly_submissions"] += 1
@@ -1930,12 +1983,15 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
         pass
 
     try:
+        db.execute("DELETE FROM progress_photos WHERE profile_id=? AND (photo_data_url IS NULL OR photo_data_url='')", (pid,))
         for p in payload.get("progress_photos", []):
             if not p.get("photo_data_url"):
                 continue
+            w_num = int(p["week_num"]) if p.get("week_num") is not None else 0
+            pose = p.get("pose") or "Front"
             exists = db.execute(
                 "SELECT id FROM progress_photos WHERE profile_id=? AND week_num=? AND pose=?",
-                (pid, int(p.get("week_num") or 1), p.get("pose") or "Front"),
+                (pid, w_num, pose),
             ).fetchone()
             if exists:
                 db.execute(
@@ -1946,7 +2002,7 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
                 db.execute(
                     """INSERT INTO progress_photos (profile_id, week_num, pose, taken_date, weight_kg, photo_data_url)
                        VALUES (?,?,?,?,?,?)""",
-                    (pid, int(p.get("week_num") or 1), p.get("pose") or "Front", p.get("taken_date") or "2026-10-19", p.get("weight_kg"), p["photo_data_url"]),
+                    (pid, w_num, pose, p.get("taken_date") or "2026-10-19", p.get("weight_kg"), p["photo_data_url"]),
                 )
             counts["progress_photos"] += 1
     except Exception:
@@ -2052,17 +2108,6 @@ def _auto_seed_ewan_backup_if_empty(db):
             return
         data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
         local_data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "data"))
-        cnt = db.execute("SELECT COUNT(*) AS c FROM daily_checkins WHERE profile_id=1 AND date >= '2026-10-19'").fetchone()["c"]
-        p1 = db.execute("SELECT start_weight_kg FROM challenge_profiles WHERE id=1").fetchone()
-        sw1 = float(p1["start_weight_kg"]) if p1 and p1["start_weight_kg"] else 84.0
-        if cnt < 5 or abs(sw1 - 84.0) < 0.05:
-            seed_path = os.path.join(data_dir, "ewan_seed_backup.json")
-            if not os.path.exists(seed_path):
-                seed_path = os.path.join(local_data_dir, "ewan_seed_backup.json")
-            if os.path.exists(seed_path):
-                with open(seed_path, "r") as f:
-                    payload = json.load(f)
-                _restore_backup_payload(db, payload, target_profile_id=1)
         for bpath in sorted(glob.glob(os.path.join(data_dir, "backup_profile_*.json"))):
             try:
                 with open(bpath, "r") as f:
@@ -2073,6 +2118,28 @@ def _auto_seed_ewan_backup_if_empty(db):
                 _restore_backup_payload(db, bpayload, target_profile_id=bpid)
             except Exception:
                 pass
+        cnt = db.execute("SELECT COUNT(*) AS c FROM daily_checkins WHERE profile_id=1 AND date >= '2026-10-19'").fetchone()["c"]
+        p1 = db.execute("SELECT start_weight_kg FROM challenge_profiles WHERE id=1").fetchone()
+        sw1 = float(p1["start_weight_kg"]) if p1 and p1["start_weight_kg"] else 84.0
+        wk3_sub = db.execute(
+            "SELECT challenger_comments FROM weekly_submissions WHERE profile_id=1 AND week_num=3"
+        ).fetchone()
+        has_wk3_comments = bool(wk3_sub and (wk3_sub["challenger_comments"] or "").strip())
+        wk3_photos = db.execute(
+            "SELECT COUNT(*) AS c FROM progress_photos WHERE profile_id=1 AND week_num=3 AND LENGTH(photo_data_url) > 100"
+        ).fetchone()["c"]
+        wk0_front = db.execute(
+            "SELECT LENGTH(photo_data_url) AS plen FROM progress_photos WHERE profile_id=1 AND week_num=0 AND pose='Front'"
+        ).fetchone()
+        wk0_needs_crop = not wk0_front or int(wk0_front["plen"] or 0) > 35000 or int(wk0_front["plen"] or 0) < 1000
+        if cnt < 5 or abs(sw1 - 84.0) < 0.05 or not has_wk3_comments or wk3_photos < 3 or wk0_needs_crop:
+            seed_path = os.path.join(data_dir, "ewan_seed_backup.json")
+            if not os.path.exists(seed_path):
+                seed_path = os.path.join(local_data_dir, "ewan_seed_backup.json")
+            if os.path.exists(seed_path):
+                with open(seed_path, "r") as f:
+                    payload = json.load(f)
+                _restore_backup_payload(db, payload, target_profile_id=1)
     except Exception:
         pass
 

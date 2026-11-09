@@ -1410,6 +1410,41 @@ def test_legacy_daily_checkins_unique_date_migration_and_day_switch(client):
     assert r_save.get_json()["checkin"]["steps"] == 13100
 
 
+def test_weekly_checkin_persistence_and_cropped_photos_restore(client):
+    """Verify Week 0 & Week 3 cropped photos and Week 3 write-up restore cleanly and survive ensure_blocks_and_auth_tables."""
+    import json
+    import os
+    from database import get_db
+    from challenge_blocks import _restore_backup_payload, ensure_blocks_and_auth_tables
+
+    client.post("/api/challenge/auth/login", json={"email": "taylor.ewan@gmail.com"})
+
+    seed_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "ewan_seed_backup.json"))
+    with open(seed_path, "r") as f:
+        seed_payload = json.load(f)
+
+    with client.application.app_context():
+        db = get_db()
+        counts = _restore_backup_payload(db, seed_payload, target_profile_id=1)
+        assert counts["weekly_submissions"] >= 2
+        assert counts["progress_photos"] == 9
+        # Calling ensure_blocks_and_auth_tables repeatedly must be fast and must never wipe weekly_submissions or Week 0 photos
+        ensure_blocks_and_auth_tables(db)
+
+    summary = client.get("/api/challenge/progress/summary").get_json()
+    assert summary["ok"] is True
+    photos = summary["photos"]
+    wk0_poses = {p["pose"] for p in photos if p["week_num"] == 0 and len(p.get("photo_data_url") or "") > 1000}
+    wk3_poses = {p["pose"] for p in photos if p["week_num"] == 3 and len(p.get("photo_data_url") or "") > 1000}
+    assert wk0_poses == {"Front", "Side", "Back"}
+    assert wk3_poses == {"Front", "Side", "Back"}
+
+    wk3_row = next(w for w in summary["weeks"] if w["week_num"] == 3)
+    assert "Frankfurt" in wk3_row["challenger_comments"]
+    assert wk3_row["submission_status"] == "Submitted"
+
+
+
 
 
 

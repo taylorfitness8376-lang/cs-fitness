@@ -45,6 +45,7 @@ async function refreshProgressSummary() {
       renderDailyJourneyMoments();
       renderDataSourceBadges();
       renderSavedIntegrationStatus();
+      renderOnePagerWeekly();
       loadCohortBlocks();
     }
   } catch (e) {
@@ -1462,28 +1463,46 @@ function renderWeeklySubmissionState() {
   if (!window.PROGRESS_SUMMARY) return;
   const wk = getActiveSheetWeek();
   const wkObj = (PROGRESS_SUMMARY.weeks || []).find(w => Number(w.week_num) === wk) || {};
+  const subRow = (PROGRESS_SUMMARY.weekly_submissions || []).find(s => Number(s.week_num) === wk) || {};
+  const savedComments = wkObj.challenger_comments || subRow.challenger_comments || '';
+  const savedFeedback = wkObj.coach_feedback || subRow.coach_feedback || '';
   const badge = document.getElementById('wk-submission-status-badge');
   const commentsEl = document.getElementById('wk-challenger-comments');
+  const opCommentsEl = document.getElementById('op-wk-comments');
   const feedbackEl = document.getElementById('wk-coach-feedback-text');
   if (badge) {
-    const st = wkObj.submission_status || 'Not Submitted';
+    const st = wkObj.submission_status || subRow.status || 'Not Submitted';
     badge.textContent = st === 'Reviewed' ? '✅ Reviewed by Coach Chris' : (st === 'Submitted' ? '📤 Submitted to Coach' : 'Not Submitted');
     badge.className = 'badge ' + (st === 'Not Submitted' ? '' : 'badge-green');
   }
   if (commentsEl && document.activeElement !== commentsEl) {
-    commentsEl.value = wkObj.challenger_comments || '';
+    commentsEl.value = savedComments;
+  }
+  if (opCommentsEl && document.activeElement !== opCommentsEl) {
+    opCommentsEl.value = savedComments;
   }
   if (feedbackEl) {
-    feedbackEl.textContent = wkObj.coach_feedback
-      ? wkObj.coach_feedback
+    feedbackEl.textContent = savedFeedback
+      ? savedFeedback
       : 'No coach feedback yet for this week. Submit your check-in below so Chris can review it in the Coach Portal.';
-    feedbackEl.style.color = wkObj.coach_feedback ? '#fff' : 'var(--muted)';
+    feedbackEl.style.color = savedFeedback ? '#fff' : 'var(--muted)';
   }
 }
 
 window.submitWeeklyCheckinInApp = async function() {
   const wk = getActiveSheetWeek();
-  const comments = document.getElementById('wk-challenger-comments')?.value || '';
+  const opEl = document.getElementById('op-wk-comments');
+  const deskEl = document.getElementById('wk-challenger-comments');
+  let comments = '';
+  if (document.activeElement === opEl && opEl?.value) {
+    comments = opEl.value;
+  } else if (document.activeElement === deskEl && deskEl?.value) {
+    comments = deskEl.value;
+  } else {
+    comments = (opEl?.value || deskEl?.value || '').trim();
+  }
+  if (opEl) opEl.value = comments;
+  if (deskEl) deskEl.value = comments;
   if (window.renderWeeklyCheckinCardCanvas) await window.renderWeeklyCheckinCardCanvas();
   const canvas = document.getElementById('weekly-checkin-card-canvas');
   const card_data_url = canvas ? canvas.toDataURL('image/jpeg', 0.85) : '';
@@ -1495,6 +1514,7 @@ window.submitWeeklyCheckinInApp = async function() {
   const data = await res.json();
   if (data.ok) {
     await refreshProgressSummary();
+    if (window.pullServerBackupIntoBrowserVault) await window.pullServerBackupIntoBrowserVault();
     showToast(`✅ Week ${wk} Stylised Card & Write-Up saved for Coach Chris!`);
   }
 };
@@ -1745,7 +1765,8 @@ async function _drawThreePosesAndWriteupOnCard(ctx, wk, targetPhotoWk, photos, r
       const imgBoxW = sp.sw - 12;
       if (img) {
         const processed = knockOutWhiteBgToCanvas(img, removeWhite);
-        const scale = Math.min(imgBoxW / processed.width, imgBoxH / processed.height);
+        const targetH = Math.min(imgBoxH - 8, Math.round(imgBoxW * 2.14));
+        const scale = Math.min(imgBoxW / processed.width, targetH / processed.height);
         const dw = processed.width * scale, dh = processed.height * scale;
         ctx.drawImage(processed, sp.sx + 6 + (imgBoxW - dw) / 2, imgBoxY + (imgBoxH - dh) / 2, dw, dh);
       } else {
@@ -1929,7 +1950,8 @@ window.downloadWeek0VsLatestPhotosPng = async function(poseOrAll, triggerBtn) {
         const ih = subH - 78;
         const iw = subW - 16;
         if (img) {
-          const scale = Math.min(iw / img.width, ih / img.height);
+          const targetH = Math.min(ih - 8, Math.round(iw * 2.14));
+          const scale = Math.min(iw / img.width, targetH / img.height);
           const dw = img.width * scale, dh = img.height * scale;
           ctx.drawImage(img, col.sx + 8 + (iw - dw) / 2, iy + (ih - dh) / 2, dw, dh);
         } else {
@@ -3010,6 +3032,27 @@ window.pullServerBackupIntoBrowserVault = async function() {
       });
       byDate[d] = merged;
     });
+    const bySubWeek = {};
+    (localVault.weekly_submissions || []).forEach(s => {
+      if (s && s.week_num !== undefined && s.week_num !== null) {
+        bySubWeek[Number(s.week_num)] = Object.assign({}, s);
+      }
+    });
+    (data.weekly_submissions || []).forEach(ss => {
+      if (!ss || ss.week_num === undefined || ss.week_num === null) return;
+      const wKey = Number(ss.week_num);
+      const prev = bySubWeek[wKey] || {};
+      const merged = Object.assign({}, prev);
+      Object.keys(ss).forEach(k => {
+        const sv = ss[k];
+        if (sv !== null && sv !== undefined && sv !== '' && sv !== 0) {
+          merged[k] = sv;
+        } else if (merged[k] === undefined) {
+          merged[k] = sv;
+        }
+      });
+      bySubWeek[wKey] = merged;
+    });
     const nextVault = {
       profile_id: pid,
       updated_at: new Date().toISOString(),
@@ -3017,7 +3060,7 @@ window.pullServerBackupIntoBrowserVault = async function() {
       user_account: data.user_account || localVault.user_account || {},
       daily_checkins: Object.values(byDate).sort((a, b) => String(a.date).localeCompare(String(b.date))),
       workout_logs: (data.workout_logs && data.workout_logs.length) ? data.workout_logs : (localVault.workout_logs || []),
-      weekly_submissions: (data.weekly_submissions && data.weekly_submissions.length) ? data.weekly_submissions : (localVault.weekly_submissions || []),
+      weekly_submissions: Object.values(bySubWeek).sort((a, b) => Number(a.week_num || 0) - Number(b.week_num || 0)),
       daily_activities: (data.daily_activities && data.daily_activities.length) ? data.daily_activities : (localVault.daily_activities || []),
     };
     localStorage.setItem(getCheckinsVaultKey(pid), JSON.stringify(nextVault));
@@ -3714,6 +3757,16 @@ function renderOnePagerWeekly() {
   const sel = document.getElementById('op-week-select');
   if (sel) sel.value = String(wk);
   const wkObj = ((window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.weeks) || []).find(w => Number(w.week_num) === wk) || {};
+  const subRow = ((window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.weekly_submissions) || []).find(s => Number(s.week_num) === wk) || {};
+  const savedComments = wkObj.challenger_comments || subRow.challenger_comments || '';
+  const opCommentsEl = document.getElementById('op-wk-comments');
+  if (opCommentsEl && document.activeElement !== opCommentsEl) {
+    opCommentsEl.value = savedComments;
+  }
+  const deskCommentsEl = document.getElementById('wk-challenger-comments');
+  if (deskCommentsEl && document.activeElement !== deskCommentsEl) {
+    deskCommentsEl.value = savedComments;
+  }
 
   const avgWt = avgs.avg_weight_kg || wkObj.avg_weight_kg;
   const avgSteps = avgs.avg_steps ?? wkObj.avg_steps ?? 0;

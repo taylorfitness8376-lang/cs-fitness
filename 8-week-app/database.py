@@ -15,8 +15,9 @@ def get_db():
             fallback_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
             os.makedirs(fallback_dir, exist_ok=True)
             path = os.path.join(fallback_dir, "gym.db")
-        g.db = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
+        g.db = sqlite3.connect(path, timeout=30.0, detect_types=sqlite3.PARSE_DECLTYPES)
         g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA busy_timeout=30000")
         g.db.execute("PRAGMA journal_mode=WAL")
         g.db.execute("PRAGMA foreign_keys=ON")
         has_tables = g.db.execute(
@@ -218,6 +219,11 @@ def init_db():
             pass
 
     init_challenge_tables(db)
+    try:
+        from challenge_blocks import ensure_blocks_and_auth_tables
+        ensure_blocks_and_auth_tables(db)
+    except Exception:
+        pass
     try:
         if not current_app.config.get("TESTING"):
             seed_default_tv_sessions(db)
@@ -578,6 +584,7 @@ def init_challenge_tables(db):
             avg_calories        INTEGER NOT NULL DEFAULT 0,
             avg_protein_g       INTEGER NOT NULL DEFAULT 0,
             photos_count        INTEGER NOT NULL DEFAULT 0,
+            card_data_url       TEXT NOT NULL DEFAULT '',
             submitted_at        TEXT NOT NULL DEFAULT '',
             reviewed_at         TEXT NOT NULL DEFAULT '',
             updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

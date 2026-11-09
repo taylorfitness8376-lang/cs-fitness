@@ -341,6 +341,11 @@ def api_submit_weekly_checkin():
             ),
         )
     db.commit()
+    try:
+        from challenge_blocks import auto_persist_profile_backup
+        auto_persist_profile_backup(db, pid)
+    except Exception:
+        pass
     return jsonify({"ok": True, "week_num": week_num, "status": "Submitted", "submitted_at": now_str})
 
 
@@ -385,6 +390,11 @@ def api_review_weekly_checkin():
             (cals, prot, pid),
         )
     db.commit()
+    try:
+        from challenge_blocks import auto_persist_profile_backup
+        auto_persist_profile_backup(db, pid)
+    except Exception:
+        pass
     return jsonify({"ok": True, "week_num": week_num, "status": "Reviewed", "reviewed_at": now_str})
 
 
