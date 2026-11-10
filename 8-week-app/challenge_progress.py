@@ -85,10 +85,15 @@ def _ensure_weekly_submissions_table(db):
             UNIQUE(profile_id, week_num)
         )"""
     )
-    try:
-        db.execute("ALTER TABLE weekly_submissions ADD COLUMN card_data_url TEXT NOT NULL DEFAULT ''")
-    except Exception:
-        pass
+    for col_sql in (
+        "ALTER TABLE weekly_submissions ADD COLUMN card_data_url TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE weekly_submissions ADD COLUMN coach_voice_note_url TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE weekly_submissions ADD COLUMN thread_json TEXT NOT NULL DEFAULT '[]'",
+    ):
+        try:
+            db.execute(col_sql)
+        except Exception:
+            pass
     db.execute(
         """CREATE TABLE IF NOT EXISTS daily_journey_moments (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,6 +117,70 @@ def _ensure_weekly_submissions_table(db):
             updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )"""
     )
+
+
+def _parse_and_sync_thread(sub, challenger_name="Challenger"):
+    """Return a clean list of thread messages for a weekly_submissions row, seeding from legacy fields if empty."""
+    sub = dict(sub or {})
+    raw = sub.get("thread_json")
+    thread = []
+    if isinstance(raw, list):
+        thread = list(raw)
+    elif isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                thread = parsed
+        except Exception:
+            thread = []
+    ch_text = (sub.get("challenger_comments") or "").strip()
+    coach_text = (sub.get("coach_feedback") or "").strip()
+    coach_vn = (sub.get("coach_voice_note_url") or "").strip()
+    if not thread:
+        if ch_text:
+            thread.append({
+                "id": "init-challenger",
+                "author": challenger_name or "Challenger",
+                "role": "challenger",
+                "text": ch_text,
+                "voice_note_url": "",
+                "created_at": str(sub.get("submitted_at") or sub.get("updated_at") or ""),
+            })
+        if coach_text or coach_vn:
+            thread.append({
+                "id": "init-coach",
+                "author": "Coach Chris",
+                "role": "coach",
+                "text": coach_text,
+                "voice_note_url": coach_vn,
+                "created_at": str(sub.get("reviewed_at") or sub.get("updated_at") or ""),
+            })
+    return thread
+
+
+def _append_thread_entry(sub, role, author, text="", voice_note_url="", challenger_name="Challenger", timestamp=""):
+    """Append or update a message/voice note in the weekly check-in thread and return serialized JSON."""
+    thread = _parse_and_sync_thread(sub, challenger_name=challenger_name)
+    text = (text or "").strip()
+    voice_note_url = (voice_note_url or "").strip()
+    if not text and not voice_note_url:
+        return json.dumps(thread), thread
+    now_str = timestamp or datetime.now().strftime("%Y-%m-%d %H:%M")
+    # If the last entry has the same role and identical text + voice_note_url, just update timestamp
+    if thread and thread[-1].get("role") == role and (thread[-1].get("text") or "").strip() == text and (thread[-1].get("voice_note_url") or "").strip() == voice_note_url:
+        thread[-1]["created_at"] = now_str
+        if author:
+            thread[-1]["author"] = author
+    else:
+        thread.append({
+            "id": f"msg-{len(thread) + 1}-{int(datetime.now().timestamp())}",
+            "author": author or ("Coach Chris" if role == "coach" else (challenger_name or "Challenger")),
+            "role": role,
+            "text": text,
+            "voice_note_url": voice_note_url,
+            "created_at": now_str,
+        })
+    return json.dumps(thread), thread
 
 
 def compute_week_over_week(db, profile):
@@ -194,6 +263,7 @@ def compute_week_over_week(db, profile):
         ).fetchall()
         poses = [p["pose"] for p in photos]
         sub = subs.get(wk, {})
+        thread_list = _parse_and_sync_thread(sub, challenger_name=profile.get("client_name") or "Challenger")
 
         weeks.append({
             "week_num": wk,
@@ -231,6 +301,8 @@ def compute_week_over_week(db, profile):
             "submission_status": sub.get("status", "Not Submitted"),
             "challenger_comments": sub.get("challenger_comments", ""),
             "coach_feedback": sub.get("coach_feedback", ""),
+            "coach_voice_note_url": sub.get("coach_voice_note_url", ""),
+            "thread": thread_list,
             "card_data_url": sub.get("card_data_url", ""),
             "submitted_at": sub.get("submitted_at", ""),
             "reviewed_at": sub.get("reviewed_at", ""),
@@ -290,6 +362,10 @@ def api_progress_summary():
         ]
         all_profiles = [profile]
 
+    for s in all_subs:
+        s["thread"] = _parse_and_sync_thread(s, challenger_name=s.get("client_name") or profile.get("client_name") or "Challenger")
+        s["coach_voice_note_url"] = s.get("coach_voice_note_url") or ""
+
     daily_moments = [
         dict(r) for r in db.execute(
             "SELECT * FROM daily_journey_moments WHERE profile_id=? ORDER BY date DESC, id ASC LIMIT 60",
@@ -331,19 +407,29 @@ def api_submit_weekly_checkin():
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     existing = db.execute(
-        "SELECT id, coach_feedback, status, card_data_url FROM weekly_submissions WHERE profile_id=? AND week_num=?",
+        "SELECT * FROM weekly_submissions WHERE profile_id=? AND week_num=?",
         (pid, week_num),
     ).fetchone()
+    existing_dict = dict(existing) if existing else {}
+    thread_json_str, thread_list = _append_thread_entry(
+        existing_dict,
+        role="challenger",
+        author=profile.get("client_name") or "Challenger",
+        text=comments,
+        voice_note_url=data.get("voice_note_url") or "",
+        challenger_name=profile.get("client_name") or "Challenger",
+        timestamp=now_str,
+    )
     if existing:
-        new_status = "Reviewed" if existing["coach_feedback"] else "Submitted"
-        final_card = card_data_url or existing["card_data_url"] or ""
+        new_status = "Reviewed" if (existing_dict.get("coach_feedback") or existing_dict.get("coach_voice_note_url")) else "Submitted"
+        final_card = card_data_url or existing_dict.get("card_data_url") or ""
         db.execute(
             """UPDATE weekly_submissions SET
-                status=?, challenger_comments=?, avg_weight_kg=?, avg_steps=?,
+                status=?, challenger_comments=?, thread_json=?, avg_weight_kg=?, avg_steps=?,
                 avg_calories=?, avg_protein_g=?, photos_count=?, card_data_url=?, submitted_at=?, updated_at=CURRENT_TIMESTAMP
                WHERE id=?""",
             (
-                new_status, comments, wk_row.get("avg_weight_kg"),
+                new_status, comments, thread_json_str, wk_row.get("avg_weight_kg"),
                 int(wk_row.get("avg_steps") or 0), int(wk_row.get("avg_calories") or 0),
                 int(wk_row.get("avg_protein_g") or 0), int(wk_row.get("photos_count") or 0),
                 final_card, now_str, existing["id"],
@@ -352,10 +438,10 @@ def api_submit_weekly_checkin():
     else:
         db.execute(
             """INSERT INTO weekly_submissions
-               (profile_id, week_num, status, challenger_comments, avg_weight_kg, avg_steps, avg_calories, avg_protein_g, photos_count, card_data_url, submitted_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+               (profile_id, week_num, status, challenger_comments, thread_json, avg_weight_kg, avg_steps, avg_calories, avg_protein_g, photos_count, card_data_url, submitted_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
-                pid, week_num, "Submitted", comments, wk_row.get("avg_weight_kg"),
+                pid, week_num, "Submitted", comments, thread_json_str, wk_row.get("avg_weight_kg"),
                 int(wk_row.get("avg_steps") or 0), int(wk_row.get("avg_calories") or 0),
                 int(wk_row.get("avg_protein_g") or 0), int(wk_row.get("photos_count") or 0),
                 card_data_url, now_str,
@@ -374,12 +460,13 @@ def api_submit_weekly_checkin():
         "status": "Submitted",
         "submitted_at": now_str,
         "share_url": share_path,
+        "thread": thread_list,
     })
 
 
 @challenge_progress_bp.route("/api/challenge/weekly-checkin/review", methods=["POST"])
 def api_review_weekly_checkin():
-    """Coach Chris saves in-app weekly check-in feedback & optional target adjustments."""
+    """Coach Chris saves in-app weekly check-in feedback, voice note & optional target adjustments."""
     db = get_db()
     _ensure_weekly_submissions_table(db)
     data = request.get_json() or {}
@@ -389,24 +476,44 @@ def api_review_weekly_checkin():
         return jsonify({"ok": False, "error": "Only Admin coaches can review another challenger's check-in"}), 403
     week_num = int(data.get("week_num", 1))
     feedback = (data.get("coach_feedback") or "").strip()
+    voice_note_url = (data.get("coach_voice_note_url") or data.get("voice_note_url") or "").strip()
+    clear_voice_note = bool(data.get("clear_voice_note"))
+    author = (data.get("author") or "Coach Chris").strip()
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
+    target_prof_row = db.execute("SELECT client_name FROM challenge_profiles WHERE id=?", (pid,)).fetchone()
+    challenger_name = (target_prof_row["client_name"] if target_prof_row else "Challenger") or "Challenger"
+
     existing = db.execute(
-        "SELECT id FROM weekly_submissions WHERE profile_id=? AND week_num=?", (pid, week_num)
+        "SELECT * FROM weekly_submissions WHERE profile_id=? AND week_num=?", (pid, week_num)
     ).fetchone()
+    existing_dict = dict(existing) if existing else {}
+    saved_vn = "" if clear_voice_note else (voice_note_url or existing_dict.get("coach_voice_note_url") or "")
+    saved_fb = feedback if ("coach_feedback" in data and feedback) else (feedback or existing_dict.get("coach_feedback") or "")
+
+    thread_json_str, thread_list = _append_thread_entry(
+        existing_dict,
+        role="coach",
+        author=author,
+        text=feedback,
+        voice_note_url=voice_note_url,
+        challenger_name=challenger_name,
+        timestamp=now_str,
+    )
+
     if existing:
         db.execute(
             """UPDATE weekly_submissions SET
-                status='Reviewed', coach_feedback=?, reviewed_at=?, updated_at=CURRENT_TIMESTAMP
+                status='Reviewed', coach_feedback=?, coach_voice_note_url=?, thread_json=?, reviewed_at=?, updated_at=CURRENT_TIMESTAMP
                WHERE id=?""",
-            (feedback, now_str, existing["id"]),
+            (saved_fb, saved_vn, thread_json_str, now_str, existing["id"]),
         )
     else:
         db.execute(
             """INSERT INTO weekly_submissions
-               (profile_id, week_num, status, coach_feedback, reviewed_at)
-               VALUES (?,?,'Reviewed',?,?)""",
-            (pid, week_num, feedback, now_str),
+               (profile_id, week_num, status, coach_feedback, coach_voice_note_url, thread_json, reviewed_at)
+               VALUES (?,?,'Reviewed',?,?,?,?)""",
+            (pid, week_num, saved_fb, saved_vn, thread_json_str, now_str),
         )
 
     if data.get("new_target_calories") or data.get("new_target_protein_g"):
@@ -423,7 +530,103 @@ def api_review_weekly_checkin():
         auto_persist_profile_backup(db, pid)
     except Exception:
         pass
-    return jsonify({"ok": True, "week_num": week_num, "status": "Reviewed", "reviewed_at": now_str})
+    return jsonify({
+        "ok": True,
+        "week_num": week_num,
+        "status": "Reviewed",
+        "reviewed_at": now_str,
+        "coach_feedback": saved_fb,
+        "coach_voice_note_url": saved_vn,
+        "thread": thread_list,
+    })
+
+
+@challenge_progress_bp.route("/api/challenge/weekly-checkin/thread", methods=["POST"])
+def api_post_weekly_checkin_thread():
+    """Post a back-and-forth comment or voice note in a weekly check-in thread (by Coach Chris or Challenger)."""
+    db = get_db()
+    _ensure_weekly_submissions_table(db)
+    data = request.get_json() or {}
+    active_prof = _get_active_profile(db)
+    is_admin = _is_current_user_admin(db)
+    pid = int(data.get("profile_id") or active_prof["id"])
+    if pid != int(active_prof["id"]) and not is_admin:
+        return jsonify({"ok": False, "error": "Cannot post to another challenger's check-in thread"}), 403
+
+    week_num = int(data.get("week_num", 1))
+    role = (data.get("role") or ("coach" if is_admin else "challenger")).strip().lower()
+    if role not in ("coach", "challenger"):
+        role = "coach" if is_admin else "challenger"
+    text = (data.get("text") or data.get("message") or data.get("coach_feedback") or data.get("challenger_comments") or "").strip()
+    voice_note_url = (data.get("voice_note_url") or data.get("coach_voice_note_url") or "").strip()
+    if not text and not voice_note_url:
+        return jsonify({"ok": False, "error": "Please enter a comment or record a voice note."}), 400
+
+    target_prof_row = db.execute("SELECT client_name FROM challenge_profiles WHERE id=?", (pid,)).fetchone()
+    challenger_name = (target_prof_row["client_name"] if target_prof_row else "Challenger") or "Challenger"
+    default_author = "Coach Chris" if role == "coach" else challenger_name
+    author = (data.get("author") or default_author).strip()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    existing = db.execute(
+        "SELECT * FROM weekly_submissions WHERE profile_id=? AND week_num=?", (pid, week_num)
+    ).fetchone()
+    existing_dict = dict(existing) if existing else {}
+    thread_json_str, thread_list = _append_thread_entry(
+        existing_dict,
+        role=role,
+        author=author,
+        text=text,
+        voice_note_url=voice_note_url,
+        challenger_name=challenger_name,
+        timestamp=now_str,
+    )
+
+    if role == "coach":
+        new_status = "Reviewed"
+        saved_fb = text or existing_dict.get("coach_feedback") or ""
+        saved_vn = voice_note_url or existing_dict.get("coach_voice_note_url") or ""
+        saved_ch = existing_dict.get("challenger_comments") or ""
+        reviewed_at = now_str
+        submitted_at = existing_dict.get("submitted_at") or ""
+    else:
+        new_status = "Reviewed" if (existing_dict.get("coach_feedback") or existing_dict.get("coach_voice_note_url")) else "Submitted"
+        saved_fb = existing_dict.get("coach_feedback") or ""
+        saved_vn = existing_dict.get("coach_voice_note_url") or ""
+        saved_ch = existing_dict.get("challenger_comments") or text
+        reviewed_at = existing_dict.get("reviewed_at") or ""
+        submitted_at = existing_dict.get("submitted_at") or now_str
+
+    if existing:
+        db.execute(
+            """UPDATE weekly_submissions SET
+                status=?, challenger_comments=?, coach_feedback=?, coach_voice_note_url=?,
+                thread_json=?, submitted_at=?, reviewed_at=?, updated_at=CURRENT_TIMESTAMP
+               WHERE id=?""",
+            (new_status, saved_ch, saved_fb, saved_vn, thread_json_str, submitted_at, reviewed_at, existing["id"]),
+        )
+    else:
+        db.execute(
+            """INSERT INTO weekly_submissions
+               (profile_id, week_num, status, challenger_comments, coach_feedback, coach_voice_note_url, thread_json, submitted_at, reviewed_at)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (pid, week_num, new_status, saved_ch, saved_fb, saved_vn, thread_json_str, submitted_at, reviewed_at),
+        )
+    db.commit()
+    try:
+        from challenge_blocks import auto_persist_profile_backup
+        auto_persist_profile_backup(db, pid)
+    except Exception:
+        pass
+    return jsonify({
+        "ok": True,
+        "profile_id": pid,
+        "week_num": week_num,
+        "status": new_status,
+        "coach_feedback": saved_fb,
+        "coach_voice_note_url": saved_vn,
+        "thread": thread_list,
+    })
 
 
 @challenge_progress_bp.route("/api/challenge/profile/update", methods=["POST"])
@@ -1107,29 +1310,52 @@ def challenge_coach_share_report(pid, week_num):
 
 @challenge_progress_bp.route("/challenge/share/<int:pid>/<int:week_num>/feedback", methods=["POST"])
 def challenge_coach_share_feedback(pid, week_num):
-    """Allow Coach Chris to save feedback directly from the shared Weekly Check-In web page."""
+    """Allow Coach Chris (or Challenger) to save feedback, replies & voice notes directly from the shared Weekly Check-In web page."""
     db = get_db()
     _ensure_weekly_submissions_table(db)
     data = request.get_json(silent=True) or request.form or {}
-    feedback = (data.get("coach_feedback") or "").strip()
+    role = (data.get("role") or "coach").strip().lower()
+    if role not in ("coach", "challenger"):
+        role = "coach"
+    feedback = (data.get("coach_feedback") or data.get("text") or "").strip()
+    voice_note_url = (data.get("coach_voice_note_url") or data.get("voice_note_url") or "").strip()
+    clear_voice_note = bool(data.get("clear_voice_note"))
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
 
+    target_prof_row = db.execute("SELECT client_name FROM challenge_profiles WHERE id=?", (pid,)).fetchone()
+    challenger_name = (target_prof_row["client_name"] if target_prof_row else "Challenger") or "Challenger"
+    author = (data.get("author") or ("Coach Chris" if role == "coach" else challenger_name)).strip()
+
     existing = db.execute(
-        "SELECT id FROM weekly_submissions WHERE profile_id=? AND week_num=?", (pid, int(week_num))
+        "SELECT * FROM weekly_submissions WHERE profile_id=? AND week_num=?", (pid, int(week_num))
     ).fetchone()
+    existing_dict = dict(existing) if existing else {}
+    saved_vn = "" if clear_voice_note else (voice_note_url or existing_dict.get("coach_voice_note_url") or "")
+    saved_fb = feedback if (role == "coach" and feedback) else (existing_dict.get("coach_feedback") or "")
+
+    thread_json_str, thread_list = _append_thread_entry(
+        existing_dict,
+        role=role,
+        author=author,
+        text=feedback,
+        voice_note_url=voice_note_url,
+        challenger_name=challenger_name,
+        timestamp=now_str,
+    )
+
     if existing:
         db.execute(
             """UPDATE weekly_submissions SET
-                status='Reviewed', coach_feedback=?, reviewed_at=?, updated_at=CURRENT_TIMESTAMP
+                status='Reviewed', coach_feedback=?, coach_voice_note_url=?, thread_json=?, reviewed_at=?, updated_at=CURRENT_TIMESTAMP
                WHERE id=?""",
-            (feedback, now_str, existing["id"]),
+            (saved_fb, saved_vn, thread_json_str, now_str, existing["id"]),
         )
     else:
         db.execute(
             """INSERT INTO weekly_submissions
-               (profile_id, week_num, status, coach_feedback, reviewed_at)
-               VALUES (?,?,'Reviewed',?,?)""",
-            (pid, int(week_num), feedback, now_str),
+               (profile_id, week_num, status, coach_feedback, coach_voice_note_url, thread_json, reviewed_at)
+               VALUES (?,?,'Reviewed',?,?,?,?)""",
+            (pid, int(week_num), saved_fb, saved_vn, thread_json_str, now_str),
         )
     db.commit()
     try:
@@ -1137,7 +1363,15 @@ def challenge_coach_share_feedback(pid, week_num):
         auto_persist_profile_backup(db, pid)
     except Exception:
         pass
-    return jsonify({"ok": True, "week_num": int(week_num), "status": "Reviewed", "reviewed_at": now_str, "coach_feedback": feedback})
+    return jsonify({
+        "ok": True,
+        "week_num": int(week_num),
+        "status": "Reviewed",
+        "reviewed_at": now_str,
+        "coach_feedback": saved_fb,
+        "coach_voice_note_url": saved_vn,
+        "thread": thread_list,
+    })
 
 
 

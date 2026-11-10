@@ -9,14 +9,11 @@
   <style>
     .admin-nav {
       display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      gap: 0.4rem;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.45rem;
       margin-bottom: 0.9rem;
     }
-    @media (max-width: 960px) {
-      .admin-nav { grid-template-columns: repeat(3, 1fr); }
-    }
-    @media (max-width: 560px) {
+    @media (max-width: 860px) {
       .admin-nav { grid-template-columns: repeat(2, 1fr); }
     }
     .challenger-bar {
@@ -34,31 +31,90 @@
     .photo-compare-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 0.75rem;
+      gap: 0.85rem;
     }
-    @media (max-width: 860px) {
+    @media (max-width: 900px) {
       .photo-compare-grid { grid-template-columns: 1fr; }
     }
     .pose-pair {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 0.5rem;
+      gap: 0.55rem;
     }
     .pose-img-box {
-      background: #070a08;
+      background: #050806;
       border: 1px solid var(--border);
-      border-radius: 9px;
-      padding: 0.35rem;
+      border-radius: 10px;
+      padding: 0.45rem;
       text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
-    .pose-img-box img {
+    .pose-img-box.curr {
+      border-color: rgba(61, 255, 79, 0.55);
+    }
+    .pose-img-frame {
       width: 100%;
       aspect-ratio: 1 / 2;
-      height: 260px;
-      object-fit: cover;
-      object-position: center top;
-      border-radius: 6px;
+      max-height: 420px;
+      background: #040705;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pose-img-frame img {
+      width: 100%;
+      height: 100%;
+      max-height: 420px;
+      object-fit: contain;
+      object-position: center center;
+      display: block;
+      cursor: zoom-in;
+    }
+    .week-pills-bar {
+      display: flex;
+      gap: 0.4rem;
+      overflow-x: auto;
+      padding: 0.25rem 0.1rem 0.7rem;
+      margin-bottom: 0.35rem;
+    }
+    .adm-week-pill {
+      padding: 0.42rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 800;
       cursor: pointer;
+      color: var(--muted);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .adm-week-pill.active {
+      background: var(--green);
+      color: #041206;
+      border-color: var(--green);
+    }
+    .adm-week-pill.has-data {
+      border-color: rgba(61,255,79,0.45);
+      color: #fff;
+    }
+    .thread-bubble {
+      padding: 0.65rem 0.8rem;
+      border-radius: 10px;
+      margin-bottom: 0.5rem;
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+    .thread-bubble.coach {
+      background: rgba(245, 166, 35, 0.09);
+      border: 1px solid rgba(245, 166, 35, 0.4);
+    }
+    .thread-bubble.challenger {
+      background: rgba(61, 255, 79, 0.07);
+      border: 1px solid rgba(61, 255, 79, 0.35);
     }
   </style>
 </head>
@@ -105,41 +161,28 @@
         <option value="7">Week 7 · Fri Check-In (+ 3 Photos)</option>
         <option value="8">Week 8 · Fri Check-In (Final Photos)</option>
       </select>
-      <button class="btn btn-green btn-sm" onclick="window.open('/challenge/share/'+(document.getElementById('admin-challenger-select')?.value||1)+'/'+(document.getElementById('admin-week-select')?.value||1), '_blank')">🔗 Open Coach Chris Web Report</button>
-      <button class="btn btn-sm" onclick="window.location.href='/api/challenge/export/excel?profile_id='+(document.getElementById('admin-challenger-select')?.value||1)+'&week_num='+(document.getElementById('admin-week-select')?.value||1)">📊 Excel (.xlsx)</button>
+      <button class="btn btn-green btn-sm" onclick="window.open('/challenge/share/'+(document.getElementById('admin-challenger-select')?.value||1)+'/'+(document.getElementById('admin-week-select')?.value||1), '_blank')">🔗 Open Shareable Web Link</button>
       <button class="btn btn-sm" onclick="openChallengerInMainApp()">👁️ Open in Challenger App</button>
     </div>
   </div>
 
-  <!-- 7-Module Coach & Admin Navigation (Tab 1 = 100-Challenger Summary Roster) -->
-  <nav class="admin-nav" style="grid-template-columns:repeat(7,1fr)">
+  <!-- 4-Module Streamlined Coach & Admin Navigation -->
+  <nav class="admin-nav">
     <button class="nav-tab active" data-tab="roster" onclick="switchAdminTab('roster')">
       <span class="icon">🏆</span>
-      <span>1. Cohort Summary</span>
+      <span>1. All Challengers Summary</span>
     </button>
     <button class="nav-tab" data-tab="review" onclick="switchAdminTab('review')">
-      <span class="icon">📬</span>
-      <span>2. Review &amp; Feedback</span>
-    </button>
-    <button class="nav-tab" data-tab="weekly" onclick="switchAdminTab('weekly')">
-      <span class="icon">📊</span>
-      <span>3. Weekly Sheet</span>
-    </button>
-    <button class="nav-tab" data-tab="photos" onclick="switchAdminTab('photos')">
       <span class="icon">📸</span>
-      <span>4. Compare Photos</span>
-    </button>
-    <button class="nav-tab" data-tab="trajectory" onclick="switchAdminTab('trajectory')">
-      <span class="icon">📈</span>
-      <span>5. Progress Trajectory</span>
+      <span>2. Challenger Check-In &amp; Review</span>
     </button>
     <button class="nav-tab" data-tab="blocks" onclick="switchAdminTab('blocks')">
       <span class="icon">🗓️</span>
-      <span>6. Manage Blocks</span>
+      <span>3. Manage Blocks</span>
     </button>
     <button class="nav-tab" data-tab="users" onclick="switchAdminTab('users')">
       <span class="icon">👥</span>
-      <span>7. Users &amp; 3 Admins</span>
+      <span>4. Users &amp; Admins</span>
     </button>
   </nav>
 
@@ -204,25 +247,109 @@
   </section>
 
   <!-- =========================================================================
-       MODULE 1: WEEKLY CHECK-IN REVIEW INBOX & IN-APP COACH FEEDBACK
+       MODULE 2: UNIFIED CHALLENGER CHECK-IN & REVIEW (MATCHES SHAREABLE WEB REPORT)
        ========================================================================= -->
   <section class="tab-panel" id="admin-panel-review">
-    <div class="grid-2">
-      <!-- Direct In-App Coach Feedback for Selected Challenger + Week -->
-      <div class="card" style="border-color:rgba(61,255,79,0.45)">
-        <div class="card-header">
-          <span class="card-title" id="direct-fb-title">💬 Provide In-App Coach Feedback — Ewan Taylor (Week 1)</span>
-          <span class="badge badge-green" id="direct-fb-status-badge">Ready</span>
+    <!-- Quick Week Selector Pills -->
+    <div id="admin-review-week-pills" class="week-pills-bar"></div>
+
+    <!-- SIDE-BY-SIDE PROGRESS PHOTOS STUDIO (FULL PICTURE KEPT IN VIEW + POSE CLICK-THROUGH) -->
+    <div class="card" style="border-color:rgba(61,255,79,0.45)">
+      <div class="card-header" style="align-items:center">
+        <div>
+          <span class="card-title" id="admin-photos-compare-title">📸 Side-by-Side Progress Photos (Start vs Selected Week)</span>
+          <div style="font-size:0.74rem;color:var(--muted);margin-top:2px">Full picture kept in view · Click through Side / Front / Back or open Full-Screen Side-by-Side Compare</div>
         </div>
-        <div id="direct-fb-week-summary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.45rem;margin-bottom:0.65rem;text-align:center"></div>
-        <div style="font-size:0.75rem;color:#cbd5e1;padding:0.55rem 0.7rem;background:#080b09;border:1px solid var(--border);border-radius:8px;margin-bottom:0.65rem">
-          <strong style="color:var(--green)">Challenger's Weekly Write-Up:</strong>
-          <div id="direct-fb-challenger-writeup" style="margin-top:0.2rem">No write-up submitted yet for this week.</div>
+        <div style="display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap">
+          <label style="font-size:0.72rem;color:var(--muted);font-weight:700">Compare:</label>
+          <select id="cmp-week-a" style="width:auto;font-weight:800" onchange="renderPhotoComparison()">
+            <option value="0" selected>Start (Wk 0)</option>
+            <option value="2">Week 2</option>
+            <option value="3">Week 3</option>
+            <option value="4">Week 4</option>
+            <option value="5">Week 5</option>
+            <option value="6">Week 6</option>
+            <option value="7">Week 7</option>
+            <option value="8">Week 8</option>
+          </select>
+          <span style="color:var(--green);font-weight:900">vs</span>
+          <select id="cmp-week-b" style="width:auto;font-weight:800;color:var(--green)" onchange="renderPhotoComparison()">
+            <option value="0">Start (Wk 0)</option>
+            <option value="1">Week 1</option>
+            <option value="2" selected>Week 2</option>
+            <option value="3">Week 3</option>
+            <option value="4">Week 4</option>
+            <option value="5">Week 5</option>
+            <option value="6">Week 6</option>
+            <option value="7">Week 7</option>
+            <option value="8">Week 8</option>
+          </select>
+          <button type="button" class="btn btn-green btn-sm" onclick="openAdminCompareModal()">⛶ Full-Screen Compare</button>
         </div>
+      </div>
+
+      <!-- Interactive Pose Click-Through Bar -->
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem;padding:0.45rem 0.65rem;background:var(--surface-2);border:1px solid var(--border);border-radius:10px">
+        <button type="button" class="adm-week-pill" onclick="stepAdminPose(-1)">◀ Prev Pose</button>
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;justify-content:center">
+          <button type="button" id="adm-pose-tab-ALL" class="adm-week-pill active" onclick="setAdminPose('ALL')">🖼️ All 3 Poses</button>
+          <button type="button" id="adm-pose-tab-Side" class="adm-week-pill" onclick="setAdminPose('Side')">🧍 Side Pose</button>
+          <button type="button" id="adm-pose-tab-Front" class="adm-week-pill" onclick="setAdminPose('Front')">🧍 Front Pose</button>
+          <button type="button" id="adm-pose-tab-Back" class="adm-week-pill" onclick="setAdminPose('Back')">🧍 Back Pose</button>
+        </div>
+        <button type="button" class="adm-week-pill" onclick="stepAdminPose(1)">Next Pose ▶</button>
+      </div>
+
+      <div id="cmp-delta-banner" style="margin-bottom:0.75rem;padding:0.55rem 0.85rem;background:#080b09;border:1px solid var(--border);border-radius:10px;font-size:0.78rem"></div>
+      <div class="photo-compare-grid" id="photo-compare-poses-grid"></div>
+    </div>
+
+    <!-- 1. WRITE-UP OF THE WEEK + BACK-AND-FORTH THREAD + COACH VOICE NOTE -->
+    <div class="card" style="border-color:rgba(61,255,79,0.45)">
+      <div class="card-header">
+        <span class="card-title" id="direct-fb-title">1. Write-Up of the Week &amp; Coach Review Thread</span>
+        <span class="badge badge-green" id="direct-fb-status-badge">Ready</span>
+      </div>
+
+      <!-- Challenger's Weekly Write-Up -->
+      <div style="font-size:0.86rem;color:#f3f7f4;padding:0.75rem 0.9rem;background:rgba(61,255,79,0.05);border:1px solid rgba(61,255,79,0.28);border-radius:10px;margin-bottom:0.85rem;white-space:pre-wrap">
+        <div style="font-size:0.72rem;font-weight:900;color:var(--green);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem">📝 Challenger's Weekly Write-Up:</div>
+        <div id="direct-fb-challenger-writeup">No write-up submitted yet for this week.</div>
+      </div>
+
+      <!-- Back-and-Forth Conversation Thread (Challenger <-> Coach Chris + Voice Notes) -->
+      <div style="margin-bottom:0.85rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem">
+          <span style="font-size:0.74rem;font-weight:900;color:#fbbf24;text-transform:uppercase;letter-spacing:0.05em">💬 Check-In Conversation Thread &amp; Voice Notes (Shows in Challenger's App)</span>
+          <span id="direct-fb-thread-count" class="badge badge-blue">0 Messages</span>
+        </div>
+        <div id="direct-fb-thread-list" style="max-height:340px;overflow-y:auto;padding:0.2rem"></div>
+      </div>
+
+      <!-- Coach Chris Reply & Voice Note Composer -->
+      <div style="padding:0.8rem;border-radius:11px;background:#080b09;border:1px solid rgba(245,166,35,0.35)">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.5rem">
+          <label class="field-label" style="margin:0;color:#fbbf24;font-weight:800">🎙️ Add Coach Feedback / Thread Reply &amp; Voice Note (Chris / Laura)</label>
+          <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
+            <button type="button" id="adm-vn-record-btn" class="btn btn-sm" style="border-color:#fbbf24;color:#fbbf24" onclick="toggleAdminVoiceRecording()">🎙️ Record Voice Note</button>
+            <label class="btn btn-sm" style="cursor:pointer;margin:0">
+              📁 Upload Audio
+              <input type="file" id="adm-vn-file-input" accept="audio/*" style="display:none" onchange="handleAdminVoiceFileUpload(this)" />
+            </label>
+            <button type="button" id="adm-vn-clear-btn" class="btn btn-sm" style="display:none;color:#f87171" onclick="clearAdminVoiceNote()">🗑️ Remove Voice Note</button>
+            <span id="adm-vn-timer" style="font-size:0.74rem;font-weight:800;color:#f87171"></span>
+          </div>
+        </div>
+
+        <div id="adm-vn-preview-wrap" style="display:none;margin-bottom:0.6rem;padding:0.5rem 0.65rem;background:var(--surface-2);border-radius:8px;border:1px solid rgba(245,166,35,0.35)">
+          <div style="font-size:0.7rem;color:#fbbf24;font-weight:800;margin-bottom:4px">🔊 Voice Note Ready to Send:</div>
+          <audio id="adm-vn-audio-preview" controls style="width:100%;height:36px"></audio>
+        </div>
+
         <div style="margin-bottom:0.6rem">
-          <label class="field-label">Coach Feedback (Chris / Laura — Appears Immediately in Challenger's App)</label>
-          <textarea id="direct-fb-textarea" rows="3" placeholder="Write coach feedback, praise, and focus points for next week..."></textarea>
+          <textarea id="direct-fb-textarea" rows="3" placeholder="Write coach feedback, reply to challenger's message, or summarize next week's focus..."></textarea>
         </div>
+
         <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:0.5rem;align-items:end">
           <div>
             <label class="field-label">Adjust Daily Calories (kcal)</label>
@@ -232,56 +359,32 @@
             <label class="field-label">Adjust Daily Protein (g)</label>
             <input type="number" id="direct-fb-prot" value="150" />
           </div>
-          <button class="btn btn-green" onclick="saveDirectCoachFeedback()">💬 Publish Feedback to App</button>
+          <button class="btn btn-green" onclick="saveDirectCoachFeedback()">💬 Post Coach Review &amp; Voice Note</button>
         </div>
-      </div>
-
-      <!-- Selected Week's 3 Progress Photos Quick Preview -->
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title" id="review-photos-title">📸 Selected Week Progress Photos (Side · Front · Back)</span>
-          <button class="btn btn-sm" onclick="switchAdminTab('photos')">🔍 Open Side-by-Side Photo Compare →</button>
-        </div>
-        <div id="review-week-photos-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem"></div>
       </div>
     </div>
 
-    <!-- All Submitted Check-Ins Inbox Across Cohort -->
+    <!-- 2. SUMMARY OF THE WEEK (SATURDAY TO FRIDAY) -->
     <div class="card">
       <div class="card-header">
-        <span class="card-title">📬 Cohort Weekly Check-In Review Inbox (All Challengers)</span>
-        <span class="badge badge-green" id="inbox-count-badge">0 Submissions</span>
+        <span class="card-title" id="weekly-sheet-title">2. Summary of the Week (Saturday – Friday)</span>
+        <span class="badge badge-green" id="weekly-sheet-dates-badge">Sat – Fri</span>
       </div>
-      <div id="admin-checkin-inbox-list"></div>
-    </div>
-  </section>
-
-  <!-- =========================================================================
-       MODULE 2: WEEKLY DATA, 7-DAY DAILY SHEET & PHOTOS FOR SELECTED WEEK
-       ========================================================================= -->
-  <section class="tab-panel" id="admin-panel-weekly">
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title" id="weekly-sheet-title">📊 Weekly Data &amp; 7-Day Daily Check-In Sheet</span>
-        <span class="badge badge-green" id="weekly-sheet-dates-badge">Mon – Sun</span>
-      </div>
-      <div id="weekly-kpi-strip" style="display:grid;grid-template-columns:repeat(6,1fr);gap:0.5rem;margin-bottom:0.8rem;text-align:center"></div>
+      <div id="weekly-kpi-strip" style="display:grid;grid-template-columns:repeat(5,1fr);gap:0.5rem;margin-bottom:0.8rem;text-align:center"></div>
       <div class="table-wrap">
         <table class="cs-table">
           <thead>
             <tr>
               <th>Day</th>
               <th>Date</th>
-              <th>Morning Weight</th>
+              <th>Weight (kg)</th>
               <th>Training</th>
               <th>Steps vs Min</th>
-              <th>Calories</th>
               <th>Protein</th>
-              <th>C / F / Fibre</th>
-              <th>Water</th>
+              <th>Calories</th>
               <th>Sleep</th>
               <th>Plan?</th>
-              <th>Notes &amp; Activities</th>
+              <th>Workouts &amp; Daily Notes</th>
             </tr>
           </thead>
           <tbody id="admin-week-sheet-tbody"></tbody>
@@ -289,71 +392,10 @@
       </div>
     </div>
 
+    <!-- 3. WEEK-OVER-WEEK PROGRESS (START BASELINE -> WEEK 8) -->
     <div class="card">
       <div class="card-header">
-        <span class="card-title" id="weekly-photos-card-title">📸 Photos Uploaded for This Week</span>
-        <span class="badge badge-blue">Click any photo to enlarge</span>
-      </div>
-      <div id="weekly-tab-photos-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.7rem"></div>
-    </div>
-  </section>
-
-  <!-- =========================================================================
-       MODULE 3: PROGRESS PHOTO COMPARISON STUDIO (SIDE-BY-SIDE ACROSS WEEKS)
-       ========================================================================= -->
-  <section class="tab-panel" id="admin-panel-photos">
-    <div class="card" style="border-color:rgba(61,255,79,0.45)">
-      <div class="card-header">
-        <span class="card-title">📸 Side-by-Side Progress Photo Comparison Studio</span>
-        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
-          <label style="font-size:0.74rem;color:var(--muted);font-weight:700">Baseline (Week A):</label>
-          <select id="cmp-week-a" style="width:auto;font-weight:800" onchange="renderPhotoComparison()">
-            <option value="0" selected>Start · Day 1 Mon (Start Photos)</option>
-            <option value="1">Week 1 · Fri (No Photos)</option>
-            <option value="2">Week 2 · Fri (+ Photos)</option>
-            <option value="3">Week 3 · Fri (+ Photos)</option>
-            <option value="4">Week 4 · Fri (+ Photos)</option>
-            <option value="5">Week 5 · Fri (+ Photos)</option>
-            <option value="6">Week 6 · Fri (+ Photos)</option>
-            <option value="7">Week 7 · Fri (+ Photos)</option>
-            <option value="8">Week 8 · Fri (Final Photos)</option>
-          </select>
-          <span style="color:var(--green);font-weight:900">VS</span>
-          <label style="font-size:0.74rem;color:var(--muted);font-weight:700">Compare (Week B):</label>
-          <select id="cmp-week-b" style="width:auto;font-weight:800" onchange="renderPhotoComparison()">
-            <option value="0">Start · Day 1 Mon (Start Photos)</option>
-            <option value="1">Week 1 · Fri (No Photos)</option>
-            <option value="2" selected>Week 2 · Fri (+ Photos)</option>
-            <option value="3">Week 3 · Fri (+ Photos)</option>
-            <option value="4">Week 4 · Fri (+ Photos)</option>
-            <option value="5">Week 5 · Fri (+ Photos)</option>
-            <option value="6">Week 6 · Fri (+ Photos)</option>
-            <option value="7">Week 7 · Fri (+ Photos)</option>
-            <option value="8">Week 8 · Fri (Final Photos)</option>
-          </select>
-        </div>
-      </div>
-      <div id="cmp-delta-banner" style="margin-bottom:0.75rem;padding:0.6rem 0.85rem;background:#080b09;border:1px solid var(--border);border-radius:10px;font-size:0.78rem"></div>
-      <div class="photo-compare-grid" id="photo-compare-poses-grid"></div>
-    </div>
-
-    <!-- All Weeks Photo Timeline -->
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">🎞️ Complete 8-Week Photo Timeline (All Uploaded Poses)</span>
-        <span class="badge badge-green" id="total-photos-badge">0 Photos</span>
-      </div>
-      <div id="all-photos-timeline-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:0.65rem"></div>
-    </div>
-  </section>
-
-  <!-- =========================================================================
-       MODULE 4: PROGRESS OVER TIME (WEEK 0 → WEEK 8 TRAJECTORY)
-       ========================================================================= -->
-  <section class="tab-panel" id="admin-panel-trajectory">
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title" id="trajectory-title">📈 Week-over-Week Progress Trajectory (Pre-Coaching Wk 0 → Week 8)</span>
+        <span class="card-title" id="trajectory-title">3. Week-over-Week Progress (Start Baseline → Week 8)</span>
         <span class="badge badge-green" id="trajectory-goal-badge">Goal</span>
       </div>
       <div class="table-wrap">
@@ -361,19 +403,16 @@
           <thead>
             <tr>
               <th>Week</th>
-              <th>Dates</th>
-              <th>Days Logged</th>
-              <th>Avg Weight</th>
-              <th>Change vs Start</th>
-              <th>Target Weight</th>
-              <th>Avg Steps vs Min</th>
-              <th>Avg Calories</th>
-              <th>Avg Protein</th>
-              <th>Avg Water</th>
-              <th>Avg Sleep</th>
-              <th>Sessions &amp; Volume</th>
+              <th>Window (Sat – Fri)</th>
+              <th>Days On Plan</th>
+              <th>Avg Weight (vs Target)</th>
+              <th>WoW Δ</th>
+              <th>Total Δ vs Start</th>
+              <th>Avg Steps (vs Min)</th>
+              <th>Avg Cals &amp; Protein</th>
+              <th>Gym / Cardio</th>
               <th>Photos</th>
-              <th>Check-In &amp; Coach Feedback</th>
+              <th>Check-In Status &amp; View</th>
             </tr>
           </thead>
           <tbody id="admin-trajectory-tbody"></tbody>
@@ -634,6 +673,29 @@
 
 </div>
 
+<!-- Fullscreen Side-by-Side Click-Through Comparison Modal for Coach Admin -->
+<div id="admin-compare-modal" style="display:none;position:fixed;inset:0;background:rgba(4,7,5,0.96);z-index:9999;flex-direction:column;padding:14px 18px;overflow-y:auto;">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid rgba(61,255,79,0.28);margin-bottom:12px;">
+    <div>
+      <div style="font-size:0.7rem;color:var(--green);font-weight:800;text-transform:uppercase;letter-spacing:0.08em;">CS Performance · Full-Picture Side-by-Side Comparison</div>
+      <div id="admin-modal-compare-title" style="font-size:1.05rem;font-weight:900;color:#fff;">Side Pose</div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+      <button type="button" class="adm-week-pill" onclick="stepAdminPose(-1)">◀ Prev</button>
+      <button type="button" id="adm-modal-tab-Side" class="adm-week-pill" onclick="setAdminPose('Side')">🧍 Side</button>
+      <button type="button" id="adm-modal-tab-Front" class="adm-week-pill" onclick="setAdminPose('Front')">🧍 Front</button>
+      <button type="button" id="adm-modal-tab-Back" class="adm-week-pill" onclick="setAdminPose('Back')">🧍 Back</button>
+      <button type="button" id="adm-modal-tab-ALL" class="adm-week-pill" onclick="setAdminPose('ALL')">🖼️ All 3</button>
+      <button type="button" class="adm-week-pill" onclick="stepAdminPose(1)">Next ▶</button>
+      <button type="button" class="btn btn-sm" style="border-color:rgba(255,82,82,0.5);color:#ff5252;" onclick="closeAdminCompareModal()">✕ Close (Esc)</button>
+    </div>
+  </div>
+  <div id="admin-compare-modal-body" style="flex:1;display:flex;align-items:center;justify-content:center;min-height:0;"></div>
+  <div style="text-align:center;font-size:0.72rem;color:var(--muted);padding-top:8px;">
+    Use ◀ / ▶ buttons or keyboard Left/Right arrows to click through Side · Front · Back · All 3 Poses. Full picture is always kept in view.
+  </div>
+</div>
+
 <div class="toast" id="admin-toast">Saved!</div>
 
 <script>
@@ -642,10 +704,27 @@ const ADMIN_STATE = {
   blocks: [],
   admins: [],
   selectedProfileId: 1,
-  selectedWeek: 1,
+  selectedWeek: 3,
   detail: null,
   progressSummary: null,
+  currentPose: 'ALL',
+  compareModalOpen: false,
+  pendingVoiceNoteDataUrl: '',
+  clearVoiceNoteFlag: false,
+  mediaRecorder: null,
+  recordingChunks: [],
+  recordingTimer: null,
+  recordingSeconds: 0,
 };
+const ADMIN_POSES_ORDER = ['Side', 'Front', 'Back', 'ALL'];
+
+function escapeAdminHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 function showAdminToast(msg) {
   const t = document.getElementById('admin-toast');
@@ -656,12 +735,13 @@ function showAdminToast(msg) {
 }
 
 function switchAdminTab(tab) {
+  const normalized = ['weekly', 'photos', 'trajectory'].includes(tab) ? 'review' : tab;
   document.querySelectorAll('.admin-nav .nav-tab').forEach(b => {
-    b.classList.toggle('active', b.dataset.tab === tab);
+    b.classList.toggle('active', b.dataset.tab === normalized);
   });
-  ['roster', 'review', 'weekly', 'photos', 'trajectory', 'blocks', 'users'].forEach(k => {
+  ['roster', 'review', 'blocks', 'users'].forEach(k => {
     const el = document.getElementById('admin-panel-' + k);
-    if (el) el.classList.toggle('active', k === tab);
+    if (el) el.classList.toggle('active', k === normalized);
   });
 }
 
@@ -691,7 +771,7 @@ async function initAdminPortal() {
       ADMIN_STATE.blocks.map(b => `<option value="${b.id}">${b.name} (${b.invite_code})</option>`).join('');
   }
 
-  // Populate challenger selector (putting Ewan t first)
+  // Populate challenger selector (putting Ewan Taylor first)
   const sel = document.getElementById('admin-challenger-select');
   const sorted = [...ADMIN_STATE.challengers].sort((a, b) => (a.id === 1 ? -1 : b.id === 1 ? 1 : a.id - b.id));
   if (sel) {
@@ -700,9 +780,11 @@ async function initAdminPortal() {
     ).join('');
   }
 
+  const wkSel = document.getElementById('admin-week-select');
+  if (wkSel) wkSel.value = String(ADMIN_STATE.selectedWeek);
+
   renderAdminBlocksSection();
   renderAdminsAndUsersDirectory();
-  renderGlobalCheckinInbox();
   await loadCohortSummaryRoster();
   await loadChallengerDetail(ADMIN_STATE.selectedProfileId, ADMIN_STATE.selectedWeek);
 }
@@ -733,7 +815,7 @@ function renderCohortSummaryTable() {
     : `Week ${wk} · Friday Check-In (+ 3 Photos)`;
   const titleEl = document.getElementById('roster-card-title');
   if (titleEl) {
-    titleEl.textContent = `🏆 Cohort Summary Roster — ${wkLabel} (${k.total_challengers || 0} Challengers · Click Any Row for Details)`;
+    titleEl.textContent = `🏆 All Challengers Summary — ${wkLabel} (${k.total_challengers || 0} Challengers · Click Any Row to Open Full Check-In & Review)`;
   }
 
   const kpiStrip = document.getElementById('roster-kpi-strip');
@@ -785,7 +867,6 @@ function renderCohortSummaryTable() {
     if (sortBy === 'weight_loss') return (a.weight_delta_kg ?? 99) - (b.weight_delta_kg ?? 99);
     if (sortBy === 'steps') return (b.avg_steps || 0) - (a.avg_steps || 0);
     if (sortBy === 'days') return (b.days_logged || 0) - (a.days_logged || 0);
-    // Priority: Submitted first, then days logged
     const rank = s => s === 'Submitted' ? 0 : s === 'In Progress' ? 1 : s === 'Reviewed' ? 2 : 3;
     return rank(a.submission_status) - rank(b.submission_status) || (b.days_logged - a.days_logged);
   });
@@ -801,7 +882,7 @@ function renderCohortSummaryTable() {
     const deltaStr = r.weight_delta_kg !== null ? `(${r.weight_delta_kg > 0 ? '+' : ''}${r.weight_delta_kg} kg)` : '';
     const stepOk = (r.avg_steps || 0) >= (r.step_target || 10000);
     const stBadge = r.submission_status === 'Reviewed' ? 'badge-green' : r.submission_status === 'Submitted' ? 'badge-blue' : '';
-    return `<tr style="cursor:pointer" onclick="clickChallengerFromRoster(${r.profile_id}, 'review')" title="Click to inspect ${r.client_name}'s full weekly data, photos & coach feedback">
+    return `<tr style="cursor:pointer" onclick="clickChallengerFromRoster(${r.profile_id}, 'review')" title="Click to open ${r.client_name}'s full check-in photos, write-up, data & coach review">
       <td>
         <strong style="color:#fff;font-size:0.84rem">${r.client_name}</strong>
         ${r.returning_member ? '<span class="badge badge-blue" style="margin-left:4px">🔁 14k</span>' : ''}
@@ -821,13 +902,12 @@ function renderCohortSummaryTable() {
       <td><strong>${r.avg_calories || 0}</strong> <span style="font-size:0.68rem;color:var(--muted)">/ ${r.target_calories}</span></td>
       <td style="color:var(--green);font-weight:700">${r.avg_protein_g || 0}g <span style="font-size:0.68rem;color:var(--muted)">/ ${r.target_protein_g}g</span></td>
       <td>${r.photos_required === false && !r.photos_count ? '<span class="badge badge-blue">🚫 No Pic (Wk 1 Fri)</span>' : `<span class="badge ${r.photos_count >= 3 ? 'badge-green' : r.photos_count > 0 ? 'badge-blue' : ''}">📸 ${r.photos_count}/3</span>`}</td>
-      <td><span class="badge ${stBadge}">${r.submission_status}</span></td>
+      <td>
+        <span class="badge ${stBadge}">${r.submission_status}</span>
+        ${r.coach_voice_note_url ? '<span class="badge badge-green" style="margin-left:4px" title="Voice Note attached">🎙️</span>' : ''}
+      </td>
       <td onclick="event.stopPropagation()">
-        <div style="display:flex;gap:0.3rem;flex-wrap:wrap">
-          <button class="btn btn-green btn-sm" onclick="clickChallengerFromRoster(${r.profile_id}, 'review')">💬 Review</button>
-          <button class="btn btn-sm" onclick="clickChallengerFromRoster(${r.profile_id}, 'weekly')">📊 Sheet</button>
-          <button class="btn btn-sm" onclick="clickChallengerFromRoster(${r.profile_id}, 'photos')">📸 Photos</button>
-        </div>
+        <button class="btn btn-green btn-sm" onclick="clickChallengerFromRoster(${r.profile_id}, 'review')">📸 Open Check-In &amp; Review →</button>
       </td>
     </tr>`;
   }).join('');
@@ -838,7 +918,7 @@ async function clickChallengerFromRoster(profileId, targetTab) {
   const sel = document.getElementById('admin-challenger-select');
   if (sel) sel.value = String(profileId);
   await loadChallengerDetail(profileId, ADMIN_STATE.selectedWeek);
-  switchAdminTab(targetTab || 'review');
+  switchAdminTab('review');
 }
 
 async function stepAdminChallenger(dir) {
@@ -859,6 +939,10 @@ async function selectAdminChallenger(profileId) {
 
 async function changeAdminWeek(weekNum) {
   ADMIN_STATE.selectedWeek = Number(weekNum);
+  const wkSel = document.getElementById('admin-week-select');
+  if (wkSel && String(wkSel.value) !== String(weekNum)) wkSel.value = String(weekNum);
+  const cmpB = document.getElementById('cmp-week-b');
+  if (cmpB) cmpB.value = String(Number(weekNum) === 1 ? 2 : weekNum);
   await loadCohortSummaryRoster();
   await loadChallengerDetail(ADMIN_STATE.selectedProfileId, ADMIN_STATE.selectedWeek);
 }
@@ -868,68 +952,209 @@ async function loadChallengerDetail(profileId, weekNum) {
   const data = await res.json();
   if (!data.ok) return;
   ADMIN_STATE.detail = data;
+  ADMIN_STATE.pendingVoiceNoteDataUrl = '';
+  ADMIN_STATE.clearVoiceNoteFlag = false;
 
   const p = data.profile;
   const qs = document.getElementById('admin-challenger-quick-stats');
   if (qs) {
-    qs.innerHTML = `Start: <strong>${p.start_weight_kg} kg (${p.start_body_fat_pct}% BF)</strong> → Goal: <strong style="color:var(--green)">${p.target_weight_kg} kg</strong> · Targets: <strong>${p.target_calories} kcal</strong> / <strong>${p.target_protein_g}g P</strong> / <strong>${p.target_water_l}L Water</strong>`;
+    qs.innerHTML = `Start: <strong>${Number(p.start_weight_kg || 84).toFixed(2)} kg (${p.start_body_fat_pct}% BF)</strong> → Goal: <strong style="color:var(--green)">${Number(p.target_weight_kg || 78.3).toFixed(2)} kg</strong> · Targets: <strong>${p.target_calories} kcal</strong> / <strong>${p.target_protein_g}g P</strong> / <strong>${p.target_water_l}L Water</strong>`;
   }
 
+  const cmpB = document.getElementById('cmp-week-b');
+  if (cmpB) {
+    cmpB.value = String(Number(weekNum) === 1 ? 2 : weekNum);
+  }
+
+  renderAdminReviewWeekPills();
   renderDirectFeedbackCard();
   renderWeeklySheetSection();
   renderPhotoComparison();
   renderTrajectoryTable();
 }
 
+function renderAdminReviewWeekPills() {
+  const d = ADMIN_STATE.detail;
+  const bar = document.getElementById('admin-review-week-pills');
+  if (!d || !bar) return;
+  const wow = d.week_over_week || [];
+  const curWk = Number(d.selected_week);
+  bar.innerHTML = wow.map(w => {
+    const wk = Number(w.week_num);
+    const active = wk === curWk ? 'active' : ((w.days_logged > 0 || w.photos_count > 0 || w.challenger_comments) ? 'has-data' : '');
+    const lbl = wk === 0 ? 'Start (Day 1)' : `Week ${wk}`;
+    const wt = w.avg_weight_kg ? ` · ${Number(w.avg_weight_kg).toFixed(1)}kg` : '';
+    const vn = w.coach_voice_note_url ? ' 🎙️' : '';
+    return `<button type="button" class="adm-week-pill ${active}" onclick="changeAdminWeek(${wk})">${lbl}${wt}${vn}</button>`;
+  }).join('');
+}
+
 function renderDirectFeedbackCard() {
   const d = ADMIN_STATE.detail;
   if (!d) return;
   const p = d.profile;
-  const wk = d.selected_week;
+  const wk = Number(d.selected_week);
   const wkRow = (d.week_over_week || []).find(w => Number(w.week_num) === wk) || {};
+  const subRow = (d.submissions || []).find(s => Number(s.week_num) === wk) || {};
 
-  document.getElementById('direct-fb-title').textContent = `💬 In-App Coach Feedback — ${p.client_name} (${wk === 0 ? 'Pre-Coaching Wk 0' : 'Week ' + wk})`;
+  document.getElementById('direct-fb-title').textContent = `1. Write-Up of the Week & Coach Review Thread — ${p.client_name} (${wk === 0 ? 'Start Baseline (Day 1)' : 'Week ' + wk})`;
   const stBadge = document.getElementById('direct-fb-status-badge');
-  stBadge.textContent = wkRow.submission_status || 'In Progress';
+  stBadge.textContent = wkRow.submission_status || subRow.status || 'In Progress';
 
-  document.getElementById('direct-fb-week-summary').innerHTML = `
-    <div style="background:var(--surface-2);padding:0.45rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG WEIGHT</div><div style="font-size:0.95rem;font-weight:800;color:var(--green)">${wkRow.avg_weight_kg ? wkRow.avg_weight_kg + ' kg' : '—'}</div></div>
-    <div style="background:var(--surface-2);padding:0.45rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG STEPS</div><div style="font-size:0.95rem;font-weight:800;color:#fff">${(wkRow.avg_steps || 0).toLocaleString()}</div></div>
-    <div style="background:var(--surface-2);padding:0.45rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG CALORIES</div><div style="font-size:0.95rem;font-weight:800;color:#fff">${wkRow.avg_calories || 0} kcal</div></div>
-    <div style="background:var(--surface-2);padding:0.45rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG PROTEIN</div><div style="font-size:0.95rem;font-weight:800;color:var(--green)">${wkRow.avg_protein_g || 0}g</div></div>
-  `;
+  const autoNotes = (d.auto_notes || []).join('\n');
+  const writeupText = wkRow.challenger_comments || subRow.challenger_comments || autoNotes;
+  document.getElementById('direct-fb-challenger-writeup').innerHTML = writeupText
+    ? escapeAdminHtml(writeupText)
+    : '<em>No weekly write-up submitted yet by challenger for this week. You can still leave proactive coach feedback or a voice note below!</em>';
 
-  document.getElementById('direct-fb-challenger-writeup').innerHTML = wkRow.challenger_comments
-    ? wkRow.challenger_comments
-    : '<em>No weekly write-up submitted yet by challenger for this week. You can still leave proactive coach feedback below!</em>';
+  // Render chronological thread (Challenger <-> Coach Chris + Voice Notes)
+  const thread = wkRow.thread || subRow.thread || [];
+  const countBadge = document.getElementById('direct-fb-thread-count');
+  if (countBadge) countBadge.textContent = `${thread.length} Message${thread.length === 1 ? '' : 's'}`;
 
-  document.getElementById('direct-fb-textarea').value = wkRow.coach_feedback || '';
+  const threadBox = document.getElementById('direct-fb-thread-list');
+  if (threadBox) {
+    if (!thread.length) {
+      threadBox.innerHTML = `<div style="padding:0.65rem;color:var(--muted);font-size:0.78rem;background:var(--surface-2);border-radius:8px;border:1px dashed var(--border)">No messages or voice notes in this week's thread yet. Post Coach Chris's review or voice note below — it will appear immediately in ${escapeAdminHtml(p.client_name)}'s app so they can listen and reply!</div>`;
+    } else {
+      threadBox.innerHTML = thread.map(m => {
+        const isCoach = m.role === 'coach';
+        const roleIcon = isCoach ? '🛡️ Coach' : '🏋️ Challenger';
+        const badgeCls = isCoach ? 'badge-green' : 'badge-blue';
+        return `<div class="thread-bubble ${isCoach ? 'coach' : 'challenger'}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;gap:0.4rem;flex-wrap:wrap">
+            <div>
+              <strong style="color:${isCoach ? '#fbbf24' : 'var(--green)'}">${escapeAdminHtml(m.author || (isCoach ? 'Coach Chris' : p.client_name))}</strong>
+              <span class="badge ${badgeCls}" style="margin-left:6px;font-size:0.62rem">${roleIcon}</span>
+            </div>
+            <span style="font-size:0.68rem;color:var(--muted)">${escapeAdminHtml(m.created_at || '')}</span>
+          </div>
+          ${m.text ? `<div style="white-space:pre-wrap;color:#f3f7f4">${escapeAdminHtml(m.text)}</div>` : ''}
+          ${m.voice_note_url ? `<div style="margin-top:0.45rem"><div style="font-size:0.68rem;color:#fbbf24;font-weight:700;margin-bottom:2px">🎙️ Voice Note:</div><audio controls src="${m.voice_note_url}" style="width:100%;max-width:420px;height:36px"></audio></div>` : ''}
+        </div>`;
+      }).join('');
+      threadBox.scrollTop = threadBox.scrollHeight;
+    }
+  }
+
+  document.getElementById('direct-fb-textarea').value = '';
   document.getElementById('direct-fb-cals').value = p.target_calories || 2173;
   document.getElementById('direct-fb-prot').value = p.target_protein_g || 150;
 
-  // Render the 3 photos for the selected week
-  const weekPhotos = (d.photos || []).filter(ph => Number(ph.week_num) === wk || (wk === 0 && Number(ph.week_num) === 1));
-  document.getElementById('review-photos-title').textContent = wk === 1 && !weekPhotos.length
-    ? `📸 ${p.client_name} — Week 1 Friday Check-In (🚫 No Photos Required on Wk 1 Fri)`
-    : `📸 ${p.client_name} — ${wk === 0 ? 'Start Check-In (Day 1 Mon)' : 'Week ' + wk + ' Friday'} Photos (${weekPhotos.length}/3)`;
-  document.getElementById('review-week-photos-grid').innerHTML = ['Side', 'Front', 'Back'].map(pose => {
-    const rec = weekPhotos.find(x => x.pose === pose);
-    return `<div class="pose-img-box">
-      <div style="font-size:0.72rem;font-weight:800;color:var(--green);margin-bottom:4px">${pose.toUpperCase()}</div>
-      ${rec && rec.photo_data_url
-        ? `<img src="${rec.photo_data_url}" onclick="window.open(this.src,'_blank')" title="Click to view full size" />`
-        : `<div style="height:200px;display:flex;align-items:center;justify-content:center;font-size:0.72rem;color:${wk === 1 ? 'var(--blue)' : 'var(--muted)'};padding:0.4rem">${wk === 1 ? '🚫 No photo needed on Wk 1 Fri (Sent Day 1 Mon)' : 'No ' + pose + ' photo'}</div>`}
-    </div>`;
-  }).join('');
+  // Show existing or pending voice note preview
+  const existingVn = wkRow.coach_voice_note_url || subRow.coach_voice_note_url || '';
+  updateAdminVoiceNotePreviewUI(ADMIN_STATE.pendingVoiceNoteDataUrl || existingVn);
+}
+
+function updateAdminVoiceNotePreviewUI(dataUrl) {
+  const wrap = document.getElementById('adm-vn-preview-wrap');
+  const audio = document.getElementById('adm-vn-audio-preview');
+  const clearBtn = document.getElementById('adm-vn-clear-btn');
+  if (!wrap || !audio) return;
+  if (dataUrl) {
+    wrap.style.display = 'block';
+    audio.src = dataUrl;
+    if (clearBtn) clearBtn.style.display = 'inline-flex';
+  } else {
+    wrap.style.display = 'none';
+    audio.removeAttribute('src');
+    if (clearBtn) clearBtn.style.display = 'none';
+  }
+}
+
+async function toggleAdminVoiceRecording() {
+  const btn = document.getElementById('adm-vn-record-btn');
+  const timerEl = document.getElementById('adm-vn-timer');
+  if (ADMIN_STATE.mediaRecorder && ADMIN_STATE.mediaRecorder.state === 'recording') {
+    ADMIN_STATE.mediaRecorder.stop();
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showAdminToast('⚠️ Microphone recording is not supported in this browser — use Upload Audio instead.');
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    ADMIN_STATE.recordingChunks = [];
+    const mr = new MediaRecorder(stream);
+    ADMIN_STATE.mediaRecorder = mr;
+    mr.ondataavailable = e => {
+      if (e.data && e.data.size > 0) ADMIN_STATE.recordingChunks.push(e.data);
+    };
+    mr.onstop = () => {
+      clearInterval(ADMIN_STATE.recordingTimer);
+      if (timerEl) timerEl.textContent = '';
+      if (btn) {
+        btn.textContent = '🎙️ Record Voice Note';
+        btn.style.background = '';
+        btn.style.color = '#fbbf24';
+      }
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(ADMIN_STATE.recordingChunks, { type: mr.mimeType || 'audio/webm' });
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        ADMIN_STATE.pendingVoiceNoteDataUrl = reader.result;
+        ADMIN_STATE.clearVoiceNoteFlag = false;
+        updateAdminVoiceNotePreviewUI(reader.result);
+        showAdminToast('🎙️ Voice note recorded! Click Post Coach Review & Voice Note to send.');
+      };
+      reader.readAsDataURL(blob);
+    };
+    mr.start();
+    ADMIN_STATE.recordingSeconds = 0;
+    if (btn) {
+      btn.textContent = '⏹️ Stop Recording';
+      btn.style.background = '#ef4444';
+      btn.style.color = '#fff';
+    }
+    if (timerEl) timerEl.textContent = '🔴 0:00';
+    ADMIN_STATE.recordingTimer = setInterval(() => {
+      ADMIN_STATE.recordingSeconds += 1;
+      const m = Math.floor(ADMIN_STATE.recordingSeconds / 60);
+      const s = String(ADMIN_STATE.recordingSeconds % 60).padStart(2, '0');
+      if (timerEl) timerEl.textContent = `🔴 ${m}:${s}`;
+    }, 1000);
+  } catch (err) {
+    showAdminToast('⚠️ Microphone permission denied — use Upload Audio file instead.');
+  }
+}
+
+function handleAdminVoiceFileUpload(input) {
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onloadend = () => {
+    ADMIN_STATE.pendingVoiceNoteDataUrl = reader.result;
+    ADMIN_STATE.clearVoiceNoteFlag = false;
+    updateAdminVoiceNotePreviewUI(reader.result);
+    showAdminToast(`📁 Loaded voice note "${file.name}"`);
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearAdminVoiceNote() {
+  ADMIN_STATE.pendingVoiceNoteDataUrl = '';
+  ADMIN_STATE.clearVoiceNoteFlag = true;
+  const fileInput = document.getElementById('adm-vn-file-input');
+  if (fileInput) fileInput.value = '';
+  updateAdminVoiceNotePreviewUI('');
 }
 
 async function saveDirectCoachFeedback() {
   const d = ADMIN_STATE.detail;
   if (!d) return;
+  const textVal = (document.getElementById('direct-fb-textarea').value || '').trim();
+  const vnVal = ADMIN_STATE.pendingVoiceNoteDataUrl || '';
+  if (!textVal && !vnVal && !ADMIN_STATE.clearVoiceNoteFlag) {
+    showAdminToast('⚠️ Please write a feedback message or record/upload a voice note first.');
+    return;
+  }
   const payload = {
     profile_id: d.profile.id,
     week_num: d.selected_week,
-    coach_feedback: document.getElementById('direct-fb-textarea').value,
+    coach_feedback: textVal,
+    coach_voice_note_url: vnVal,
+    clear_voice_note: ADMIN_STATE.clearVoiceNoteFlag,
     new_target_calories: Number(document.getElementById('direct-fb-cals').value || d.profile.target_calories),
     new_target_protein_g: Number(document.getElementById('direct-fb-prot').value || d.profile.target_protein_g),
   };
@@ -940,77 +1165,21 @@ async function saveDirectCoachFeedback() {
   });
   const out = await res.json();
   if (out.ok) {
-    showAdminToast(`✅ Published Coach Feedback for ${d.profile.client_name} (Week ${d.selected_week})!`);
-    const progRes = await fetch('/api/challenge/progress/summary').then(r => r.json());
-    ADMIN_STATE.progressSummary = progRes;
-    renderGlobalCheckinInbox();
+    showAdminToast(`✅ Published Coach Review ${vnVal ? '& Voice Note ' : ''}for ${d.profile.client_name} (Week ${d.selected_week})!`);
+    await loadCohortSummaryRoster();
     await loadChallengerDetail(d.profile.id, d.selected_week);
   }
-}
-
-function renderGlobalCheckinInbox() {
-  const subs = (ADMIN_STATE.progressSummary && ADMIN_STATE.progressSummary.weekly_submissions) || [];
-  const badge = document.getElementById('inbox-count-badge');
-  if (badge) badge.textContent = `${subs.length} Submission(s)`;
-  const box = document.getElementById('admin-checkin-inbox-list');
-  if (!box) return;
-  if (!subs.length) {
-    box.innerHTML = `<div style="padding:0.75rem;color:var(--muted);font-size:0.78rem">No check-ins in inbox yet. Use the card above to review any challenger &amp; week directly.</div>`;
-    return;
-  }
-  box.innerHTML = subs.map(s => `
-    <div style="padding:0.8rem;border-radius:10px;background:var(--surface-2);border:1px solid ${s.status === 'Reviewed' ? 'var(--green)' : 'var(--border)'};margin-bottom:0.65rem">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.45rem">
-        <div>
-          <strong style="color:#fff;font-size:0.88rem">👤 ${s.client_name} — ${s.week_num === 0 ? 'Pre-Coaching Wk 0' : 'Week ' + s.week_num}</strong>
-          <span class="badge ${s.status === 'Reviewed' ? 'badge-green' : 'badge-blue'}" style="margin-left:0.4rem">${s.status}</span>
-        </div>
-        <div style="display:flex;gap:0.4rem;align-items:center">
-          <span style="font-size:0.73rem;color:var(--muted)">
-            Wt: <strong style="color:#fff">${s.avg_weight_kg ?? '—'} kg</strong> ·
-            Steps: <strong style="color:var(--green)">${(s.avg_steps || 0).toLocaleString()}</strong> ·
-            Cal/Prot: <strong>${s.avg_calories || 0} kcal / ${s.avg_protein_g || 0}g P</strong>
-          </span>
-          <button class="btn btn-sm" onclick="inspectSubmission(${s.profile_id}, ${s.week_num})">🔍 Inspect Week &amp; Photos</button>
-        </div>
-      </div>
-      <div style="font-size:0.75rem;color:#cbd5e1;margin-bottom:0.5rem;padding:0.45rem 0.6rem;background:#080b09;border-radius:6px">
-        <strong>Challenger Write-Up:</strong> ${s.challenger_comments || '<em>No comments</em>'}
-      </div>
-      ${s.card_data_url ? `<div style="margin-bottom:0.5rem"><img src="${s.card_data_url}" style="max-height:200px;border-radius:8px;border:1px solid var(--green);cursor:pointer" onclick="window.open(this.src,'_blank')" /></div>` : ''}
-      <div style="display:grid;grid-template-columns:1fr 120px 110px auto;gap:0.45rem;align-items:center">
-        <input type="text" id="inbox-fb-${s.profile_id}-${s.week_num}" value="${(s.coach_feedback || '').replace(/"/g, '&quot;')}" placeholder="Write Coach feedback..." />
-        <input type="number" id="inbox-cal-${s.profile_id}-${s.week_num}" value="${s.target_calories || 2173}" title="Daily Calories" />
-        <input type="number" id="inbox-prot-${s.profile_id}-${s.week_num}" value="${s.target_protein_g || 150}" title="Daily Protein (g)" />
-        <button class="btn btn-green btn-sm" onclick="saveInboxRowFeedback(${s.profile_id}, ${s.week_num})">💬 Save Review</button>
-      </div>
-    </div>
-  `).join('');
-}
-
-async function saveInboxRowFeedback(profileId, weekNum) {
-  const coach_feedback = document.getElementById(`inbox-fb-${profileId}-${weekNum}`)?.value || '';
-  const new_target_calories = Number(document.getElementById(`inbox-cal-${profileId}-${weekNum}`)?.value || 2173);
-  const new_target_protein_g = Number(document.getElementById(`inbox-prot-${profileId}-${weekNum}`)?.value || 150);
-  await fetch('/api/challenge/weekly-checkin/review', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile_id: profileId, week_num: weekNum, coach_feedback, new_target_calories, new_target_protein_g }),
-  });
-  showAdminToast(`✅ Saved Coach Feedback for Week ${weekNum}!`);
-  const progRes = await fetch('/api/challenge/progress/summary').then(r => r.json());
-  ADMIN_STATE.progressSummary = progRes;
-  renderGlobalCheckinInbox();
-  await loadChallengerDetail(ADMIN_STATE.selectedProfileId, ADMIN_STATE.selectedWeek);
 }
 
 async function inspectSubmission(profileId, weekNum) {
   ADMIN_STATE.selectedProfileId = Number(profileId);
   ADMIN_STATE.selectedWeek = Number(weekNum);
-  document.getElementById('admin-challenger-select').value = String(profileId);
-  document.getElementById('admin-week-select').value = String(weekNum);
+  const chSel = document.getElementById('admin-challenger-select');
+  if (chSel) chSel.value = String(profileId);
+  const wkSel = document.getElementById('admin-week-select');
+  if (wkSel) wkSel.value = String(weekNum);
   await loadChallengerDetail(profileId, weekNum);
-  switchAdminTab('weekly');
+  switchAdminTab('review');
 }
 
 function renderWeeklySheetSection() {
@@ -1019,62 +1188,80 @@ function renderWeeklySheetSection() {
   const ws = d.week_sheet;
   const av = ws.averages || {};
   const p = d.profile;
-  const wkLbl = d.selected_week === 0 ? 'Pre-Coaching (Week 0)' : `Week ${d.selected_week}`;
+  const wk = Number(d.selected_week);
+  const wkRow = (d.week_over_week || []).find(w => Number(w.week_num) === wk) || {};
+  const wkLbl = wk === 0 ? 'Start Baseline (Day 1)' : `Week ${wk}`;
 
-  document.getElementById('weekly-sheet-title').textContent = `📊 ${p.client_name} — ${wkLbl} Daily Check-In Sheet`;
-  document.getElementById('weekly-sheet-dates-badge').textContent = `${ws.week_start} → ${ws.week_end}`;
+  document.getElementById('weekly-sheet-title').textContent = `2. Summary of the Week (${ws.window_label || 'Saturday – Friday'} · ${ws.start_date || ws.week_start} to ${ws.end_date || ws.week_end})`;
+  document.getElementById('weekly-sheet-dates-badge').textContent = `Check-In: ${ws.checkin_day || 'Friday'} (${ws.checkin_date || ''})`;
+
+  const avgWt = wkRow.avg_weight_kg ?? av.avg_weight_kg;
+  const wowDiff = wkRow.wow_diff_kg;
+  const totDiff = wkRow.total_diff_kg ?? wkRow.total_delta_kg;
+  const avgSteps = wkRow.avg_steps ?? av.avg_steps ?? 0;
+  const avgCals = wkRow.avg_calories ?? av.avg_calories ?? 0;
+  const avgProt = wkRow.avg_protein_g ?? av.avg_protein_g ?? 0;
+  const daysOnPlan = wkRow.days_on_plan ?? av.days_on_plan ?? 0;
+  const daysLogged = wkRow.days_logged ?? av.days_logged ?? 0;
+  const gymS = wkRow.gym_sessions ?? av.gym_sessions ?? 0;
+  const cardioS = wkRow.cardio_sessions ?? av.cardio_sessions ?? 0;
 
   document.getElementById('weekly-kpi-strip').innerHTML = `
-    <div style="background:var(--surface-2);padding:0.5rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG WEIGHT</div><div style="font-size:0.95rem;font-weight:800;color:var(--green)">${av.avg_weight_kg ? av.avg_weight_kg + ' kg' : '—'}</div><div style="font-size:0.62rem;color:var(--muted)">Target ${ws.target_weight_kg} kg</div></div>
-    <div style="background:var(--surface-2);padding:0.5rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG STEPS</div><div style="font-size:0.95rem;font-weight:800;color:#fff">${(av.avg_steps || 0).toLocaleString()}</div><div style="font-size:0.62rem;color:var(--muted)">Min ${(ws.target_steps || 10000).toLocaleString()}</div></div>
-    <div style="background:var(--surface-2);padding:0.5rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG CALORIES</div><div style="font-size:0.95rem;font-weight:800;color:#fff">${av.avg_calories || 0} kcal</div><div style="font-size:0.62rem;color:var(--muted)">Target ${p.target_calories}</div></div>
-    <div style="background:var(--surface-2);padding:0.5rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG PROTEIN</div><div style="font-size:0.95rem;font-weight:800;color:var(--green)">${av.avg_protein_g || 0}g</div><div style="font-size:0.62rem;color:var(--muted)">Target ${p.target_protein_g}g</div></div>
-    <div style="background:var(--surface-2);padding:0.5rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">AVG WATER</div><div style="font-size:0.95rem;font-weight:800;color:var(--blue)">${av.avg_water_l || 0}L</div><div style="font-size:0.62rem;color:var(--muted)">Target ${p.target_water_l}L</div></div>
-    <div style="background:var(--surface-2);padding:0.5rem;border-radius:8px;border:1px solid var(--border)"><div style="font-size:0.64rem;color:var(--muted)">SESSIONS</div><div style="font-size:0.95rem;font-weight:800;color:var(--green)">${av.gym_sessions || 0} GYM / ${av.cardio_sessions || 0} CARDIO</div><div style="font-size:0.62rem;color:var(--muted)">${av.days_logged || 0}/7 days</div></div>
+    <div style="background:var(--surface-2);padding:0.55rem;border-radius:9px;border:1px solid var(--border)">
+      <div style="font-size:0.64rem;color:var(--muted)">WEEK AVG WEIGHT</div>
+      <div style="font-size:1.05rem;font-weight:900;color:var(--green)">${avgWt ? Number(avgWt).toFixed(2) + ' kg' : '—'}</div>
+      <div style="font-size:0.64rem;color:var(--muted)">Target ${Number(ws.target_weight_kg || p.target_weight_kg).toFixed(2)} kg ${wowDiff != null && wk > 0 ? `· WoW: <strong style="color:${wowDiff <= 0 ? 'var(--green)' : '#fbbf24'}">${wowDiff > 0 ? '+' : ''}${Number(wowDiff).toFixed(2)}kg</strong>` : ''}</div>
+    </div>
+    <div style="background:var(--surface-2);padding:0.55rem;border-radius:9px;border:1px solid var(--border)">
+      <div style="font-size:0.64rem;color:var(--muted)">TOTAL VS START (${Number(p.start_weight_kg).toFixed(2)}kg)</div>
+      <div style="font-size:1.05rem;font-weight:900;color:${(totDiff || 0) <= 0 ? 'var(--green)' : '#fbbf24'}">${totDiff != null ? (totDiff > 0 ? '+' : '') + Number(totDiff).toFixed(2) + ' kg' : '0.00 kg'}</div>
+      <div style="font-size:0.64rem;color:var(--muted)">Goal: ${Number(p.target_weight_kg).toFixed(2)} kg</div>
+    </div>
+    <div style="background:var(--surface-2);padding:0.55rem;border-radius:9px;border:1px solid var(--border)">
+      <div style="font-size:0.64rem;color:var(--muted)">AVG DAILY STEPS</div>
+      <div style="font-size:1.05rem;font-weight:900;color:#fff">${Number(avgSteps).toLocaleString()}</div>
+      <div style="font-size:0.64rem;color:var(--muted)">Min Target: ${Number(ws.step_target || ws.target_steps || 10000).toLocaleString()}/day</div>
+    </div>
+    <div style="background:var(--surface-2);padding:0.55rem;border-radius:9px;border:1px solid var(--border)">
+      <div style="font-size:0.64rem;color:var(--muted)">AVG CALORIES &amp; PROTEIN</div>
+      <div style="font-size:1.05rem;font-weight:900;color:#fff">${Number(avgCals).toLocaleString()} kcal · <span style="color:var(--green)">${avgProt}g</span></div>
+      <div style="font-size:0.64rem;color:var(--muted)">Target: ${p.target_calories} kcal · ${p.target_protein_g}g P</div>
+    </div>
+    <div style="background:var(--surface-2);padding:0.55rem;border-radius:9px;border:1px solid var(--border)">
+      <div style="font-size:0.64rem;color:var(--muted)">ADHERENCE &amp; SESSIONS</div>
+      <div style="font-size:1.05rem;font-weight:900;color:var(--blue)">${daysOnPlan}/${daysLogged} days</div>
+      <div style="font-size:0.64rem;color:var(--muted)">${gymS} Gym · ${cardioS} Cardio</div>
+    </div>
   `;
 
+  const rows = ws.rows || ws.days || [];
   const tbody = document.getElementById('admin-week-sheet-tbody');
-  tbody.innerHTML = (ws.days || []).map(day => {
+  tbody.innerHTML = rows.map(day => {
     const acts = (day.activities || []).map(a =>
       `<span class="badge badge-green" style="margin-right:3px;display:inline-flex;align-items:center;gap:4px">
-        ${a.title} (${a.duration_mins || 0}m)
+        ${escapeAdminHtml(a.title)} (${a.duration_mins || 0}m)
         ${a.id ? `<button onclick="deleteAdminActivity(${a.id})" style="background:none;border:none;color:#f87171;cursor:pointer;font-weight:900;padding:0 2px;font-size:0.78rem" title="Delete workout / activity">×</button>` : ''}
       </span>`
     ).join('');
-    const isCheckinDay = (d.selected_week === 0 && day.day_short === 'Mon') || (d.selected_week >= 1 && day.day_short === 'Fri');
-    const checkinTag = d.selected_week === 0 && day.day_short === 'Mon'
-      ? ' <span class="badge badge-green" style="font-size:0.6rem">📸 START CHECK-IN</span>'
-      : (d.selected_week === 1 && day.day_short === 'Fri')
-      ? ' <span class="badge badge-blue" style="font-size:0.6rem">📅 FRI CHECK-IN (NO PIC)</span>'
-      : (d.selected_week >= 2 && day.day_short === 'Fri')
-      ? ' <span class="badge badge-green" style="font-size:0.6rem">📸 FRI CHECK-IN (+3 PICS)</span>'
+    const isCheckinDay = Boolean(day.is_friday_checkin || day.is_start_checkin_day || (wk === 0 && day.day_short === 'Mon') || (wk >= 1 && day.day_short === 'Fri'));
+    const checkinTag = day.is_start_checkin_day || (wk === 0 && day.day_short === 'Mon')
+      ? ' <span class="badge badge-green" style="font-size:0.6rem">DAY 1 START</span>'
+      : isCheckinDay
+      ? ' <span class="badge badge-green" style="font-size:0.6rem">FRI CHECK-IN</span>'
       : '';
-    return `<tr style="${isCheckinDay ? 'background:rgba(56,189,248,0.06)' : ''}">
-      <td><strong>${day.day_short}</strong></td>
-      <td>${day.date}${checkinTag}</td>
-      <td>${day.weight_kg ? `<strong>${day.weight_kg} kg</strong> <span style="color:var(--muted);font-size:0.66rem">${day.weigh_time || ''}</span>` : '—'}</td>
-      <td><span class="badge ${day.training_type !== 'REST' ? 'badge-green' : ''}">${day.training_type || 'REST'}</span></td>
-      <td style="color:${(day.steps || 0) >= (ws.target_steps || 10000) ? 'var(--green)' : '#fff'};font-weight:700">${(day.steps || 0).toLocaleString()}</td>
-      <td>${day.calories || 0}</td>
-      <td style="color:var(--green);font-weight:700">${day.protein_g || 0}g</td>
-      <td>${day.carbs_g || 0}C / ${day.fats_g || 0}F / ${day.fibre_g || 0}Fb</td>
-      <td>${day.water_l || 0}L</td>
+    const notesText = day.combined_notes || day.notes || '';
+    return `<tr style="${isCheckinDay ? 'background:rgba(61,255,79,0.08)' : ''}">
+      <td><strong>${day.day_short}</strong>${checkinTag}</td>
+      <td style="color:var(--muted)">${day.date}</td>
+      <td>${day.weight_kg ? `<strong>${Number(day.weight_kg).toFixed(2)} kg</strong>` : '—'}</td>
+      <td><span class="badge ${day.training_type && day.training_type !== 'REST' ? 'badge-green' : ''}">${day.training_type || 'REST'}</span></td>
+      <td style="color:${(day.steps || 0) >= (ws.step_target || ws.target_steps || 10000) ? 'var(--green)' : '#fff'};font-weight:700">${day.steps > 0 ? Number(day.steps).toLocaleString() : '—'}</td>
+      <td style="color:var(--green);font-weight:700">${day.protein_g > 0 ? day.protein_g + 'g' : '—'}</td>
+      <td>${day.calories > 0 ? Number(day.calories).toLocaleString() : '—'}</td>
       <td>${day.sleep_str || '—'}</td>
-      <td>${day.stick_to_plan || '—'}</td>
-      <td style="max-width:280px;font-size:0.71rem">${acts} ${day.notes || ''}</td>
+      <td>${day.stick_to_plan === 'Y' ? '<span class="badge badge-green">YES</span>' : day.stick_to_plan === 'N' ? '<span class="badge">NO</span>' : '—'}</td>
+      <td style="max-width:300px;font-size:0.73rem">${acts} ${escapeAdminHtml(notesText)}</td>
     </tr>`;
-  }).join('');
-
-  const weekPhotos = (d.photos || []).filter(ph => Number(ph.week_num) === d.selected_week || (d.selected_week === 0 && Number(ph.week_num) === 1));
-  document.getElementById('weekly-tab-photos-grid').innerHTML = ['Side', 'Front', 'Back'].map(pose => {
-    const rec = weekPhotos.find(x => x.pose === pose);
-    return `<div class="pose-img-box">
-      <div style="font-size:0.75rem;font-weight:800;color:var(--green);margin-bottom:4px">${pose.toUpperCase()} POSE (${wkLbl})</div>
-      ${rec && rec.photo_data_url
-        ? `<img src="${rec.photo_data_url}" style="height:290px" onclick="window.open(this.src,'_blank')" />
-           <div style="font-size:0.68rem;color:var(--muted);margin-top:4px">${rec.taken_date || ''} ${rec.weight_kg ? '· ' + rec.weight_kg + ' kg' : ''}</div>`
-        : `<div style="height:240px;display:flex;align-items:center;justify-content:center;font-size:0.75rem;color:${d.selected_week === 1 ? 'var(--blue)' : 'var(--muted)'};padding:0.5rem">${d.selected_week === 1 ? '🚫 No photo required on Week 1 Friday (Sent Day 1 Monday)' : `No ${pose} photo uploaded for ${wkLbl}`}</div>`}
-    </div>`;
   }).join('');
 }
 
@@ -1089,25 +1276,82 @@ async function deleteAdminActivity(activityId) {
   }
 }
 
+function setAdminPose(pose) {
+  ADMIN_STATE.currentPose = pose;
+  renderPhotoComparison();
+}
+
+function stepAdminPose(dir) {
+  const idx = ADMIN_POSES_ORDER.indexOf(ADMIN_STATE.currentPose);
+  ADMIN_STATE.currentPose = ADMIN_POSES_ORDER[(idx + dir + ADMIN_POSES_ORDER.length) % ADMIN_POSES_ORDER.length];
+  renderPhotoComparison();
+}
+
+function getAdminPhotoRecord(photos, wk, pose) {
+  return (photos || []).find(x => Number(x.week_num) === Number(wk) && x.pose === pose) || null;
+}
+
+function getAdminWeekWeight(d, wk) {
+  if (!d) return null;
+  if (Number(wk) === 0) return Number(d.profile.start_weight_kg || 84);
+  const row = (d.week_over_week || []).find(w => Number(w.week_num) === Number(wk));
+  return row && row.avg_weight_kg != null ? Number(row.avg_weight_kg) : null;
+}
+
+function renderAdminPoseSlotHtml(d, wk, pose, isHighlight, forModal) {
+  const rec = getAdminPhotoRecord(d.photos, wk, pose);
+  const wt = (rec && rec.weight_kg != null) ? Number(rec.weight_kg) : getAdminWeekWeight(d, wk);
+  const wtStr = wt != null ? wt.toFixed(Number(wk) === 0 ? 1 : 2) + 'kg' : '—';
+  const lbl = Number(wk) === 0 ? 'START (WK 0)' : `WEEK ${wk}`;
+  const maxH = forModal ? '74vh' : '420px';
+  return `
+    <div class="pose-img-box ${isHighlight ? 'curr' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;font-weight:800;color:${isHighlight ? 'var(--green)' : '#cbd5e1'};padding:0 2px">
+        <span>${lbl} · ${pose.toUpperCase()}</span>
+        <strong>${wtStr}</strong>
+      </div>
+      <div class="pose-img-frame" style="max-height:${maxH}" onclick="openAdminCompareModal('${pose}')">
+        ${rec && rec.photo_data_url
+          ? `<img src="${rec.photo_data_url}" alt="${lbl} ${pose}" style="max-height:${maxH};object-fit:contain" />`
+          : `<div style="font-size:0.74rem;color:${Number(wk) === 1 ? 'var(--blue)' : 'var(--muted)'};padding:12px">${Number(wk) === 1 ? 'Week 1 Friday (No photos required)' : `No ${lbl} ${pose} photo`}</div>`
+        }
+      </div>
+    </div>
+  `;
+}
+
 function renderPhotoComparison() {
   const d = ADMIN_STATE.detail;
   if (!d) return;
-  const photos = d.photos || [];
   const wow = d.week_over_week || [];
   const wkA = Number(document.getElementById('cmp-week-a')?.value ?? 0);
-  const wkB = Number(document.getElementById('cmp-week-b')?.value ?? 1);
+  const wkB = Number(document.getElementById('cmp-week-b')?.value ?? (d.selected_week === 1 ? 2 : d.selected_week));
   const rowA = wow.find(w => Number(w.week_num) === wkA) || {};
   const rowB = wow.find(w => Number(w.week_num) === wkB) || {};
 
-  const wtA = rowA.avg_weight_kg ?? d.profile.start_weight_kg;
-  const wtB = rowB.avg_weight_kg ?? null;
+  const wtA = wkA === 0 ? Number(d.profile.start_weight_kg) : (rowA.avg_weight_kg ?? d.profile.start_weight_kg);
+  const wtB = wkB === 0 ? Number(d.profile.start_weight_kg) : (rowB.avg_weight_kg ?? null);
   const delta = (wtA && wtB) ? (wtB - wtA).toFixed(2) : null;
+  const lblA = wkA === 0 ? 'Start (Wk 0)' : `Week ${wkA}`;
+  const lblB = wkB === 0 ? 'Start (Wk 0)' : `Week ${wkB}`;
+
+  const titleEl = document.getElementById('admin-photos-compare-title');
+  if (titleEl) {
+    titleEl.textContent = `📸 Side-by-Side Progress Photos (${lblA} vs ${lblB})`;
+  }
+
+  ADMIN_POSES_ORDER.forEach(p => {
+    const b1 = document.getElementById('adm-pose-tab-' + p);
+    if (b1) b1.classList.toggle('active', p === ADMIN_STATE.currentPose);
+    const b2 = document.getElementById('adm-modal-tab-' + p);
+    if (b2) b2.classList.toggle('active', p === ADMIN_STATE.currentPose);
+  });
 
   document.getElementById('cmp-delta-banner').innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
       <div>
-        <strong style="color:var(--green)">👤 ${d.profile.client_name}</strong> · Comparing <strong>${wkA === 0 ? 'Week 0 (Pre-Coaching)' : 'Week ' + wkA}</strong> (${wtA ? wtA + ' kg' : '—'})
-        vs <strong>${wkB === 0 ? 'Week 0 (Pre-Coaching)' : 'Week ' + wkB}</strong> (${wtB ? wtB + ' kg' : '—'})
+        <strong style="color:var(--green)">👤 ${escapeAdminHtml(d.profile.client_name)}</strong> · Comparing <strong>${lblA}</strong> (${wtA ? Number(wtA).toFixed(2) + ' kg' : '—'})
+        vs <strong>${lblB}</strong> (${wtB ? Number(wtB).toFixed(2) + ' kg' : '—'})
       </div>
       <div>
         ${delta !== null ? `<span class="badge badge-green">Scale Change: ${delta > 0 ? '+' : ''}${delta} kg</span>` : '<span class="badge badge-blue">Select any two weeks with photos</span>'}
@@ -1115,67 +1359,142 @@ function renderPhotoComparison() {
     </div>
   `;
 
-  document.getElementById('photo-compare-poses-grid').innerHTML = ['Side', 'Front', 'Back'].map(pose => {
-    const pA = photos.find(x => Number(x.week_num) === wkA && x.pose === pose) || (wkA === 0 ? photos.find(x => Number(x.week_num) === 1 && x.pose === pose) : null);
-    const pB = photos.find(x => Number(x.week_num) === wkB && x.pose === pose);
-    const cell = (rec, w) => rec && rec.photo_data_url
-      ? `<div class="pose-img-box">
-          <div style="font-size:0.68rem;font-weight:800;color:#cbd5e1;margin-bottom:3px">${w === 0 ? 'Start (Mon Day 1)' : 'Week ' + w + ' (Fri)'}</div>
-          <img src="${rec.photo_data_url}" onclick="window.open(this.src,'_blank')" title="Click to enlarge" />
-          <div style="font-size:0.65rem;color:var(--muted);margin-top:3px">${rec.taken_date || ''} ${rec.weight_kg ? '· ' + rec.weight_kg + 'kg' : ''}</div>
-        </div>`
-      : `<div class="pose-img-box" style="display:flex;flex-direction:column;justify-content:center;min-height:260px">
-          <div style="font-size:0.68rem;font-weight:800;color:var(--muted)">${w === 0 ? 'Start (Mon Day 1)' : 'Week ' + w + ' (Fri)'}</div>
-          <div style="font-size:0.72rem;color:${w === 1 ? 'var(--blue)' : 'var(--muted)'};margin-top:0.5rem">${w === 1 ? '🚫 No photo needed on Wk 1 Fri' : `No ${pose} photo`}</div>
-        </div>`;
-    return `<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:11px;padding:0.6rem">
-      <div style="font-size:0.8rem;font-weight:900;color:var(--green);text-align:center;margin-bottom:0.45rem">${pose.toUpperCase()} POSE COMPARISON</div>
-      <div class="pose-pair">${cell(pA, wkA)}${cell(pB, wkB)}</div>
-    </div>`;
-  }).join('');
+  const grid = document.getElementById('photo-compare-poses-grid');
+  if (grid) {
+    if (ADMIN_STATE.currentPose === 'ALL') {
+      grid.style.gridTemplateColumns = '';
+      grid.innerHTML = ['Side', 'Front', 'Back'].map(pose => `
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:0.65rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.45rem">
+            <span style="font-size:0.8rem;font-weight:900;color:var(--green);text-transform:uppercase">${pose} Pose</span>
+            <button type="button" class="adm-week-pill" style="padding:3px 8px;font-size:0.68rem" onclick="openAdminCompareModal('${pose}')">🔍 Full Screen</button>
+          </div>
+          <div class="pose-pair">
+            ${renderAdminPoseSlotHtml(d, wkA, pose, false, false)}
+            ${renderAdminPoseSlotHtml(d, wkB, pose, true, false)}
+          </div>
+        </div>
+      `).join('');
+    } else {
+      const pose = ADMIN_STATE.currentPose;
+      grid.style.gridTemplateColumns = '1fr';
+      grid.innerHTML = `
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:0.75rem;max-width:780px;margin:0 auto;width:100%">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+            <span style="font-size:0.92rem;font-weight:900;color:var(--green)">🧍 ${pose} Pose — Side-by-Side (${lblA} vs ${lblB})</span>
+            <div style="display:flex;gap:6px">
+              <button type="button" class="adm-week-pill" style="padding:3px 9px;font-size:0.7rem" onclick="stepAdminPose(-1)">◀ Prev</button>
+              <button type="button" class="adm-week-pill" style="padding:3px 9px;font-size:0.7rem" onclick="stepAdminPose(1)">Next ▶</button>
+              <button type="button" class="adm-week-pill" style="padding:3px 9px;font-size:0.7rem" onclick="openAdminCompareModal('${pose}')">⛶ Full Screen</button>
+            </div>
+          </div>
+          <div class="pose-pair" style="gap:14px">
+            ${renderAdminPoseSlotHtml(d, wkA, pose, false, false)}
+            ${renderAdminPoseSlotHtml(d, wkB, pose, true, false)}
+          </div>
+        </div>
+      `;
+    }
+  }
 
-  document.getElementById('total-photos-badge').textContent = `${photos.length} Uploaded Photo(s)`;
-  document.getElementById('all-photos-timeline-grid').innerHTML = photos.map(ph => `
-    <div class="pose-img-box">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <span class="badge badge-green">${ph.week_num === 0 ? 'Wk 0 (Pre)' : 'Week ' + ph.week_num}</span>
-        <strong style="font-size:0.72rem;color:#fff">${ph.pose}</strong>
-      </div>
-      <img src="${ph.photo_data_url}" style="height:200px" onclick="window.open(this.src,'_blank')" />
-      <div style="font-size:0.66rem;color:var(--muted);margin-top:4px">${ph.taken_date || ''} ${ph.weight_kg ? '· ' + ph.weight_kg + ' kg' : ''}</div>
-    </div>
-  `).join('');
+  if (ADMIN_STATE.compareModalOpen) {
+    renderAdminModalBody(d, wkA, wkB, lblA, lblB);
+  }
 }
+
+function renderAdminModalBody(d, wkA, wkB, lblA, lblB) {
+  const body = document.getElementById('admin-compare-modal-body');
+  const title = document.getElementById('admin-modal-compare-title');
+  if (!body) return;
+  const poseTitle = ADMIN_STATE.currentPose === 'ALL' ? 'All 3 Poses (Side · Front · Back)' : `${ADMIN_STATE.currentPose} Pose`;
+  if (title) title.textContent = `${d.profile.client_name} · ${poseTitle} (${lblA} vs ${lblB})`;
+  if (ADMIN_STATE.currentPose === 'ALL') {
+    body.innerHTML = `
+      <div class="photo-compare-grid" style="width:100%;max-width:1180px">
+        ${['Side', 'Front', 'Back'].map(pose => `
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:0.65rem;cursor:pointer" onclick="setAdminPose('${pose}')">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.45rem">
+              <span style="font-size:0.8rem;font-weight:900;color:var(--green)">${pose} Pose</span>
+              <span style="font-size:0.68rem;color:var(--muted)">Click to focus ${pose}</span>
+            </div>
+            <div class="pose-pair">
+              ${renderAdminPoseSlotHtml(d, wkA, pose, false, true)}
+              ${renderAdminPoseSlotHtml(d, wkB, pose, true, true)}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } else {
+    const pose = ADMIN_STATE.currentPose;
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%;max-width:900px;align-items:center">
+        ${renderAdminPoseSlotHtml(d, wkA, pose, false, true)}
+        ${renderAdminPoseSlotHtml(d, wkB, pose, true, true)}
+      </div>
+    `;
+  }
+}
+
+function openAdminCompareModal(pose) {
+  if (pose) {
+    ADMIN_STATE.currentPose = pose;
+  } else if (ADMIN_STATE.currentPose === 'ALL') {
+    ADMIN_STATE.currentPose = 'Side';
+  }
+  ADMIN_STATE.compareModalOpen = true;
+  const modal = document.getElementById('admin-compare-modal');
+  if (modal) modal.style.display = 'flex';
+  renderPhotoComparison();
+}
+
+function closeAdminCompareModal() {
+  ADMIN_STATE.compareModalOpen = false;
+  const modal = document.getElementById('admin-compare-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+document.addEventListener('keydown', function(e) {
+  if (!ADMIN_STATE.compareModalOpen) return;
+  if (e.key === 'Escape') closeAdminCompareModal();
+  if (e.key === 'ArrowLeft') stepAdminPose(-1);
+  if (e.key === 'ArrowRight') stepAdminPose(1);
+});
 
 function renderTrajectoryTable() {
   const d = ADMIN_STATE.detail;
   if (!d) return;
   const p = d.profile;
-  document.getElementById('trajectory-title').textContent = `📈 ${p.client_name} — Week-over-Week Progress Trajectory`;
-  document.getElementById('trajectory-goal-badge').textContent = `${p.start_weight_kg} kg → ${p.target_weight_kg} kg`;
+  document.getElementById('trajectory-title').textContent = `3. Week-over-Week Progress (Start Baseline → Week 8) — ${p.client_name}`;
+  document.getElementById('trajectory-goal-badge').textContent = `Start ${Number(p.start_weight_kg).toFixed(2)} kg → Goal ${Number(p.target_weight_kg).toFixed(2)} kg`;
 
   const tbody = document.getElementById('admin-trajectory-tbody');
-  tbody.innerHTML = (d.week_over_week || []).map(w => `
-    <tr>
+  tbody.innerHTML = (d.week_over_week || []).map(w => {
+    const wk = Number(w.week_num);
+    const isCur = wk === Number(d.selected_week);
+    const wowDiff = w.wow_diff_kg;
+    const totDiff = w.total_diff_kg ?? w.total_delta_kg;
+    const photosCount = w.photos_count ?? w.photos_uploaded ?? 0;
+    const startStr = (w.start_date || w.week_start || '').slice(5);
+    const endStr = (w.end_date || w.week_end || '').slice(5);
+    return `<tr style="${isCur ? 'background:rgba(61,255,79,0.09)' : ''};cursor:pointer" onclick="changeAdminWeek(${wk})">
       <td><strong>${w.label}</strong></td>
-      <td style="font-size:0.7rem;color:var(--muted)">${w.week_start} → ${w.week_end}</td>
-      <td>${w.days_logged}/7</td>
-      <td style="font-weight:800;color:#fff">${w.avg_weight_kg ? w.avg_weight_kg + ' kg' : '—'}</td>
-      <td style="color:${(w.total_delta_kg || 0) <= 0 ? 'var(--green)' : '#f87171'};font-weight:700">${w.total_delta_kg !== null ? (w.total_delta_kg > 0 ? '+' : '') + w.total_delta_kg + ' kg' : '—'}</td>
-      <td>${w.target_weight_kg} kg</td>
-      <td style="color:${(w.avg_steps || 0) >= (w.target_steps || 10000) ? 'var(--green)' : '#fff'};font-weight:700">${(w.avg_steps || 0).toLocaleString()} <span style="color:var(--muted);font-size:0.66rem">/ ${(w.target_steps || 10000).toLocaleString()}</span></td>
-      <td>${w.avg_calories || 0}</td>
-      <td>${w.avg_protein_g || 0}g</td>
-      <td>${w.avg_water_l || 0}L</td>
-      <td>${w.avg_sleep_str || '—'}</td>
-      <td>${w.gym_sessions || 0}G / ${w.cardio_sessions || 0}C · ${(w.workout_volume_kg || 0).toLocaleString()} kg</td>
-      <td>${w.week_num === 1 && !w.photos_uploaded ? '<span class="badge badge-blue">🚫 No Pic (Wk 1 Fri)</span>' : `<span class="badge ${w.photos_uploaded >= 3 ? 'badge-green' : ''}">${w.photos_uploaded || 0}/3</span>`}</td>
-      <td>
+      <td style="font-size:0.7rem;color:var(--muted)">${startStr} → ${endStr}</td>
+      <td>${w.days_on_plan || 0}/${w.days_logged || 0}d</td>
+      <td style="font-weight:800;color:#fff">${w.avg_weight_kg ? Number(w.avg_weight_kg).toFixed(2) + ' kg' : '—'} <span style="font-size:0.66rem;color:var(--muted)">(T:${Number(w.target_weight_kg).toFixed(1)})</span></td>
+      <td style="color:${wk === 0 ? 'var(--muted)' : (wowDiff || 0) <= 0 ? 'var(--green)' : '#fbbf24'};font-weight:700">${wk === 0 ? 'Baseline' : wowDiff != null ? (wowDiff > 0 ? '+' : '') + Number(wowDiff).toFixed(2) + ' kg' : '—'}</td>
+      <td style="color:${wk === 0 ? 'var(--muted)' : (totDiff || 0) <= 0 ? 'var(--green)' : '#fbbf24'};font-weight:700">${wk === 0 ? '0.00 kg' : totDiff != null ? (totDiff > 0 ? '+' : '') + Number(totDiff).toFixed(2) + ' kg' : '—'}</td>
+      <td style="color:${(w.avg_steps || 0) >= (w.step_target || w.target_steps || 10000) ? 'var(--green)' : '#fff'};font-weight:700">${w.avg_steps > 0 ? Number(w.avg_steps).toLocaleString() : '—'} <span style="color:var(--muted);font-size:0.66rem">/${Math.round((w.step_target || w.target_steps || 10000)/1000)}k</span></td>
+      <td>${w.avg_calories > 0 || w.avg_protein_g > 0 ? `${Number(w.avg_calories).toLocaleString()} kcal · ${w.avg_protein_g}g P` : '—'}</td>
+      <td>${w.gym_sessions || 0} Gym · ${w.cardio_sessions || 0} Cardio</td>
+      <td>${wk === 1 && !photosCount ? '<span class="badge badge-blue">No Photos Wk 1</span>' : `<span class="badge ${photosCount >= 3 ? 'badge-green' : ''}">${photosCount}/3</span>`}</td>
+      <td onclick="event.stopPropagation()">
         <span class="badge ${w.submission_status === 'Reviewed' ? 'badge-green' : w.submission_status === 'Submitted' ? 'badge-blue' : ''}">${w.submission_status}</span>
-        <button class="btn btn-sm" style="margin-left:4px;padding:0.15rem 0.45rem;font-size:0.66rem" onclick="inspectSubmission(${p.id}, ${w.week_num})">Open</button>
+        ${w.coach_voice_note_url ? '<span title="Voice Note attached">🎙️</span>' : ''}
+        <button class="btn btn-sm" style="margin-left:4px;padding:0.15rem 0.45rem;font-size:0.66rem" onclick="changeAdminWeek(${wk})">View →</button>
       </td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 }
 
 async function loadAdminBlocks() {

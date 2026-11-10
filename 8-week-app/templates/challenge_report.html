@@ -342,7 +342,6 @@
       </div>
       <div class="actions no-print">
         <button class="btn primary" onclick="copyReportUrl()">📋 Copy Link for Chris</button>
-        <a class="btn" href="/api/challenge/export/excel?profile_id={{ profile.id }}&week_num={{ week_num }}">📊 Download Excel (.xlsx)</a>
         <button class="btn" onclick="window.print()">🖨️ Print / PDF</button>
         <a class="btn" href="/challenge">← Back to App</a>
       </div>
@@ -459,19 +458,59 @@
       <div class="writeup-box" style="color:var(--muted);">No weekly write-up entered for this week yet.</div>
       {% endif %}
 
-      <!-- Coach Chris Feedback Box -->
+      <!-- Coach Chris Feedback, Thread & Voice Note Box -->
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
           <label for="coach-feedback-input" style="font-size:0.74rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:0.05em;">
-            💬 Coach Chris Feedback & Notes for {{ profile.client_name }}
+            💬 Check-In Thread, Coach Chris Feedback &amp; Voice Note for {{ profile.client_name }}
           </label>
           <span id="coach-feedback-status" style="font-size:0.72rem;color:var(--muted);">
             {% if wk_summary.reviewed_at %}Reviewed {{ wk_summary.reviewed_at }}{% endif %}
           </span>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <textarea id="coach-feedback-input" rows="2" placeholder="Add Coach Chris feedback or macro/step adjustments for next week..." style="flex:1;min-width:240px;background:#070b08;border:1px solid rgba(245,166,35,0.35);color:var(--text);border-radius:9px;padding:9px 11px;font-family:var(--font-body);font-size:0.84rem;">{{ wk_summary.coach_feedback or '' }}</textarea>
-          <button class="btn primary no-print" onclick="saveCoachFeedback()" style="align-self:flex-end;padding:10px 16px;">💾 Save Coach Feedback</button>
+
+        <!-- Thread Messages -->
+        <div id="report-thread-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">
+          {% if wk_summary.thread %}
+            {% for m in wk_summary.thread %}
+            <div style="padding:10px 12px;border-radius:10px;background:{% if m.role == 'coach' %}rgba(245,166,35,0.09){% else %}rgba(61,255,79,0.07){% endif %};border:1px solid {% if m.role == 'coach' %}rgba(245,166,35,0.4){% else %}rgba(61,255,79,0.35){% endif %};">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-size:0.74rem;">
+                <strong style="color:{% if m.role == 'coach' %}var(--gold){% else %}var(--neon){% endif %};">
+                  {% if m.role == 'coach' %}🛡️ {{ m.author or 'Coach Chris' }}{% else %}🏋️ {{ m.author or profile.client_name }}{% endif %}
+                </strong>
+                <span style="color:var(--muted);font-size:0.68rem;">{{ m.created_at }}</span>
+              </div>
+              {% if m.text %}
+              <div style="font-size:0.86rem;white-space:pre-wrap;">{{ m.text }}</div>
+              {% endif %}
+              {% if m.voice_note_url %}
+              <div style="margin-top:6px;">
+                <div style="font-size:0.68rem;color:var(--gold);font-weight:700;margin-bottom:2px;">🎙️ Voice Note:</div>
+                <audio controls src="{{ m.voice_note_url }}" style="width:100%;max-width:420px;height:36px;"></audio>
+              </div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          {% endif %}
+        </div>
+
+        <!-- Voice Note Recorder / Upload Controls -->
+        <div class="no-print" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+          <button type="button" id="rep-vn-record-btn" class="btn" style="border-color:rgba(245,166,35,0.5);color:var(--gold);" onclick="toggleReportVoiceNote()">🎙️ Record Voice Note</button>
+          <label class="btn" style="cursor:pointer;margin:0;">
+            📁 Upload Voice Note
+            <input type="file" id="rep-vn-file" accept="audio/*" style="display:none;" onchange="handleReportVoiceFile(this)" />
+          </label>
+          <span id="rep-vn-timer" style="font-size:0.75rem;font-weight:800;color:var(--danger);"></span>
+        </div>
+        <div id="rep-vn-preview-wrap" style="{% if not wk_summary.coach_voice_note_url %}display:none;{% endif %}margin-bottom:8px;padding:8px 10px;border-radius:9px;background:var(--card2);border:1px solid rgba(245,166,35,0.35);">
+          <div style="font-size:0.7rem;color:var(--gold);font-weight:800;margin-bottom:4px;">🔊 Coach Chris Voice Note:</div>
+          <audio id="rep-vn-audio" controls src="{{ wk_summary.coach_voice_note_url or '' }}" style="width:100%;max-width:440px;height:36px;"></audio>
+        </div>
+
+        <div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;">
+          <textarea id="coach-feedback-input" rows="2" placeholder="Write Coach Chris feedback or reply in thread (appears in {{ profile.client_name }}'s app)..." style="flex:1;min-width:240px;background:#070b08;border:1px solid rgba(245,166,35,0.35);color:var(--text);border-radius:9px;padding:9px 11px;font-family:var(--font-body);font-size:0.84rem;"></textarea>
+          <button class="btn primary" onclick="saveCoachFeedback()" style="align-self:flex-end;padding:10px 16px;">💬 Post Coach Review &amp; Voice Note</button>
         </div>
       </div>
     </div>
@@ -870,6 +909,92 @@
         prompt('Copy link for Coach Chris:', url);
       }
     }
+    let repPendingVoiceNote = '';
+    let repMediaRecorder = null;
+    let repChunks = [];
+    let repTimer = null;
+    let repSeconds = 0;
+
+    async function toggleReportVoiceNote() {
+      const btn = document.getElementById('rep-vn-record-btn');
+      const timerEl = document.getElementById('rep-vn-timer');
+      if (repMediaRecorder && repMediaRecorder.state === 'recording') {
+        repMediaRecorder.stop();
+        return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Microphone recording is not supported in this browser — use Upload Voice Note instead.');
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        repChunks = [];
+        const mr = new MediaRecorder(stream);
+        repMediaRecorder = mr;
+        mr.ondataavailable = e => { if (e.data && e.data.size > 0) repChunks.push(e.data); };
+        mr.onstop = () => {
+          clearInterval(repTimer);
+          if (timerEl) timerEl.textContent = '';
+          if (btn) { btn.textContent = '🎙️ Record Voice Note'; btn.style.background = ''; }
+          stream.getTracks().forEach(t => t.stop());
+          const blob = new Blob(repChunks, { type: mr.mimeType || 'audio/webm' });
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            repPendingVoiceNote = reader.result;
+            const wrap = document.getElementById('rep-vn-preview-wrap');
+            const audio = document.getElementById('rep-vn-audio');
+            if (wrap) wrap.style.display = 'block';
+            if (audio) audio.src = reader.result;
+          };
+          reader.readAsDataURL(blob);
+        };
+        mr.start();
+        repSeconds = 0;
+        if (btn) { btn.textContent = '⏹️ Stop Recording'; btn.style.background = '#FF5252'; btn.style.color = '#fff'; }
+        if (timerEl) timerEl.textContent = '🔴 0:00';
+        repTimer = setInterval(() => {
+          repSeconds += 1;
+          if (timerEl) timerEl.textContent = '🔴 ' + Math.floor(repSeconds / 60) + ':' + String(repSeconds % 60).padStart(2, '0');
+        }, 1000);
+      } catch (e) {
+        alert('Microphone access denied — use Upload Voice Note instead.');
+      }
+    }
+
+    function handleReportVoiceFile(input) {
+      const f = input && input.files && input.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        repPendingVoiceNote = reader.result;
+        const wrap = document.getElementById('rep-vn-preview-wrap');
+        const audio = document.getElementById('rep-vn-audio');
+        if (wrap) wrap.style.display = 'block';
+        if (audio) audio.src = reader.result;
+      };
+      reader.readAsDataURL(f);
+    }
+
+    function escapeReportHtml(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function renderReportThreadList(thread) {
+      const list = document.getElementById('report-thread-list');
+      if (!list || !Array.isArray(thread)) return;
+      list.innerHTML = thread.map(m => {
+        const isCoach = m.role === 'coach';
+        return `<div style="padding:10px 12px;border-radius:10px;background:${isCoach ? 'rgba(245,166,35,0.09)' : 'rgba(61,255,79,0.07)'};border:1px solid ${isCoach ? 'rgba(245,166,35,0.4)' : 'rgba(61,255,79,0.35)'};">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-size:0.74rem;">
+            <strong style="color:${isCoach ? 'var(--gold)' : 'var(--neon)'};">${isCoach ? '🛡️ ' + escapeReportHtml(m.author || 'Coach Chris') : '🏋️ ' + escapeReportHtml(m.author || CLIENT_NAME)}</strong>
+            <span style="color:var(--muted);font-size:0.68rem;">${escapeReportHtml(m.created_at || '')}</span>
+          </div>
+          ${m.text ? `<div style="font-size:0.86rem;white-space:pre-wrap;">${escapeReportHtml(m.text)}</div>` : ''}
+          ${m.voice_note_url ? `<div style="margin-top:6px;"><div style="font-size:0.68rem;color:var(--gold);font-weight:700;margin-bottom:2px;">🎙️ Voice Note:</div><audio controls src="${m.voice_note_url}" style="width:100%;max-width:420px;height:36px;"></audio></div>` : ''}
+        </div>`;
+      }).join('');
+    }
+
     async function saveCoachFeedback() {
       const box = document.getElementById('coach-feedback-input');
       const statusEl = document.getElementById('coach-feedback-status');
@@ -879,12 +1004,18 @@
         const res = await fetch('/challenge/share/{{ profile.id }}/{{ week_num }}/feedback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ coach_feedback: box.value })
+          body: JSON.stringify({
+            coach_feedback: box.value,
+            coach_voice_note_url: repPendingVoiceNote,
+          })
         });
         const data = await res.json();
         if (data.ok) {
+          box.value = '';
+          repPendingVoiceNote = '';
+          renderReportThreadList(data.thread || []);
           statusEl.style.color = 'var(--neon)';
-          statusEl.textContent = '✅ Saved Coach Feedback (' + data.reviewed_at + ')';
+          statusEl.textContent = '✅ Saved Coach Review (' + data.reviewed_at + ')';
         } else {
           statusEl.textContent = '⚠️ Could not save';
         }

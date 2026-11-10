@@ -104,7 +104,20 @@ def ensure_blocks_and_auth_tables(db):
                 if has_acct
                 else None
             )
-            if has_acct and has_ewan and has_ewan_admin:
+            has_dummy = (
+                db.execute(
+                    """SELECT 1 FROM challenge_profiles p
+                       LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
+                       WHERE p.id != 1
+                         AND (
+                           LOWER(p.client_name) IN ('anton cully', 'jane bell', 'ricky simpson', 'hazel wright', 'alan mackay')
+                           OR (COALESCE(a.role, 'challenger') != 'admin' AND LOWER(COALESCE(a.email, '')) LIKE '%@taylorfitness.co.uk')
+                         )"""
+                ).fetchone()
+                if has_acct
+                else None
+            )
+            if has_acct and has_ewan and has_ewan_admin and not has_dummy:
                 return
         except Exception:
             pass
@@ -222,17 +235,37 @@ def ensure_blocks_and_auth_tables(db):
                 )
         db.commit()
 
-    # Purge any legacy sample/demo profiles or simulated demo check-ins
+    # Purge any legacy sample/demo profiles (@taylorfitness.co.uk dummy users, Alan Mackay seed, Sarah M, Dan K)
     demo_pids = [
         r["id"]
         for r in db.execute(
-            "SELECT id FROM challenge_profiles WHERE client_name LIKE 'Sarah M%' OR client_name LIKE 'Dan K%'"
+            """SELECT p.id FROM challenge_profiles p
+               LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
+               WHERE p.id != 1
+                 AND (
+                   p.client_name LIKE 'Sarah M%'
+                   OR p.client_name LIKE 'Dan K%'
+                   OR LOWER(p.client_name) IN ('anton cully', 'jane bell', 'ricky simpson', 'hazel wright', 'alan mackay', 'marcus t', 'emma l', 'jake r')
+                   OR (COALESCE(a.role, 'challenger') != 'admin' AND LOWER(COALESCE(a.email, '')) LIKE '%@taylorfitness.co.uk')
+                 )"""
         ).fetchall()
     ]
     for dpid in demo_pids:
-        db.execute("DELETE FROM challenge_block_enrollments WHERE profile_id=?", (dpid,))
-        db.execute("DELETE FROM challenge_user_accounts WHERE profile_id=?", (dpid,))
-        db.execute("DELETE FROM daily_checkins WHERE profile_id=?", (dpid,))
+        for tbl in (
+            "challenge_block_enrollments",
+            "challenge_user_accounts",
+            "daily_checkins",
+            "daily_activities",
+            "workout_logs",
+            "weekly_submissions",
+            "progress_photos",
+            "daily_journey_moments",
+            "user_sync_integrations",
+        ):
+            try:
+                db.execute(f"DELETE FROM {tbl} WHERE profile_id=?", (dpid,))
+            except Exception:
+                pass
         db.execute("DELETE FROM challenge_profiles WHERE id=?", (dpid,))
     db.execute(
         """DELETE FROM daily_checkins
@@ -302,43 +335,6 @@ def ensure_blocks_and_auth_tables(db):
             )
             db.execute("DELETE FROM challenge_block_enrollments WHERE profile_id=?", (p_row["id"],))
 
-    # Ensure core enrolled challengers (including Alan Mackay) exist permanently across container restarts
-    challenger_seeds = [
-        ("Alan Mackay", "alan", "", "mens", 86.0, 80.0, 18.0, 15.0, 150),
-    ]
-    for cname, uname, default_email, track, sw, tw, sbf, tbf, prot_g in challenger_seeds:
-        p_row = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (cname,)).fetchone()
-        if not p_row:
-            calc = calculate_challenge_targets(sw, tw, sbf, tbf, prot_g, "2026-10-19", "Weight Loss", False)
-            db.execute(
-                """INSERT INTO challenge_profiles (
-                    client_name, goal, start_date, end_date,
-                    start_weight_kg, target_weight_kg, start_body_fat_pct, target_body_fat_pct,
-                    lean_body_mass_kg, fat_mass_kg, to_lose_kg,
-                    target_calories, target_protein_g, target_fats_g, target_carbs_g,
-                    target_fibre_g, target_water_l, target_sleep_hrs,
-                    returning_member, workout_track, weekly_targets_json
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (
-                    cname, "Weight Loss", "2026-10-19", calc["end_date"],
-                    sw, tw, sbf, tbf,
-                    calc["lean_body_mass_kg"], calc["fat_mass_kg"], calc["to_lose_kg"],
-                    calc["target_calories"], calc["target_protein_g"], calc["target_fats_g"], calc["target_carbs_g"],
-                    calc["target_fibre_g"], calc["target_water_l"], calc["target_sleep_hrs"],
-                    0, track, json.dumps(calc["weekly_targets"]),
-                ),
-            )
-            p_row = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (cname,)).fetchone()
-        if p_row:
-            db.execute(
-                """INSERT INTO challenge_user_accounts (profile_id, username, email, role, invite_token, email_verified, verification_token)
-                   VALUES (?,?,?,?,?,0,?)
-                   ON CONFLICT(profile_id) DO UPDATE SET
-                       email=CASE WHEN challenge_user_accounts.email='' THEN excluded.email ELSE challenge_user_accounts.email END,
-                       invite_token=CASE WHEN challenge_user_accounts.invite_token='' THEN excluded.invite_token ELSE challenge_user_accounts.invite_token END""",
-                (p_row["id"], uname, default_email, "challenger", secrets.token_urlsafe(12), secrets.token_urlsafe(18)),
-            )
-
     # Ensure every profile has a row in challenge_user_accounts and is enrolled in the active block
     active_blk = db.execute("SELECT id FROM challenge_blocks WHERE block_code='2026-B5-OCT' OR status='Active' ORDER BY id LIMIT 1").fetchone()
     for p in db.execute("SELECT id, client_name, returning_member FROM challenge_profiles").fetchall():
@@ -347,7 +343,7 @@ def ensure_blocks_and_auth_tables(db):
             slug = re.sub(r"[^a-z0-9]", "", p["client_name"].split()[0].lower()) or f"user{p['id']}"
             clash = db.execute("SELECT 1 FROM challenge_user_accounts WHERE username=?", (slug,)).fetchone()
             uname = f"{slug}{p['id']}" if clash else slug
-            default_email = "taylor.ewan@gmail.com" if p["client_name"].lower() in ("ewan taylor", "ewan t") else f"{uname}@taylorfitness.co.uk"
+            default_email = "taylor.ewan@gmail.com" if p["client_name"].lower() in ("ewan taylor", "ewan t") else ""
             is_adm = p["client_name"].lower() in ("ewan (admin)", "ewan admin", "chris", "laura")
             role = "admin" if is_adm else "challenger"
             db.execute(
@@ -392,6 +388,8 @@ def ensure_blocks_and_auth_tables(db):
     except Exception:
         pass
     db.commit()
+    if db_key:
+        _ENSURED_BLOCK_DBS.add(db_key)
     if db_key:
         _ENSURED_BLOCK_DBS.add(db_key)
 
@@ -794,7 +792,7 @@ def _upsert_challenger_for_block(db, data, block_row):
         (
             pid,
             uname,
-            email or f"{uname}@taylorfitness.co.uk",
+            email or "",
             pw_hash,
             role,
             invite_token,
@@ -1842,7 +1840,7 @@ def api_challenge_block_rollover():
     })
 
 
-def _restore_backup_payload(db, payload, target_profile_id=None):
+def _restore_backup_payload(db, payload, target_profile_id=None, persist_backup=True):
     from challenge import _get_profile_integrations, _update_profile_integrations
     pid = int(target_profile_id or payload.get("profile_id") or 1)
     counts = {
@@ -2077,10 +2075,36 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
         counts["daily_checkins"] += 1
 
     try:
+        db.execute(
+            """DELETE FROM daily_activities
+               WHERE profile_id=?
+                 AND id NOT IN (
+                     SELECT MIN(id) FROM daily_activities
+                     WHERE profile_id=?
+                     GROUP BY date, COALESCE(garmin_activity_id, ''), COALESCE(title, ''), COALESCE(start_time, '')
+                 )""",
+            (pid, pid),
+        )
+        seen_act_keys = {
+            (r["date"], r["gid"], r["title"], r["st"])
+            for r in db.execute(
+                """SELECT date, COALESCE(garmin_activity_id, '') AS gid,
+                          COALESCE(title, '') AS title, COALESCE(start_time, '') AS st
+                   FROM daily_activities WHERE profile_id=?""",
+                (pid,),
+            ).fetchall()
+        }
         for a in payload.get("daily_activities", []):
+            d_act = (a.get("date") or "")[:10]
             gid = str(a.get("garmin_activity_id") or "")
-            if gid and db.execute("SELECT 1 FROM daily_activities WHERE profile_id=? AND garmin_activity_id=?", (pid, gid)).fetchone():
+            title = a.get("title") or "Activity"
+            st = a.get("start_time") or ""
+            act_key = (d_act, gid, title, st)
+            if act_key in seen_act_keys:
                 continue
+            if gid and any(k[1] == gid for k in seen_act_keys):
+                continue
+            seen_act_keys.add(act_key)
             db.execute(
                 """INSERT INTO daily_activities (
                     profile_id, date, source, garmin_activity_id, activity_type, category,
@@ -2088,9 +2112,9 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
                     avg_hr, max_hr, calories, elevation_m, steps, notes
                 ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    pid, (a.get("date") or "")[:10], a.get("source") or "Garmin Connect", gid,
+                    pid, d_act, a.get("source") or "Garmin Connect", gid,
                     a.get("activity_type") or "running", a.get("category") or "CARDIO",
-                    a.get("title") or "Activity", a.get("start_time") or "",
+                    title, st,
                     a.get("duration_mins"), a.get("distance_km"), a.get("pace_str") or "",
                     a.get("avg_hr"), a.get("max_hr"), a.get("calories"),
                     a.get("elevation_m"), a.get("steps"), a.get("notes") or "",
@@ -2131,13 +2155,16 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
             db.execute(
                 """INSERT INTO weekly_submissions (
                        profile_id, week_num, challenger_comments, coach_feedback,
+                       coach_voice_note_url, thread_json,
                        status, card_data_url, avg_weight_kg, avg_steps,
                        avg_calories, avg_protein_g, photos_count, submitted_at, reviewed_at
                    )
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(profile_id, week_num) DO UPDATE SET
                        challenger_comments=CASE WHEN excluded.challenger_comments != '' THEN excluded.challenger_comments ELSE weekly_submissions.challenger_comments END,
                        coach_feedback=CASE WHEN excluded.coach_feedback != '' THEN excluded.coach_feedback ELSE weekly_submissions.coach_feedback END,
+                       coach_voice_note_url=CASE WHEN excluded.coach_voice_note_url != '' THEN excluded.coach_voice_note_url ELSE COALESCE(weekly_submissions.coach_voice_note_url, '') END,
+                       thread_json=CASE WHEN excluded.thread_json != '' AND excluded.thread_json != '[]' THEN excluded.thread_json ELSE COALESCE(weekly_submissions.thread_json, '[]') END,
                        status=CASE WHEN excluded.status != '' THEN excluded.status ELSE weekly_submissions.status END,
                        card_data_url=CASE WHEN excluded.card_data_url != '' THEN excluded.card_data_url ELSE COALESCE(weekly_submissions.card_data_url, '') END,
                        avg_weight_kg=COALESCE(excluded.avg_weight_kg, weekly_submissions.avg_weight_kg),
@@ -2152,6 +2179,8 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
                     w_num,
                     s.get("challenger_comments") or "",
                     s.get("coach_feedback") or "",
+                    s.get("coach_voice_note_url") or "",
+                    s.get("thread_json") if isinstance(s.get("thread_json"), str) else json.dumps(s.get("thread") or []),
                     s.get("status") or "Submitted",
                     s.get("card_data_url") or "",
                     s.get("avg_weight_kg"),
@@ -2213,10 +2242,11 @@ def _restore_backup_payload(db, payload, target_profile_id=None):
         pass
 
     db.commit()
-    try:
-        auto_persist_profile_backup(db, pid)
-    except Exception:
-        pass
+    if persist_backup:
+        try:
+            auto_persist_profile_backup(db, pid)
+        except Exception:
+            pass
     return counts
 
 
@@ -2295,12 +2325,14 @@ def _auto_seed_ewan_backup_if_empty(db):
         local_data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "data"))
         for bpath in sorted(glob.glob(os.path.join(data_dir, "backup_profile_*.json"))):
             try:
+                if os.path.getsize(bpath) > 25 * 1024 * 1024:
+                    continue
                 with open(bpath, "r") as f:
                     bpayload = json.load(f)
                 bpid = int(bpayload.get("profile_id") or 1)
                 if bpid == 1 and abs(float((bpayload.get("profile") or {}).get("start_weight_kg") or 0) - 84.0) < 0.05:
                     bpayload.setdefault("profile", {})["start_weight_kg"] = 88.6
-                _restore_backup_payload(db, bpayload, target_profile_id=bpid)
+                _restore_backup_payload(db, bpayload, target_profile_id=bpid, persist_backup=False)
             except Exception:
                 pass
         cnt = db.execute("SELECT COUNT(*) AS c FROM daily_checkins WHERE profile_id=1 AND date >= '2026-10-19'").fetchone()["c"]
@@ -2337,7 +2369,7 @@ def _auto_seed_ewan_backup_if_empty(db):
             if os.path.exists(seed_path):
                 with open(seed_path, "r") as f:
                     payload = json.load(f)
-                _restore_backup_payload(db, payload, target_profile_id=1)
+                _restore_backup_payload(db, payload, target_profile_id=1, persist_backup=False)
         db.execute(
             "UPDATE challenge_profiles SET client_name='Ewan Taylor', first_name='Ewan', last_name='Taylor' WHERE id=1"
         )
@@ -2451,7 +2483,7 @@ def api_challenge_update_admin_account():
 def api_challenge_admin_challenger_detail():
     """Return complete weekly data, 7-day sheet, week-over-week trajectory, check-in submissions & all photos for a challenger."""
     from challenge import _build_week_sheet
-    from challenge_progress import compute_week_over_week
+    from challenge_progress import compute_week_over_week, _parse_and_sync_thread
 
     db = get_db()
     ensure_blocks_and_auth_tables(db)
@@ -2525,6 +2557,14 @@ def api_challenge_admin_challenger_detail():
         for k in ("submitted_at", "reviewed_at", "updated_at"):
             if s.get(k) is not None:
                 s[k] = str(s[k])
+        s["thread"] = _parse_and_sync_thread(s, challenger_name=profile.get("client_name") or "Challenger")
+        s["coach_voice_note_url"] = s.get("coach_voice_note_url") or ""
+
+    auto_notes = [
+        f"{r['day_short']} ({r['date'][5:]}): {r['combined_notes']}"
+        for r in week_sheet.get("rows", [])
+        if r.get("combined_notes")
+    ]
 
     return jsonify({
         "ok": True,
@@ -2534,6 +2574,7 @@ def api_challenge_admin_challenger_detail():
         "week_over_week": wow,
         "photos": photos,
         "submissions": subs,
+        "auto_notes": auto_notes,
     })
 
 
@@ -2653,6 +2694,7 @@ def api_challenge_admin_cohort_summary():
             "submission_status": status,
             "challenger_comments": sub.get("challenger_comments") or "",
             "coach_feedback": sub.get("coach_feedback") or "",
+            "coach_voice_note_url": sub.get("coach_voice_note_url") or "",
         })
 
     kpis = {

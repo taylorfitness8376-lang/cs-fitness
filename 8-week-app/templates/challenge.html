@@ -338,6 +338,7 @@
         </div>
         <textarea id="op-wk-comments" rows="3" placeholder="How did the week go? Wins & focus for next week..."></textarea>
       </div>
+      <div id="op-wk-thread-box" style="margin-bottom:0.65rem;padding:0.55rem 0.65rem;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);font-size:0.75rem;display:none"></div>
       <div class="grid-2" style="gap:0.4rem;margin-bottom:0.4rem">
         <button class="btn btn-green" onclick="downloadCoachChrisExcel(this)">📊 Coach Chris Excel (.xlsx)</button>
         <button class="btn btn-green" onclick="downloadWeek0VsLatestPhotosPng('ALL', this)">📸 Wk 0 vs Latest Photos PNG</button>
@@ -812,9 +813,21 @@
         </div>
         <a id="tg-direct-link" href="#" target="_blank" class="btn btn-sm" style="text-decoration:none;display:none">Open Telegram</a>
       </div>
-      <div id="wk-coach-feedback-box" style="padding:0.6rem 0.75rem;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);font-size:0.78rem">
-        <strong style="color:var(--green)">💬 Coach Chris Feedback:</strong>
-        <div id="wk-coach-feedback-text" style="color:var(--muted);margin-top:3px">No coach feedback posted yet for this week.</div>
+      <div id="wk-coach-feedback-box" style="padding:0.75rem;border-radius:10px;background:var(--surface-2);border:1px solid var(--border);font-size:0.8rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+          <strong style="color:var(--green)">💬 Coach Chris Feedback, Voice Notes &amp; Check-In Thread</strong>
+          <span id="wk-coach-reviewed-time" style="font-size:0.68rem;color:var(--muted)"></span>
+        </div>
+        <div id="wk-coach-voice-note-wrap" style="display:none;margin-bottom:8px;padding:8px 10px;border-radius:8px;background:rgba(245,166,35,0.1);border:1px solid rgba(245,166,35,0.4)">
+          <div style="font-size:0.7rem;font-weight:800;color:#F5A623;margin-bottom:4px">🎙️ Coach Chris Voice Note:</div>
+          <audio id="wk-coach-voice-note-player" controls style="width:100%;max-width:440px;height:36px"></audio>
+        </div>
+        <div id="wk-coach-feedback-text" style="color:var(--muted);margin-top:3px;margin-bottom:8px">No coach feedback posted yet for this week.</div>
+        <div id="wk-checkin-thread-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;padding-top:8px;border-top:1px solid var(--border)">
+          <input type="text" id="wk-thread-reply-input" placeholder="Reply to Coach Chris in this week's check-in thread..." style="flex:1;min-width:210px;font-size:0.8rem;padding:7px 10px;border-radius:8px;background:#070b08;border:1px solid var(--border);color:#fff" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChallengerThreadReply();}" />
+          <button type="button" class="btn btn-sm btn-green" onclick="sendChallengerThreadReply()">💬 Send Reply</button>
+        </div>
       </div>
     </div>
 

@@ -1571,7 +1571,7 @@ def test_ewan_taylor_week3_share_report_and_training_inference(client):
         ensure_blocks_and_auth_tables(conn)
         with open(seed_path, "r") as f:
             payload = json.load(f)
-        _restore_backup_payload(conn, payload, target_profile_id=1)
+        _restore_backup_payload(conn, payload, target_profile_id=1, persist_backup=False)
         conn.execute(
             "UPDATE challenge_profiles SET client_name='Ewan Taylor', first_name='Ewan', last_name='Taylor' WHERE id=1"
         )
@@ -1662,3 +1662,119 @@ def test_separate_ewan_admin_account_and_admin_only_landing_page(client):
     adm_ok = client.get("/challenge/admin")
     assert adm_ok.status_code == 200
     assert "COACH &amp; ADMIN PORTAL" in adm_ok.get_data(as_text=True)
+
+
+def test_streamlined_admin_portal_no_dummy_users_threaded_comments_and_voice_notes(client):
+    """Verify:
+    1. Dummy @taylorfitness.co.uk users and auto-seeded test challengers (Alan Mackay, Anton Cully, etc.) are purged.
+    2. Coach Admin Portal (/challenge/admin) has the 4 streamlined tabs (1. All Challengers Summary, 2. Challenger Check-In & Review, 3. Manage Blocks, 4. Users & Admins).
+    3. Excel download button is removed from Coach Admin UI (/challenge/admin) and Coach Share Web Report (/challenge/share/1/3), while kept in Challenger App (/challenge).
+    4. Two-way back-and-forth comment thread + Coach Voice Note works across Coach Portal, Share Report, and Challenger App.
+    """
+    from database import get_db
+    from challenge_blocks import ensure_blocks_and_auth_tables
+
+    # 1. Insert a dummy @taylorfitness.co.uk challenger and verify ensure_blocks_and_auth_tables purges it
+    with client.application.app_context():
+        db = get_db()
+        cur = db.execute(
+            "INSERT INTO challenge_profiles (client_name, start_weight_kg, target_weight_kg) VALUES ('Anton Cully', 90.0, 82.0)"
+        )
+        dummy_pid = cur.lastrowid
+        db.execute(
+            "INSERT INTO challenge_user_accounts (profile_id, email, username, role) VALUES (?, 'anton.cully@taylorfitness.co.uk', 'anton', 'challenger')",
+            (dummy_pid,),
+        )
+        db.commit()
+        ensure_blocks_and_auth_tables(db)
+
+    # Log in as Admin (taylor.ewan@googlemail.com)
+    adm_login = client.post("/api/challenge/auth/login", json={
+        "email": "taylor.ewan@googlemail.com",
+        "password": "csfitness",
+    }).get_json()
+    assert adm_login["ok"] is True
+
+    cohort = client.get("/api/challenge/admin/cohort-summary").get_json()
+    assert cohort["ok"] is True
+    names = [c["client_name"] for c in cohort["roster"]]
+    emails = [c.get("email", "") for c in cohort["roster"]]
+    assert "Anton Cully" not in names
+    assert "Alan Mackay" not in names
+    assert not any(e.endswith("@taylorfitness.co.uk") for e in emails)
+    assert "Ewan Taylor" in names
+
+    # 2. Verify 4-tab layout on /challenge/admin and no Excel button in Coach Admin UI or Coach Share Report
+    admin_html = client.get("/challenge/admin").get_data(as_text=True)
+    assert "1. All Challengers Summary" in admin_html
+    assert "2. Challenger Check-In &amp; Review" in admin_html
+    assert "3. Manage Blocks" in admin_html
+    assert "4. Users &amp; Admins" in admin_html
+    assert "/api/challenge/export/excel" not in admin_html
+
+    share_html = client.get("/challenge/share/1/3").get_data(as_text=True)
+    assert "/api/challenge/export/excel" not in share_html
+
+    # Challenger App (/challenge) still has Excel export for users
+    client.post("/api/challenge/auth/login", json={"email": "taylor.ewan@gmail.com"})
+    challenger_html = client.get("/challenge").get_data(as_text=True)
+    assert "downloadCoachChrisExcel" in challenger_html
+
+    # 3. Challenger submits Week 3 check-in write-up
+    sub_res = client.post("/api/challenge/weekly-checkin/submit", json={
+        "week_num": 3,
+        "challenger_comments": "Week 3 complete! Hit step targets in Frankfurt and kept protein high.",
+    }).get_json()
+    assert sub_res["ok"] is True
+    assert any("Frankfurt" in m["text"] and m["role"] == "challenger" for m in sub_res["thread"])
+
+    # 4. Coach posts review comment + Voice Note from Coach Portal
+    client.post("/api/challenge/auth/login", json={
+        "email": "taylor.ewan@googlemail.com",
+        "password": "csfitness",
+    })
+    sample_voice_note = "data:audio/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQRChYECGFOAZwH/////////"
+    rev_res = client.post("/api/challenge/weekly-checkin/review", json={
+        "profile_id": 1,
+        "week_num": 3,
+        "author": "Coach Chris",
+        "coach_feedback": "Mega effort in Frankfurt Ewan! Keep calories at 2,173 and push 13k steps for Week 4.",
+        "coach_voice_note_url": sample_voice_note,
+    }).get_json()
+    assert rev_res["ok"] is True
+    assert rev_res["coach_voice_note_url"] == sample_voice_note
+    assert any(m["role"] == "coach" and m["voice_note_url"] == sample_voice_note for m in rev_res["thread"])
+
+    # 5. Challenger replies back in the thread from the Challenger App
+    client.post("/api/challenge/auth/login", json={"email": "taylor.ewan@gmail.com"})
+    reply_res = client.post("/api/challenge/weekly-checkin/thread", json={
+        "week_num": 3,
+        "role": "challenger",
+        "text": "Thanks Chris! Listened to the voice note, locked in for 13k steps this week.",
+    }).get_json()
+    assert reply_res["ok"] is True
+    assert len(reply_res["thread"]) >= 3
+    assert reply_res["thread"][-1]["role"] == "challenger"
+    assert "Listened to the voice note" in reply_res["thread"][-1]["text"]
+
+    # 6. Verify Challenger App progress/summary, Coach Portal detail, and Share Report all show the full thread + voice note
+    prog = client.get("/api/challenge/progress/summary").get_json()
+    wk3 = next(w for w in prog["weeks"] if w["week_num"] == 3)
+    assert wk3["coach_voice_note_url"] == sample_voice_note
+    assert len(wk3["thread"]) >= 3
+
+    client.post("/api/challenge/auth/login", json={
+        "email": "taylor.ewan@googlemail.com",
+        "password": "csfitness",
+    })
+    det = client.get("/api/challenge/admin/challenger-detail?profile_id=1&week=3").get_json()
+    assert det["ok"] is True
+    wk3_sub = next(s for s in det["submissions"] if s["week_num"] == 3)
+    assert wk3_sub["coach_voice_note_url"] == sample_voice_note
+    assert len(wk3_sub["thread"]) >= 3
+
+    share_after = client.get("/challenge/share/1/3").get_data(as_text=True)
+    assert "Mega effort in Frankfurt Ewan!" in share_after
+    assert "Listened to the voice note" in share_after
+    assert sample_voice_note in share_after
+

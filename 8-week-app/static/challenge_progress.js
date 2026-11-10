@@ -1469,6 +1469,14 @@ window.downloadInstagramScoreboardPng = async function() {
 };
 
 // ── IN-APP WEEKLY CHECK-IN SUBMISSION & COACH CHRIS REVIEW INBOX ─────────────
+function _escThreadHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function renderWeeklySubmissionState() {
   if (!window.PROGRESS_SUMMARY) return;
   const wk = getActiveSheetWeek();
@@ -1476,14 +1484,29 @@ function renderWeeklySubmissionState() {
   const subRow = (PROGRESS_SUMMARY.weekly_submissions || []).find(s => Number(s.week_num) === wk) || {};
   const savedComments = wkObj.challenger_comments || subRow.challenger_comments || '';
   const savedFeedback = wkObj.coach_feedback || subRow.coach_feedback || '';
+  const savedVoiceNote = wkObj.coach_voice_note_url || subRow.coach_voice_note_url || '';
+  const savedThread = Array.isArray(wkObj.thread) && wkObj.thread.length
+    ? wkObj.thread
+    : (Array.isArray(subRow.thread) ? subRow.thread : []);
+  const reviewedAt = wkObj.reviewed_at || subRow.reviewed_at || '';
+
   const badge = document.getElementById('wk-submission-status-badge');
   const commentsEl = document.getElementById('wk-challenger-comments');
   const opCommentsEl = document.getElementById('op-wk-comments');
   const feedbackEl = document.getElementById('wk-coach-feedback-text');
+  const reviewedEl = document.getElementById('wk-coach-reviewed-time');
+  const vnWrap = document.getElementById('wk-coach-voice-note-wrap');
+  const vnPlayer = document.getElementById('wk-coach-voice-note-player');
+  const threadList = document.getElementById('wk-checkin-thread-list');
+  const opThreadBox = document.getElementById('op-wk-thread-box');
+
   if (badge) {
     const st = wkObj.submission_status || subRow.status || 'Not Submitted';
     badge.textContent = st === 'Reviewed' ? '✅ Reviewed by Coach Chris' : (st === 'Submitted' ? '📤 Submitted to Coach' : 'Not Submitted');
     badge.className = 'badge ' + (st === 'Not Submitted' ? '' : 'badge-green');
+  }
+  if (reviewedEl) {
+    reviewedEl.textContent = reviewedAt ? `Reviewed ${reviewedAt}` : '';
   }
   if (commentsEl && document.activeElement !== commentsEl) {
     commentsEl.value = savedComments;
@@ -1491,13 +1514,93 @@ function renderWeeklySubmissionState() {
   if (opCommentsEl && document.activeElement !== opCommentsEl) {
     opCommentsEl.value = savedComments;
   }
+  if (vnWrap && vnPlayer) {
+    if (savedVoiceNote) {
+      vnWrap.style.display = 'block';
+      if (vnPlayer.getAttribute('src') !== savedVoiceNote) {
+        vnPlayer.src = savedVoiceNote;
+      }
+    } else {
+      vnWrap.style.display = 'none';
+      vnPlayer.removeAttribute('src');
+    }
+  }
   if (feedbackEl) {
-    feedbackEl.textContent = savedFeedback
-      ? savedFeedback
-      : 'No coach feedback yet for this week. Submit your check-in below so Chris can review it in the Coach Portal.';
-    feedbackEl.style.color = savedFeedback ? '#fff' : 'var(--muted)';
+    if (savedThread.length > 0) {
+      feedbackEl.style.display = 'none';
+    } else {
+      feedbackEl.style.display = 'block';
+      feedbackEl.textContent = savedFeedback
+        ? savedFeedback
+        : 'No coach feedback yet for this week. Save your check-in so Coach Chris can review it, leave comments, or record a voice note.';
+      feedbackEl.style.color = savedFeedback ? '#fff' : 'var(--muted)';
+    }
+  }
+  if (threadList) {
+    if (!savedThread.length) {
+      threadList.innerHTML = '';
+    } else {
+      threadList.innerHTML = savedThread.map(item => {
+        const isCoach = item.role === 'coach';
+        const author = isCoach ? ('🛡️ ' + _escThreadHtml(item.author || 'Coach Chris')) : ('🏋️ ' + _escThreadHtml(item.author || 'You'));
+        const borderCol = isCoach ? 'rgba(245,166,35,0.45)' : 'rgba(61,255,79,0.35)';
+        const bgCol = isCoach ? 'rgba(245,166,35,0.09)' : 'rgba(61,255,79,0.07)';
+        const nameCol = isCoach ? '#F5A623' : 'var(--green)';
+        const vnHtml = item.voice_note_url
+          ? `<div style="margin-top:5px"><div style="font-size:0.68rem;color:#F5A623;font-weight:700;margin-bottom:2px">🎙️ Voice Note:</div><audio controls src="${item.voice_note_url}" style="width:100%;max-width:400px;height:34px"></audio></div>`
+          : '';
+        return `<div style="padding:8px 10px;border-radius:8px;background:${bgCol};border:1px solid ${borderCol}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;font-size:0.72rem">
+            <strong style="color:${nameCol}">${author}</strong>
+            <span style="color:var(--muted);font-size:0.66rem">${_escThreadHtml(item.created_at || '')}</span>
+          </div>
+          ${item.text ? `<div style="font-size:0.81rem;color:#fff;white-space:pre-wrap;line-height:1.45">${_escThreadHtml(item.text)}</div>` : ''}
+          ${vnHtml}
+        </div>`;
+      }).join('');
+    }
+  }
+  if (opThreadBox) {
+    if (savedFeedback || savedVoiceNote || savedThread.length > 0) {
+      opThreadBox.style.display = 'block';
+      const latestCoach = [...savedThread].reverse().find(m => m.role === 'coach');
+      const fbText = (latestCoach && latestCoach.text) || savedFeedback || '';
+      const vnSrc = (latestCoach && latestCoach.voice_note_url) || savedVoiceNote || '';
+      opThreadBox.innerHTML = `
+        <div style="font-weight:800;color:#F5A623;margin-bottom:4px">💬 Coach Chris Feedback &amp; Thread (${savedThread.length} msg${savedThread.length === 1 ? '' : 's'})</div>
+        ${fbText ? `<div style="color:#fff;margin-bottom:5px;white-space:pre-wrap">${_escThreadHtml(fbText)}</div>` : ''}
+        ${vnSrc ? `<audio controls src="${vnSrc}" style="width:100%;height:34px;margin-bottom:4px"></audio>` : ''}
+      `;
+    } else {
+      opThreadBox.style.display = 'none';
+    }
   }
 }
+
+window.sendChallengerThreadReply = async function() {
+  const input = document.getElementById('wk-thread-reply-input');
+  const text = (input?.value || '').trim();
+  if (!text) {
+    showToast('Write a reply message first.');
+    return;
+  }
+  const wk = getActiveSheetWeek();
+  const res = await fetch('/api/challenge/weekly-checkin/thread', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      week_num: wk,
+      role: 'challenger',
+      text,
+    }),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    if (input) input.value = '';
+    await refreshProgressSummary();
+    showToast(`💬 Reply posted to Week ${wk} thread!`);
+  }
+};
 
 window.submitWeeklyCheckinInApp = async function() {
   const wk = getActiveSheetWeek();

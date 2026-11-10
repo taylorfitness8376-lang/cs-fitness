@@ -481,7 +481,7 @@ def _recover_or_create_session_profile(db, session_pid):
             db.execute(
                 """INSERT OR IGNORE INTO challenge_user_accounts (profile_id, username, email, role)
                    VALUES (?,?,?,?)""",
-                (new_pid, uname, sess_email or f"{uname}@taylorfitness.co.uk", session.get("challenge_role") or "challenger"),
+                (new_pid, uname, sess_email or "", session.get("challenge_role") or "challenger"),
             )
             db.commit()
         except Exception:
