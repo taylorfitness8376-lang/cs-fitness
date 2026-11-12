@@ -104,20 +104,21 @@ def ensure_blocks_and_auth_tables(db):
                 if has_acct
                 else None
             )
+            has_alan = db.execute("SELECT 1 FROM challenge_profiles WHERE LOWER(client_name)='alan mackay'").fetchone()
             has_dummy = (
                 db.execute(
                     """SELECT 1 FROM challenge_profiles p
                        LEFT JOIN challenge_user_accounts a ON a.profile_id = p.id
                        WHERE p.id != 1
                          AND (
-                           LOWER(p.client_name) IN ('anton cully', 'jane bell', 'ricky simpson', 'hazel wright', 'alan mackay')
+                           LOWER(p.client_name) IN ('anton cully', 'jane bell', 'ricky simpson', 'hazel wright')
                            OR (COALESCE(a.role, 'challenger') != 'admin' AND LOWER(COALESCE(a.email, '')) LIKE '%@taylorfitness.co.uk')
                          )"""
                 ).fetchone()
                 if has_acct
                 else None
             )
-            if has_acct and has_ewan and has_ewan_admin and not has_dummy:
+            if has_acct and has_ewan and has_ewan_admin and has_alan and not has_dummy:
                 return
         except Exception:
             pass
@@ -235,7 +236,7 @@ def ensure_blocks_and_auth_tables(db):
                 )
         db.commit()
 
-    # Purge any legacy sample/demo profiles (@taylorfitness.co.uk dummy users, Alan Mackay seed, Sarah M, Dan K)
+    # Purge any legacy sample/demo profiles (@taylorfitness.co.uk dummy users, Sarah M, Dan K)
     demo_pids = [
         r["id"]
         for r in db.execute(
@@ -245,7 +246,7 @@ def ensure_blocks_and_auth_tables(db):
                  AND (
                    p.client_name LIKE 'Sarah M%'
                    OR p.client_name LIKE 'Dan K%'
-                   OR LOWER(p.client_name) IN ('anton cully', 'jane bell', 'ricky simpson', 'hazel wright', 'alan mackay', 'marcus t', 'emma l', 'jake r')
+                   OR LOWER(p.client_name) IN ('anton cully', 'jane bell', 'ricky simpson', 'hazel wright', 'marcus t', 'emma l', 'jake r')
                    OR (COALESCE(a.role, 'challenger') != 'admin' AND LOWER(COALESCE(a.email, '')) LIKE '%@taylorfitness.co.uk')
                  )"""
         ).fetchall()
@@ -334,6 +335,42 @@ def ensure_blocks_and_auth_tables(db):
                 (p_row["id"], uname, default_email, default_pw_hash, "admin", secrets.token_urlsafe(12), secrets.token_urlsafe(18)),
             )
             db.execute("DELETE FROM challenge_block_enrollments WHERE profile_id=?", (p_row["id"],))
+
+    # Ensure real pre-invited challengers (Alan Mackay) exist so they can sign in or activate seamlessly
+    challenger_seeds = [
+        ("Alan Mackay", "Alan", "Mackay", "alan", "", "mens", 86.0, 80.0, 18.0, 15.0, 160),
+    ]
+    for cname, fname, lname, uname, default_email, track, sw, tw, sbf, tbf, prot in challenger_seeds:
+        p_row = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (cname,)).fetchone()
+        if not p_row:
+            calc = calculate_challenge_targets(sw, tw, sbf, tbf, prot, "2026-10-19", "Weight Loss", False)
+            db.execute(
+                """INSERT INTO challenge_profiles (
+                    client_name, first_name, last_name, goal, start_date, end_date,
+                    start_weight_kg, target_weight_kg, start_body_fat_pct, target_body_fat_pct,
+                    lean_body_mass_kg, fat_mass_kg, to_lose_kg,
+                    target_calories, target_protein_g, target_fats_g, target_carbs_g,
+                    target_fibre_g, target_water_l, target_sleep_hrs,
+                    returning_member, workout_track, weekly_targets_json, onboarding_completed
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)""",
+                (
+                    cname, fname, lname, "Weight Loss", "2026-10-19", calc["end_date"],
+                    sw, tw, sbf, tbf,
+                    calc["lean_body_mass_kg"], calc["fat_mass_kg"], calc["to_lose_kg"],
+                    calc["target_calories"], calc["target_protein_g"], calc["target_fats_g"], calc["target_carbs_g"],
+                    calc["target_fibre_g"], calc["target_water_l"], calc["target_sleep_hrs"],
+                    0, track, json.dumps(calc["weekly_targets"]),
+                ),
+            )
+            p_row = db.execute("SELECT id FROM challenge_profiles WHERE LOWER(client_name)=LOWER(?)", (cname,)).fetchone()
+        if p_row:
+            db.execute(
+                """INSERT INTO challenge_user_accounts (profile_id, username, email, role, invite_token, email_verified, verification_token)
+                   VALUES (?,?,?,'challenger',?,0,?)
+                   ON CONFLICT(profile_id) DO UPDATE SET
+                       username=CASE WHEN challenge_user_accounts.username='' THEN excluded.username ELSE challenge_user_accounts.username END""",
+                (p_row["id"], uname, default_email, secrets.token_urlsafe(12), secrets.token_urlsafe(18)),
+            )
 
     # Ensure every profile has a row in challenge_user_accounts and is enrolled in the active block
     active_blk = db.execute("SELECT id FROM challenge_blocks WHERE block_code='2026-B5-OCT' OR status='Active' ORDER BY id LIMIT 1").fetchone()
@@ -1040,20 +1077,47 @@ def api_challenge_auth_login():
     acct = db.execute(
         """SELECT a.*, p.client_name FROM challenge_user_accounts a
            JOIN challenge_profiles p ON p.id = a.profile_id
-           WHERE LOWER(a.email)=? OR LOWER(a.username)=? OR LOWER(p.client_name)=?""",
-        (ident, ident, ident),
+           WHERE LOWER(a.email)=? OR LOWER(a.username)=? OR LOWER(p.client_name)=? OR LOWER(COALESCE(p.first_name, ''))=?""",
+        (ident, ident, ident, ident),
     ).fetchone()
+    if not acct and "@" in ident:
+        # Check if a pre-invited challenger (with blank email) matches the email local part (e.g. alan@... -> @alan / Alan Mackay)
+        local_slug = re.sub(r"[^a-z0-9]", "", ident.split("@")[0].lower())
+        if local_slug:
+            acct = db.execute(
+                """SELECT a.*, p.client_name FROM challenge_user_accounts a
+                   JOIN challenge_profiles p ON p.id = a.profile_id
+                   WHERE COALESCE(a.email, '') = ''
+                     AND (
+                       LOWER(a.username)=?
+                       OR REPLACE(LOWER(p.client_name), ' ', '')=?
+                       OR (? LIKE LOWER(a.username) || '%' AND LENGTH(a.username) >= 4)
+                     )""",
+                (local_slug, local_slug, local_slug),
+            ).fetchone()
     if not acct:
-        return jsonify({"ok": False, "error": "No account found for that email address. Use the Create Account / Join Block tab to sign up."}), 404
+        return jsonify({"ok": False, "error": "No account found for that email or username. Use the Create Account tab to join your block."}), 404
 
     if acct["password_hash"]:
         if not raw_pw or not bcrypt.checkpw(raw_pw.encode("utf-8"), acct["password_hash"].encode("utf-8")):
             return jsonify({"ok": False, "error": "Incorrect password. Click 'Forgot password?' below if you need to reset it."}), 401
-    elif raw_pw:
-        # First-time password setup on login if account had no password yet
-        pw_hash = bcrypt.hashpw(raw_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-        db.execute("UPDATE challenge_user_accounts SET password_hash=?, updated_at=CURRENT_TIMESTAMP WHERE profile_id=?", (pw_hash, acct["profile_id"]))
+        if "@" in ident and not (acct["email"] or "").strip():
+            db.execute("UPDATE challenge_user_accounts SET email=?, updated_at=CURRENT_TIMESTAMP WHERE profile_id=?", (ident, acct["profile_id"]))
+            db.commit()
+    else:
+        # First-time sign-in on a pre-invited profile that has no password set yet
+        pw_hash = bcrypt.hashpw(raw_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8") if raw_pw else ""
+        new_email = ident if ("@" in ident and not (acct["email"] or "").strip()) else (acct["email"] or "")
+        db.execute(
+            "UPDATE challenge_user_accounts SET password_hash=CASE WHEN ? != '' THEN ? ELSE password_hash END, email=CASE WHEN ? != '' THEN ? ELSE email END, updated_at=CURRENT_TIMESTAMP WHERE profile_id=?",
+            (pw_hash, pw_hash, new_email, new_email, acct["profile_id"]),
+        )
         db.commit()
+        acct = db.execute(
+            """SELECT a.*, p.client_name FROM challenge_user_accounts a
+               JOIN challenge_profiles p ON p.id = a.profile_id WHERE a.profile_id=?""",
+            (acct["profile_id"],),
+        ).fetchone()
 
     prof = dict(db.execute("SELECT * FROM challenge_profiles WHERE id=?", (acct["profile_id"],)).fetchone())
     _set_authenticated_session(prof, dict(acct))

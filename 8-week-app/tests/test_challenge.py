@@ -1700,9 +1700,10 @@ def test_streamlined_admin_portal_no_dummy_users_threaded_comments_and_voice_not
     names = [c["client_name"] for c in cohort["roster"]]
     emails = [c.get("email", "") for c in cohort["roster"]]
     assert "Anton Cully" not in names
-    assert "Alan Mackay" not in names
+    assert "Jane Bell" not in names
     assert not any(e.endswith("@taylorfitness.co.uk") for e in emails)
     assert "Ewan Taylor" in names
+    assert "Alan Mackay" in names
 
     # 2. Verify 4-tab layout on /challenge/admin and no Excel button in Coach Admin UI or Coach Share Report
     admin_html = client.get("/challenge/admin").get_data(as_text=True)
@@ -1711,6 +1712,17 @@ def test_streamlined_admin_portal_no_dummy_users_threaded_comments_and_voice_not
     assert "3. Manage Blocks" in admin_html
     assert "4. Users &amp; Admins" in admin_html
     assert "/api/challenge/export/excel" not in admin_html
+
+    # Verify Alan Mackay can sign in on 1st login using his email or username and bind his password + email cleanly
+    login_page_html = client.get("/challenge/login?user=alan").get_data(as_text=True)
+    assert login_page_html.count('id="join-email"') == 1
+    alan_login = client.post("/api/challenge/auth/login", json={
+        "email": "alan.mackay@gmail.com",
+        "password": "alanpassword",
+    }).get_json()
+    assert alan_login["ok"] is True
+    assert alan_login["client_name"] == "Alan Mackay"
+    assert alan_login["email"] == "alan.mackay@gmail.com"
 
     share_html = client.get("/challenge/share/1/3").get_data(as_text=True)
     assert "/api/challenge/export/excel" not in share_html

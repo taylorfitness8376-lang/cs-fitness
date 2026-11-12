@@ -79,15 +79,15 @@
       </div>
       <form onsubmit="event.preventDefault(); submitEmailLogin(false);" style="display:grid;gap:0.85rem">
         <div>
-          <label class="field-label" for="login-email">Email Address</label>
-          <input type="text" inputmode="email" autocomplete="email" id="login-email" class="auth-input-lg" value="{{ email_prefill }}" placeholder="you@example.com" required />
+          <label class="field-label" for="login-email">Email Address or Username</label>
+          <input type="text" autocomplete="username" id="login-email" class="auth-input-lg" value="{{ (invited_user.email if invited_user and invited_user.email else (invited_user.username if invited_user and invited_user.username else email_prefill)) }}" placeholder="you@example.com or username (e.g. alan)" required />
         </div>
         <div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
             <label class="field-label" for="login-password" style="margin-bottom:0">Password</label>
             <a href="#" onclick="openForgotPasswordFromLogin();return false;" style="font-size:0.75rem;color:var(--green);font-weight:700;text-decoration:none">Forgot password?</a>
           </div>
-          <input type="password" autocomplete="current-password" id="login-password" class="auth-input-lg" placeholder="Enter your password" />
+          <input type="password" autocomplete="current-password" id="login-password" class="auth-input-lg" placeholder="Enter your password (or choose one on 1st sign-in)" />
         </div>
         <button type="submit" class="btn btn-green" style="width:100%;justify-content:center;padding:0.85rem;font-size:0.98rem;font-weight:900;border-radius:11px">
           Sign In →
@@ -116,11 +116,7 @@
       <form onsubmit="event.preventDefault(); submitBlockJoin();" style="display:grid;gap:0.7rem">
         <div>
           <label class="field-label" for="join-email">Email Address (Used for Sign-In)</label>
-          <input type="email" autocomplete="email" id="join-email" class="auth-input-lg" value="{{ (invited_user.email if invited_user and invited_user.email else email_prefill) }}" placeholder="you@example.com" oninput="suggestUsernameFromInputs()" required />
-        </div>
-        <div>
-          <label class="field-label" for="join-email">Email Address (Your Sign-In ID)</label>
-          <input type="email" autocomplete="email" id="join-email" value="{{ email_prefill }}" placeholder="e.g. alan@example.com" oninput="suggestUsernameFromInputs()" required />
+          <input type="email" autocomplete="email" id="join-email" class="auth-input-lg" value="{{ (invited_user.email if invited_user and invited_user.email else email_prefill) }}" placeholder="e.g. alan@example.com" oninput="suggestUsernameFromInputs()" required />
         </div>
         <div class="grid-2" style="margin-bottom:0;gap:0.55rem">
           <div>
