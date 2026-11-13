@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CS Performance HYROX — Finisher Analytics &amp; Social Card</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;1,800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #050806;
+      --surface: #0c140e;
+      --surface-2: #121f16;
+      --border: rgba(61, 255, 79, 0.25);
+      --green: #3DFF4F;
+      --yellow: #facc15;
+      --blue: #38bdf8;
+      --red: #f43f5e;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(circle at top, #0d2113 0%, var(--bg) 60%);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      padding-bottom: 3rem;
+    }
+    .topbar {
+      background: rgba(9, 15, 11, 0.94);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .brand {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 1.45rem;
+      text-transform: uppercase;
+    }
+    .brand span { color: var(--green); }
+    .container {
+      max-width: 1120px;
+      margin: 1.5rem auto;
+      padding: 0 1rem;
+    }
+    .hero-card {
+      background: linear-gradient(135deg, rgba(61, 255, 79, 0.14), rgba(12, 20, 14, 0.96));
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 1.4rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1.2rem;
+      margin-bottom: 1.25rem;
+    }
+    .athlete-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 2.6rem;
+      text-transform: uppercase;
+      line-height: 1;
+    }
+    .official-time {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 3.6rem;
+      color: var(--green);
+      line-height: 1;
+    }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.85rem;
+      margin-bottom: 1.25rem;
+    }
+    @media (max-width: 768px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .kpi-box {
+      background: var(--surface);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 0.95rem 1rem;
+    }
+    .kpi-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .kpi-val {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: 1.95rem;
+      margin-top: 0.15rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.2rem;
+      margin-bottom: 1.25rem;
+    }
+    .card-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 1.55rem;
+      text-transform: uppercase;
+      margin-bottom: 0.85rem;
+    }
+    .ratio-bar {
+      height: 22px;
+      border-radius: 999px;
+      overflow: hidden;
+      display: flex;
+      background: #1a241d;
+      margin: 0.5rem 0;
+    }
+    .split-row {
+      display: grid;
+      grid-template-columns: 36px 190px 1fr 85px 95px;
+      gap: 0.7rem;
+      align-items: center;
+      padding: 0.52rem 0.65rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 0.84rem;
+    }
+    @media (max-width: 720px) {
+      .split-row { grid-template-columns: 28px 1fr 75px 80px; }
+      .split-bar-cell { display: none; }
+    }
+    .bar-track {
+      height: 10px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+    }
+    .delta-pill {
+      display: inline-block;
+      padding: 0.16rem 0.45rem;
+      border-radius: 6px;
+      font-weight: 800;
+      font-size: 0.74rem;
+      text-align: right;
+    }
+    .delta-faster {
+      background: rgba(61, 255, 79, 0.16);
+      color: var(--green);
+    }
+    .delta-slower {
+      background: rgba(244, 63, 94, 0.16);
+      color: var(--red);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.6rem 1rem;
+      border-radius: 10px;
+      font-weight: 800;
+      font-size: 0.84rem;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: var(--surface-2);
+      color: var(--text);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-green {
+      background: var(--green);
+      color: #041206;
+      border-color: var(--green);
+    }
+    .social-preview-wrap {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+    canvas#finisher-canvas {
+      max-width: 340px;
+      width: 100%;
+      height: auto;
+      border-radius: 14px;
+      border: 2px solid var(--border);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.65);
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">CS PERFORMANCE <span>HYROX</span> · ROXFIT-LITE ANALYTICS</div>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+      <a href="/hyrox/admin" class="btn">🏁 Race Console</a>
+      <a href="/hyrox/judge?entry={{ entry.id }}" class="btn">⏱️ Judge View</a>
+      <a href="/hyrox/tv" class="btn">📺 Live TV</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- HERO CARD -->
+    <section class="hero-card">
+      <div>
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.4rem">
+          <span style="background:{{ entry.division_color }};color:#050806;padding:0.2rem 0.6rem;border-radius:6px;font-weight:800;font-size:0.76rem;text-transform:uppercase">
+            {{ entry.division_label }}
+          </span>
+          <span style="font-size:0.8rem;color:var(--muted);font-weight:700">
+            Bib #{{ entry.bib_number }} · Age Cat {{ entry.age_category }} · {{ entry.event_name }} ({{ entry.event_date }})
+          </span>
+        </div>
+        <h1 class="athlete-name">{{ entry.full_display_name }}</h1>
+        {% if entry.history and entry.history.comparison %}
+        <div style="margin-top:0.5rem;font-size:0.86rem;font-weight:700;color:var(--green)">
+          📈 Sim-over-Sim vs {{ entry.history.comparison.previous_event_name }} ({{ entry.history.comparison.previous_total_formatted }}):
+          <span class="delta-pill {{ 'delta-faster' if entry.history.comparison.total_delta_ms <= 0 else 'delta-slower' }}">
+            {{ entry.history.comparison.total_delta_formatted }}
+          </span>
+        </div>
+        {% endif %}
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:0.74rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:0.08em">Official Total Time</div>
+        <div class="official-time">{{ entry.total_formatted }}</div>
+      </div>
+    </section>
+
+    <!-- KPI SUMMARY -->
+    <section class="kpi-grid">
+      <div class="kpi-box">
+        <div class="kpi-label">🏃 Run Total (8 Runs)</div>
+        <div class="kpi-val" style="color:var(--blue)">{{ entry.run_total_formatted }}</div>
+        <div style="font-size:0.75rem;color:var(--muted)">Avg Run: {{ entry.avg_run_formatted }} ({{ entry.run_pct }}%)</div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-label">🏋️ Station Work Total</div>
+        <div class="kpi-val" style="color:var(--green)">{{ entry.station_total_formatted }}</div>
+        <div style="font-size:0.75rem;color:var(--muted)">8 Stations ({{ entry.station_pct }}%)</div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-label">🎯 Wall Ball Counter</div>
+        <div class="kpi-val" style="color:var(--yellow)">{{ entry.wall_ball_reps }} / {{ entry.wall_ball_target_reps }}</div>
+        <div style="font-size:0.75rem;color:var(--muted)">Station 8 Prescribed Target</div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-label">📊 Completed Sims</div>
+        <div class="kpi-val">{{ entry.history.sim_count if entry.history else 1 }}</div>
+        <div style="font-size:0.75rem;color:var(--muted)">Roxfit-Lite Athlete Profile</div>
+      </div>
+    </section>
+
+    <!-- RUN VS STATION RATIO -->
+    <section class="card">
+      <div style="display:flex;justify-content:space-between;font-size:0.82rem;font-weight:800">
+        <span style="color:var(--blue)">🏃 RUNNING: {{ entry.run_pct }}% ({{ entry.run_total_formatted }})</span>
+        <span style="color:var(--green)">🏋️ STATIONS: {{ entry.station_pct }}% ({{ entry.station_total_formatted }})</span>
+      </div>
+      <div class="ratio-bar">
+        <div style="width:{{ entry.run_pct }}%;background:var(--blue)"></div>
+        <div style="width:{{ entry.station_pct }}%;background:var(--green)"></div>
+      </div>
+    </section>
+
+    <!-- FULL 16-SPLIT BREAKDOWN + HISTORICAL DELTAS -->
+    <section class="card">
+      <div class="card-title">⏱️ 16-SPLIT BREAKDOWN &amp; SIM-OVER-SIM PROGRESSION</div>
+      <div id="splits-breakdown-list"></div>
+    </section>
+
+    {% if entry.history and entry.history.sims|length > 1 %}
+    <!-- HISTORICAL SIM TIMELINE -->
+    <section class="card">
+      <div class="card-title">📈 ATHLETE HISTORICAL SIM LOG ({{ entry.display_name }})</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0.75rem">
+        {% for sim in entry.history.sims %}
+        <a href="/hyrox/results/{{ sim.entry_id }}" style="text-decoration:none;color:inherit;background:var(--surface-2);border:1px solid {{ 'var(--green)' if sim.entry_id == entry.id else 'rgba(255,255,255,0.08)' }};border-radius:12px;padding:0.85rem">
+          <div style="font-size:0.74rem;color:var(--muted);font-weight:700">{{ sim.event_date }} · {{ sim.division_label }}</div>
+          <div style="font-weight:800;font-size:0.95rem;margin:0.15rem 0">{{ sim.event_name }}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.7rem;color:var(--green)">{{ sim.total_formatted }}</div>
+          <div style="font-size:0.74rem;color:var(--muted)">Run {{ sim.run_total_formatted }} · Stn {{ sim.station_total_formatted }}</div>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- SOCIAL FINISHER PNG GENERATOR (STORY 9:16 & POST 4:5) -->
+    <section class="card">
+      <div class="card-title">📲 1-TAP INSTAGRAM STORY (9:16) &amp; POST (4:5) FINISHER CARD GENERATOR</div>
+      <div class="social-preview-wrap">
+        <canvas id="finisher-canvas" width="1080" height="1920"></canvas>
+        <div style="flex:1;min-width:260px">
+          <p style="color:var(--muted);font-size:0.88rem;line-height:1.5;margin-bottom:1rem">
+            Generate a high-resolution CS Performance HYROX Finisher PNG with your Official Time, Division &amp; Age Category badge, Run vs. Station summary, and all 8 Run + 8 Station splits ready to save or share directly to Instagram Stories or Feed.
+          </p>
+          <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.85rem">
+            <button type="button" class="btn btn-green" onclick="renderFinisherCanvas('story')">📱 Story 9:16 (1080×1920)</button>
+            <button type="button" class="btn" onclick="renderFinisherCanvas('post')">🖼️ Feed Post 4:5 (1080×1350)</button>
+          </div>
+          <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
+            <button type="button" class="btn btn-green" onclick="downloadFinisherPng()">⬇️ Download Finisher PNG</button>
+            <button type="button" class="btn" onclick="shareFinisherPng()">📤 Share to Socials</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const entryData = {{ entry | tojson }};
+    let currentFormat = 'story';
+
+    function renderSplitTable() {
+      const splits = entryData.splits || [];
+      const maxMs = Math.max(...splits.map(s => s.duration_ms || 1), 1);
+      const cmpSplits = entryData.history?.comparison?.split_deltas || {};
+
+      const listEl = document.getElementById('splits-breakdown-list');
+      listEl.innerHTML = splits.map(s => {
+        const pct = s.duration_ms ? Math.min(100, Math.round((s.duration_ms / maxMs) * 100)) : 0;
+        const barColor = s.split_type === 'run' ? 'var(--blue)' : 'var(--green)';
+        const deltaInfo = cmpSplits[s.split_index] || cmpSplits[String(s.split_index)];
+        let deltaHtml = '<span style="color:var(--muted);font-size:0.75rem">—</span>';
+        if (deltaInfo && deltaInfo.delta_ms !== null && deltaInfo.delta_ms !== undefined) {
+          const cls = deltaInfo.delta_ms <= 0 ? 'delta-faster' : 'delta-slower';
+          deltaHtml = `<span class="delta-pill ${cls}" title="Previous: ${deltaInfo.previous_formatted}">${deltaInfo.delta_formatted}</span>`;
+        }
+        return `
+          <div class="split-row">
+            <div style="font-weight:800;color:var(--muted)">#${s.split_index}</div>
+            <div>
+              <div style="font-weight:700">${s.label}</div>
+              <div style="font-size:0.72rem;color:var(--muted)">${s.prescription}</div>
+            </div>
+            <div class="split-bar-cell">
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${pct}%;background:${barColor}"></div>
+              </div>
+            </div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.3rem;text-align:right">
+              ${s.duration_formatted}
+            </div>
+            <div style="text-align:right">${deltaHtml}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderFinisherCanvas(mode) {
+      currentFormat = mode || currentFormat;
+      const canvas = document.getElementById('finisher-canvas');
+      const isStory = currentFormat === 'story';
+      canvas.width = 1080;
+      canvas.height = isStory ? 1920 : 1350;
+      const ctx = canvas.getContext('2d');
+
+      // Dark gradient background
+      const grad = ctx.createLinearGradient(0, 0, 1080, canvas.height);
+      grad.addColorStop(0, '#09190e');
+      grad.addColorStop(0.5, '#050806');
+      grad.addColorStop(1, '#0b1810');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 1080, canvas.height);
+
+      // Neon border frame
+      ctx.strokeStyle = '#3DFF4F';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(36, 36, 1008, canvas.height - 72);
+
+      // Header branding
+      ctx.fillStyle = '#3DFF4F';
+      ctx.font = 'italic 800 44px "Barlow Condensed", sans-serif';
+      ctx.fillText('CS PERFORMANCE · HYROX RACE SIM', 76, isStory ? 115 : 100);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '700 26px "Inter", sans-serif';
+      ctx.fillText(`${entryData.event_name} · ${entryData.event_date}`, 76, isStory ? 158 : 138);
+
+      // Division Pill
+      ctx.fillStyle = entryData.division_color || '#3DFF4F';
+      ctx.fillRect(76, isStory ? 185 : 160, 420, 54);
+      ctx.fillStyle = '#050806';
+      ctx.font = '800 28px "Inter", sans-serif';
+      ctx.fillText(`${entryData.division_label.toUpperCase()} · AG ${entryData.age_category}`, 94, isStory ? 222 : 197);
+
+      // Athlete Name
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'italic 800 84px "Barlow Condensed", sans-serif';
+      ctx.fillText((entryData.full_display_name || '').toUpperCase(), 76, isStory ? 330 : 285);
+
+      // Official Time Box
+      const timeBoxY = isStory ? 370 : 315;
+      const timeBoxH = isStory ? 220 : 175;
+      ctx.fillStyle = 'rgba(61, 255, 79, 0.12)';
+      ctx.fillRect(76, timeBoxY, 928, timeBoxH);
+      ctx.strokeStyle = 'rgba(61, 255, 79, 0.5)';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(76, timeBoxY, 928, timeBoxH);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '800 26px "Inter", sans-serif';
+      ctx.fillText('OFFICIAL FINISHER TIME', 110, timeBoxY + 48);
+
+      ctx.fillStyle = '#3DFF4F';
+      ctx.font = 'italic 800 132px "Barlow Condensed", sans-serif';
+      ctx.fillText(entryData.total_formatted || '--:--', 106, timeBoxY + (isStory ? 175 : 150));
+
+      if (entryData.history?.comparison) {
+        ctx.fillStyle = '#facc15';
+        ctx.font = '800 30px "Inter", sans-serif';
+        ctx.fillText(`PB DELTA: ${entryData.history.comparison.total_delta_formatted}`, 640, timeBoxY + 52);
+      }
+
+      // Run & Station Summary Boxes
+      const sumY = timeBoxY + timeBoxH + (isStory ? 32 : 22);
+      const sumH = isStory ? 130 : 104;
+      ctx.fillStyle = '#0f1c13';
+      ctx.fillRect(76, sumY, 448, sumH);
+      ctx.fillRect(556, sumY, 448, sumH);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = '800 24px "Inter", sans-serif';
+      ctx.fillText(`8 RUNS TOTAL (${entryData.run_pct}%)`, 102, sumY + 40);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '800 56px "Barlow Condensed", sans-serif';
+      ctx.fillText(entryData.run_total_formatted || '--:--', 102, sumY + (isStory ? 104 : 88));
+
+      ctx.fillStyle = '#3DFF4F';
+      ctx.font = '800 24px "Inter", sans-serif';
+      ctx.fillText(`8 STATIONS TOTAL (${entryData.station_pct}%)`, 582, sumY + 40);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '800 56px "Barlow Condensed", sans-serif';
+      ctx.fillText(entryData.station_total_formatted || '--:--', 582, sumY + (isStory ? 104 : 88));
+
+      // Two-Column 8 Runs + 8 Stations Breakdown
+      const splitsStartY = sumY + sumH + (isStory ? 54 : 38);
+      const rowGap = isStory ? 96 : 62;
+      const runs = (entryData.splits || []).filter(s => s.split_type === 'run');
+      const stations = (entryData.splits || []).filter(s => s.split_type === 'station');
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'italic 800 36px "Barlow Condensed", sans-serif';
+      ctx.fillText('RUNNING SPLITS (1-8)', 76, splitsStartY);
+
+      ctx.fillStyle = '#3DFF4F';
+      ctx.fillText('WORKOUT STATIONS (1-8)', 556, splitsStartY);
+
+      for (let i = 0; i < 8; i++) {
+        const y = splitsStartY + 52 + i * rowGap;
+        const r = runs[i] || {};
+        const st = stations[i] || {};
+
+        // Run box
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.fillRect(76, y - 36, 448, isStory ? 74 : 50);
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '700 25px "Inter", sans-serif';
+        ctx.fillText(r.label || `Run ${i + 1}`, 96, y + (isStory ? 8 : 0));
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = '800 34px "Barlow Condensed", sans-serif';
+        ctx.fillText(r.duration_formatted || '--:--', 410, y + (isStory ? 10 : 2));
+
+        // Station box
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.fillRect(556, y - 36, 448, isStory ? 74 : 50);
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '700 23px "Inter", sans-serif';
+        const stName = (st.label || `Station ${i + 1}`).replace(/^\d+\.\s*/, '').replace(/\s*\(.*\)/, '');
+        ctx.fillText(`${i + 1}. ${stName}`, 574, y + (isStory ? 8 : 0));
+        ctx.fillStyle = '#3DFF4F';
+        ctx.font = '800 34px "Barlow Condensed", sans-serif';
+        ctx.fillText(st.duration_formatted || '--:--', 895, y + (isStory ? 10 : 2));
+      }
+
+      // Footer
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '700 24px "Inter", sans-serif';
+      ctx.fillText('CS PERFORMANCE GYM · VERIFIED 16-SPLIT HYROX SIMULATION', 76, canvas.height - 68);
+    }
+
+    function downloadFinisherPng() {
+      const canvas = document.getElementById('finisher-canvas');
+      const link = document.createElement('a');
+      const slug = (entryData.display_name || 'athlete').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      link.download = `cs-hyrox-${slug}-${currentFormat}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    async function shareFinisherPng() {
+      const canvas = document.getElementById('finisher-canvas');
+      canvas.toBlob(async blob => {
+        if (!blob) return;
+        const file = new File([blob], `cs-hyrox-finisher.png`, { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: `${entryData.full_display_name} — CS Performance HYROX Finisher`,
+            text: `Official CS Performance HYROX Sim Time: ${entryData.total_formatted}`,
+            files: [file],
+          });
+        } else {
+          downloadFinisherPng();
+        }
+      }, 'image/png');
+    }
+
+    renderSplitTable();
+    renderFinisherCanvas('story');
+  </script>
+</body>
+</html>

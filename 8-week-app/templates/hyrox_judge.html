@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>CS Performance HYROX — Volunteer Lane Judge Timer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;1,800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #040805;
+      --surface: #0b130d;
+      --surface-2: #121f15;
+      --border: rgba(61, 255, 79, 0.28);
+      --green: #3DFF4F;
+      --yellow: #facc15;
+      --blue: #38bdf8;
+      --red: #f43f5e;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      max-width: 540px;
+      margin: 0 auto;
+      padding: 0.85rem;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 0.7rem;
+      margin-bottom: 0.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .brand {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 1.35rem;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .brand span { color: var(--green); }
+    .btn-small {
+      background: var(--surface-2);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: var(--text);
+      padding: 0.4rem 0.7rem;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    /* Selector / PIN Screen */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.1rem;
+      margin-bottom: 0.85rem;
+    }
+    .card h2 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-size: 1.5rem;
+      text-transform: uppercase;
+      margin-bottom: 0.35rem;
+    }
+    input, select {
+      width: 100%;
+      background: #060b07;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 0.7rem 0.85rem;
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+    .pin-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .pin-input {
+      font-family: monospace;
+      font-size: 1.3rem;
+      font-weight: 800;
+      letter-spacing: 0.2em;
+      text-align: center;
+    }
+    .btn-green {
+      background: var(--green);
+      color: #041006;
+      border: none;
+      border-radius: 10px;
+      font-weight: 800;
+      padding: 0.75rem 1.1rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .entry-pick-btn {
+      width: 100%;
+      text-align: left;
+      background: var(--surface-2);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 0.85rem;
+      color: var(--text);
+      margin-bottom: 0.55rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .entry-pick-btn:hover { border-color: var(--green); }
+
+    /* Active Judge Timer View */
+    .athlete-header {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 0.9rem 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .athlete-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+    .athlete-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 1.75rem;
+      line-height: 1.05;
+      text-transform: uppercase;
+    }
+    .div-badge {
+      padding: 0.28rem 0.65rem;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    .athlete-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      margin-top: 0.45rem;
+      font-size: 0.76rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    /* Clocks */
+    .clocks-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem;
+      margin-bottom: 0.75rem;
+    }
+    .clock-box {
+      background: var(--surface);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 0.75rem;
+      text-align: center;
+    }
+    .clock-box.active-split {
+      border-color: var(--green);
+      background: rgba(61, 255, 79, 0.06);
+    }
+    .clock-lbl {
+      font-size: 0.68rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+    }
+    .clock-val {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: 2.55rem;
+      line-height: 1.05;
+      margin-top: 0.15rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Live Prescribed Standard Card */
+    .prescription-card {
+      background: linear-gradient(135deg, rgba(61, 255, 79, 0.14), rgba(11, 19, 13, 0.96));
+      border: 2px solid var(--green);
+      border-radius: 16px;
+      padding: 0.95rem 1.05rem;
+      margin-bottom: 0.8rem;
+    }
+    .prescription-card.run-mode {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.14), rgba(11, 19, 13, 0.96));
+      border-color: var(--blue);
+    }
+    .presc-eyebrow {
+      font-size: 0.7rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--green);
+      margin-bottom: 0.2rem;
+    }
+    .prescription-card.run-mode .presc-eyebrow { color: var(--blue); }
+    .presc-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 1.85rem;
+      line-height: 1.05;
+      text-transform: uppercase;
+    }
+    .presc-standard {
+      margin-top: 0.35rem;
+      font-size: 0.92rem;
+      font-weight: 800;
+      color: var(--yellow);
+    }
+    .presc-next {
+      margin-top: 0.4rem;
+      font-size: 0.74rem;
+      color: #cbd5e1;
+    }
+
+    /* Wall Ball Rep Counter (Station 8) */
+    .wallball-card {
+      background: rgba(250, 204, 21, 0.1);
+      border: 2px solid var(--yellow);
+      border-radius: 16px;
+      padding: 0.9rem;
+      margin-bottom: 0.8rem;
+      text-align: center;
+      display: none;
+    }
+    .wallball-card.visible { display: block; }
+    .wb-count {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: 3rem;
+      color: var(--yellow);
+      line-height: 1;
+      margin: 0.25rem 0 0.6rem;
+    }
+    .wb-btns {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.4rem;
+    }
+    .wb-btn {
+      background: var(--surface-2);
+      border: 1px solid rgba(250, 204, 21, 0.45);
+      color: var(--text);
+      font-weight: 800;
+      font-size: 0.92rem;
+      padding: 0.65rem 0.2rem;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .wb-btn.primary {
+      background: var(--yellow);
+      color: #111;
+    }
+
+    /* Giant Action Button */
+    .giant-tap-btn {
+      width: 100%;
+      min-height: 108px;
+      border-radius: 18px;
+      border: none;
+      background: var(--green);
+      color: #041006;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 1.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      padding: 1rem;
+      cursor: pointer;
+      box-shadow: 0 8px 28px rgba(61, 255, 79, 0.3);
+      transition: transform 0.08s ease, opacity 0.15s ease;
+      margin-bottom: 0.65rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.1;
+    }
+    .giant-tap-btn:active { transform: scale(0.98); }
+    .giant-tap-btn[disabled] {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    .giant-tap-btn .sub {
+      font-family: 'Inter', sans-serif;
+      font-style: normal;
+      font-size: 0.76rem;
+      font-weight: 700;
+      margin-top: 0.3rem;
+      opacity: 0.85;
+    }
+
+    .controls-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.85rem;
+    }
+    .undo-btn {
+      flex: 1;
+      background: rgba(244, 63, 94, 0.14);
+      border: 1px solid rgba(244, 63, 94, 0.45);
+      color: #fda4af;
+      padding: 0.65rem;
+      border-radius: 10px;
+      font-weight: 800;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+
+    /* Splits list with inline edit */
+    .splits-list {
+      background: var(--surface);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 0.8rem;
+    }
+    .split-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0.4rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 0.8rem;
+    }
+    .split-row:last-child { border-bottom: none; }
+    .split-row.current {
+      background: rgba(61, 255, 79, 0.1);
+      border-radius: 8px;
+      font-weight: 800;
+    }
+    .inline-edit-btn {
+      background: var(--surface-2);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--muted);
+      font-size: 0.68rem;
+      padding: 0.2rem 0.45rem;
+      border-radius: 6px;
+      margin-left: 0.4rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">CS <span>HYROX</span> JUDGE TIMER</div>
+    <div style="display:flex;gap:0.4rem">
+      <button type="button" class="btn-small" onclick="switchAthletePrompt()">🔄 Switch Athlete</button>
+      <a href="/hyrox/admin" class="btn-small">⚙️ Console</a>
+    </div>
+  </div>
+
+  <!-- VIEW 1: SELECT ATHLETE OR ENTER 4-DIGIT JUDGE PIN -->
+  <div id="selector-view" style="display:none">
+    <div class="card">
+      <h2>🔑 Enter 4-Digit Judge PIN</h2>
+      <p style="font-size:0.78rem;color:var(--muted)">Enter the Judge PIN assigned to your lane, or pick your athlete from the active roster below.</p>
+      <form onsubmit="submitPinLookup(event)" class="pin-row">
+        <input type="text" id="pin-input" class="pin-input" maxlength="6" placeholder="1105" />
+        <button type="submit" class="btn-green">Open Lane</button>
+      </form>
+      <div id="pin-error" style="color:var(--red);font-size:0.76rem;margin-top:0.4rem;display:none"></div>
+    </div>
+
+    <div class="card">
+      <h2>🏃 Or Select Athlete by Wave</h2>
+      <div style="margin:0.5rem 0">
+        <select id="wave-filter" onchange="renderRosterPicker()"></select>
+      </div>
+      <div id="roster-picker-list"></div>
+    </div>
+  </div>
+
+  <!-- VIEW 2: ACTIVE MOBILE TIMING SCREEN -->
+  <div id="timer-view" style="display:none">
+    <div class="athlete-header">
+      <div class="athlete-top">
+        <div>
+          <div style="font-size:0.72rem;font-weight:800;color:var(--green)" id="jt-bib-wave">BIB #105 · WAVE 2</div>
+          <div class="athlete-name" id="jt-name">Athlete Name</div>
+        </div>
+        <span class="div-badge" id="jt-division">MEN PRO</span>
+      </div>
+      <div class="athlete-meta">
+        <span id="jt-age">AG 25-29</span>
+        <span>·</span>
+        <span id="jt-volunteer">Judge: —</span>
+        <span>·</span>
+        <span id="jt-pin">PIN: —</span>
+        <span>·</span>
+        <span id="jt-sync-status" style="color:var(--green)">● Live Synced</span>
+      </div>
+    </div>
+
+    <div class="clocks-grid">
+      <div class="clock-box">
+        <div class="clock-lbl">Total Race Elapsed</div>
+        <div class="clock-val" id="clock-total">00:00</div>
+      </div>
+      <div class="clock-box active-split">
+        <div class="clock-lbl" id="clock-split-lbl">Current Split</div>
+        <div class="clock-val" id="clock-split" style="color:var(--green)">00:00</div>
+      </div>
+    </div>
+
+    <!-- Live Prescribed Standard Card -->
+    <div class="prescription-card" id="presc-card">
+      <div class="presc-eyebrow" id="presc-stage">STAGE 1 OF 16 · CURRENT REQUIREMENT</div>
+      <div class="presc-title" id="presc-title">Run 1</div>
+      <div class="presc-standard" id="presc-standard">Standard Gym Run Loop (No Roxzone)</div>
+      <div class="presc-next" id="presc-next">Up Next: 1. SkiErg (1,000m)</div>
+    </div>
+
+    <!-- Station 8 Wall Ball Counter -->
+    <div class="wallball-card" id="wallball-card">
+      <div style="font-size:0.75rem;font-weight:800;text-transform:uppercase;color:var(--yellow)">🎯 Station 8 Wall Ball Rep Counter</div>
+      <div class="wb-count" id="wb-display">0 / 100</div>
+      <div class="wb-btns">
+        <button type="button" class="wb-btn primary" onclick="adjustWallBalls(1)">+1</button>
+        <button type="button" class="wb-btn primary" onclick="adjustWallBalls(5)">+5</button>
+        <button type="button" class="wb-btn primary" onclick="adjustWallBalls(10)">+10</button>
+        <button type="button" class="wb-btn" onclick="adjustWallBalls(-1)">-1</button>
+        <button type="button" class="wb-btn" onclick="setWallBalls(0)">Reset</button>
+      </div>
+    </div>
+
+    <!-- Giant Primary Action Button with 3-second Double-Tap Guard -->
+    <button type="button" class="giant-tap-btn" id="primary-action-btn" onclick="handlePrimaryTap()">
+      <span id="primary-btn-main">START RACE</span>
+      <span class="sub" id="primary-btn-sub">Tap when athlete crosses start line</span>
+    </button>
+
+    <div class="controls-row">
+      <button type="button" class="undo-btn" id="undo-btn" onclick="handleUndoSplit()">↩ Undo Last Split</button>
+      <a href="#" id="results-link" target="_blank" class="btn-small" style="padding:0.65rem 0.9rem">🏆 View Results &amp; Card</a>
+    </div>
+
+    <div class="splits-list">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+        <span style="font-size:0.74rem;font-weight:800;text-transform:uppercase;color:var(--muted)">16-Split Log (Tap any completed split to fix time)</span>
+        <span style="font-size:0.72rem;color:var(--blue)" id="splits-progress-text">0 / 16 Done</span>
+      </div>
+      <div id="judge-splits-container"></div>
+    </div>
+  </div>
+
+  <script>
+    const initialEntryId = {{ initial_entry_id or 'null' }};
+    const activeEventId = {{ active_event_id or 'null' }};
+    let currentEntry = null;
+    let eventEntries = [];
+    let eventHeats = [];
+    let tapCooldownUntil = 0;
+
+    function formatClockMs(ms) {
+      if (ms === null || ms === undefined || ms < 0) ms = 0;
+      const totalSec = Math.floor(ms / 1000);
+      const hrs = Math.floor(totalSec / 3600);
+      const mins = Math.floor((totalSec % 3600) / 60);
+      const secs = totalSec % 60;
+      if (hrs > 0) {
+        return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      }
+      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    function saveLocalBackup(entry) {
+      if (!entry) return;
+      try {
+        localStorage.setItem(`hyrox_judge_entry_${entry.id}`, JSON.stringify({
+          saved_at_ms: Date.now(),
+          entry: entry
+        }));
+        localStorage.setItem('hyrox_judge_active_id', String(entry.id));
+      } catch (e) {}
+    }
+
+    async function initJudgeApp() {
+      if (activeEventId) {
+        const res = await fetch(`/api/hyrox/events/${activeEventId}/state`);
+        if (res.ok) {
+          const st = await res.json();
+          eventEntries = st.entries || [];
+          eventHeats = st.heats || [];
+          renderWaveFilter();
+          renderRosterPicker();
+        }
+      }
+
+      const targetId = initialEntryId || parseInt(localStorage.getItem('hyrox_judge_active_id') || '0', 10);
+      if (targetId) {
+        await loadEntryForJudging(targetId);
+      } else {
+        showSelectorView();
+      }
+    }
+
+    function showSelectorView() {
+      document.getElementById('selector-view').style.display = 'block';
+      document.getElementById('timer-view').style.display = 'none';
+    }
+
+    function switchAthletePrompt() {
+      localStorage.removeItem('hyrox_judge_active_id');
+      showSelectorView();
+    }
+
+    function renderWaveFilter() {
+      const sel = document.getElementById('wave-filter');
+      sel.innerHTML = `<option value="">All Waves (${eventEntries.length} athletes)</option>` +
+        eventHeats.map(h => `<option value="${h.id}">${h.name} (${h.assigned_lanes} lanes)</option>`).join('');
+    }
+
+    function renderRosterPicker() {
+      const heatId = document.getElementById('wave-filter').value;
+      const list = document.getElementById('roster-picker-list');
+      const filtered = eventEntries.filter(e => !heatId || String(e.heat_id) === String(heatId));
+      list.innerHTML = filtered.map(e => `
+        <button type="button" class="entry-pick-btn" onclick="loadEntryForJudging(${e.id})">
+          <div>
+            <div style="font-weight:800;font-size:0.95rem">#${e.bib_number} · ${e.full_display_name}</div>
+            <div style="font-size:0.74rem;color:var(--muted)">${e.heat_name} · ${e.division_label} · Volunteer: ${e.volunteer_name || 'Unassigned'}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:monospace;color:var(--green);font-weight:800;font-size:0.8rem">PIN ${e.judge_pin}</div>
+            <div style="font-size:0.7rem;color:#cbd5e1;text-transform:uppercase">${e.status}</div>
+          </div>
+        </button>
+      `).join('');
+    }
+
+    async function submitPinLookup(ev) {
+      ev.preventDefault();
+      const pin = document.getElementById('pin-input').value.trim();
+      const errEl = document.getElementById('pin-error');
+      errEl.style.display = 'none';
+      const res = await fetch('/api/hyrox/judge/lookup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ judge_pin: pin, event_id: activeEventId })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        errEl.textContent = data.error || 'Invalid PIN';
+        errEl.style.display = 'block';
+        return;
+      }
+      currentEntry = data.entry;
+      saveLocalBackup(currentEntry);
+      renderJudgeScreen();
+    }
+
+    async function loadEntryForJudging(entryId) {
+      const res = await fetch(`/api/hyrox/entries/${entryId}`);
+      if (!res.ok) {
+        showSelectorView();
+        return;
+      }
+      const data = await res.json();
+      currentEntry = data.entry;
+      saveLocalBackup(currentEntry);
+      renderJudgeScreen();
+    }
+
+    function renderJudgeScreen() {
+      if (!currentEntry) return;
+      document.getElementById('selector-view').style.display = 'none';
+      document.getElementById('timer-view').style.display = 'block';
+
+      document.getElementById('jt-bib-wave').textContent = `BIB #${currentEntry.bib_number || '—'} · ${currentEntry.heat_name}`;
+      document.getElementById('jt-name').textContent = currentEntry.full_display_name;
+      const divEl = document.getElementById('jt-division');
+      divEl.textContent = currentEntry.division_label;
+      divEl.style.background = `${currentEntry.division_color}22`;
+      divEl.style.color = currentEntry.division_color;
+      divEl.style.border = `1px solid ${currentEntry.division_color}66`;
+
+      document.getElementById('jt-age').textContent = `AG ${currentEntry.age_category}`;
+      document.getElementById('jt-volunteer').textContent = `Judge: ${currentEntry.volunteer_name || 'Assigned'}`;
+      document.getElementById('jt-pin').textContent = `PIN: ${currentEntry.judge_pin}`;
+      document.getElementById('results-link').href = `/hyrox/results/${currentEntry.id}`;
+
+      const curInfo = currentEntry.current_split_info;
+      const nextInfo = currentEntry.next_split_info;
+      const prescCard = document.getElementById('presc-card');
+
+      if (currentEntry.status === 'finished') {
+        prescCard.className = 'prescription-card';
+        document.getElementById('presc-stage').textContent = '🏁 RACE COMPLETE (16 / 16 SPLITS)';
+        document.getElementById('presc-title').textContent = `Official Time: ${currentEntry.total_formatted}`;
+        document.getElementById('presc-standard').textContent = `Run Total: ${currentEntry.run_total_formatted} · Station Total: ${currentEntry.station_total_formatted}`;
+        document.getElementById('presc-next').textContent = 'Tap any split below to make an inline time correction.';
+      } else if (curInfo) {
+        prescCard.className = 'prescription-card' + (curInfo.split_type === 'run' ? ' run-mode' : '');
+        document.getElementById('presc-stage').textContent = `STAGE ${curInfo.split_index} OF 16 · ${curInfo.split_type.toUpperCase()} STANDARD`;
+        document.getElementById('presc-title').textContent = curInfo.label;
+        document.getElementById('presc-standard').textContent = curInfo.prescription;
+        document.getElementById('presc-next').textContent = nextInfo
+          ? `Up Next (#${nextInfo.split_index}): ${nextInfo.prescription}`
+          : 'Final Station — Finish Line after Wall Balls!';
+      }
+
+      // Show Wall Ball Counter when on Split 15 or 16
+      const wbCard = document.getElementById('wallball-card');
+      if (currentEntry.current_split_index >= 15 || currentEntry.wall_ball_reps > 0) {
+        wbCard.classList.add('visible');
+        document.getElementById('wb-display').textContent = `${currentEntry.wall_ball_reps || 0} / ${currentEntry.wall_ball_target_reps || 100}`;
+      } else {
+        wbCard.classList.remove('visible');
+      }
+
+      // Configure Giant Primary Action Button
+      const btn = document.getElementById('primary-action-btn');
+      const mainTxt = document.getElementById('primary-btn-main');
+      const subTxt = document.getElementById('primary-btn-sub');
+
+      if (!currentEntry.started_at_ms && currentEntry.status === 'scheduled') {
+        btn.disabled = false;
+        btn.style.background = 'var(--green)';
+        mainTxt.textContent = '🚀 START RACE (RUN 1)';
+        subTxt.textContent = 'Tap as athlete starts Run 1';
+      } else if (currentEntry.status === 'finished') {
+        btn.disabled = true;
+        btn.style.background = 'var(--blue)';
+        mainTxt.textContent = '✅ SIM COMPLETED';
+        subTxt.textContent = `Official Time: ${currentEntry.total_formatted}`;
+      } else if (curInfo) {
+        btn.disabled = Date.now() < tapCooldownUntil;
+        if (curInfo.split_index === 16) {
+          btn.style.background = 'var(--yellow)';
+          mainTxt.textContent = '🏁 FINISH WALL BALLS & COMPLETE RACE';
+          subTxt.textContent = `Tap on final Wall Ball rep (${currentEntry.wall_ball_target_reps} reps)`;
+        } else {
+          btn.style.background = curInfo.split_type === 'run' ? 'var(--blue)' : 'var(--green)';
+          mainTxt.textContent = `COMPLETE ${curInfo.label.toUpperCase()}`;
+          subTxt.textContent = nextInfo ? `→ Immediately starts ${nextInfo.label}` : '';
+        }
+      }
+
+      // Render 16-split list with inline edit button
+      document.getElementById('splits-progress-text').textContent = `${currentEntry.completed_splits || 0} / 16 Done`;
+      const splitsContainer = document.getElementById('judge-splits-container');
+      splitsContainer.innerHTML = (currentEntry.splits || []).map(s => {
+        const isDone = s.duration_ms !== null && s.duration_ms !== undefined;
+        const isCurrent = currentEntry.status === 'racing' && s.split_index === currentEntry.current_split_index;
+        return `
+          <div class="split-row ${isCurrent ? 'current' : ''}">
+            <div>
+              <span style="color:${s.split_type === 'run' ? 'var(--blue)' : 'var(--green)'};font-weight:800">#${s.split_index}</span>
+              <span style="margin-left:0.35rem">${s.label}</span>
+              <div style="font-size:0.68rem;color:var(--muted)">${s.prescription}</div>
+            </div>
+            <div style="display:flex;align-items:center">
+              <span style="font-family:monospace;font-weight:800;font-size:0.9rem;color:${isDone ? '#fff' : 'var(--muted)'}">
+                ${isDone ? s.duration_formatted : (isCurrent ? '⏱️ Active' : '—')}
+              </span>
+              <button type="button" class="inline-edit-btn" onclick="promptInlineSplitEdit(${s.split_index}, '${s.label}', '${isDone ? s.duration_formatted : ''}')">✏️ Edit</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      updateLiveClocks();
+    }
+
+    function updateLiveClocks() {
+      if (!currentEntry) return;
+      const totalEl = document.getElementById('clock-total');
+      const splitEl = document.getElementById('clock-split');
+
+      if (currentEntry.status === 'finished') {
+        totalEl.textContent = currentEntry.total_formatted;
+        const lastS = currentEntry.last_completed_split;
+        splitEl.textContent = lastS ? lastS.duration_formatted : '00:00';
+        return;
+      }
+      if (!currentEntry.started_at_ms) {
+        totalEl.textContent = '00:00';
+        splitEl.textContent = '00:00';
+        return;
+      }
+
+      const now = Date.now();
+      const totalElapsed = Math.max(0, now - currentEntry.started_at_ms);
+      totalEl.textContent = formatClockMs(totalElapsed);
+
+      let completedSum = 0;
+      (currentEntry.splits || []).forEach(s => {
+        if (s.duration_ms) completedSum += s.duration_ms;
+      });
+      const currentSplitElapsed = Math.max(0, totalElapsed - completedSum);
+      splitEl.textContent = formatClockMs(currentSplitElapsed);
+    }
+
+    async function handlePrimaryTap() {
+      if (!currentEntry) return;
+      const now = Date.now();
+      if (now < tapCooldownUntil) return;
+
+      // Activate 3-second double-tap guard
+      tapCooldownUntil = now + 3000;
+      const btn = document.getElementById('primary-action-btn');
+      btn.disabled = true;
+      setTimeout(() => {
+        if (currentEntry && currentEntry.status !== 'finished') {
+          btn.disabled = false;
+        }
+      }, 3000);
+
+      try {
+        const res = await fetch(`/api/hyrox/entries/${currentEntry.id}/advance`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ timestamp_ms: now })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          currentEntry = data.entry;
+          saveLocalBackup(currentEntry);
+          document.getElementById('jt-sync-status').textContent = '● Live Synced';
+          document.getElementById('jt-sync-status').style.color = 'var(--green)';
+          renderJudgeScreen();
+        }
+      } catch (err) {
+        document.getElementById('jt-sync-status').textContent = '⚠️ Offline (Saved Locally)';
+        document.getElementById('jt-sync-status').style.color = 'var(--yellow)';
+      }
+    }
+
+    async function handleUndoSplit() {
+      if (!currentEntry) return;
+      const res = await fetch(`/api/hyrox/entries/${currentEntry.id}/undo`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        currentEntry = data.entry;
+        saveLocalBackup(currentEntry);
+        tapCooldownUntil = 0;
+        renderJudgeScreen();
+      }
+    }
+
+    async function promptInlineSplitEdit(splitIndex, label, currentStr) {
+      if (!currentEntry) return;
+      const input = window.prompt(`Edit time for #${splitIndex} ${label} (MM:SS):`, currentStr || '04:30');
+      if (input === null) return;
+      const res = await fetch(`/api/hyrox/entries/${currentEntry.id}/splits`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          split_index: splitIndex,
+          duration_str: input.trim(),
+          edited_by: 'volunteer'
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        currentEntry = data.entry;
+        saveLocalBackup(currentEntry);
+        renderJudgeScreen();
+      }
+    }
+
+    async function adjustWallBalls(delta) {
+      if (!currentEntry) return;
+      const res = await fetch(`/api/hyrox/entries/${currentEntry.id}/wall-balls`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ delta: delta })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        currentEntry.wall_ball_reps = data.wall_ball_reps;
+        document.getElementById('wb-display').textContent = `${data.wall_ball_reps} / ${data.wall_ball_target_reps}`;
+      }
+    }
+
+    async function setWallBalls(reps) {
+      if (!currentEntry) return;
+      const res = await fetch(`/api/hyrox/entries/${currentEntry.id}/wall-balls`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ reps: reps })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        currentEntry.wall_ball_reps = data.wall_ball_reps;
+        document.getElementById('wb-display').textContent = `${data.wall_ball_reps} / ${data.wall_ball_target_reps}`;
+      }
+    }
+
+    setInterval(updateLiveClocks, 250);
+    initJudgeApp();
+  </script>
+</body>
+</html>

@@ -16,6 +16,7 @@ from database import init_db, get_db, init_app
 from challenge import challenge_bp
 from challenge_progress import challenge_progress_bp
 from challenge_blocks import challenge_blocks_bp
+from hyrox import hyrox_bp, ensure_hyrox_tables
 import config
 
 app = Flask(
@@ -42,10 +43,12 @@ init_app(app)
 app.register_blueprint(challenge_bp)
 app.register_blueprint(challenge_progress_bp)
 app.register_blueprint(challenge_blocks_bp)
+app.register_blueprint(hyrox_bp)
 
 with app.app_context():
     try:
         init_db()
+        ensure_hyrox_tables(get_db())
     except Exception:
         pass
 

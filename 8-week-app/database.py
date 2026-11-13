@@ -37,6 +37,11 @@ def get_db():
                 _TV_SESSIONS_SYNCED.add(path)
             except Exception:
                 pass
+        try:
+            from hyrox import ensure_hyrox_tables
+            ensure_hyrox_tables(g.db)
+        except Exception:
+            pass
     return g.db
 
 

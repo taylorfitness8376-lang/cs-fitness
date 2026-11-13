@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CS Performance HYROX — Race Director &amp; Sim Console</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;1,800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #050806;
+      --surface: #0d140f;
+      --surface-2: #131e16;
+      --border: rgba(61, 255, 79, 0.24);
+      --green: #3DFF4F;
+      --yellow: #facc15;
+      --blue: #38bdf8;
+      --red: #f43f5e;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(circle at top, #0d2012 0%, var(--bg) 60%);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      padding-bottom: 4rem;
+    }
+    .topbar {
+      background: rgba(8, 13, 10, 0.94);
+      border-bottom: 1px solid var(--border);
+      padding: 0.85rem 1.4rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      backdrop-filter: blur(10px);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      object-fit: contain;
+    }
+    .brand-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 1.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .brand-title span { color: var(--green); }
+    .nav-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.52rem 0.9rem;
+      border-radius: 9px;
+      font-weight: 700;
+      font-size: 0.82rem;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: var(--surface-2);
+      color: var(--text);
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .btn:hover { border-color: var(--green); }
+    .btn-green {
+      background: var(--green);
+      color: #041206;
+      border-color: var(--green);
+    }
+    .btn-yellow {
+      background: var(--yellow);
+      color: #141102;
+      border-color: var(--yellow);
+    }
+    .btn-red {
+      background: rgba(244, 63, 94, 0.16);
+      color: #fda4af;
+      border-color: rgba(244, 63, 94, 0.4);
+    }
+    .container {
+      max-width: 1380px;
+      margin: 1.25rem auto;
+      padding: 0 1.2rem;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.1rem;
+      margin-bottom: 1.2rem;
+    }
+    @media (max-width: 960px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.15rem;
+      margin-bottom: 1.1rem;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-bottom: 0.9rem;
+      padding-bottom: 0.65rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .card-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 1.45rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 0.65rem;
+      margin-bottom: 0.7rem;
+    }
+    label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+    input, select, textarea {
+      width: 100%;
+      background: #070d09;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      color: var(--text);
+      padding: 0.5rem 0.65rem;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      font-family: inherit;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    th, td {
+      padding: 0.6rem 0.55rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      text-align: left;
+      vertical-align: middle;
+    }
+    th {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      font-weight: 800;
+    }
+    .pill {
+      display: inline-block;
+      padding: 0.18rem 0.5rem;
+      border-radius: 6px;
+      font-weight: 800;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+    }
+    .status-racing { background: rgba(61, 255, 79, 0.18); color: var(--green); }
+    .status-finished { background: rgba(56, 189, 248, 0.18); color: var(--blue); }
+    .status-scheduled { background: rgba(250, 204, 21, 0.16); color: var(--yellow); }
+
+    /* Modal for Split Corrections & Combined Segment Splitter */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.82);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 1rem;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-box {
+      background: var(--surface);
+      border: 1px solid var(--green);
+      border-radius: 16px;
+      max-width: 880px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 1.25rem;
+    }
+    .splits-edit-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.55rem;
+      margin: 0.85rem 0;
+    }
+    @media (max-width: 680px) {
+      .splits-edit-grid { grid-template-columns: 1fr; }
+    }
+    .split-edit-item {
+      background: var(--surface-2);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 9px;
+      padding: 0.5rem 0.65rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="/static/logo.jpg" alt="CS" class="brand-logo" onerror="this.style.display='none'" />
+      <div>
+        <div class="brand-title">CS PERFORMANCE <span>HYROX</span> · RACE DIRECTOR CONSOLE</div>
+        <div style="font-size:0.74rem;color:var(--muted);font-weight:600">Sim Setup · TeamUp CSV Import · Wave &amp; Judge Manager · Live Split Corrections</div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <select id="event-selector" onchange="switchEvent(this.value)" style="width:auto;min-width:240px;font-weight:700"></select>
+      <a href="/hyrox/judge" target="_blank" class="btn btn-yellow">⏱️ Open Volunteer Judge App</a>
+      <a href="/hyrox/tv" target="_blank" class="btn btn-green">📺 Launch Live Gym TV</a>
+      <a href="/" class="btn">🏠 CS Hub</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- ROW 1: CREATE EVENT / GENERATE WAVES + TEAMUP CSV IMPORT -->
+    <div class="grid-2">
+      <!-- Create Sim Event & Generate Waves -->
+      <section class="card">
+        <div class="card-header">
+          <div class="card-title">🗓️ 1. SIM EVENT &amp; WAVE SCHEDULE GENERATOR</div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label>New Sim Event Name</label>
+            <input type="text" id="new-ev-name" placeholder="e.g. CS Performance HYROX Sim — Feb 2027" />
+          </div>
+          <div>
+            <label>Event Date</label>
+            <input type="date" id="new-ev-date" value="2026-11-28" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label>First Wave Start</label>
+            <input type="time" id="new-ev-time" value="08:00" />
+          </div>
+          <div>
+            <label># of Waves</label>
+            <input type="number" id="new-ev-waves" value="6" min="1" max="30" />
+          </div>
+          <div>
+            <label>Wave Interval (mins)</label>
+            <input type="number" id="new-ev-interval" value="15" min="5" max="60" />
+          </div>
+          <div>
+            <label>Lanes / Wave</label>
+            <input type="number" id="new-ev-lanes" value="4" min="1" max="12" />
+          </div>
+        </div>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+          <button type="button" class="btn btn-green" onclick="createNewSimEvent()">➕ Create New Sim Event</button>
+          <button type="button" class="btn" onclick="addWavesToCurrentEvent()">🌊 + Add Waves to Current Event</button>
+        </div>
+      </section>
+
+      <!-- TeamUp CSV Import & Quick Add Athlete/Pair -->
+      <section class="card">
+        <div class="card-header">
+          <div class="card-title">📥 2. TEAMUP CSV IMPORT &amp; FLEXIBLE MAPPER</div>
+          <a href="/api/hyrox/sample-csv" class="btn" download>⬇️ Sample TeamUp CSV</a>
+        </div>
+        <div class="form-row">
+          <div>
+            <label>Upload TeamUp Export (.csv)</label>
+            <input type="file" id="csv-file-input" accept=".csv,text/csv" onchange="loadCsvFile(this)" />
+          </div>
+        </div>
+        <div style="margin-bottom:0.6rem">
+          <label>Or Paste CSV Rows (Auto-detects Name, First+Last, Email, DOB/Age Cat, Division, Partner, Heat Time, Volunteer)</label>
+          <textarea id="csv-text-input" rows="3" placeholder="First Name,Last Name,Email,DOB,Division,Partner Name,Heat Time,Volunteer&#10;Jamie,Vardy,jamie@example.com,1987-01-11,Men Open,,08:45,Coach Chris"></textarea>
+        </div>
+        <button type="button" class="btn btn-green" onclick="importTeamUpCsv()">🚀 Import CSV Roster into Active Sim</button>
+      </section>
+    </div>
+
+    <!-- QUICK ADD SINGLE ATHLETE / DOUBLES PAIR -->
+    <section class="card">
+      <div class="card-header">
+        <div class="card-title">➕ QUICK ADD ATHLETE OR DOUBLES PAIR</div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label>Athlete 1 Full Name *</label>
+          <input type="text" id="qa-name" placeholder="e.g. Ewan Taylor" />
+        </div>
+        <div>
+          <label>Partner Name (Doubles Only)</label>
+          <input type="text" id="qa-partner" placeholder="Optional partner name" />
+        </div>
+        <div>
+          <label>Email (for Roxfit-Lite History)</label>
+          <input type="email" id="qa-email" placeholder="athlete@email.com" />
+        </div>
+        <div>
+          <label>Division</label>
+          <select id="qa-division">
+            {% for div_key, div in divisions.items() %}
+            <option value="{{ div_key }}">{{ div.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Age Category</label>
+          <select id="qa-age">
+            {% for ag in age_categories %}
+            <option value="{{ ag }}" {% if ag == '30-34' %}selected{% endif %}>{{ ag }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Wave / Heat Slot</label>
+          <select id="qa-heat"></select>
+        </div>
+        <div>
+          <label>Assigned Lane Volunteer (1:1)</label>
+          <input type="text" id="qa-volunteer" placeholder="e.g. Coach Chris" />
+        </div>
+      </div>
+      <button type="button" class="btn btn-green" onclick="quickAddEntry()">✅ Add Entry &amp; Generate Judge PIN</button>
+    </section>
+
+    <!-- LIVE RACE MONITOR, HEAT/VOLUNTEER MANAGER & SPLIT CORRECTIONS -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">🏁 3. HEAT &amp; VOLUNTEER MANAGER + LIVE RACE MONITOR</div>
+          <div style="font-size:0.76rem;color:var(--muted)">
+            1 Volunteer per active Sim entry (volunteers can judge multiple entries in different heats). Click <strong>Edit Splits / Corrections</strong> on any athlete to adjust any of the 16 splits or split a combined segment.
+          </div>
+        </div>
+        <div style="display:flex;gap:0.5rem;align-items:center">
+          <select id="filter-division" onchange="renderEntriesTable()" style="width:auto">
+            <option value="all">All Divisions</option>
+            {% for div_key, div in divisions.items() %}
+            <option value="{{ div_key }}">{{ div.label }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn" onclick="refreshEventState()">🔄 Refresh</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Bib</th>
+              <th>Wave / Heat</th>
+              <th>Athlete / Pair</th>
+              <th>Division &amp; AG</th>
+              <th>1:1 Lane Volunteer &amp; PIN</th>
+              <th>Status &amp; Progress</th>
+              <th>Run / Station / Total</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="entries-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- OFFICIAL 7-DIVISION HYROX WEIGHTS & REPS REFERENCE MATRIX -->
+    <section class="card">
+      <div class="card-header">
+        <div class="card-title">🏋️ OFFICIAL HYROX DIVISION STANDARDS MATRIX (EXTENDED RUN LOOP · NO ROXZONE)</div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Division</th>
+              <th>1. SkiErg</th>
+              <th>2. Sled Push</th>
+              <th>3. Sled Pull</th>
+              <th>4. Burpee BJ</th>
+              <th>5. Row</th>
+              <th>6. Farmers Carry</th>
+              <th>7. Sandbag Lunges</th>
+              <th>8. Wall Balls</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for dkey, div in divisions.items() %}
+            <tr>
+              <td><strong style="color:{{ div.color }}">{{ div.label }}</strong></td>
+              <td>{{ div.stations.skierg.prescription }}</td>
+              <td>{{ div.stations.sled_push.prescription }}</td>
+              <td>{{ div.stations.sled_pull.prescription }}</td>
+              <td>{{ div.stations.bbj.prescription }}</td>
+              <td>{{ div.stations.row.prescription }}</td>
+              <td>{{ div.stations.farmers_carry.prescription }}</td>
+              <td>{{ div.stations.sandbag_lunges.prescription }}</td>
+              <td>{{ div.stations.wall_balls.prescription }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL: FULL 16-SPLIT CORRECTIONS EDITOR & COMBINED SEGMENT SPLITTER -->
+  <div class="modal-backdrop" id="splits-modal">
+    <div class="modal-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+        <div>
+          <div class="card-title" id="modal-entry-title">Edit 16 Splits &amp; Race Corrections</div>
+          <div style="font-size:0.76rem;color:var(--muted)" id="modal-entry-subtitle"></div>
+        </div>
+        <button type="button" class="btn" onclick="closeSplitsModal()">✕ Close</button>
+      </div>
+
+      <!-- Combined Segment Splitter Helper -->
+      <div style="background:rgba(250,204,21,0.08);border:1px solid rgba(250,204,21,0.35);border-radius:10px;padding:0.75rem;margin-bottom:0.85rem">
+        <div style="font-size:0.78rem;font-weight:800;color:var(--yellow);margin-bottom:0.4rem">
+          ✂️ MISSED A TRANSITION TAP? SPLIT A COMBINED SEGMENT ACROSS TWO ADJACENT SPLITS
+        </div>
+        <div class="form-row" style="margin-bottom:0">
+          <div>
+            <label>First Split (#1..#15)</label>
+            <select id="comb-first-idx"></select>
+          </div>
+          <div>
+            <label>Combined Total Time (MM:SS)</label>
+            <input type="text" id="comb-total-str" placeholder="e.g. 07:45" />
+          </div>
+          <div>
+            <label>First Split Time (MM:SS)</label>
+            <input type="text" id="comb-first-str" placeholder="e.g. 04:10" />
+          </div>
+          <div style="display:flex;align-items:flex-end">
+            <button type="button" class="btn btn-yellow" onclick="applyCombinedSplit()">✂️ Split Segment</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div>
+          <label>Entry Status</label>
+          <select id="modal-status">
+            <option value="scheduled">scheduled</option>
+            <option value="racing">racing</option>
+            <option value="finished">finished</option>
+            <option value="dns">dns</option>
+            <option value="dnf">dnf</option>
+          </select>
+        </div>
+        <div>
+          <label>Time Penalty / Adjustment (MM:SS)</label>
+          <input type="text" id="modal-penalty" placeholder="00:00" />
+        </div>
+        <div>
+          <label>Wall Ball Reps Logged</label>
+          <input type="number" id="modal-wb-reps" min="0" max="200" />
+        </div>
+      </div>
+
+      <div class="splits-edit-grid" id="modal-splits-grid"></div>
+
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-top:0.9rem">
+        <button type="button" class="btn btn-red" onclick="resetEntryTimer()">🔄 Reset Timer to Scheduled</button>
+        <div style="display:flex;gap:0.5rem">
+          <button type="button" class="btn" onclick="closeSplitsModal()">Cancel</button>
+          <button type="button" class="btn btn-green" onclick="saveSplitCorrections()">💾 Save All 16 Splits &amp; Recalculate Totals</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentEventId = {{ active_event_id or 'null' }};
+    let currentState = null;
+    let editingEntry = null;
+
+    async function loadEventsList() {
+      const res = await fetch('/api/hyrox/events');
+      const events = await res.json();
+      const sel = document.getElementById('event-selector');
+      if (!currentEventId && events.length) currentEventId = events[0].id;
+      sel.innerHTML = events.map(ev =>
+        `<option value="${ev.id}" ${ev.id === currentEventId ? 'selected' : ''}>${ev.name} (${ev.event_date}) · ${ev.entry_count} entries</option>`
+      ).join('');
+      if (currentEventId) await refreshEventState();
+    }
+
+    async function switchEvent(evId) {
+      currentEventId = parseInt(evId, 10);
+      await refreshEventState();
+    }
+
+    async function refreshEventState() {
+      if (!currentEventId) return;
+      const res = await fetch(`/api/hyrox/events/${currentEventId}/state`);
+      if (!res.ok) return;
+      currentState = await res.json();
+      populateHeatDropdown();
+      renderEntriesTable();
+    }
+
+    function populateHeatDropdown() {
+      const sel = document.getElementById('qa-heat');
+      const heats = currentState?.heats || [];
+      sel.innerHTML = `<option value="">Auto-Assign Wave</option>` + heats.map(h =>
+        `<option value="${h.id}">${h.name} (${h.start_time}) — ${h.assigned_lanes}/${h.max_lanes} lanes</option>`
+      ).join('');
+    }
+
+    function renderEntriesTable() {
+      if (!currentState) return;
+      const filterDiv = document.getElementById('filter-division').value;
+      const heats = currentState.heats || [];
+      const entries = (currentState.entries || []).filter(e =>
+        filterDiv === 'all' || e.division === filterDiv
+      );
+      const tbody = document.getElementById('entries-tbody');
+
+      tbody.innerHTML = entries.map(e => {
+        const heatOpts = `<option value="">Unassigned</option>` + heats.map(h =>
+          `<option value="${h.id}" ${e.heat_id === h.id ? 'selected' : ''}>${h.start_time} · ${h.name}</option>`
+        ).join('');
+
+        const statusClass = `status-${e.status}`;
+        const histBadge = (e.history && e.history.comparison)
+          ? `<div style="font-size:0.7rem;color:var(--green);font-weight:700">📈 vs Prev Sim: ${e.history.comparison.total_delta_formatted}</div>`
+          : '';
+
+        return `
+          <tr>
+            <td><strong>#${e.bib_number}</strong></td>
+            <td>
+              <select onchange="updateEntryMeta(${e.id}, {heat_id: this.value})" style="min-width:140px;padding:0.32rem">
+                ${heatOpts}
+              </select>
+            </td>
+            <td>
+              <div style="font-weight:800;font-size:0.9rem">${e.full_display_name}</div>
+              <div style="font-size:0.72rem;color:var(--muted)">${e.email || '—'}</div>
+              ${histBadge}
+            </td>
+            <td>
+              <span class="pill" style="background:${e.division_color};color:#050806">${e.division_short_label}</span>
+              <span style="font-size:0.75rem;color:var(--muted);margin-left:0.25rem">AG ${e.age_category}</span>
+            </td>
+            <td>
+              <div style="display:flex;gap:0.35rem;align-items:center">
+                <input type="text" value="${e.volunteer_name || ''}" placeholder="Assign Judge"
+                  onchange="updateEntryMeta(${e.id}, {volunteer_name: this.value})"
+                  style="width:125px;padding:0.3rem 0.45rem" />
+                <span class="pill" style="background:rgba(255,255,255,0.09);color:var(--yellow)" title="4-Digit Volunteer PIN">PIN ${e.judge_pin}</span>
+              </div>
+            </td>
+            <td>
+              <span class="pill ${statusClass}">${e.status}</span>
+              <span style="font-size:0.75rem;color:var(--muted);margin-left:0.3rem">${e.completed_splits}/16 splits</span>
+            </td>
+            <td>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.25rem;color:var(--green)">${e.total_formatted}</div>
+              <div style="font-size:0.72rem;color:var(--muted)">Run ${e.run_total_formatted} · Stn ${e.station_total_formatted}</div>
+            </td>
+            <td>
+              <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
+                <button type="button" class="btn" onclick="openSplitsModal(${e.id})">✏️ Edit Splits / Corrections</button>
+                <a href="/hyrox/judge?entry=${e.id}" target="_blank" class="btn">⏱️ Judge</a>
+                <a href="/hyrox/results/${e.id}" target="_blank" class="btn">📲 Finisher Card</a>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function updateEntryMeta(entryId, patch) {
+      const res = await fetch(`/api/hyrox/entries/${entryId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      const data = await res.json();
+      if (data.volunteer_warning) {
+        alert(`⚠️ Same-Wave Judge Notice: ${data.volunteer_warning}`);
+      }
+      await refreshEventState();
+    }
+
+    async function createNewSimEvent() {
+      const name = document.getElementById('new-ev-name').value.trim();
+      if (!name) return alert('Enter a Sim Event name.');
+      const res = await fetch('/api/hyrox/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          event_date: document.getElementById('new-ev-date').value,
+          first_wave_time: document.getElementById('new-ev-time').value,
+          num_waves: parseInt(document.getElementById('new-ev-waves').value || '4', 10),
+          wave_interval_mins: parseInt(document.getElementById('new-ev-interval').value || '15', 10),
+          lanes_per_wave: parseInt(document.getElementById('new-ev-lanes').value || '4', 10),
+        }),
+      });
+      if (res.ok) {
+        const ev = await res.json();
+        currentEventId = ev.id;
+        document.getElementById('new-ev-name').value = '';
+        await loadEventsList();
+      }
+    }
+
+    async function addWavesToCurrentEvent() {
+      if (!currentEventId) return;
+      await fetch(`/api/hyrox/events/${currentEventId}/heats/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start_time: document.getElementById('new-ev-time').value || '09:00',
+          count: 2,
+          interval_mins: parseInt(document.getElementById('new-ev-interval').value || '15', 10),
+          max_lanes: parseInt(document.getElementById('new-ev-lanes').value || '4', 10),
+        }),
+      });
+      await refreshEventState();
+    }
+
+    function loadCsvFile(input) {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById('csv-text-input').value = e.target.result || '';
+      };
+      reader.readAsText(file);
+    }
+
+    async function importTeamUpCsv() {
+      if (!currentEventId) return;
+      const csvText = document.getElementById('csv-text-input').value.trim();
+      if (!csvText) return alert('Upload a CSV file or paste CSV rows first.');
+      const res = await fetch(`/api/hyrox/events/${currentEventId}/import-csv`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv_text: csvText }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`✅ Imported ${data.imported_count} athlete/pair entries into the Sim!`);
+        document.getElementById('csv-text-input').value = '';
+        await loadEventsList();
+      } else {
+        alert(data.error || 'CSV import failed');
+      }
+    }
+
+    async function quickAddEntry() {
+      if (!currentEventId) return;
+      const display_name = document.getElementById('qa-name').value.trim();
+      if (!display_name) return alert('Athlete name is required.');
+      const res = await fetch(`/api/hyrox/events/${currentEventId}/entries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          display_name,
+          partner_name: document.getElementById('qa-partner').value.trim(),
+          email: document.getElementById('qa-email').value.trim(),
+          division: document.getElementById('qa-division').value,
+          age_category: document.getElementById('qa-age').value,
+          heat_id: document.getElementById('qa-heat').value || null,
+          volunteer_name: document.getElementById('qa-volunteer').value.trim(),
+        }),
+      });
+      if (res.ok) {
+        document.getElementById('qa-name').value = '';
+        document.getElementById('qa-partner').value = '';
+        document.getElementById('qa-email').value = '';
+        await loadEventsList();
+      }
+    }
+
+    function openSplitsModal(entryId) {
+      const entry = (currentState?.entries || []).find(x => x.id === entryId);
+      if (!entry) return;
+      editingEntry = entry;
+      document.getElementById('modal-entry-title').textContent =
+        `#${entry.bib_number} ${entry.full_display_name} — 16-Split Editor`;
+      document.getElementById('modal-entry-subtitle').textContent =
+        `${entry.division_label} · Wave: ${entry.heat_name} (${entry.heat_start_time}) · Volunteer PIN: ${entry.judge_pin}`;
+      document.getElementById('modal-status').value = entry.status;
+      document.getElementById('modal-penalty').value = entry.penalty_formatted || '00:00';
+      document.getElementById('modal-wb-reps').value = entry.wall_ball_reps || 0;
+
+      const combSel = document.getElementById('comb-first-idx');
+      combSel.innerHTML = entry.splits.slice(0, 15).map((s, idx) =>
+        `<option value="${s.split_index}">#${s.split_index} ${s.short_label} + #${s.split_index + 1} ${entry.splits[idx + 1].short_label}</option>`
+      ).join('');
+
+      const grid = document.getElementById('modal-splits-grid');
+      grid.innerHTML = entry.splits.map(s => `
+        <div class="split-edit-item">
+          <div>
+            <div style="font-weight:800;font-size:0.8rem">#${s.split_index} · ${s.label}</div>
+            <div style="font-size:0.7rem;color:var(--muted)">${s.prescription}</div>
+          </div>
+          <input type="text" class="split-dur-input" data-split-index="${s.split_index}"
+            value="${s.duration_ms !== null ? s.duration_formatted : ''}"
+            placeholder="MM:SS" style="width:92px;text-align:center;font-weight:800" />
+        </div>
+      `).join('');
+
+      document.getElementById('splits-modal').classList.add('open');
+    }
+
+    function closeSplitsModal() {
+      document.getElementById('splits-modal').classList.remove('open');
+      editingEntry = null;
+    }
+
+    async function saveSplitCorrections() {
+      if (!editingEntry) return;
+      const splitsPayload = [];
+      document.querySelectorAll('.split-dur-input').forEach(inp => {
+        splitsPayload.push({
+          split_index: parseInt(inp.dataset.splitIndex, 10),
+          duration_str: inp.value.trim(),
+        });
+      });
+
+      const res = await fetch(`/api/hyrox/entries/${editingEntry.id}/splits`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          splits: splitsPayload,
+          status: document.getElementById('modal-status').value,
+          penalty_str: document.getElementById('modal-penalty').value.trim(),
+          wall_ball_reps: parseInt(document.getElementById('modal-wb-reps').value || '0', 10),
+          edited_by: 'race_director',
+        }),
+      });
+      if (res.ok) {
+        closeSplitsModal();
+        await refreshEventState();
+      }
+    }
+
+    async function applyCombinedSplit() {
+      if (!editingEntry) return;
+      const firstIdx = parseInt(document.getElementById('comb-first-idx').value, 10);
+      const combStr = document.getElementById('comb-total-str').value.trim();
+      const firstStr = document.getElementById('comb-first-str').value.trim();
+      if (!combStr || !firstStr) return alert('Enter both Combined Total Time and First Split Time (MM:SS).');
+
+      const res = await fetch(`/api/hyrox/entries/${editingEntry.id}/splits`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          split_combined: {
+            first_split_index: firstIdx,
+            combined_duration_str: combStr,
+            first_duration_str: firstStr,
+          },
+          edited_by: 'race_director_split',
+        }),
+      });
+      if (res.ok) {
+        await refreshEventState();
+        openSplitsModal(editingEntry.id);
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Could not split combined segment');
+      }
+    }
+
+    async function resetEntryTimer() {
+      if (!editingEntry) return;
+      if (!confirm(`Reset all 16 splits for ${editingEntry.full_display_name} back to scheduled?`)) return;
+      await fetch(`/api/hyrox/entries/${editingEntry.id}/reset`, { method: 'POST' });
+      closeSplitsModal();
+      await refreshEventState();
+    }
+
+    loadEventsList();
+  </script>
+</body>
+</html>

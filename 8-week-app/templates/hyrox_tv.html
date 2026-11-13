@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CS Performance HYROX — Live Gym TV Broadcast</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;1,800&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #030604;
+      --surface: #0a120c;
+      --surface-2: #111e15;
+      --border: rgba(61, 255, 79, 0.28);
+      --green: #3DFF4F;
+      --yellow: #facc15;
+      --blue: #38bdf8;
+      --red: #f43f5e;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(circle at top left, #0e2214 0%, var(--bg) 65%);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+    .tv-header {
+      background: rgba(8, 14, 10, 0.96);
+      border-bottom: 2px solid var(--green);
+      padding: 0.75rem 1.6rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .tv-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+    .tv-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      object-fit: contain;
+      border: 1px solid var(--border);
+    }
+    .tv-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 2.1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      line-height: 1;
+    }
+    .tv-title span { color: var(--green); }
+    .tv-event-name {
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .tv-clock {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: 2.2rem;
+      color: var(--green);
+      letter-spacing: 0.04em;
+    }
+
+    .tv-grid {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      gap: 1.25rem;
+      padding: 1.25rem 1.6rem;
+      flex: 1;
+    }
+    @media (max-width: 1024px) {
+      .tv-grid { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 1.2rem;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 0.75rem;
+      margin-bottom: 0.9rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .panel-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 1.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    /* Live Floor Athlete Card */
+    .racer-card {
+      background: var(--surface-2);
+      border: 1px solid rgba(61, 255, 79, 0.35);
+      border-radius: 14px;
+      padding: 1rem 1.15rem;
+      margin-bottom: 0.85rem;
+    }
+    .racer-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.55rem;
+    }
+    .racer-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 1.85rem;
+      text-transform: uppercase;
+      line-height: 1;
+    }
+    .racer-clock {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: 2.3rem;
+      color: var(--green);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .stage-strip {
+      display: grid;
+      grid-template-columns: repeat(16, 1fr);
+      gap: 4px;
+      margin: 0.65rem 0;
+    }
+    .stage-pill {
+      height: 18px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.58rem;
+      font-weight: 800;
+      color: rgba(255, 255, 255, 0.45);
+    }
+    .stage-pill.done-run { background: var(--blue); color: #02131d; }
+    .stage-pill.done-station { background: var(--green); color: #041206; }
+    .stage-pill.active {
+      background: var(--yellow);
+      color: #111;
+      animation: blink 1s infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
+    .racer-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      font-size: 0.84rem;
+    }
+    .station-callout {
+      background: rgba(250, 204, 21, 0.14);
+      border: 1px solid rgba(250, 204, 21, 0.45);
+      color: var(--yellow);
+      padding: 0.28rem 0.65rem;
+      border-radius: 8px;
+      font-weight: 800;
+      font-size: 0.82rem;
+    }
+
+    /* Rotating Leaderboard & Next Heat */
+    .lb-row {
+      display: grid;
+      grid-template-columns: 38px 1fr auto auto;
+      gap: 0.7rem;
+      align-items: center;
+      padding: 0.65rem 0.75rem;
+      border-radius: 10px;
+      background: var(--surface-2);
+      margin-bottom: 0.5rem;
+    }
+    .lb-rank {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: 1.4rem;
+      color: var(--green);
+      text-align: center;
+    }
+    .lb-time {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: 1.55rem;
+      color: #fff;
+    }
+    .ondeck-box {
+      margin-top: auto;
+      padding-top: 0.9rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .ondeck-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.45rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <header class="tv-header">
+    <div class="tv-brand">
+      <img src="/static/logo.jpg" alt="CS" class="tv-logo" onerror="this.style.display='none'" />
+      <div>
+        <div class="tv-title">CS PERFORMANCE <span>HYROX</span> LIVE RACE BROADCAST</div>
+        <div class="tv-event-name" id="tv-event-subtitle">Loading Active HYROX Sim...</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:1rem">
+      <div class="tv-clock" id="wall-clock">--:--:--</div>
+    </div>
+  </header>
+
+  <main class="tv-grid">
+    <!-- LEFT: LIVE ON-FLOOR TRACKER -->
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title">🔥 LIVE ON-FLOOR TRACKER (16-SPLIT PROGRESS)</div>
+        <span style="font-size:0.8rem;font-weight:800;color:var(--green)" id="active-count-badge">0 RACING</span>
+      </div>
+      <div id="live-racers-container"></div>
+    </section>
+
+    <!-- RIGHT: AUTO-ROTATING DIVISION LEADERBOARDS + NEXT HEAT ON DECK -->
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title" id="lb-division-title">🏆 DIVISION LEADERBOARD</div>
+        <div id="lb-dots" style="display:flex;gap:0.35rem"></div>
+      </div>
+      <div id="leaderboard-rows"></div>
+
+      <div class="ondeck-box">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:800;font-size:1.35rem;color:var(--blue);text-transform:uppercase;margin-bottom:0.45rem">
+          ⏳ NEXT HEAT ON DECK
+        </div>
+        <div id="ondeck-rows"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const activeEventId = {{ active_event_id or 'null' }};
+    let tvState = null;
+    let rotationIndex = 0;
+    const divisionOrder = ['men_open', 'women_open', 'men_pro', 'women_pro', 'mixed_doubles', 'women_doubles', 'men_doubles'];
+
+    function formatElapsed(ms) {
+      if (!ms || ms < 0) ms = 0;
+      const s = Math.floor(ms / 1000);
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+      return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+    }
+
+    async function fetchTvState() {
+      let evId = activeEventId;
+      if (!evId) {
+        const r = await fetch('/api/hyrox/events');
+        const list = await r.json();
+        if (list.length) evId = list[0].id;
+      }
+      if (!evId) return;
+      const res = await fetch(`/api/hyrox/events/${evId}/state`);
+      if (!res.ok) return;
+      tvState = await res.json();
+      document.getElementById('tv-event-subtitle').textContent =
+        `${tvState.event.name} · ${tvState.event.venue} · Extended Run Loop (No Roxzone)`;
+      renderLiveRacers();
+      renderRotatingLeaderboard();
+      renderOnDeck();
+    }
+
+    function renderLiveRacers() {
+      if (!tvState) return;
+      const racers = tvState.racing_entries || [];
+      document.getElementById('active-count-badge').textContent = `${racers.length} ON FLOOR NOW`;
+      const container = document.getElementById('live-racers-container');
+
+      if (!racers.length) {
+        container.innerHTML = `<div style="padding:2rem;text-align:center;color:var(--muted)">No athletes currently on the floor. Waiting for next wave start...</div>`;
+        return;
+      }
+
+      container.innerHTML = racers.map(e => {
+        const pills = (e.splits || []).map(s => {
+          const shortTag = s.split_type === 'run' ? `R${(s.split_index + 1) / 2}` : `S${s.split_index / 2}`;
+          let cls = 'stage-pill';
+          if (s.duration_ms !== null && s.duration_ms !== undefined) {
+            cls += s.split_type === 'run' ? ' done-run' : ' done-station';
+          } else if (s.split_index === e.current_split_index) {
+            cls += ' active';
+          }
+          return `<div class="${cls}">${shortTag}</div>`;
+        }).join('');
+
+        const cur = e.current_split_info || {};
+        const lastS = e.last_completed_split;
+        return `
+          <div class="racer-card">
+            <div class="racer-top">
+              <div>
+                <span style="font-size:0.76rem;font-weight:800;color:${e.division_color};text-transform:uppercase">
+                  #${e.bib_number} · ${e.division_label} · ${e.heat_name}
+                </span>
+                <div class="racer-name">${e.full_display_name}</div>
+              </div>
+              <div class="racer-clock" data-started-ms="${e.started_at_ms || 0}">00:00</div>
+            </div>
+            <div class="stage-strip">${pills}</div>
+            <div class="racer-meta">
+              <span class="station-callout">Now (${e.completed_splits + 1}/16): ${cur.prescription || cur.label || ''}</span>
+              <span style="color:var(--muted)">
+                ${lastS ? `Last Split (${lastS.short_label}): <strong style="color:#fff">${lastS.duration_formatted}</strong>` : 'Just Started'}
+                ${e.wall_ball_reps > 0 ? ` · 🎯 Wall Balls: <strong style="color:var(--yellow)">${e.wall_ball_reps}/${e.wall_ball_target_reps}</strong>` : ''}
+              </span>
+            </div>
+          </div>
+        `;
+      }).join('');
+      tickLiveClocks();
+    }
+
+    function renderRotatingLeaderboard() {
+      if (!tvState || !tvState.leaderboards) return;
+      const nonEmptyDivs = divisionOrder.filter(k => (tvState.leaderboards[k]?.entries || []).length > 0);
+      const activeList = nonEmptyDivs.length ? nonEmptyDivs : divisionOrder;
+      const divKey = activeList[rotationIndex % activeList.length];
+      const board = tvState.leaderboards[divKey];
+
+      document.getElementById('lb-division-title').innerHTML =
+        `🏆 <span style="color:${board.color}">${board.label}</span> LEADERBOARD`;
+
+      const rowsEl = document.getElementById('leaderboard-rows');
+      if (!board.entries.length) {
+        rowsEl.innerHTML = `<div style="padding:1.25rem;color:var(--muted);text-align:center">No finished finishers in ${board.label} yet.</div>`;
+        return;
+      }
+
+      rowsEl.innerHTML = board.entries.slice(0, 6).map((e, i) => `
+        <div class="lb-row">
+          <div class="lb-rank">#${i + 1}</div>
+          <div>
+            <div style="font-weight:800;font-size:1rem">${e.full_display_name}</div>
+            <div style="font-size:0.74rem;color:var(--muted)">Bib #${e.bib_number} · AG ${e.age_category} · Run ${e.run_total_formatted} / Stn ${e.station_total_formatted}</div>
+          </div>
+          <div style="text-align:right">
+            ${e.history && e.history.comparison && e.history.comparison.total_delta_ms < 0
+              ? `<span style="font-size:0.72rem;background:rgba(61,255,79,0.16);color:var(--green);padding:0.2rem 0.45rem;border-radius:6px;font-weight:800">PB ${e.history.comparison.total_delta_formatted}</span>`
+              : ''}
+          </div>
+          <div class="lb-time">${e.total_formatted}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderOnDeck() {
+      if (!tvState) return;
+      const sched = tvState.scheduled_entries || [];
+      const el = document.getElementById('ondeck-rows');
+      if (!sched.length) {
+        el.innerHTML = `<div style="color:var(--muted);font-size:0.82rem">All scheduled waves are underway or finished.</div>`;
+        return;
+      }
+      el.innerHTML = sched.slice(0, 5).map(e => `
+        <div class="ondeck-item">
+          <span><strong>${e.heat_start_time}</strong> · #${e.bib_number} ${e.full_display_name}</span>
+          <span style="color:${e.division_color};font-weight:700">${e.division_short_label} · Judge: ${e.volunteer_name || 'TBA'}</span>
+        </div>
+      `).join('');
+    }
+
+    function tickLiveClocks() {
+      const now = new Date();
+      document.getElementById('wall-clock').textContent = now.toTimeString().slice(0, 8);
+      const nowMs = Date.now();
+      document.querySelectorAll('.racer-clock').forEach(el => {
+        const startMs = parseInt(el.dataset.startedMs || '0', 10);
+        if (startMs > 0) {
+          el.textContent = formatElapsed(nowMs - startMs);
+        }
+      });
+    }
+
+    fetchTvState();
+    setInterval(tickLiveClocks, 500);
+    setInterval(fetchTvState, 4000);
+    setInterval(() => {
+      rotationIndex++;
+      renderRotatingLeaderboard();
+    }, 7000);
+  </script>
+</body>
+</html>
