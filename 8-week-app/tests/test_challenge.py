@@ -1600,9 +1600,16 @@ def test_ewan_taylor_week3_share_report_and_training_inference(client):
     assert "Ewan Taylor · Week 3 Weekly Summary" in html
     assert "30,392" in html
     assert "40,352" in html
-    assert "15,420" in html
+    assert "17,753" in html
     assert "7hrs 00 mins" in html
-    assert "3 Gym · 5 Cardio" in html
+    assert "2 Gym · 5 Cardio" in html
+
+    share_wk4 = client.get("/challenge/share/1/4")
+    assert share_wk4.status_code == 200
+    html_wk4 = share_wk4.get_data(as_text=True)
+    assert "Ewan Taylor · Week 4 Check-In Summary" in html_wk4
+    assert "Claude Code meetup in Edinburgh" in html_wk4
+    assert "22,417" in html_wk4
 
 
 def test_separate_ewan_admin_account_and_admin_only_landing_page(client):

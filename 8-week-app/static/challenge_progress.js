@@ -984,6 +984,7 @@ window.handlePoseFileSelect = async function(event, weekNum, pose) {
       await refreshProgressSummary();
       renderThreePhotoSlots();
       renderOnePagerWeekly();
+      if (window.pullServerBackupIntoBrowserVault) await window.pullServerBackupIntoBrowserVault();
       window.clearButtonBusy(labelBtn, `✅ ${pose} Saved!`);
       showToast(`📸 Recorded ${pose} photo for ${weekNum === 0 ? 'Start Check-In' : 'Week ' + weekNum}!`);
     } else {
@@ -1033,6 +1034,7 @@ window.handleMultiPoseUpload = async function(event) {
     await refreshProgressSummary();
     renderThreePhotoSlots();
     renderOnePagerWeekly();
+    if (window.pullServerBackupIntoBrowserVault) await window.pullServerBackupIntoBrowserVault();
     window.clearButtonBusy(labelBtn, `✅ Uploaded ${files.length} Photo(s)!`);
     showToast(`✅ Uploaded ${files.length} progress photo(s) for ${wk === 0 ? 'Start Check-In' : 'Week ' + wk}!`);
   } catch (err) {
@@ -1053,9 +1055,14 @@ window.deletePosePhoto = async function(weekNum, pose) {
     const data = await res.json();
     if (data.ok) {
       if (STATE.overview) STATE.overview.progress_photos = data.photos;
+      if (window._removePhotoFromIndexedDbVault) {
+        const pid = Number((STATE.overview && STATE.overview.profile && STATE.overview.profile.id) || 1);
+        await window._removePhotoFromIndexedDbVault(pid, weekNum, pose);
+      }
       await refreshProgressSummary();
       renderThreePhotoSlots();
       renderOnePagerWeekly();
+      if (window.pullServerBackupIntoBrowserVault) await window.pullServerBackupIntoBrowserVault();
       showToast(`🗑️ Cleared ${pose} photo for ${weekNum === 0 ? 'Start' : 'Week ' + weekNum}`);
     }
   } catch (e) {}
@@ -2128,6 +2135,7 @@ window.handleThreePoseCollageUpload = async function(event) {
     await refreshProgressSummary();
     renderThreePhotoSlots();
     renderOnePagerWeekly();
+    if (window.pullServerBackupIntoBrowserVault) await window.pullServerBackupIntoBrowserVault();
     window.clearButtonBusy(labelBtn, '✅ Collage Split!');
     showToast(`✂️ Auto-split 3-pose collage into Side, Front & Back for Week ${wk}!`);
   } catch (err) {
@@ -2231,10 +2239,12 @@ function renderCoachWowSideBySide() {
 
 const _origLoadWeekSheet = window.loadWeekSheet;
 if (typeof _origLoadWeekSheet === 'function') {
-  window.loadWeekSheet = async function(weekNum) {
-    await _origLoadWeekSheet(weekNum);
+  window.loadWeekSheet = async function(weekNum, isUserSelect = true) {
+    await _origLoadWeekSheet(weekNum, isUserSelect);
     renderThreePhotoSlots();
     renderWeeklySubmissionState();
+    renderOnePagerWeekly();
+    renderWeekOverWeekTable();
     await renderWeeklyCheckinCardCanvas();
     renderCoachWowSideBySide();
   };
@@ -2345,13 +2355,36 @@ window.testAppleHealthSync = async function() {
 window.openCoachChrisWebReport = async function(copyToClipboard) {
   const prof = (STATE.overview && STATE.overview.profile) || (window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.profile) || {};
   const pid = Number(prof.id || 1);
-  const wk = Math.max(1, Number(getActiveSheetWeek() || 3));
+  const wk = Math.max(0, Number(getActiveSheetWeek() ?? 3));
+  // Auto-save any typed write-up in #op-wk-comments or #wk-challenger-comments before opening/copying share link
+  try {
+    const opEl = document.getElementById('op-wk-comments');
+    const deskEl = document.getElementById('wk-challenger-comments');
+    const typedText = (
+      (document.activeElement === opEl && opEl?.value) ||
+      (document.activeElement === deskEl && deskEl?.value) ||
+      opEl?.value ||
+      deskEl?.value ||
+      ''
+    ).trim();
+    const subRow = ((window.PROGRESS_SUMMARY && window.PROGRESS_SUMMARY.weekly_submissions) || []).find(s => Number(s.week_num) === wk) || {};
+    const savedText = String(subRow.challenger_comments || '').trim();
+    if (typedText && typedText !== savedText) {
+      await fetch('/api/challenge/weekly-checkin/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ week_num: wk, challenger_comments: typedText }),
+      });
+      await refreshProgressSummary();
+      if (window.pullServerBackupIntoBrowserVault) await window.pullServerBackupIntoBrowserVault();
+    }
+  } catch (e) {}
   const sharePath = `/challenge/share/${pid}/${wk}`;
   const fullUrl = `${window.location.origin}${sharePath}`;
   if (copyToClipboard) {
     try {
       await navigator.clipboard.writeText(fullUrl);
-      showToast(`🔗 Copied Coach Chris Web Report Link: ${fullUrl}`);
+      showToast(`🔗 Saved & Copied Coach Chris Web Report Link: ${fullUrl}`);
     } catch (e) {
       window.prompt('Copy this Web Report URL for Coach Chris:', fullUrl);
     }
@@ -3267,6 +3300,67 @@ window.recordCheckinInBrowserVault = function(row, pid) {
   } catch (e) {}
 };
 
+function _openVaultIndexedDb() {
+  return new Promise((resolve) => {
+    try {
+      if (typeof indexedDB === 'undefined') return resolve(null);
+      const req = indexedDB.open('cs_fitness_vault_idb', 1);
+      req.onupgradeneeded = (ev) => {
+        const db = ev.target.result;
+        if (!db.objectStoreNames.contains('photos_by_profile')) {
+          db.createObjectStore('photos_by_profile', { keyPath: 'profile_id' });
+        }
+      };
+      req.onsuccess = (ev) => resolve(ev.target.result);
+      req.onerror = () => resolve(null);
+    } catch (e) {
+      resolve(null);
+    }
+  });
+}
+
+window._savePhotosToIndexedDbVault = async function(pid, photosList) {
+  try {
+    const db = await _openVaultIndexedDb();
+    if (!db) return;
+    await new Promise((resolve) => {
+      const tx = db.transaction('photos_by_profile', 'readwrite');
+      tx.objectStore('photos_by_profile').put({
+        profile_id: Number(pid || 1),
+        updated_at: new Date().toISOString(),
+        progress_photos: Array.isArray(photosList) ? photosList : [],
+      });
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    });
+  } catch (e) {}
+};
+
+window._loadPhotosFromIndexedDbVault = async function(pid) {
+  try {
+    const db = await _openVaultIndexedDb();
+    if (!db) return [];
+    return await new Promise((resolve) => {
+      const tx = db.transaction('photos_by_profile', 'readonly');
+      const req = tx.objectStore('photos_by_profile').get(Number(pid || 1));
+      req.onsuccess = () => resolve((req.result && req.result.progress_photos) || []);
+      req.onerror = () => resolve([]);
+    });
+  } catch (e) {
+    return [];
+  }
+};
+
+window._removePhotoFromIndexedDbVault = async function(pid, weekNum, pose) {
+  try {
+    const existing = await window._loadPhotosFromIndexedDbVault(pid);
+    const filtered = (existing || []).filter(
+      (p) => !(Number(p.week_num) === Number(weekNum) && String(p.pose || '').toLowerCase() === String(pose || '').toLowerCase())
+    );
+    await window._savePhotosToIndexedDbVault(pid, filtered);
+  } catch (e) {}
+};
+
 window.pullServerBackupIntoBrowserVault = async function() {
   try {
     const res = await fetch('/api/challenge/backup/export');
@@ -3315,8 +3409,29 @@ window.pullServerBackupIntoBrowserVault = async function() {
           merged[k] = sv;
         }
       });
+      // Preserve longer/newer local write-up if server returned an empty or older write-up
+      if ((prev.challenger_comments || '').trim() && !(ss.challenger_comments || '').trim()) {
+        merged.challenger_comments = prev.challenger_comments;
+      }
       bySubWeek[wKey] = merged;
     });
+
+    // Merge progress_photos by (week_num, pose) into IndexedDB + localVault fallback
+    const idbPhotos = await window._loadPhotosFromIndexedDbVault(pid);
+    const byPhotoKey = {};
+    [...(localVault.progress_photos || []), ...(idbPhotos || [])].forEach(p => {
+      if (p && p.week_num !== undefined && p.pose && p.photo_data_url) {
+        byPhotoKey[`${Number(p.week_num)}:${String(p.pose).trim()}`] = Object.assign({}, p);
+      }
+    });
+    (data.progress_photos || []).forEach(sp => {
+      if (sp && sp.week_num !== undefined && sp.pose && sp.photo_data_url) {
+        byPhotoKey[`${Number(sp.week_num)}:${String(sp.pose).trim()}`] = Object.assign({}, sp);
+      }
+    });
+    const mergedPhotos = Object.values(byPhotoKey);
+    await window._savePhotosToIndexedDbVault(pid, mergedPhotos);
+
     const nextVault = {
       profile_id: pid,
       updated_at: new Date().toISOString(),
@@ -3326,8 +3441,15 @@ window.pullServerBackupIntoBrowserVault = async function() {
       workout_logs: (data.workout_logs && data.workout_logs.length) ? data.workout_logs : (localVault.workout_logs || []),
       weekly_submissions: Object.values(bySubWeek).sort((a, b) => Number(a.week_num || 0) - Number(b.week_num || 0)),
       daily_activities: (data.daily_activities && data.daily_activities.length) ? data.daily_activities : (localVault.daily_activities || []),
+      progress_photos: mergedPhotos,
     };
-    localStorage.setItem(getCheckinsVaultKey(pid), JSON.stringify(nextVault));
+    try {
+      localStorage.setItem(getCheckinsVaultKey(pid), JSON.stringify(nextVault));
+    } catch (quotaErr) {
+      // If progress_photos exceed localStorage quota, keep them in IndexedDB and store metadata in localStorage
+      const slimVault = Object.assign({}, nextVault, { progress_photos: [] });
+      try { localStorage.setItem(getCheckinsVaultKey(pid), JSON.stringify(slimVault)); } catch (e2) {}
+    }
   } catch (e) {}
 };
 
@@ -3340,6 +3462,15 @@ async function ensureServerRehydratedFromBrowserVault() {
     if (!pid || pid <= 0) return;
     const localVault = window.getBrowserCheckinsVault(pid);
     const garminVault = window.getBrowserGarminVault(pid);
+    const idbPhotos = await window._loadPhotosFromIndexedDbVault(pid);
+    const localPhotoMap = {};
+    [...(localVault.progress_photos || []), ...(idbPhotos || [])].forEach(p => {
+      if (p && p.week_num !== undefined && p.pose && p.photo_data_url) {
+        localPhotoMap[`${Number(p.week_num)}:${String(p.pose).trim()}`] = p;
+      }
+    });
+    const localPhotos = Object.values(localPhotoMap);
+
     const ov = (typeof STATE !== 'undefined' && STATE.overview) || {};
     const localName = String((localVault && localVault.profile && localVault.profile.client_name) || '').trim().toLowerCase();
     const serverName = String((ov.profile && ov.profile.client_name) || '').trim().toLowerCase();
@@ -3352,13 +3483,46 @@ async function ensureServerRehydratedFromBrowserVault() {
     }
     const serverIntg = ov.integrations || {};
 
-    // Check if localVault has check-ins or Garmin auth that the server lost after a container restart
+    // Check if localVault has check-ins, photos, weekly write-ups, or Garmin auth that the server lost after a container restart
     const localMeaningful = (localVault.daily_checkins || []).filter(hasMeaningfulCheckinData);
     const needsGarminRestore = Boolean(
       (garminVault.garmin_email && !serverIntg.garmin_email) ||
       (garminVault.garmin_password_b64 && !serverIntg.garmin_password_set) ||
       (garminVault.garmin_token_dump && !serverIntg.garmin_connected)
     );
+
+    let needsPhotosRestore = false;
+    if (localPhotos.length > 0) {
+      const serverPhotoKeys = new Set(
+        ((ov.progress_photos || [])).map(p => `${Number(p.week_num)}:${String(p.pose || '').trim()}`)
+      );
+      for (const lp of localPhotos) {
+        if (!serverPhotoKeys.has(`${Number(lp.week_num)}:${String(lp.pose || '').trim()}`)) {
+          needsPhotosRestore = true;
+          break;
+        }
+      }
+    }
+
+    let needsSubmissionsRestore = false;
+    const localSubs = (localVault.weekly_submissions || []).filter(s => s && (s.challenger_comments || '').trim());
+    if (localSubs.length > 0) {
+      try {
+        const serverBackupRes = await fetch('/api/challenge/backup/export');
+        const serverBackup = await serverBackupRes.json();
+        const serverSubMap = {};
+        ((serverBackup && serverBackup.weekly_submissions) || []).forEach(s => {
+          if (s && s.week_num !== undefined) serverSubMap[Number(s.week_num)] = s;
+        });
+        for (const ls of localSubs) {
+          const ss = serverSubMap[Number(ls.week_num)];
+          if (!ss || !(ss.challenger_comments || '').trim()) {
+            needsSubmissionsRestore = true;
+            break;
+          }
+        }
+      } catch (e) {}
+    }
 
     let needsCheckinRestore = false;
     if (localMeaningful.length > 0) {
@@ -3393,7 +3557,7 @@ async function ensureServerRehydratedFromBrowserVault() {
       } catch (e) {}
     }
 
-    if (needsGarminRestore || needsCheckinRestore) {
+    if (needsGarminRestore || needsCheckinRestore || needsPhotosRestore || needsSubmissionsRestore) {
       const importPayload = {
         profile_id: pid,
         profile: localVault.profile || ov.profile || {},
@@ -3403,6 +3567,7 @@ async function ensureServerRehydratedFromBrowserVault() {
         workout_logs: localVault.workout_logs || [],
         weekly_submissions: localVault.weekly_submissions || [],
         daily_activities: localVault.daily_activities || [],
+        progress_photos: localPhotos,
       };
       await fetch('/api/challenge/backup/import', {
         method: 'POST',

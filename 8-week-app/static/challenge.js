@@ -188,16 +188,36 @@ async function loadOverview(dateOverride) {
   renderIntegrationsAndStaples(data);
 
   // Automatically sync Check-In Sheet, Workouts & 1-Pager week selectors with the active date's week!
-  const sheetWk = data.week_info && data.week_info.sheet_week_num != null ? data.week_info.sheet_week_num : 0;
+  const rawSheetWk = data.week_info && data.week_info.sheet_week_num != null ? data.week_info.sheet_week_num : 0;
+  let effectiveSheetWk = rawSheetWk;
+  const targetDayOfWeek = new Date(targetDate + "T12:00:00Z").getUTCDay(); // 6 = Sat, 0 = Sun
+  const photosList = data.progress_photos || [];
+  if (dateChanged) {
+    window._userSelectedCheckinWeek = null;
+  }
+  if (window._userSelectedCheckinWeek != null) {
+    effectiveSheetWk = Number(window._userSelectedCheckinWeek);
+  } else if ((targetDayOfWeek === 6 || targetDayOfWeek === 0) && rawSheetWk >= 2 && targetDate === todayIso) {
+    const prevWk = rawSheetWk - 1;
+    const prevWkPhotos = photosList.filter((p) => Number(p.week_num) === prevWk && p.photo_data_url).length;
+    const curWkPhotos = photosList.filter((p) => Number(p.week_num) === rawSheetWk && p.photo_data_url).length;
+    if (prevWk >= 2 && prevWkPhotos < 3 && curWkPhotos === 0) {
+      effectiveSheetWk = prevWk;
+    }
+  }
   const ciSel = document.getElementById("ci-week-select");
-  if (ciSel) ciSel.value = String(sheetWk);
+  if (ciSel) ciSel.value = String(effectiveSheetWk);
   const opWkSel = document.getElementById("op-week-select");
-  if (opWkSel) opWkSel.value = String(sheetWk);
+  if (opWkSel) opWkSel.value = String(effectiveSheetWk);
   const wkSel = document.getElementById("wk-week-select");
-  if (wkSel && sheetWk >= 1) wkSel.value = String(sheetWk);
+  if (wkSel && rawSheetWk >= 1) wkSel.value = String(rawSheetWk);
   if (data.current_week_sheet) {
     renderHeaderWeekStrip(data.current_week_sheet, targetDate);
-    renderWeekSheetData(data.current_week_sheet);
+    if (effectiveSheetWk === rawSheetWk) {
+      renderWeekSheetData(data.current_week_sheet);
+    } else if (typeof window.loadWeekSheet === "function") {
+      await window.loadWeekSheet(effectiveSheetWk);
+    }
   }
   if (typeof window.renderOnePagerViews === "function") {
     try {
@@ -732,9 +752,19 @@ function startRestTimer(seconds) {
 }
 
 /* ── TAB 3: WEEKLY CHECK-IN SHEET + TELEGRAM + PHOTOS ──────── */
-async function loadWeekSheet(weekNum) {
+async function loadWeekSheet(weekNum, isUserSelect = true) {
+  if (isUserSelect && weekNum !== undefined && weekNum !== null) {
+    window._userSelectedCheckinWeek = Number(weekNum);
+  }
+  const ciSel = document.getElementById("ci-week-select");
+  if (ciSel && String(ciSel.value) !== String(weekNum)) ciSel.value = String(weekNum);
+  const opSel = document.getElementById("op-week-select");
+  if (opSel && String(opSel.value) !== String(weekNum)) opSel.value = String(weekNum);
   const res = await fetch(`/api/challenge/week/${encodeURIComponent(weekNum)}`);
   const sheet = await res.json();
+  if (STATE.overview) {
+    STATE.overview.current_week_sheet = sheet;
+  }
   renderWeekSheetData(sheet);
 }
 

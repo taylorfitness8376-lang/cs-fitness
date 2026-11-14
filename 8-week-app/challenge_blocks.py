@@ -2432,6 +2432,10 @@ def _auto_seed_ewan_backup_if_empty(db):
             "SELECT challenger_comments FROM weekly_submissions WHERE profile_id=1 AND week_num=3"
         ).fetchone()
         has_wk3_comments = bool(wk3_sub and (wk3_sub["challenger_comments"] or "").strip())
+        wk4_sub = db.execute(
+            "SELECT challenger_comments FROM weekly_submissions WHERE profile_id=1 AND week_num=4"
+        ).fetchone()
+        has_wk4_comments = bool(wk4_sub and (wk4_sub["challenger_comments"] or "").strip())
         wk3_photos = db.execute(
             "SELECT COUNT(*) AS c FROM progress_photos WHERE profile_id=1 AND week_num=3 AND LENGTH(photo_data_url) > 100"
         ).fetchone()["c"]
@@ -2440,11 +2444,12 @@ def _auto_seed_ewan_backup_if_empty(db):
         ).fetchone()
         wk0_needs_crop = not wk0_front or int(wk0_front["plen"] or 0) > 60000 or int(wk0_front["plen"] or 0) < 1000
         if (
-            cnt < 21
+            cnt < 26
             or wk3_fri_steps < 1000
             or cname1 != "Ewan Taylor"
             or abs(sw1 - 84.0) < 0.05
             or not has_wk3_comments
+            or not has_wk4_comments
             or wk3_photos < 3
             or wk0_needs_crop
         ):
