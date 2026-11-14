@@ -4,6 +4,7 @@ import bcrypt
 import json
 import re
 import secrets
+import threading
 
 from database import get_db, calculate_challenge_targets, init_challenge_tables
 from challenge import (
@@ -77,10 +78,16 @@ DEFAULT_ANNUAL_BLOCKS = [
 
 
 _ENSURED_BLOCK_DBS = set()
+_ENSURE_BLOCKS_LOCK = threading.Lock()
 _DEFAULT_CSFITNESS_PW_HASH = bcrypt.hashpw(b"csfitness", bcrypt.gensalt()).decode("utf-8")
 
 
 def ensure_blocks_and_auth_tables(db):
+    with _ENSURE_BLOCKS_LOCK:
+        return _ensure_blocks_and_auth_tables_locked(db)
+
+
+def _ensure_blocks_and_auth_tables_locked(db):
     db_key = None
     try:
         for r in db.execute("PRAGMA database_list").fetchall():
@@ -425,8 +432,6 @@ def ensure_blocks_and_auth_tables(db):
     except Exception:
         pass
     db.commit()
-    if db_key:
-        _ENSURED_BLOCK_DBS.add(db_key)
     if db_key:
         _ENSURED_BLOCK_DBS.add(db_key)
 
@@ -2341,7 +2346,23 @@ def build_profile_backup_payload(db, pid=1, include_secrets=True):
     }
     for tbl in ("daily_activities", "weekly_submissions", "daily_journey_moments"):
         try:
-            payload[tbl] = [dict(r) for r in db.execute(f"SELECT * FROM {tbl} WHERE profile_id=?", (pid,)).fetchall()]
+            if tbl == "daily_activities":
+                payload[tbl] = [
+                    dict(r)
+                    for r in db.execute(
+                        """SELECT * FROM daily_activities
+                           WHERE profile_id=?
+                             AND id IN (
+                                 SELECT MIN(id) FROM daily_activities
+                                 WHERE profile_id=?
+                                 GROUP BY date, COALESCE(garmin_activity_id, ''), COALESCE(title, ''), COALESCE(start_time, '')
+                             )
+                           ORDER BY date DESC, id DESC LIMIT 500""",
+                        (pid, pid),
+                    ).fetchall()
+                ]
+            else:
+                payload[tbl] = [dict(r) for r in db.execute(f"SELECT * FROM {tbl} WHERE profile_id=?", (pid,)).fetchall()]
         except Exception:
             payload[tbl] = []
     for k, val in list(payload.items()):
@@ -2389,7 +2410,7 @@ def _auto_seed_ewan_backup_if_empty(db):
         local_data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "data"))
         for bpath in sorted(glob.glob(os.path.join(data_dir, "backup_profile_*.json"))):
             try:
-                if os.path.getsize(bpath) > 25 * 1024 * 1024:
+                if os.path.getsize(bpath) > 8 * 1024 * 1024:
                     continue
                 with open(bpath, "r") as f:
                     bpayload = json.load(f)
@@ -2417,7 +2438,7 @@ def _auto_seed_ewan_backup_if_empty(db):
         wk0_front = db.execute(
             "SELECT LENGTH(photo_data_url) AS plen FROM progress_photos WHERE profile_id=1 AND week_num=0 AND pose='Front'"
         ).fetchone()
-        wk0_needs_crop = not wk0_front or int(wk0_front["plen"] or 0) > 35000 or int(wk0_front["plen"] or 0) < 1000
+        wk0_needs_crop = not wk0_front or int(wk0_front["plen"] or 0) > 60000 or int(wk0_front["plen"] or 0) < 1000
         if (
             cnt < 21
             or wk3_fri_steps < 1000

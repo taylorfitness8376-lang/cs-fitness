@@ -956,10 +956,16 @@ def _crop_and_fit_portrait_image(im, target_w: int = 400, target_h: int = 800):
     """Auto-trim dark/solid letterbox borders and fit/crop to a uniform 1:2 portrait frame."""
     from PIL import Image, ImageChops
 
+    # Pre-downsample very large camera images before allocating ImageChops buffers
+    if max(im.size) > 1600:
+        im.thumbnail((1600, 1600), Image.LANCZOS)
+
     w, h = im.size
     if w > 40 and h > 40:
         # Trim near-black or uniform letterbox margins around phone screenshots
         for bg_color in ((0, 0, 0), im.getpixel((0, 0)), im.getpixel((w - 1, h - 1))):
+            bg = None
+            diff = None
             try:
                 bg = Image.new("RGB", im.size, bg_color)
                 diff = ImageChops.difference(im, bg)
@@ -981,6 +987,17 @@ def _crop_and_fit_portrait_image(im, target_w: int = 400, target_h: int = 800):
                         break
             except Exception:
                 pass
+            finally:
+                if diff is not None:
+                    try:
+                        diff.close()
+                    except Exception:
+                        pass
+                if bg is not None:
+                    try:
+                        bg.close()
+                    except Exception:
+                        pass
 
     target_ratio = float(target_w) / float(target_h)  # 0.5 (1:2 portrait)
     cur_ratio = float(w) / float(max(1, h))
@@ -1021,6 +1038,10 @@ def normalize_image_bytes_to_jpeg_data_url(
 
         im = Image.open(io.BytesIO(raw_bytes))
         im = ImageOps.exif_transpose(im)
+        # Downsample huge 24MP/48MP phone photos immediately before allocating RGB/crop buffers
+        pre_max = max(1600, int(max_dim or 900) * 2)
+        if max(im.size) > pre_max:
+            im.thumbnail((pre_max, pre_max), Image.LANCZOS)
         if im.mode not in ("RGB", "L"):
             bg = Image.new("RGB", im.size, (10, 14, 11))
             if "A" in im.getbands():
