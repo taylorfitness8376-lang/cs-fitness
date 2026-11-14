@@ -2439,6 +2439,9 @@ def _auto_seed_ewan_backup_if_empty(db):
         wk3_photos = db.execute(
             "SELECT COUNT(*) AS c FROM progress_photos WHERE profile_id=1 AND week_num=3 AND LENGTH(photo_data_url) > 100"
         ).fetchone()["c"]
+        wk4_photos = db.execute(
+            "SELECT COUNT(*) AS c FROM progress_photos WHERE profile_id=1 AND week_num=4 AND LENGTH(photo_data_url) > 100"
+        ).fetchone()["c"]
         wk0_front = db.execute(
             "SELECT LENGTH(photo_data_url) AS plen FROM progress_photos WHERE profile_id=1 AND week_num=0 AND pose='Front'"
         ).fetchone()
@@ -2451,6 +2454,7 @@ def _auto_seed_ewan_backup_if_empty(db):
             or not has_wk3_comments
             or not has_wk4_comments
             or wk3_photos < 3
+            or wk4_photos < 3
             or wk0_needs_crop
         ):
             seed_path = os.path.join(data_dir, "ewan_seed_backup.json")
