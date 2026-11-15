@@ -339,7 +339,8 @@
             <div class="racer-meta">
               <span class="station-callout">Now (${e.completed_splits + 1}/16): ${cur.prescription || cur.label || ''}</span>
               <span style="color:var(--muted)">
-                ${lastS ? `Last Split (${lastS.short_label}): <strong style="color:#fff">${lastS.duration_formatted}</strong>` : 'Just Started'}
+                ${lastS ? `Last Split (${lastS.short_label}): <strong style="color:#fff">${lastS.duration_formatted}</strong>${lastS.pace_kph ? ` <strong style="color:var(--blue)">(${lastS.pace_kph_formatted})</strong>` : ''}` : 'Just Started'}
+                ${e.avg_run_kph ? ` · Avg Run: <strong style="color:var(--blue)">${e.avg_run_kph_formatted}</strong>` : ''}
                 ${e.wall_ball_reps > 0 ? ` · 🎯 Wall Balls: <strong style="color:var(--yellow)">${e.wall_ball_reps}/${e.wall_ball_target_reps}</strong>` : ''}
               </span>
             </div>
@@ -370,7 +371,7 @@
           <div class="lb-rank">#${i + 1}</div>
           <div>
             <div style="font-weight:800;font-size:1rem">${e.full_display_name}</div>
-            <div style="font-size:0.74rem;color:var(--muted)">Bib #${e.bib_number} · AG ${e.age_category} · Run ${e.run_total_formatted} / Stn ${e.station_total_formatted}</div>
+            <div style="font-size:0.74rem;color:var(--muted)">Bib #${e.bib_number} · AG ${e.age_category} · Run ${e.run_total_formatted} (${e.avg_run_kph_formatted}) / Stn ${e.station_total_formatted}</div>
           </div>
           <div style="text-align:right">
             ${e.history && e.history.comparison && e.history.comparison.total_delta_ms < 0

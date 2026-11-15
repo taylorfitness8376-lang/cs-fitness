@@ -1,32 +1,39 @@
 import csv
 import io
+import json
+import os
 import random
 import re
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, date
 from flask import Blueprint, jsonify, render_template, request, Response, abort
 from database import get_db
 
 hyrox_bp = Blueprint("hyrox", __name__)
 
-# ── 16-Split Sequence (No Roxzone — Extended Run Loop) ──────────────────────
+# ── 16-Split Sequence (No Roxzone — Extended Run Loop, 1.2 km per Run) ──────
+
+HYROX_RUN_DISTANCE_KM = 1.2
 
 HYROX_SPLITS_TEMPLATE = [
-    {"split_index": 1,  "split_type": "run",     "station_key": "run_1",          "label": "Run 1",                        "short_label": "R1"},
+    {"split_index": 1,  "split_type": "run",     "station_key": "run_1",          "label": "Run 1 (1.2 km)",               "short_label": "R1"},
     {"split_index": 2,  "split_type": "station", "station_key": "skierg",         "label": "1. SkiErg (1,000m)",           "short_label": "S1 SkiErg"},
-    {"split_index": 3,  "split_type": "run",     "station_key": "run_2",          "label": "Run 2",                        "short_label": "R2"},
+    {"split_index": 3,  "split_type": "run",     "station_key": "run_2",          "label": "Run 2 (1.2 km)",               "short_label": "R2"},
     {"split_index": 4,  "split_type": "station", "station_key": "sled_push",      "label": "2. Sled Push (50m)",           "short_label": "S2 Push"},
-    {"split_index": 5,  "split_type": "run",     "station_key": "run_3",          "label": "Run 3",                        "short_label": "R3"},
+    {"split_index": 5,  "split_type": "run",     "station_key": "run_3",          "label": "Run 3 (1.2 km)",               "short_label": "R3"},
     {"split_index": 6,  "split_type": "station", "station_key": "sled_pull",      "label": "3. Sled Pull (50m)",           "short_label": "S3 Pull"},
-    {"split_index": 7,  "split_type": "run",     "station_key": "run_4",          "label": "Run 4",                        "short_label": "R4"},
+    {"split_index": 7,  "split_type": "run",     "station_key": "run_4",          "label": "Run 4 (1.2 km)",               "short_label": "R4"},
     {"split_index": 8,  "split_type": "station", "station_key": "bbj",            "label": "4. Burpee Broad Jumps (80m)",  "short_label": "S4 BBJ"},
-    {"split_index": 9,  "split_type": "run",     "station_key": "run_5",          "label": "Run 5",                        "short_label": "R5"},
+    {"split_index": 9,  "split_type": "run",     "station_key": "run_5",          "label": "Run 5 (1.2 km)",               "short_label": "R5"},
     {"split_index": 10, "split_type": "station", "station_key": "row",            "label": "5. Row (1,000m)",              "short_label": "S5 Row"},
-    {"split_index": 11, "split_type": "run",     "station_key": "run_6",          "label": "Run 6",                        "short_label": "R6"},
+    {"split_index": 11, "split_type": "run",     "station_key": "run_6",          "label": "Run 6 (1.2 km)",               "short_label": "R6"},
     {"split_index": 12, "split_type": "station", "station_key": "farmers_carry",  "label": "6. Farmers Carry (200m)",      "short_label": "S6 Carry"},
-    {"split_index": 13, "split_type": "run",     "station_key": "run_7",          "label": "Run 7",                        "short_label": "R7"},
+    {"split_index": 13, "split_type": "run",     "station_key": "run_7",          "label": "Run 7 (1.2 km)",               "short_label": "R7"},
     {"split_index": 14, "split_type": "station", "station_key": "sandbag_lunges", "label": "7. Sandbag Lunges (100m)",     "short_label": "S7 Lunges"},
-    {"split_index": 15, "split_type": "run",     "station_key": "run_8",          "label": "Run 8",                        "short_label": "R8"},
+    {"split_index": 15, "split_type": "run",     "station_key": "run_8",          "label": "Run 8 (1.2 km)",               "short_label": "R8"},
     {"split_index": 16, "split_type": "station", "station_key": "wall_balls",     "label": "8. Wall Balls",                "short_label": "S8 Wall Balls"},
 ]
 
@@ -202,6 +209,40 @@ def format_delta_ms(delta_ms):
     return f"{sign}{mins}:{secs:02d}"
 
 
+def calc_kph(duration_ms, distance_km=HYROX_RUN_DISTANCE_KM):
+    """Calculate speed in km/h (KPH) given duration_ms and distance_km (default 1.2 km per run)."""
+    if duration_ms is None:
+        return None
+    try:
+        ms = int(duration_ms)
+    except (TypeError, ValueError):
+        return None
+    if ms <= 0 or not distance_km or distance_km <= 0:
+        return None
+    hours = ms / 3_600_000.0
+    return round(distance_km / hours, 1)
+
+
+def format_kph(duration_ms, distance_km=HYROX_RUN_DISTANCE_KM):
+    kph = calc_kph(duration_ms, distance_km)
+    if kph is None:
+        return "—"
+    return f"{kph:.1f} kph"
+
+
+def format_pace_per_km(duration_ms, distance_km=HYROX_RUN_DISTANCE_KM):
+    if duration_ms is None or not distance_km or distance_km <= 0:
+        return "—"
+    try:
+        ms = int(duration_ms)
+    except (TypeError, ValueError):
+        return "—"
+    if ms <= 0:
+        return "—"
+    ms_per_km = int(round(ms / float(distance_km)))
+    return f"{format_ms(ms_per_km)}/km"
+
+
 def parse_duration_to_ms(val):
     """Parse MM:SS, H:MM:SS, or numeric milliseconds/seconds into integer ms."""
     if val is None or val == "":
@@ -317,9 +358,10 @@ def get_prescription_for_split(division_key, split_index):
             "split_type": "run",
             "station_key": tmpl["station_key"],
             "label": tmpl["label"],
-            "distance": "Extended Run Loop (No Roxzone)",
-            "weight": "Pace / Run",
-            "prescription": f"{tmpl['label']} — Standard Gym Run Loop",
+            "distance": "1.2 km (1,200m Extended Loop)",
+            "distance_km": HYROX_RUN_DISTANCE_KM,
+            "weight": "1.2 km Run",
+            "prescription": f"{tmpl['label']} — Extended Run Loop (No Roxzone)",
         }
     st_key = tmpl["station_key"]
     st_info = div["stations"].get(st_key, {})
@@ -410,6 +452,24 @@ def ensure_hyrox_tables(db):
             edited_by           TEXT NOT NULL DEFAULT '',
             notes               TEXT NOT NULL DEFAULT '',
             UNIQUE(entry_id, split_index)
+        );
+
+        CREATE TABLE IF NOT EXISTS hyrox_settings (
+            key                 TEXT PRIMARY KEY,
+            value               TEXT NOT NULL DEFAULT '',
+            updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS hyrox_webhook_logs (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            webhook_id          TEXT NOT NULL,
+            feed_item_id        TEXT NOT NULL DEFAULT '',
+            feed_item_type      TEXT NOT NULL DEFAULT '',
+            customer_id         TEXT NOT NULL DEFAULT '',
+            teamup_event_id     TEXT NOT NULL DEFAULT '',
+            status              TEXT NOT NULL DEFAULT 'processed',
+            summary             TEXT NOT NULL DEFAULT '',
+            created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """
     )
@@ -839,6 +899,8 @@ def serialize_entry(db, entry_row, include_splits=True, include_history=False):
     e["run_total_formatted"] = format_ms(e.get("run_total_ms"))
     e["station_total_formatted"] = format_ms(e.get("station_total_ms"))
     e["penalty_formatted"] = format_ms(e.get("penalty_ms")) if e.get("penalty_ms") else "00:00"
+    e["run_distance_km"] = HYROX_RUN_DISTANCE_KM
+    e["total_run_distance_km"] = round(HYROX_RUN_DISTANCE_KM * 8, 1)
 
     if include_splits:
         ensure_entry_splits(db, e["id"])
@@ -854,11 +916,22 @@ def serialize_entry(db, entry_row, include_splits=True, include_history=False):
             sd = dict(sr)
             idx = sd["split_index"]
             presc = get_prescription_for_split(div_key, idx)
+            sd["label"] = HYROX_SPLITS_TEMPLATE[idx - 1]["label"]
             sd["short_label"] = HYROX_SPLITS_TEMPLATE[idx - 1]["short_label"]
             sd["prescription"] = presc["prescription"]
             sd["distance"] = presc["distance"]
             sd["weight"] = presc["weight"]
             sd["duration_formatted"] = format_ms(sd.get("duration_ms"))
+            if sd["split_type"] == "run":
+                sd["distance_km"] = HYROX_RUN_DISTANCE_KM
+                sd["pace_kph"] = calc_kph(sd.get("duration_ms"), HYROX_RUN_DISTANCE_KM)
+                sd["pace_kph_formatted"] = format_kph(sd.get("duration_ms"), HYROX_RUN_DISTANCE_KM)
+                sd["pace_per_km_formatted"] = format_pace_per_km(sd.get("duration_ms"), HYROX_RUN_DISTANCE_KM)
+            else:
+                sd["distance_km"] = None
+                sd["pace_kph"] = None
+                sd["pace_kph_formatted"] = None
+                sd["pace_per_km_formatted"] = None
             if sd.get("duration_ms") is not None:
                 completed_splits += 1
                 last_completed_split = sd
@@ -882,6 +955,9 @@ def serialize_entry(db, entry_row, include_splits=True, include_history=False):
         station_durations = [s["duration_ms"] for s in splits if s["split_type"] == "station" and s["duration_ms"] is not None]
         e["avg_run_ms"] = int(sum(run_durations) / len(run_durations)) if run_durations else None
         e["avg_run_formatted"] = format_ms(e["avg_run_ms"])
+        e["avg_run_kph"] = calc_kph(e["avg_run_ms"], HYROX_RUN_DISTANCE_KM)
+        e["avg_run_kph_formatted"] = format_kph(e["avg_run_ms"], HYROX_RUN_DISTANCE_KM)
+        e["avg_run_pace_per_km_formatted"] = format_pace_per_km(e["avg_run_ms"], HYROX_RUN_DISTANCE_KM)
         e["avg_station_ms"] = int(sum(station_durations) / len(station_durations)) if station_durations else None
         e["avg_station_formatted"] = format_ms(e["avg_station_ms"])
         work_sum = (e.get("run_total_ms") or 0) + (e.get("station_total_ms") or 0)
@@ -948,6 +1024,8 @@ def build_athlete_history(db, current_entry_dict):
             "total_formatted": format_ms(r["total_ms"], include_hours=True),
             "run_total_ms": r["run_total_ms"],
             "run_total_formatted": format_ms(r["run_total_ms"]),
+            "avg_run_kph": calc_kph(r["run_total_ms"], HYROX_RUN_DISTANCE_KM * 8),
+            "avg_run_kph_formatted": format_kph(r["run_total_ms"], HYROX_RUN_DISTANCE_KM * 8),
             "station_total_ms": r["station_total_ms"],
             "station_total_formatted": format_ms(r["station_total_ms"]),
             "split_map": split_map,
@@ -985,6 +1063,9 @@ def build_athlete_history(db, current_entry_dict):
             cur_dur = sp.get("duration_ms")
             prev_dur = prev_sim["split_map"].get(idx)
             delta = (cur_dur - prev_dur) if (cur_dur is not None and prev_dur is not None) else None
+            cur_kph = calc_kph(cur_dur, HYROX_RUN_DISTANCE_KM) if sp["split_type"] == "run" else None
+            prev_kph = calc_kph(prev_dur, HYROX_RUN_DISTANCE_KM) if sp["split_type"] == "run" else None
+            kph_delta = round(cur_kph - prev_kph, 1) if (cur_kph is not None and prev_kph is not None) else None
             split_deltas.append({
                 "split_index": idx,
                 "label": sp["label"],
@@ -996,6 +1077,9 @@ def build_athlete_history(db, current_entry_dict):
                 "previous_formatted": format_ms(prev_dur),
                 "delta_ms": delta,
                 "delta_formatted": format_delta_ms(delta),
+                "current_kph": cur_kph,
+                "previous_kph": prev_kph,
+                "kph_delta": kph_delta,
                 "improved": (delta < 0) if delta is not None else None,
             })
         comparison = {
@@ -1402,7 +1486,34 @@ def api_event_state(event_id):
 
 # ── API: Entries & TeamUp CSV Import ────────────────────────────────────────
 
-def _create_entry_record(db, event_id, payload):
+def _normalize_heat_time_str(raw_time):
+    """Normalize ISO-8601 timestamps ('2026-11-14T08:15:00Z'), '8:15 AM', or '08:15:00' to 'HH:MM'."""
+    if not raw_time:
+        return ""
+    s = str(raw_time).strip()
+    m_iso = re.search(r"T(\d{2}):(\d{2})", s)
+    if m_iso:
+        return f"{int(m_iso.group(1)):02d}:{int(m_iso.group(2)):02d}"
+    m_ampm = re.search(r"\b(\d{1,2}):(\d{2})\s*(AM|PM)\b", s, re.IGNORECASE)
+    if m_ampm:
+        hh = int(m_ampm.group(1))
+        mm = int(m_ampm.group(2))
+        mer = m_ampm.group(3).upper()
+        if mer == "PM" and hh < 12:
+            hh += 12
+        elif mer == "AM" and hh == 12:
+            hh = 0
+        return f"{hh:02d}:{mm:02d}"
+    m_hhmm = re.search(r"\b(\d{1,2}):(\d{2})\b", s)
+    if m_hhmm:
+        hh = int(m_hhmm.group(1))
+        mm = int(m_hhmm.group(2))
+        if 0 <= hh <= 23 and 0 <= mm <= 59:
+            return f"{hh:02d}:{mm:02d}"
+    return s
+
+
+def _create_entry_record(db, event_id, payload, upsert=False):
     display_name = (payload.get("display_name") or payload.get("full_name") or "").strip()
     if not display_name:
         first = (payload.get("first_name") or "").strip()
@@ -1420,7 +1531,7 @@ def _create_entry_record(db, event_id, payload):
     notes = (payload.get("notes") or "").strip()
 
     heat_id = payload.get("heat_id")
-    heat_time = (payload.get("heat_time") or payload.get("wave_time") or "").strip()
+    heat_time = _normalize_heat_time_str(payload.get("heat_time") or payload.get("wave_time") or "")
     if heat_id:
         heat_id = int(heat_id)
     elif heat_time:
@@ -1443,13 +1554,6 @@ def _create_entry_record(db, event_id, payload):
             )
             heat_id = cur_h.lastrowid
 
-    bib_number = str(payload.get("bib_number") or payload.get("bib") or "").strip()
-    if not bib_number:
-        cnt = db.execute("SELECT COUNT(*) as c FROM hyrox_entries WHERE event_id=?", (event_id,)).fetchone()["c"]
-        bib_number = str(101 + cnt)
-
-    judge_pin = _generate_unique_pin(db, event_id, str(payload.get("judge_pin") or "").strip() or None)
-
     athlete_id = find_or_create_athlete(
         db,
         full_name=display_name,
@@ -1463,6 +1567,59 @@ def _create_entry_record(db, event_id, payload):
         if partner_name
         else None
     )
+
+    if upsert:
+        existing_entry = None
+        if athlete_id:
+            existing_entry = db.execute(
+                "SELECT * FROM hyrox_entries WHERE event_id=? AND athlete_id=? LIMIT 1",
+                (event_id, athlete_id)
+            ).fetchone()
+        if not existing_entry and email:
+            existing_entry = db.execute(
+                "SELECT * FROM hyrox_entries WHERE event_id=? AND LOWER(email)=? LIMIT 1",
+                (event_id, email)
+            ).fetchone()
+        if not existing_entry:
+            existing_entry = db.execute(
+                "SELECT * FROM hyrox_entries WHERE event_id=? AND LOWER(display_name)=? LIMIT 1",
+                (event_id, display_name.lower())
+            ).fetchone()
+        if existing_entry:
+            new_heat_id = heat_id if heat_id is not None else existing_entry["heat_id"]
+            new_partner = partner_name or existing_entry["partner_name"]
+            new_partner_aid = partner_athlete_id or existing_entry["partner_athlete_id"]
+            new_div = division if payload.get("division") else existing_entry["division"]
+            new_age = age_cat if (payload.get("age_category") or dob) else existing_entry["age_category"]
+            new_vol = volunteer_name or existing_entry["volunteer_name"]
+            new_notes = notes or existing_entry["notes"]
+            db.execute(
+                "UPDATE hyrox_entries SET heat_id=?, athlete_id=?, partner_athlete_id=?, display_name=?, "
+                "partner_name=?, email=?, division=?, age_category=?, volunteer_name=?, notes=?, "
+                "updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (
+                    new_heat_id,
+                    athlete_id,
+                    new_partner_aid,
+                    display_name,
+                    new_partner,
+                    email or existing_entry["email"],
+                    new_div,
+                    new_age,
+                    new_vol,
+                    new_notes,
+                    existing_entry["id"],
+                ),
+            )
+            ensure_entry_splits(db, existing_entry["id"])
+            return existing_entry["id"], None
+
+    bib_number = str(payload.get("bib_number") or payload.get("bib") or "").strip()
+    if not bib_number:
+        cnt = db.execute("SELECT COUNT(*) as c FROM hyrox_entries WHERE event_id=?", (event_id,)).fetchone()["c"]
+        bib_number = str(101 + cnt)
+
+    judge_pin = _generate_unique_pin(db, event_id, str(payload.get("judge_pin") or "").strip() or None)
 
     cur = db.execute(
         "INSERT INTO hyrox_entries (event_id, heat_id, athlete_id, partner_athlete_id, display_name, partner_name, "
@@ -1520,23 +1677,31 @@ def _auto_map_csv_row(raw_row, custom_map=None):
                 return norm[al]
         return ""
 
-    full_name = _pick("display_name", ["name", "full_name", "athlete", "athlete_name", "client_name", "customer_name", "member_name", "display_name"])
-    first_name = _pick("first_name", ["first_name", "firstname", "given_name", "first"])
-    last_name = _pick("last_name", ["last_name", "lastname", "surname", "family_name", "last"])
+    full_name = _pick("display_name", ["name", "full_name", "athlete", "athlete_name", "client_name", "customer_name", "member_name", "display_name", "customer"])
+    first_name = _pick("first_name", ["first_name", "firstname", "given_name", "first", "customer_first_name"])
+    last_name = _pick("last_name", ["last_name", "lastname", "surname", "family_name", "last", "customer_last_name"])
     if not full_name and (first_name or last_name):
         full_name = f"{first_name} {last_name}".strip()
 
     return {
         "display_name": full_name,
         "email": _pick("email", ["email", "email_address", "customer_email", "e_mail"]),
-        "dob": _pick("dob", ["dob", "date_of_birth", "birth_date", "birthdate"]),
+        "dob": _pick("dob", ["dob", "date_of_birth", "birth_date", "birthdate", "birthday"]),
         "age_category": _pick("age_category", ["age_category", "age_group", "age", "age_cat", "category_age"]),
-        "division": _pick("division", ["division", "category", "race_division", "hyrox_division", "ticket_type", "class_type", "membership"]),
+        "division": _pick("division", [
+            "division", "category", "race_division", "hyrox_division", "ticket_type",
+            "class_type", "membership", "offering", "offering_type", "offering_name",
+            "event_name", "class_name", "customer_membership",
+        ]),
         "partner_name": _pick("partner_name", ["partner_name", "partner", "doubles_partner", "teammate", "athlete_2"]),
-        "heat_time": _pick("heat_time", ["heat_time", "wave_time", "start_time", "heat", "wave", "time_slot", "session_time"]),
+        "heat_time": _normalize_heat_time_str(_pick("heat_time", [
+            "heat_time", "wave_time", "start_time", "heat", "wave", "time_slot",
+            "session_time", "event_time", "starts", "starts_at", "local_starts_at", "time",
+        ])),
         "bib_number": _pick("bib_number", ["bib", "bib_number", "race_number", "number"]),
-        "volunteer_name": _pick("volunteer_name", ["volunteer", "volunteer_name", "judge", "judge_name", "lane_judge"]),
-        "teamup_customer_id": _pick("teamup_customer_id", ["customer_id", "teamup_id", "teamup_customer_id", "member_id"]),
+        "volunteer_name": _pick("volunteer_name", ["volunteer", "volunteer_name", "judge", "judge_name", "lane_judge", "instructor"]),
+        "teamup_customer_id": _pick("teamup_customer_id", ["customer_id", "teamup_id", "teamup_customer_id", "member_id", "id"]),
+        "notes": _pick("notes", ["notes", "booking_notes", "attendance_notes", "comment", "comments"]),
     }
 
 
@@ -2041,3 +2206,702 @@ def api_athlete_history(athlete_id):
         "latest_entry": entry_dict,
         "history": entry_dict["history"],
     })
+
+
+# ── TeamUp REST API v2 Client & Live Sync / Webhook Integration ─────────────
+# Official Spec: https://docs.goteamup.com & https://goteamup.com/api/v2/schema/?format=json
+# Base URL:      https://goteamup.com/api/v2  (Note: api.goteamup.com does NOT exist)
+# Auth Header:   Authorization: Bearer <M2M_OR_OAUTH_TOKEN>
+# Mode Header:   TeamUp-Request-Mode: provider
+# Provider Hdr:  TeamUp-Provider-ID: <NUMERIC_BUSINESS_ID>
+
+TEAMUP_DEFAULT_BASE_URL = "https://goteamup.com/api/v2"
+
+
+def get_teamup_config(db):
+    """Retrieve TeamUp API v2 configuration from hyrox_settings with env var fallbacks."""
+    ensure_hyrox_tables(db)
+    rows = db.execute("SELECT key, value FROM hyrox_settings").fetchall()
+    stored = {r["key"]: r["value"] for r in rows}
+
+    raw_token = (stored.get("teamup_api_token") or os.environ.get("TEAMUP_API_TOKEN") or "").strip()
+    # Strip any accidental prefix so we always format exact 'Bearer <token>'
+    clean_token = re.sub(r"^(Bearer|Token)\s+", "", raw_token, flags=re.IGNORECASE).strip()
+    provider_id = (stored.get("teamup_provider_id") or os.environ.get("TEAMUP_PROVIDER_ID") or "").strip()
+    webhook_secret = (stored.get("teamup_webhook_secret") or os.environ.get("TEAMUP_WEBHOOK_SECRET") or "").strip()
+    base_url = (stored.get("teamup_base_url") or os.environ.get("TEAMUP_BASE_URL") or TEAMUP_DEFAULT_BASE_URL).strip().rstrip("/")
+
+    masked_token = ""
+    if clean_token:
+        if len(clean_token) > 8:
+            masked_token = f"{clean_token[:4]}••••{clean_token[-4:]}"
+        else:
+            masked_token = "••••••••"
+
+    return {
+        "api_token": clean_token,
+        "masked_token": masked_token,
+        "has_token": bool(clean_token),
+        "provider_id": provider_id,
+        "webhook_secret": webhook_secret,
+        "has_webhook_secret": bool(webhook_secret),
+        "base_url": base_url,
+        "configured": bool(clean_token),
+    }
+
+
+def save_teamup_setting(db, key, value):
+    ensure_hyrox_tables(db)
+    db.execute(
+        "INSERT INTO hyrox_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP",
+        (key, str(value or "").strip()),
+    )
+
+
+class TeamUpAPIError(Exception):
+    def __init__(self, message, status_code=500, details=None):
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+        self.details = details or {}
+
+
+class TeamUpClient:
+    """Official TeamUp API v2 HTTP Client (`https://goteamup.com/api/v2`)."""
+
+    def __init__(self, api_token, provider_id="", base_url=TEAMUP_DEFAULT_BASE_URL, timeout=15):
+        clean_tok = re.sub(r"^(Bearer|Token)\s+", "", str(api_token or "").strip(), flags=re.IGNORECASE).strip()
+        self.api_token = clean_tok
+        self.provider_id = str(provider_id or "").strip()
+        self.base_url = (base_url or TEAMUP_DEFAULT_BASE_URL).rstrip("/")
+        self.timeout = timeout
+
+    def _headers(self, include_provider=True):
+        if not self.api_token:
+            raise TeamUpAPIError("TeamUp M2M API token is not configured.", status_code=400)
+        headers = {
+            "Authorization": f"Bearer {self.api_token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "TeamUp-Request-Mode": "provider",
+            "User-Agent": "CSPerformance-HYROX/2.0",
+        }
+        if include_provider and self.provider_id:
+            headers["TeamUp-Provider-ID"] = str(self.provider_id)
+        return headers
+
+    def request(self, method, path, params=None, json_body=None, include_provider=True):
+        url = path if path.startswith("http") else f"{self.base_url}/{path.lstrip('/')}"
+        if params:
+            clean_params = {k: v for k, v in params.items() if v is not None and v != ""}
+            if clean_params:
+                qs = urllib.parse.urlencode(clean_params)
+                sep = "&" if "?" in url else "?"
+                url = f"{url}{sep}{qs}"
+
+        data_bytes = None
+        if json_body is not None:
+            data_bytes = json.dumps(json_body).encode("utf-8")
+
+        req = urllib.request.Request(
+            url,
+            data=data_bytes,
+            headers=self._headers(include_provider=include_provider),
+            method=method.upper(),
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+                return json.loads(raw) if raw.strip() else {}
+        except urllib.error.HTTPError as e:
+            err_body = ""
+            try:
+                err_body = e.read().decode("utf-8", errors="replace")
+                parsed_err = json.loads(err_body)
+            except Exception:
+                parsed_err = {"raw": err_body}
+            raise TeamUpAPIError(
+                f"TeamUp API HTTP {e.code}: {err_body[:300]}",
+                status_code=e.code,
+                details=parsed_err,
+            )
+        except urllib.error.URLError as e:
+            raise TeamUpAPIError(f"TeamUp network error: {e.reason}", status_code=502)
+
+    def fetch_all_pages(self, path, params=None, max_pages=10):
+        """Iterate offset-paginated TeamUp v2 responses (`page` & `page_size=100`)."""
+        params = dict(params or {})
+        params.setdefault("page_size", 100)
+        results = []
+        for page_num in range(1, max_pages + 1):
+            params["page"] = page_num
+            payload = self.request("GET", path, params=params)
+            if isinstance(payload, list):
+                results.extend(payload)
+                break
+            page_items = payload.get("results") or []
+            results.extend(page_items)
+            if not payload.get("next") or not page_items:
+                break
+        return results
+
+    def verify_application(self):
+        """Call GET /api/v2/auth/application to verify M2M token and discover scoped_providers."""
+        return self.request("GET", "/auth/application", include_provider=bool(self.provider_id))
+
+    def list_events(self, starts_at_gte=None, starts_at_lte=None, query=None, offering_types=None):
+        """Call GET /api/v2/events with optional date/query filters."""
+        params = {
+            "expand": "offering_type,instructors,venue",
+            "page_size": 100,
+        }
+        if starts_at_gte:
+            params["starts_at_gte"] = starts_at_gte
+        if starts_at_lte:
+            params["starts_at_lte"] = starts_at_lte
+        if query:
+            params["query"] = query
+        if offering_types:
+            params["offering_types"] = offering_types
+        return self.fetch_all_pages("/events", params=params, max_pages=5)
+
+    def list_attendances(self, event_ids=None, starts_at_gte=None, starts_at_lte=None, status="registered"):
+        """Call GET /api/v2/attendances?expand=event,customer to pull registrations in 1 batched call."""
+        params = {
+            "expand": "event,customer",
+            "sort": "event_starts_at",
+            "page_size": 100,
+        }
+        if event_ids:
+            if isinstance(event_ids, (list, tuple, set)):
+                params["event"] = ",".join(str(x) for x in event_ids if x)
+            else:
+                params["event"] = str(event_ids)
+        if starts_at_gte:
+            params["event_starts_at_gte"] = starts_at_gte
+        if starts_at_lte:
+            params["event_starts_at_lte"] = starts_at_lte
+        if status and status != "all":
+            params["status"] = status
+        return self.fetch_all_pages("/attendances", params=params, max_pages=10)
+
+    def get_customer(self, customer_id):
+        """Call GET /api/v2/customers/{id}."""
+        return self.request("GET", f"/customers/{int(customer_id)}")
+
+    def get_customer_field_values(self, customer_id=None):
+        """Call GET /api/v2/customer_field_values to inspect custom fields (DOB, division, partner)."""
+        params = {"page_size": 100}
+        if customer_id:
+            params["customer"] = int(customer_id)
+        return self.fetch_all_pages("/customer_field_values", params=params, max_pages=3)
+
+
+def map_teamup_attendance_to_entry(att_obj):
+    """
+    Transform a TeamUp v2 AttendanceRead object (with expanded `customer` and `event`
+    or flat dictionary keys) into a normalized HYROX Sim entry payload.
+    """
+    if not isinstance(att_obj, dict):
+        return None
+
+    customer = att_obj.get("customer") if isinstance(att_obj.get("customer"), dict) else {}
+    event_obj = att_obj.get("event") if isinstance(att_obj.get("event"), dict) else {}
+    offering_obj = event_obj.get("offering_type") if isinstance(event_obj.get("offering_type"), dict) else {}
+
+    # Customer ID
+    customer_id = (
+        customer.get("id")
+        or (att_obj.get("customer") if isinstance(att_obj.get("customer"), (int, str)) else "")
+        or att_obj.get("customer_id")
+        or ""
+    )
+
+    # Full Name
+    full_name = (
+        customer.get("name")
+        or customer.get("full_name")
+        or f"{customer.get('first_name', '')} {customer.get('last_name', '')}".strip()
+        or att_obj.get("customer_name")
+        or att_obj.get("display_name")
+        or att_obj.get("name")
+        or ""
+    ).strip()
+
+    email = (customer.get("email") or att_obj.get("email") or "").strip().lower()
+
+    # Inspect custom fields on customer or attendance if present
+    custom_fields = {}
+    raw_fields = (
+        customer.get("custom_fields")
+        or customer.get("field_values")
+        or customer.get("fields")
+        or att_obj.get("custom_fields")
+        or []
+    )
+    if isinstance(raw_fields, dict):
+        for k, v in raw_fields.items():
+            custom_fields[re.sub(r"[^a-z0-9]+", "_", str(k).lower()).strip("_")] = str(v or "").strip()
+    elif isinstance(raw_fields, list):
+        for item in raw_fields:
+            if isinstance(item, dict):
+                fname = (
+                    item.get("name")
+                    or item.get("system_use")
+                    or (item.get("field", {}).get("name") if isinstance(item.get("field"), dict) else "")
+                    or (item.get("field", {}).get("system_use") if isinstance(item.get("field"), dict) else "")
+                )
+                fval = item.get("value") or item.get("display_value") or ""
+                if fname:
+                    custom_fields[re.sub(r"[^a-z0-9]+", "_", str(fname).lower()).strip("_")] = str(fval).strip()
+
+    dob = (
+        customer.get("date_of_birth")
+        or customer.get("dob")
+        or custom_fields.get("date_of_birth")
+        or custom_fields.get("dob")
+        or att_obj.get("dob")
+        or ""
+    )
+    age_cat_raw = (
+        customer.get("age_category")
+        or custom_fields.get("age_category")
+        or custom_fields.get("age_group")
+        or dob
+        or customer.get("age")
+        or att_obj.get("age_category")
+        or "30-34"
+    )
+
+    partner_name = (
+        att_obj.get("partner_name")
+        or custom_fields.get("partner_name")
+        or custom_fields.get("partner")
+        or custom_fields.get("doubles_partner")
+        or custom_fields.get("teammate")
+        or ""
+    ).strip()
+
+    # Division inference from custom field, offering name, event name, or membership
+    div_source = (
+        att_obj.get("division")
+        or custom_fields.get("division")
+        or custom_fields.get("hyrox_division")
+        or custom_fields.get("category")
+        or offering_obj.get("name")
+        or event_obj.get("name")
+        or att_obj.get("offering_type_name")
+        or att_obj.get("event_name")
+        or ("mixed_doubles" if partner_name else "men_open")
+    )
+
+    # Wave / Heat time from event local_starts_at / starts_at or explicit heat_time
+    raw_starts = (
+        att_obj.get("heat_time")
+        or event_obj.get("local_starts_at")
+        or event_obj.get("starts_at")
+        or att_obj.get("event_starts_at")
+        or event_obj.get("name")
+        or ""
+    )
+    heat_time = _normalize_heat_time_str(raw_starts)
+
+    # Instructor / Volunteer fallback if event has instructors expanded
+    volunteer = (att_obj.get("volunteer_name") or "").strip()
+    instructors = event_obj.get("instructors")
+    if not volunteer and isinstance(instructors, list) and instructors:
+        first_inst = instructors[0]
+        if isinstance(first_inst, dict):
+            volunteer = (first_inst.get("name") or "").strip()
+
+    att_status = str(att_obj.get("status") or "registered").strip().lower()
+    notes_parts = []
+    if att_obj.get("id"):
+        notes_parts.append(f"TeamUp Attendance #{att_obj['id']}")
+    if event_obj.get("id"):
+        notes_parts.append(f"TeamUp Event #{event_obj['id']}")
+    if att_obj.get("notes"):
+        notes_parts.append(str(att_obj["notes"]).strip())
+
+    return {
+        "display_name": full_name,
+        "partner_name": partner_name,
+        "email": email,
+        "dob": str(dob).strip(),
+        "age_category": normalize_age_category(age_cat_raw),
+        "division": normalize_division(div_source),
+        "heat_time": heat_time,
+        "volunteer_name": volunteer,
+        "teamup_customer_id": str(customer_id).strip(),
+        "teamup_attendance_status": att_status,
+        "notes": " · ".join(notes_parts),
+    }
+
+
+@hyrox_bp.route("/api/hyrox/teamup/status", methods=["GET"])
+def api_teamup_status():
+    db = get_db()
+    cfg = get_teamup_config(db)
+    logs = [
+        dict(r)
+        for r in db.execute(
+            "SELECT * FROM hyrox_webhook_logs ORDER BY id DESC LIMIT 15"
+        ).fetchall()
+    ]
+    return jsonify({
+        "ok": True,
+        "configured": cfg["configured"],
+        "has_token": cfg["has_token"],
+        "masked_token": cfg["masked_token"],
+        "provider_id": cfg["provider_id"],
+        "has_webhook_secret": cfg["has_webhook_secret"],
+        "base_url": cfg["base_url"],
+        "webhook_endpoint": "/api/hyrox/teamup/webhook",
+        "supported_webhook_events": [
+            "event_registration.created",
+            "event_registration.removed",
+            "event_registration.late_cancelled",
+            "customer.created",
+            "customer.updated",
+        ],
+        "api_spec": {
+            "version": "v2 (OpenAPI 3.0.3)",
+            "base_url": TEAMUP_DEFAULT_BASE_URL,
+            "docs_url": "https://docs.goteamup.com",
+            "schema_url": "https://goteamup.com/api/v2/schema/?format=json",
+            "rate_limit": "250 requests / minute",
+            "auth_header": "Authorization: Bearer <M2M_TOKEN>",
+            "required_headers": ["TeamUp-Provider-ID", "TeamUp-Request-Mode: provider"],
+        },
+        "recent_webhooks": logs,
+    })
+
+
+@hyrox_bp.route("/api/hyrox/teamup/config", methods=["POST"])
+def api_teamup_save_config():
+    db = get_db()
+    ensure_hyrox_tables(db)
+    data = request.get_json(force=True) or {}
+
+    if "api_token" in data and data["api_token"] is not None:
+        tok = str(data["api_token"]).strip()
+        if tok and "••••" not in tok:
+            save_teamup_setting(db, "teamup_api_token", tok)
+    if "provider_id" in data and data["provider_id"] is not None:
+        save_teamup_setting(db, "teamup_provider_id", data["provider_id"])
+    if "webhook_secret" in data and data["webhook_secret"] is not None:
+        save_teamup_setting(db, "teamup_webhook_secret", data["webhook_secret"])
+    if "base_url" in data and data["base_url"]:
+        save_teamup_setting(db, "teamup_base_url", data["base_url"])
+
+    db.commit()
+    cfg = get_teamup_config(db)
+    return jsonify({
+        "ok": True,
+        "configured": cfg["configured"],
+        "has_token": cfg["has_token"],
+        "masked_token": cfg["masked_token"],
+        "provider_id": cfg["provider_id"],
+        "has_webhook_secret": cfg["has_webhook_secret"],
+        "base_url": cfg["base_url"],
+    })
+
+
+@hyrox_bp.route("/api/hyrox/teamup/test", methods=["POST"])
+def api_teamup_test_connection():
+    db = get_db()
+    cfg = get_teamup_config(db)
+    data = request.get_json(silent=True) or {}
+
+    token = (data.get("api_token") or "").strip()
+    if not token or "••••" in token:
+        token = cfg["api_token"]
+    provider_id = (data.get("provider_id") or cfg["provider_id"] or "").strip()
+
+    if not token:
+        return jsonify({
+            "ok": False,
+            "error": "No TeamUp M2M API token provided. Generate one in TeamUp -> Settings -> Integrations -> API Integration.",
+        }), 400
+
+    client = TeamUpClient(api_token=token, provider_id=provider_id, base_url=cfg["base_url"])
+    try:
+        app_info = client.verify_application()
+        scoped_providers = app_info.get("scoped_providers") or []
+        if not provider_id and scoped_providers:
+            first_prov = scoped_providers[0]
+            provider_id = str(first_prov.get("id") if isinstance(first_prov, dict) else first_prov)
+            save_teamup_setting(db, "teamup_provider_id", provider_id)
+            db.commit()
+        return jsonify({
+            "ok": True,
+            "application": app_info,
+            "provider_id": provider_id,
+            "scoped_providers": scoped_providers,
+        })
+    except TeamUpAPIError as e:
+        return jsonify({
+            "ok": False,
+            "error": e.message,
+            "status_code": e.status_code,
+            "details": e.details,
+        }), e.status_code if 400 <= e.status_code < 600 else 502
+
+
+@hyrox_bp.route("/api/hyrox/teamup/events", methods=["GET"])
+def api_teamup_remote_events():
+    db = get_db()
+    cfg = get_teamup_config(db)
+    if not cfg["has_token"]:
+        return jsonify({
+            "ok": False,
+            "error": "TeamUp API token not configured yet.",
+            "events": [],
+        }), 400
+
+    starts_gte = request.args.get("starts_at_gte") or request.args.get("date_from")
+    starts_lte = request.args.get("starts_at_lte") or request.args.get("date_to")
+    if starts_gte and len(starts_gte) == 10:
+        starts_gte = f"{starts_gte}T00:00:00Z"
+    if starts_lte and len(starts_lte) == 10:
+        starts_lte = f"{starts_lte}T23:59:59Z"
+
+    client = TeamUpClient(api_token=cfg["api_token"], provider_id=cfg["provider_id"], base_url=cfg["base_url"])
+    try:
+        events = client.list_events(
+            starts_at_gte=starts_gte,
+            starts_at_lte=starts_lte,
+            query=request.args.get("query"),
+            offering_types=request.args.get("offering_types"),
+        )
+        return jsonify({"ok": True, "count": len(events), "events": events})
+    except TeamUpAPIError as e:
+        return jsonify({"ok": False, "error": e.message, "details": e.details}), (
+            e.status_code if 400 <= e.status_code < 600 else 502
+        )
+
+
+@hyrox_bp.route("/api/hyrox/events/<int:event_id>/sync-teamup", methods=["POST"])
+def api_sync_teamup_to_event(event_id):
+    """
+    Sync registrations from TeamUp REST API v2 into the active HYROX Sim event.
+    Supports either:
+      1. Direct `attendances` JSON payload (matching GET /api/v2/attendances?expand=event,customer)
+      2. Live pull from TeamUp API v2 using configured M2M token + provider ID.
+    """
+    db = get_db()
+    ensure_hyrox_tables(db)
+    ev = db.execute("SELECT * FROM hyrox_events WHERE id=?", (event_id,)).fetchone()
+    if not ev:
+        return jsonify({"error": "HYROX Event not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    attendances = data.get("attendances")
+    if isinstance(data.get("results"), list) and attendances is None:
+        attendances = data["results"]
+
+    if attendances is None:
+        cfg = get_teamup_config(db)
+        if not cfg["has_token"]:
+            return jsonify({
+                "ok": False,
+                "error": "TeamUp M2M API token is not configured. Save your token in the TeamUp API panel or pass an 'attendances' payload.",
+            }), 400
+        client = TeamUpClient(api_token=cfg["api_token"], provider_id=cfg["provider_id"], base_url=cfg["base_url"])
+        teamup_event_ids = data.get("teamup_event_ids") or data.get("teamup_event_id")
+        starts_gte = data.get("starts_at_gte")
+        starts_lte = data.get("starts_at_lte")
+        if not teamup_event_ids and not starts_gte:
+            ev_date = ev["event_date"]
+            starts_gte = f"{ev_date}T00:00:00Z"
+            starts_lte = f"{ev_date}T23:59:59Z"
+        try:
+            attendances = client.list_attendances(
+                event_ids=teamup_event_ids,
+                starts_at_gte=starts_gte,
+                starts_at_lte=starts_lte,
+                status=data.get("status", "registered"),
+            )
+        except TeamUpAPIError as e:
+            return jsonify({"ok": False, "error": e.message, "details": e.details}), (
+                e.status_code if 400 <= e.status_code < 600 else 502
+            )
+
+    synced_ids = []
+    cancelled_ids = []
+    skipped = 0
+
+    for att in (attendances or []):
+        mapped = map_teamup_attendance_to_entry(att)
+        if not mapped or not mapped.get("display_name"):
+            skipped += 1
+            continue
+        att_status = mapped.get("teamup_attendance_status", "registered")
+        if att_status in ("late_cancelled", "not_registered", "cancelled", "removed"):
+            existing = db.execute(
+                "SELECT id, status FROM hyrox_entries WHERE event_id=? AND (LOWER(email)=? OR LOWER(display_name)=?) LIMIT 1",
+                (event_id, mapped.get("email") or "__none__", mapped["display_name"].lower()),
+            ).fetchone()
+            if existing and existing["status"] == "scheduled":
+                db.execute("UPDATE hyrox_entries SET status='dns', updated_at=CURRENT_TIMESTAMP WHERE id=?", (existing["id"],))
+                cancelled_ids.append(existing["id"])
+            else:
+                skipped += 1
+            continue
+
+        eid, err = _create_entry_record(db, event_id, mapped, upsert=True)
+        if eid:
+            synced_ids.append(eid)
+        else:
+            skipped += 1
+
+    db.commit()
+    return jsonify({
+        "ok": True,
+        "synced_count": len(synced_ids),
+        "cancelled_count": len(cancelled_ids),
+        "skipped_count": skipped,
+        "synced_entry_ids": synced_ids,
+        "cancelled_entry_ids": cancelled_ids,
+    })
+
+
+@hyrox_bp.route("/api/hyrox/teamup/webhook", methods=["POST"])
+def api_teamup_webhook():
+    """
+    Official TeamUp API v2 Webhook Receiver.
+    - Deduplicates via `TEAMUP-WEBHOOK-ID` header (TeamUp retries up to 5 times).
+    - Validates optional `?secret=` query param or `X-TeamUp-Webhook-Secret` header.
+    - Processes `feed_items`:
+        * `event_registration.created`
+        * `event_registration.removed`
+        * `event_registration.late_cancelled`
+        * `customer.created` / `customer.updated`
+    - Responds with 200 OK within 10s as required by TeamUp webhook spec.
+    """
+    db = get_db()
+    cfg = get_teamup_config(db)
+
+    if cfg["webhook_secret"]:
+        provided_secret = (
+            request.args.get("secret")
+            or request.headers.get("X-TeamUp-Webhook-Secret")
+            or ""
+        ).strip()
+        if provided_secret != cfg["webhook_secret"]:
+            return jsonify({"ok": False, "error": "Invalid webhook secret"}), 403
+
+    webhook_id = (
+        request.headers.get("TEAMUP-WEBHOOK-ID")
+        or request.headers.get("Teamup-Webhook-Id")
+        or ""
+    ).strip()
+
+    if webhook_id:
+        dup = db.execute(
+            "SELECT id FROM hyrox_webhook_logs WHERE webhook_id=? LIMIT 1",
+            (webhook_id,)
+        ).fetchone()
+        if dup:
+            return jsonify({"ok": True, "deduplicated": True, "webhook_id": webhook_id}), 200
+
+    payload = request.get_json(silent=True) or {}
+    feed_items = payload.get("feed_items") or []
+    target_event_id = get_active_event_id(db, request.args.get("event_id", type=int) or payload.get("hyrox_event_id"))
+
+    processed_items = []
+    for idx, item in enumerate(feed_items):
+        if not isinstance(item, dict):
+            continue
+        ftype = str(item.get("type") or "").strip()
+        fid = str(item.get("id") or f"{idx + 1}")
+        resources = item.get("resources") if isinstance(item.get("resources"), dict) else {}
+        cust_id = str(resources.get("customer") or "")
+        tu_event_id = str(resources.get("event") or "")
+        action_summary = f"Received {ftype}"
+
+        # If inline attendance/customer data is included or API token is configured, sync immediately
+        inline_att = item.get("attendance") or (
+            {"customer": item.get("customer"), "event": item.get("event")}
+            if isinstance(item.get("customer"), dict)
+            else None
+        )
+
+        if ftype in ("event_registration.removed", "event_registration.late_cancelled"):
+            if cust_id and target_event_id:
+                ath = db.execute(
+                    "SELECT id FROM hyrox_athletes WHERE teamup_customer_id=? LIMIT 1",
+                    (cust_id,)
+                ).fetchone()
+                if ath:
+                    db.execute(
+                        "UPDATE hyrox_entries SET status='dns', updated_at=CURRENT_TIMESTAMP "
+                        "WHERE event_id=? AND athlete_id=? AND status='scheduled'",
+                        (target_event_id, ath["id"]),
+                    )
+                    action_summary = f"Marked customer #{cust_id} entry as DNS ({ftype})"
+        elif ftype == "event_registration.created" and target_event_id:
+            mapped = None
+            if inline_att:
+                mapped = map_teamup_attendance_to_entry(inline_att)
+            elif cfg["has_token"] and cust_id and tu_event_id:
+                try:
+                    client = TeamUpClient(api_token=cfg["api_token"], provider_id=cfg["provider_id"], base_url=cfg["base_url"])
+                    atts = client.list_attendances(event_ids=[tu_event_id], status="all")
+                    for a in atts:
+                        c_obj = a.get("customer")
+                        cid = str(c_obj.get("id") if isinstance(c_obj, dict) else c_obj)
+                        if cid == cust_id:
+                            mapped = map_teamup_attendance_to_entry(a)
+                            break
+                except TeamUpAPIError as e:
+                    action_summary = f"Deferred fetch ({e.message})"
+            if mapped and mapped.get("display_name"):
+                eid, _ = _create_entry_record(db, target_event_id, mapped, upsert=True)
+                if eid:
+                    action_summary = f"Synced entry #{eid} ({mapped['display_name']})"
+        elif ftype in ("customer.created", "customer.updated"):
+            cust_obj = item.get("customer") if isinstance(item.get("customer"), dict) else None
+            if not cust_obj and cfg["has_token"] and cust_id:
+                try:
+                    client = TeamUpClient(api_token=cfg["api_token"], provider_id=cfg["provider_id"], base_url=cfg["base_url"])
+                    cust_obj = client.get_customer(cust_id)
+                except TeamUpAPIError:
+                    cust_obj = None
+            if isinstance(cust_obj, dict):
+                cname = (cust_obj.get("name") or f"{cust_obj.get('first_name', '')} {cust_obj.get('last_name', '')}").strip()
+                if cname:
+                    aid = find_or_create_athlete(
+                        db,
+                        full_name=cname,
+                        email=cust_obj.get("email") or "",
+                        dob=cust_obj.get("date_of_birth") or "",
+                        age_category=normalize_age_category(cust_obj.get("date_of_birth") or cust_obj.get("age")),
+                        teamup_customer_id=cust_id or str(cust_obj.get("id") or ""),
+                    )
+                    action_summary = f"Updated athlete #{aid} ({cname})"
+
+        log_wid = f"{webhook_id}:{fid}" if (webhook_id and len(feed_items) > 1) else (webhook_id or f"wh-{int(time.time()*1000)}-{idx}")
+        db.execute(
+            "INSERT INTO hyrox_webhook_logs (webhook_id, feed_item_id, feed_item_type, customer_id, teamup_event_id, status, summary) "
+            "VALUES (?, ?, ?, ?, ?, 'processed', ?)",
+            (log_wid, fid, ftype, cust_id, tu_event_id, action_summary),
+        )
+        processed_items.append({"id": fid, "type": ftype, "summary": action_summary})
+
+    if not feed_items and webhook_id:
+        db.execute(
+            "INSERT INTO hyrox_webhook_logs (webhook_id, feed_item_type, status, summary) VALUES (?, 'ping', 'processed', 'Webhook ping received')",
+            (webhook_id,),
+        )
+
+    db.commit()
+    return jsonify({
+        "ok": True,
+        "deduplicated": False,
+        "webhook_id": webhook_id,
+        "processed_count": len(processed_items),
+        "processed": processed_items,
+    }), 200
+

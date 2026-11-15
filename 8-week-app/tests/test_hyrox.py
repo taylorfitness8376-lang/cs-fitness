@@ -25,8 +25,18 @@ def test_seeded_demo_events_and_divisions_matrix(client):
     state = state_resp.get_json()
 
     assert len(state["splits_template"]) == 16
-    assert state["splits_template"][0]["label"] == "Run 1"
+    assert state["splits_template"][0]["label"].startswith("Run 1")
     assert state["splits_template"][15]["station_key"] == "wall_balls"
+
+    ewan = next(e for e in state["entries"] if "Ewan Taylor" in e["display_name"])
+    assert ewan["run_distance_km"] == 1.2
+    assert ewan["total_run_distance_km"] == 9.6
+    assert ewan["avg_run_kph"] > 0
+    assert "kph" in ewan["avg_run_kph_formatted"]
+    run1_split = ewan["splits"][0]
+    assert run1_split["distance_km"] == 1.2
+    assert run1_split["pace_kph"] > 0
+    assert "kph" in run1_split["pace_kph_formatted"]
 
     divisions = state["divisions"]
     assert set(divisions.keys()) == {
@@ -234,3 +244,148 @@ def test_historical_progression_and_web_surfaces(client):
     ath_resp = client.get(f"/hyrox/athlete/{ewan['athlete_id']}")
     assert ath_resp.status_code == 200
     assert b"Ewan Taylor" in ath_resp.data
+
+
+def test_teamup_api_v2_sync_and_webhooks(client):
+    """Test TeamUp REST API v2 config, attendance expansion sync, idempotent upsert, and webhook receiver."""
+    # 1. Check status & save config
+    st_resp = client.get("/api/hyrox/teamup/status")
+    assert st_resp.status_code == 200
+    st_data = st_resp.get_json()
+    assert st_data["api_spec"]["base_url"] == "https://goteamup.com/api/v2"
+
+    cfg_resp = client.post(
+        "/api/hyrox/teamup/config",
+        json={
+            "api_token": "Bearer tu_m2m_test_token_12345678",
+            "provider_id": "285151",
+            "webhook_secret": "cs_secret_99",
+        },
+    )
+    assert cfg_resp.status_code == 200
+    cfg_json = cfg_resp.get_json()
+    assert cfg_json["configured"] is True
+    assert cfg_json["provider_id"] == "285151"
+    assert "••••" in cfg_json["masked_token"]
+
+    # 2. Sync a TeamUp v2 /api/v2/attendances?expand=event,customer payload into a fresh Sim event
+    ev_resp = client.post(
+        "/api/hyrox/events",
+        json={
+            "name": "CS Performance HYROX Sim — TeamUp API Sync Test",
+            "event_date": "2026-12-12",
+            "first_wave_time": "09:00",
+            "num_waves": 2,
+            "wave_interval_mins": 15,
+            "lanes_per_wave": 4,
+        },
+    )
+    event_id = ev_resp.get_json()["id"]
+
+    teamup_v2_payload = {
+        "count": 2,
+        "next": None,
+        "previous": None,
+        "results": [
+            {
+                "id": 9001,
+                "status": "registered",
+                "customer": {
+                    "id": 818974,
+                    "first_name": "Rory",
+                    "last_name": "MacDonald",
+                    "email": "rory.macdonald@example.com",
+                    "date_of_birth": "1990-06-15",
+                },
+                "event": {
+                    "id": 14947247,
+                    "name": "HYROX Sim — Men Pro Wave",
+                    "local_starts_at": "2026-12-12T09:00:00",
+                    "offering_type": {"id": 55, "name": "HYROX Men Pro"},
+                    "instructors": [{"id": 12, "name": "Coach Chris"}],
+                },
+            },
+            {
+                "id": 9002,
+                "status": "registered",
+                "customer": {
+                    "id": 818975,
+                    "name": "Chloe & Sophie",
+                    "email": "chloe.sophie@example.com",
+                    "date_of_birth": "1995-03-20",
+                    "custom_fields": {
+                        "division": "Women Doubles",
+                        "partner_name": "Sophie Robertson",
+                    },
+                },
+                "event": {
+                    "id": 14947248,
+                    "name": "HYROX Sim — 09:15 Wave",
+                    "starts_at": "2026-12-12T09:15:00Z",
+                },
+            },
+        ],
+    }
+
+    sync_resp = client.post(
+        f"/api/hyrox/events/{event_id}/sync-teamup",
+        json=teamup_v2_payload,
+    )
+    assert sync_resp.status_code == 200
+    sync_data = sync_resp.get_json()
+    assert sync_data["synced_count"] == 2
+
+    # Re-syncing the exact same payload should be idempotent (updates in place, still 2 entries total)
+    resync_resp = client.post(
+        f"/api/hyrox/events/{event_id}/sync-teamup",
+        json=teamup_v2_payload,
+    )
+    assert resync_resp.status_code == 200
+    state = client.get(f"/api/hyrox/events/{event_id}/state").get_json()
+    assert len(state["entries"]) == 2
+    rory = next(e for e in state["entries"] if "Rory MacDonald" in e["display_name"])
+    assert rory["division"] == "men_pro"
+    assert rory["age_category"] == "35-39"
+    assert rory["heat_start_time"] == "09:00"
+    assert rory["volunteer_name"] == "Coach Chris"
+
+    # 3. Test TeamUp v2 Webhook receiver (with secret + TEAMUP-WEBHOOK-ID deduplication)
+    bad_wh = client.post(
+        f"/api/hyrox/teamup/webhook?event_id={event_id}&secret=wrong",
+        json={"feed_items": []},
+    )
+    assert bad_wh.status_code == 403
+
+    wh_payload = {
+        "feed_items": [
+            {
+                "id": 501,
+                "type": "event_registration.late_cancelled",
+                "resources": {"customer": 818974, "event": 14947247, "business": 285151},
+            }
+        ]
+    }
+    wh_resp = client.post(
+        f"/api/hyrox/teamup/webhook?event_id={event_id}&secret=cs_secret_99",
+        headers={"TEAMUP-WEBHOOK-ID": "tu-wh-uuid-001"},
+        json=wh_payload,
+    )
+    assert wh_resp.status_code == 200
+    wh_json = wh_resp.get_json()
+    assert wh_json["deduplicated"] is False
+    assert wh_json["processed_count"] == 1
+
+    # Duplicate delivery with same TEAMUP-WEBHOOK-ID is deduplicated
+    wh_dup = client.post(
+        f"/api/hyrox/teamup/webhook?event_id={event_id}&secret=cs_secret_99",
+        headers={"TEAMUP-WEBHOOK-ID": "tu-wh-uuid-001"},
+        json=wh_payload,
+    )
+    assert wh_dup.status_code == 200
+    assert wh_dup.get_json()["deduplicated"] is True
+
+    # Verify Rory's entry was marked DNS by the late_cancelled webhook
+    state_after = client.get(f"/api/hyrox/events/{event_id}/state").get_json()
+    rory_after = next(e for e in state_after["entries"] if "Rory MacDonald" in e["display_name"])
+    assert rory_after["status"] == "dns"
+

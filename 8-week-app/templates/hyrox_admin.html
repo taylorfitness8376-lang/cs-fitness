@@ -292,11 +292,14 @@
         </div>
       </section>
 
-      <!-- TeamUp CSV Import & Quick Add Athlete/Pair -->
+      <!-- TeamUp CSV Import & Direct API v2 Sync -->
       <section class="card">
         <div class="card-header">
-          <div class="card-title">📥 2. TEAMUP CSV IMPORT &amp; FLEXIBLE MAPPER</div>
-          <a href="/api/hyrox/sample-csv" class="btn" download>⬇️ Sample TeamUp CSV</a>
+          <div class="card-title">📥 2. TEAMUP CSV IMPORT &amp; LIVE API v2 SYNC</div>
+          <div style="display:flex;gap:0.4rem;align-items:center">
+            <span id="teamup-api-badge" class="pill" style="background:rgba(255,255,255,0.08);color:var(--muted)">API v2: Ready</span>
+            <a href="/api/hyrox/sample-csv" class="btn" download>⬇️ Sample TeamUp CSV</a>
+          </div>
         </div>
         <div class="form-row">
           <div>
@@ -305,10 +308,39 @@
           </div>
         </div>
         <div style="margin-bottom:0.6rem">
-          <label>Or Paste CSV Rows (Auto-detects Name, First+Last, Email, DOB/Age Cat, Division, Partner, Heat Time, Volunteer)</label>
-          <textarea id="csv-text-input" rows="3" placeholder="First Name,Last Name,Email,DOB,Division,Partner Name,Heat Time,Volunteer&#10;Jamie,Vardy,jamie@example.com,1987-01-11,Men Open,,08:45,Coach Chris"></textarea>
+          <label>Or Paste CSV Rows (Auto-detects Name, First+Last, Email, DOB/Age Cat, Offering/Division, Partner, Event Time, Volunteer)</label>
+          <textarea id="csv-text-input" rows="2" placeholder="First Name,Last Name,Email,DOB,Division,Partner Name,Heat Time,Volunteer&#10;Jamie,Vardy,jamie@example.com,1987-01-11,Men Open,,08:45,Coach Chris"></textarea>
         </div>
-        <button type="button" class="btn btn-green" onclick="importTeamUpCsv()">🚀 Import CSV Roster into Active Sim</button>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem">
+          <button type="button" class="btn btn-green" onclick="importTeamUpCsv()">🚀 Import CSV Roster into Active Sim</button>
+        </div>
+
+        <!-- Collapsible Direct TeamUp REST API v2 Connector -->
+        <details style="background:var(--surface-2);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.65rem 0.8rem">
+          <summary style="cursor:pointer;font-size:0.78rem;font-weight:800;color:var(--blue)">
+            🔌 Direct TeamUp REST API v2 &amp; Webhook Integration (https://goteamup.com/api/v2)
+          </summary>
+          <div style="margin-top:0.65rem">
+            <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.55rem">
+              Uses official TeamUp API v2 (<code>Authorization: Bearer &lt;M2M_TOKEN&gt;</code>, <code>TeamUp-Provider-ID</code>, <code>TeamUp-Request-Mode: provider</code>) to pull <code>/api/v2/attendances?expand=event,customer</code> and receive <code>event_registration.*</code> webhooks.
+            </div>
+            <div class="form-row" style="margin-bottom:0.5rem">
+              <div>
+                <label>TeamUp M2M API Token</label>
+                <input type="password" id="tu-api-token" placeholder="Paste M2M Token from TeamUp → Settings → Integrations" />
+              </div>
+              <div>
+                <label>TeamUp Provider ID</label>
+                <input type="text" id="tu-provider-id" placeholder="e.g. 285151 (auto-discovered on test)" />
+              </div>
+            </div>
+            <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">
+              <button type="button" class="btn" onclick="saveAndTestTeamUpApi()">🔑 Save &amp; Verify Token</button>
+              <button type="button" class="btn btn-green" onclick="syncFromTeamUpApi()">🔄 Sync Registrations via TeamUp API v2</button>
+              <span id="tu-status-msg" style="font-size:0.72rem;color:var(--muted)">Webhook: <code>POST /api/hyrox/teamup/webhook</code></span>
+            </div>
+          </div>
+        </details>
       </section>
     </div>
 
@@ -592,7 +624,7 @@
             </td>
             <td>
               <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.25rem;color:var(--green)">${e.total_formatted}</div>
-              <div style="font-size:0.72rem;color:var(--muted)">Run ${e.run_total_formatted} · Stn ${e.station_total_formatted}</div>
+              <div style="font-size:0.72rem;color:var(--muted)">Run ${e.run_total_formatted} (${e.avg_run_kph_formatted || '—'}) · Stn ${e.station_total_formatted}</div>
             </td>
             <td>
               <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
@@ -733,7 +765,7 @@
         <div class="split-edit-item">
           <div>
             <div style="font-weight:800;font-size:0.8rem">#${s.split_index} · ${s.label}</div>
-            <div style="font-size:0.7rem;color:var(--muted)">${s.prescription}</div>
+            <div style="font-size:0.7rem;color:var(--muted)">${s.prescription}${s.pace_kph ? ` · <strong style="color:var(--blue)">${s.pace_kph_formatted}</strong>` : ''}</div>
           </div>
           <input type="text" class="split-dur-input" data-split-index="${s.split_index}"
             value="${s.duration_ms !== null ? s.duration_formatted : ''}"
@@ -812,7 +844,69 @@
       await refreshEventState();
     }
 
+    async function loadTeamUpStatus() {
+      try {
+        const res = await fetch('/api/hyrox/teamup/status');
+        if (!res.ok) return;
+        const st = await res.json();
+        const badge = document.getElementById('teamup-api-badge');
+        const tokInput = document.getElementById('tu-api-token');
+        const provInput = document.getElementById('tu-provider-id');
+        if (st.provider_id && provInput) provInput.value = st.provider_id;
+        if (st.has_token && tokInput && !tokInput.value) tokInput.placeholder = `Saved (${st.masked_token})`;
+        if (badge) {
+          badge.textContent = st.configured ? `API v2: Token Configured` : `API v2: Ready`;
+          badge.style.background = st.configured ? 'rgba(61, 255, 79, 0.16)' : 'rgba(255, 255, 255, 0.08)';
+          badge.style.color = st.configured ? 'var(--green)' : 'var(--muted)';
+        }
+      } catch (e) {}
+    }
+
+    async function saveAndTestTeamUpApi() {
+      const api_token = document.getElementById('tu-api-token').value.trim();
+      const provider_id = document.getElementById('tu-provider-id').value.trim();
+      const msgEl = document.getElementById('tu-status-msg');
+      msgEl.textContent = 'Saving & verifying with goteamup.com/api/v2/auth/application...';
+      await fetch('/api/hyrox/teamup/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_token, provider_id }),
+      });
+      const testRes = await fetch('/api/hyrox/teamup/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_token, provider_id }),
+      });
+      const data = await testRes.json();
+      await loadTeamUpStatus();
+      if (testRes.ok && data.ok) {
+        if (data.provider_id) document.getElementById('tu-provider-id').value = data.provider_id;
+        msgEl.innerHTML = `<span style="color:var(--green);font-weight:700">✅ Connected to TeamUp v2 (Provider #${data.provider_id || 'OK'})</span>`;
+      } else {
+        msgEl.innerHTML = `<span style="color:var(--yellow)">Saved config · Live verify: ${data.error || 'Token not verified yet'}</span>`;
+      }
+    }
+
+    async function syncFromTeamUpApi() {
+      if (!currentEventId) return;
+      const msgEl = document.getElementById('tu-status-msg');
+      msgEl.textContent = 'Pulling /api/v2/attendances?expand=event,customer...';
+      const res = await fetch(`/api/hyrox/events/${currentEventId}/sync-teamup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        msgEl.innerHTML = `<span style="color:var(--green);font-weight:700">✅ Synced ${data.synced_count} entries (${data.cancelled_count} cancelled)</span>`;
+        await loadEventsList();
+      } else {
+        msgEl.innerHTML = `<span style="color:var(--red)">${data.error || 'Sync failed'}</span>`;
+      }
+    }
+
     loadEventsList();
+    loadTeamUpStatus();
   </script>
 </body>
 </html>

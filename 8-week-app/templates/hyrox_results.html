@@ -243,9 +243,9 @@
     <!-- KPI SUMMARY -->
     <section class="kpi-grid">
       <div class="kpi-box">
-        <div class="kpi-label">🏃 Run Total (8 Runs)</div>
+        <div class="kpi-label">🏃 Run Total (8 × 1.2 km = 9.6 km)</div>
         <div class="kpi-val" style="color:var(--blue)">{{ entry.run_total_formatted }}</div>
-        <div style="font-size:0.75rem;color:var(--muted)">Avg Run: {{ entry.avg_run_formatted }} ({{ entry.run_pct }}%)</div>
+        <div style="font-size:0.75rem;color:var(--muted)">Avg: {{ entry.avg_run_formatted }} · <strong style="color:var(--blue)">{{ entry.avg_run_kph_formatted }}</strong> ({{ entry.avg_run_pace_per_km_formatted }})</div>
       </div>
       <div class="kpi-box">
         <div class="kpi-label">🏋️ Station Work Total</div>
@@ -292,7 +292,7 @@
           <div style="font-size:0.74rem;color:var(--muted);font-weight:700">{{ sim.event_date }} · {{ sim.division_label }}</div>
           <div style="font-weight:800;font-size:0.95rem;margin:0.15rem 0">{{ sim.event_name }}</div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.7rem;color:var(--green)">{{ sim.total_formatted }}</div>
-          <div style="font-size:0.74rem;color:var(--muted)">Run {{ sim.run_total_formatted }} · Stn {{ sim.station_total_formatted }}</div>
+          <div style="font-size:0.74rem;color:var(--muted)">Run {{ sim.run_total_formatted }} ({{ sim.avg_run_kph_formatted }}) · Stn {{ sim.station_total_formatted }}</div>
         </a>
         {% endfor %}
       </div>
@@ -328,24 +328,32 @@
     function renderSplitTable() {
       const splits = entryData.splits || [];
       const maxMs = Math.max(...splits.map(s => s.duration_ms || 1), 1);
-      const cmpSplits = entryData.history?.comparison?.split_deltas || {};
+      const cmpSplits = entryData.history?.comparison?.split_deltas || [];
 
       const listEl = document.getElementById('splits-breakdown-list');
       listEl.innerHTML = splits.map(s => {
         const pct = s.duration_ms ? Math.min(100, Math.round((s.duration_ms / maxMs) * 100)) : 0;
         const barColor = s.split_type === 'run' ? 'var(--blue)' : 'var(--green)';
-        const deltaInfo = cmpSplits[s.split_index] || cmpSplits[String(s.split_index)];
+        const deltaInfo = Array.isArray(cmpSplits)
+          ? cmpSplits.find(d => d.split_index === s.split_index)
+          : (cmpSplits[s.split_index] || cmpSplits[String(s.split_index)]);
         let deltaHtml = '<span style="color:var(--muted);font-size:0.75rem">—</span>';
         if (deltaInfo && deltaInfo.delta_ms !== null && deltaInfo.delta_ms !== undefined) {
           const cls = deltaInfo.delta_ms <= 0 ? 'delta-faster' : 'delta-slower';
-          deltaHtml = `<span class="delta-pill ${cls}" title="Previous: ${deltaInfo.previous_formatted}">${deltaInfo.delta_formatted}</span>`;
+          const kphDiff = (s.split_type === 'run' && deltaInfo.kph_delta !== null && deltaInfo.kph_delta !== undefined)
+            ? ` (${deltaInfo.kph_delta >= 0 ? '+' : ''}${deltaInfo.kph_delta} kph)`
+            : '';
+          deltaHtml = `<span class="delta-pill ${cls}" title="Previous: ${deltaInfo.previous_formatted}${kphDiff}">${deltaInfo.delta_formatted}</span>`;
         }
+        const kphBadge = (s.split_type === 'run' && s.pace_kph !== null && s.pace_kph !== undefined)
+          ? `<span style="color:var(--blue);font-weight:800;margin-left:0.35rem">· ${s.pace_kph_formatted} (${s.pace_per_km_formatted})</span>`
+          : '';
         return `
           <div class="split-row">
             <div style="font-weight:800;color:var(--muted)">#${s.split_index}</div>
             <div>
               <div style="font-weight:700">${s.label}</div>
-              <div style="font-size:0.72rem;color:var(--muted)">${s.prescription}</div>
+              <div style="font-size:0.72rem;color:var(--muted)">${s.prescription}${kphBadge}</div>
             </div>
             <div class="split-bar-cell">
               <div class="bar-track">
@@ -434,8 +442,8 @@
       ctx.fillRect(556, sumY, 448, sumH);
 
       ctx.fillStyle = '#38bdf8';
-      ctx.font = '800 24px "Inter", sans-serif';
-      ctx.fillText(`8 RUNS TOTAL (${entryData.run_pct}%)`, 102, sumY + 40);
+      ctx.font = '800 22px "Inter", sans-serif';
+      ctx.fillText(`8 × 1.2 KM RUNS (${entryData.avg_run_kph_formatted || ''})`, 102, sumY + 40);
       ctx.fillStyle = '#ffffff';
       ctx.font = '800 56px "Barlow Condensed", sans-serif';
       ctx.fillText(entryData.run_total_formatted || '--:--', 102, sumY + (isStory ? 104 : 88));
@@ -455,7 +463,7 @@
 
       ctx.fillStyle = '#38bdf8';
       ctx.font = 'italic 800 36px "Barlow Condensed", sans-serif';
-      ctx.fillText('RUNNING SPLITS (1-8)', 76, splitsStartY);
+      ctx.fillText('RUNNING SPLITS (8 × 1.2 KM)', 76, splitsStartY);
 
       ctx.fillStyle = '#3DFF4F';
       ctx.fillText('WORKOUT STATIONS (1-8)', 556, splitsStartY);
@@ -469,8 +477,9 @@
         ctx.fillStyle = 'rgba(255,255,255,0.05)';
         ctx.fillRect(76, y - 36, 448, isStory ? 74 : 50);
         ctx.fillStyle = '#cbd5e1';
-        ctx.font = '700 25px "Inter", sans-serif';
-        ctx.fillText(r.label || `Run ${i + 1}`, 96, y + (isStory ? 8 : 0));
+        ctx.font = '700 23px "Inter", sans-serif';
+        const rKph = r.pace_kph_formatted && r.pace_kph_formatted !== '—' ? ` · ${r.pace_kph_formatted}` : '';
+        ctx.fillText(`Run ${i + 1}${rKph}`, 96, y + (isStory ? 8 : 0));
         ctx.fillStyle = '#38bdf8';
         ctx.font = '800 34px "Barlow Condensed", sans-serif';
         ctx.fillText(r.duration_formatted || '--:--', 410, y + (isStory ? 10 : 2));

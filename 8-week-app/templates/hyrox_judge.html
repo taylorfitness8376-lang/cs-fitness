@@ -676,7 +676,7 @@
             <div>
               <span style="color:${s.split_type === 'run' ? 'var(--blue)' : 'var(--green)'};font-weight:800">#${s.split_index}</span>
               <span style="margin-left:0.35rem">${s.label}</span>
-              <div style="font-size:0.68rem;color:var(--muted)">${s.prescription}</div>
+              <div style="font-size:0.68rem;color:var(--muted)">${s.prescription}${isDone && s.pace_kph ? ` · <strong style="color:var(--blue)">${s.pace_kph_formatted}</strong>` : ''}</div>
             </div>
             <div style="display:flex;align-items:center">
               <span style="font-family:monospace;font-weight:800;font-size:0.9rem;color:${isDone ? '#fff' : 'var(--muted)'}">
