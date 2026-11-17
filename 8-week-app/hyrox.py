@@ -1869,13 +1869,20 @@ def _create_entry_record(db, event_id, payload, upsert=False):
                 (event_id, display_name.lower())
             ).fetchone()
         if existing_entry:
-            new_heat_id = heat_id if heat_id is not None else existing_entry["heat_id"]
+            has_exp_div = payload.get("has_explicit_division", bool(payload.get("division")))
+            has_exp_age = payload.get("has_explicit_age", bool(payload.get("age_category") or dob))
+            new_heat_id = existing_entry["heat_id"] if existing_entry["heat_id"] is not None else heat_id
+            if payload.get("force_heat_time") and heat_id is not None:
+                new_heat_id = heat_id
             new_partner = partner_name or existing_entry["partner_name"]
             new_partner_aid = partner_athlete_id or existing_entry["partner_athlete_id"]
-            new_div = division if payload.get("division") else existing_entry["division"]
-            new_age = age_cat if (payload.get("age_category") or dob) else existing_entry["age_category"]
-            new_vol = volunteer_name or existing_entry["volunteer_name"]
-            new_notes = notes or existing_entry["notes"]
+            if existing_entry["partner_name"] and not partner_name:
+                new_div = existing_entry["division"]
+            else:
+                new_div = division if has_exp_div else existing_entry["division"]
+            new_age = age_cat if has_exp_age else existing_entry["age_category"]
+            new_vol = existing_entry["volunteer_name"] or volunteer_name
+            new_notes = existing_entry["notes"] or notes
             db.execute(
                 "UPDATE hyrox_entries SET heat_id=?, athlete_id=?, partner_athlete_id=?, display_name=?, "
                 "partner_name=?, email=?, division=?, age_category=?, volunteer_name=?, notes=?, "
@@ -2060,22 +2067,63 @@ def api_entry_detail(entry_id):
         return jsonify({"ok": True})
 
     data = request.get_json(force=True) or {}
-    new_heat_id = data.get("heat_id", row["heat_id"])
-    if new_heat_id == "" or new_heat_id == 0:
-        new_heat_id = None
-    elif new_heat_id is not None:
-        new_heat_id = int(new_heat_id)
-
     new_division = normalize_division(data.get("division", row["division"]))
     new_age_cat = normalize_age_category(data.get("age_category", row["age_category"]))
-    new_display_name = (data.get("display_name", row["display_name"]) or "").strip()
+    new_display_name = (data.get("display_name", row["display_name"]) or "").strip() or row["display_name"]
     new_partner_name = (data.get("partner_name", row["partner_name"]) or "").strip()
     new_email = (data.get("email", row["email"]) or "").strip().lower()
-    new_bib = str(data.get("bib_number", row["bib_number"]) or "").strip()
+    new_bib = str(data.get("bib_number", row["bib_number"]) or "").strip() or row["bib_number"]
     new_volunteer = (data.get("volunteer_name", row["volunteer_name"]) or "").strip()
     new_pin = str(data.get("judge_pin", row["judge_pin"]) or "").strip()
     new_status = (data.get("status", row["status"]) or "scheduled").strip()
     new_notes = (data.get("notes", row["notes"]) or "").strip()
+    new_wb_reps = int(data.get("wall_ball_reps", row["wall_ball_reps"] or 0) or 0)
+
+    # Support creating/assigning a custom 1:1 time slot on the fly if custom_slot_time is provided
+    custom_slot_time = _normalize_heat_time_str(data.get("custom_slot_time") or data.get("heat_time") or "")
+    custom_slot_day = int(data.get("custom_slot_day") or 1)
+    if custom_slot_time and re.match(r"^\d{2}:\d{2}$", custom_slot_time):
+        existing_heat = db.execute(
+            "SELECT id FROM hyrox_heats WHERE event_id=? AND day_number=? AND start_time=? LIMIT 1",
+            (row["event_id"], custom_slot_day, custom_slot_time)
+        ).fetchone()
+        if existing_heat:
+            new_heat_id = existing_heat["id"]
+        else:
+            ev_row = db.execute("SELECT * FROM hyrox_events WHERE id=?", (row["event_id"],)).fetchone()
+            ev_d = dict(ev_row) if ev_row else {}
+            slot_date = (ev_d.get("end_date") if custom_slot_day == 2 else ev_d.get("event_date")) or ""
+            max_h = db.execute(
+                "SELECT COALESCE(MAX(heat_number), 0) as m FROM hyrox_heats WHERE event_id=?",
+                (row["event_id"],)
+            ).fetchone()["m"]
+            h_num = max_h + 1
+            div_label = HYROX_DIVISIONS.get(new_division, {}).get("label", "")
+            h_name = f"Day {custom_slot_day} · {custom_slot_time} — {div_label}" if div_label else f"Day {custom_slot_day} · Slot {h_num} — {custom_slot_time}"
+            cur_h = db.execute(
+                "INSERT INTO hyrox_heats (event_id, heat_number, day_number, slot_date, division_block, transition_buffer_mins, name, start_time, max_lanes, status) "
+                "VALUES (?, ?, ?, ?, ?, 0, ?, ?, 1, 'scheduled')",
+                (row["event_id"], h_num, custom_slot_day, slot_date, new_division, h_name, custom_slot_time)
+            )
+            new_heat_id = cur_h.lastrowid
+    else:
+        new_heat_id = data.get("heat_id", row["heat_id"])
+        if new_heat_id == "" or new_heat_id == 0:
+            new_heat_id = None
+        elif new_heat_id is not None:
+            new_heat_id = int(new_heat_id)
+
+    new_athlete_id = find_or_create_athlete(
+        db,
+        full_name=new_display_name,
+        email=new_email,
+        age_category=new_age_cat,
+    ) or row["athlete_id"]
+    new_partner_athlete_id = (
+        find_or_create_athlete(db, full_name=new_partner_name, age_category=new_age_cat)
+        if new_partner_name
+        else None
+    )
 
     if "penalty_ms" in data or "penalty_str" in data:
         p_val = data.get("penalty_ms") if "penalty_ms" in data else data.get("penalty_str")
@@ -2096,11 +2144,13 @@ def api_entry_detail(entry_id):
             )
 
     db.execute(
-        "UPDATE hyrox_entries SET heat_id=?, display_name=?, partner_name=?, email=?, bib_number=?, "
-        "division=?, age_category=?, volunteer_name=?, judge_pin=?, status=?, penalty_ms=?, notes=?, "
-        "updated_at=CURRENT_TIMESTAMP WHERE id=?",
+        "UPDATE hyrox_entries SET heat_id=?, athlete_id=?, partner_athlete_id=?, display_name=?, partner_name=?, "
+        "email=?, bib_number=?, division=?, age_category=?, volunteer_name=?, judge_pin=?, status=?, "
+        "penalty_ms=?, wall_ball_reps=?, notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
         (
             new_heat_id,
+            new_athlete_id,
+            new_partner_athlete_id,
             new_display_name,
             new_partner_name,
             new_email,
@@ -2111,6 +2161,7 @@ def api_entry_detail(entry_id):
             new_pin,
             new_status,
             new_penalty,
+            new_wb_reps,
             new_notes,
             entry_id,
         ),
@@ -2836,6 +2887,7 @@ def map_teamup_attendance_to_entry(att_obj):
     ).strip()
     booking_notes_str = str(att_obj.get("notes") or att_obj.get("booking_notes") or "").strip()
 
+    has_explicit_division = True
     if explicit_div:
         div_resolved = normalize_division(explicit_div)
     elif booking_notes_str and any(k in booking_notes_str.lower() for k in ("open", "pro", "double", "mixed", "women", "female", "men")):
@@ -2846,6 +2898,7 @@ def map_teamup_attendance_to_entry(att_obj):
         div_resolved = "mixed_doubles"
     else:
         div_resolved = default_open_div
+        has_explicit_division = False
 
     # Wave / Heat time from event local_starts_at / starts_at or explicit heat_time
     raw_starts = (
@@ -2882,6 +2935,8 @@ def map_teamup_attendance_to_entry(att_obj):
         "dob": str(dob).strip(),
         "age_category": normalize_age_category(age_cat_raw),
         "division": div_resolved,
+        "has_explicit_division": has_explicit_division,
+        "has_explicit_age": bool(age_cat_raw or dob),
         "heat_time": heat_time,
         "volunteer_name": volunteer,
         "teamup_customer_id": str(customer_id).strip(),

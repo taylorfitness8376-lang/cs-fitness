@@ -599,15 +599,82 @@
     </section>
   </main>
 
-  <!-- MODAL: FULL 16-SPLIT CORRECTIONS EDITOR & COMBINED SEGMENT SPLITTER -->
+  <!-- MODAL: FULL ATHLETE / PAIR DETAILS, 1:1 SLOT & 16-SPLIT CORRECTIONS EDITOR -->
   <div class="modal-backdrop" id="splits-modal">
     <div class="modal-box">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
         <div>
-          <div class="card-title" id="modal-entry-title">Edit 16 Splits &amp; Race Corrections</div>
+          <div class="card-title" id="modal-entry-title">Edit Athlete / Pair Details, Slot &amp; 16 Splits</div>
           <div style="font-size:0.76rem;color:var(--muted)" id="modal-entry-subtitle"></div>
         </div>
         <button type="button" class="btn" onclick="closeSplitsModal()">✕ Close</button>
+      </div>
+
+      <!-- Athlete / Pair, Division, Age Category, Slot & Volunteer Editor -->
+      <div style="background:rgba(61,255,79,0.06);border:1px solid rgba(61,255,79,0.28);border-radius:10px;padding:0.85rem;margin-bottom:0.9rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.55rem">
+          <div style="font-size:0.8rem;font-weight:800;color:var(--green);letter-spacing:0.04em">
+            👤 ATHLETE / DOUBLES PAIR, DIVISION, AGE CATEGORY, 1:1 SLOT &amp; VOLUNTEER
+          </div>
+          <div style="display:flex;gap:0.4rem">
+            <button type="button" class="btn btn-red" style="padding:0.28rem 0.6rem;font-size:0.74rem" onclick="deleteCurrentEntry()">🗑️ Delete Entry</button>
+            <button type="button" class="btn btn-green" style="padding:0.28rem 0.75rem;font-size:0.76rem" onclick="saveEntryDetailsOnly()">💾 Save Athlete &amp; Slot Details</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label>Athlete 1 Full Name</label>
+            <input type="text" id="modal-display-name" placeholder="e.g. Sarah Jenkins" />
+          </div>
+          <div>
+            <label>Doubles Partner Name (if 1 signed up for Doubles)</label>
+            <input type="text" id="modal-partner-name" placeholder="Add 2nd athlete for Doubles..." oninput="onModalPartnerInput(this.value)" />
+          </div>
+          <div>
+            <label>Division (All 9 Official HYROX Divisions)</label>
+            <select id="modal-division">
+              {% for dkey in division_order %}
+              {% set div = divisions[dkey] %}
+              <option value="{{ dkey }}">{{ div.label }} ({{ div.short_label }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>Age Category</label>
+            <select id="modal-age-category">
+              {% for ac in age_categories %}
+              <option value="{{ ac }}">{{ ac }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:0">
+          <div>
+            <label>Assigned 1:1 Slot</label>
+            <select id="modal-heat-id"></select>
+          </div>
+          <div>
+            <label>Or Set Custom 1:1 Slot Time (Day + HH:MM)</label>
+            <div style="display:flex;gap:0.35rem">
+              <select id="modal-custom-day" style="width:92px">
+                <option value="1">Day 1</option>
+                <option value="2">Day 2</option>
+              </select>
+              <input type="text" id="modal-custom-time" placeholder="e.g. 09:40" style="flex:1" />
+            </div>
+          </div>
+          <div>
+            <label>1:1 Volunteer Judge</label>
+            <input type="text" id="modal-volunteer" placeholder="e.g. Coach Dan" />
+          </div>
+          <div>
+            <label>Bib # &amp; Email</label>
+            <div style="display:flex;gap:0.35rem">
+              <input type="text" id="modal-bib" placeholder="Bib #" style="width:72px" />
+              <input type="email" id="modal-email" placeholder="athlete@email.com" style="flex:1" />
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Combined Segment Splitter Helper -->
@@ -653,6 +720,10 @@
           <label>Wall Ball Reps Logged</label>
           <input type="number" id="modal-wb-reps" min="0" max="200" />
         </div>
+        <div>
+          <label>Notes</label>
+          <input type="text" id="modal-notes" placeholder="Optional race/booking notes" />
+        </div>
       </div>
 
       <div class="splits-edit-grid" id="modal-splits-grid"></div>
@@ -661,7 +732,7 @@
         <button type="button" class="btn btn-red" onclick="resetEntryTimer()">🔄 Reset Timer to Scheduled</button>
         <div style="display:flex;gap:0.5rem">
           <button type="button" class="btn" onclick="closeSplitsModal()">Cancel</button>
-          <button type="button" class="btn btn-green" onclick="saveSplitCorrections()">💾 Save All 16 Splits &amp; Recalculate Totals</button>
+          <button type="button" class="btn btn-green" onclick="saveSplitCorrections()">💾 Save Details + All 16 Splits</button>
         </div>
       </div>
     </div>
@@ -714,6 +785,27 @@
       ).join('');
     }
 
+    const ADMIN_DIVISIONS = [
+      { key: 'women_open', label: 'Female Open', short: 'W-OPEN' },
+      { key: 'women_doubles', label: 'Female Doubles', short: 'W-DBL' },
+      { key: 'women_pro', label: 'Female Pro', short: 'W-PRO' },
+      { key: 'women_pro_doubles', label: 'Female Pro Doubles', short: 'W-PRO-DBL' },
+      { key: 'men_open', label: "Men's Open", short: 'M-OPEN' },
+      { key: 'men_doubles', label: "Men's Open Doubles", short: 'M-DBL' },
+      { key: 'mixed_doubles', label: 'Mixed Doubles', short: 'MIX-DBL' },
+      { key: 'men_pro', label: "Men's Pro", short: 'M-PRO' },
+      { key: 'men_pro_doubles', label: "Men's Pro Doubles", short: 'M-PRO-DBL' },
+    ];
+    const ADMIN_AGE_CATEGORIES = ['U24', '25-29', '30-34', '35-39', '40-44', '45-49', '50-54', '55-59', '60+'];
+
+    function escapeHtml(str) {
+      return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
     function renderEntriesTable() {
       if (!currentState) return;
       const filterDiv = document.getElementById('filter-division').value;
@@ -762,33 +854,53 @@
         prevDivision = e.division;
 
         const heatOpts = `<option value="">Unassigned</option>` + heats.map(h =>
-          `<option value="${h.id}" ${e.heat_id === h.id ? 'selected' : ''}>Day ${h.day_number || 1} · ${h.start_time} · ${h.name}</option>`
+          `<option value="${h.id}" ${e.heat_id === h.id ? 'selected' : ''}>Day ${h.day_number || 1} · ${h.start_time} · ${escapeHtml(h.name)}</option>`
+        ).join('');
+
+        const divOpts = ADMIN_DIVISIONS.map(d =>
+          `<option value="${d.key}" ${e.division === d.key ? 'selected' : ''}>${d.label}</option>`
+        ).join('');
+
+        const ageOpts = ADMIN_AGE_CATEGORIES.map(ac =>
+          `<option value="${ac}" ${e.age_category === ac ? 'selected' : ''}>AG ${ac}</option>`
         ).join('');
 
         const statusClass = `status-${e.status}`;
         const histBadge = (e.history && e.history.comparison)
           ? `<div style="font-size:0.7rem;color:var(--green);font-weight:700">📈 vs Prev Sim: ${e.history.comparison.total_delta_formatted}</div>`
           : '';
+        const partnerPill = e.partner_name
+          ? `<button type="button" class="btn" style="padding:0.15rem 0.45rem;font-size:0.68rem;margin-top:0.2rem" onclick="openSplitsModal(${e.id}, true)">👥 Partner: ${escapeHtml(e.partner_name)} ✏️</button>`
+          : `<button type="button" class="btn" style="padding:0.15rem 0.45rem;font-size:0.68rem;margin-top:0.2rem;color:var(--green);border-color:rgba(61,255,79,0.35)" onclick="openSplitsModal(${e.id}, true)">+ Add Doubles Partner / Edit</button>`;
 
         rowsHtml.push(`
           <tr>
-            <td><strong>#${e.bib_number}</strong></td>
+            <td><strong>#${escapeHtml(e.bib_number)}</strong></td>
             <td>
               <select onchange="updateEntryMeta(${e.id}, {heat_id: this.value})" style="min-width:175px;padding:0.32rem;height:34px">
                 ${heatOpts}
               </select>
             </td>
             <td>
-              <div style="font-weight:800;font-size:0.9rem">${e.full_display_name}</div>
-              <div style="font-size:0.72rem;color:var(--muted)">${e.email || '—'}</div>
+              <div style="font-weight:800;font-size:0.9rem">${escapeHtml(e.full_display_name)}</div>
+              <div style="font-size:0.72rem;color:var(--muted)">${escapeHtml(e.email || '—')}</div>
+              ${partnerPill}
               ${histBadge}
             </td>
             <td>
-              <span class="pill" style="background:${e.division_color};color:#050806">${e.division_short_label}</span>
-              <span style="font-size:0.75rem;color:var(--muted);margin-left:0.25rem">AG ${e.age_category}</span>
+              <div style="display:flex;flex-direction:column;gap:0.28rem">
+                <select onchange="updateEntryMeta(${e.id}, {division: this.value})"
+                  style="min-width:155px;padding:0.26rem 0.45rem;height:31px;font-weight:800;font-size:0.76rem;border-color:${e.division_color};color:${e.division_color}">
+                  ${divOpts}
+                </select>
+                <select onchange="updateEntryMeta(${e.id}, {age_category: this.value})"
+                  style="min-width:95px;padding:0.22rem 0.45rem;height:28px;font-size:0.74rem;color:var(--muted)">
+                  ${ageOpts}
+                </select>
+              </div>
             </td>
             <td>
-              <input type="text" value="${e.volunteer_name || ''}" placeholder="Assign 1:1 Volunteer"
+              <input type="text" value="${escapeHtml(e.volunteer_name || '')}" placeholder="Assign 1:1 Volunteer"
                 onchange="updateEntryMeta(${e.id}, {volunteer_name: this.value})"
                 style="width:145px;padding:0.3rem 0.5rem;height:34px" />
             </td>
@@ -802,7 +914,7 @@
             </td>
             <td>
               <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
-                <button type="button" class="btn" onclick="openSplitsModal(${e.id})">✏️ Edit Splits</button>
+                <button type="button" class="btn" onclick="openSplitsModal(${e.id})">✏️ Edit Details &amp; Splits</button>
                 <a href="/hyrox/judge?entry=${e.id}" target="_blank" class="btn">⏱️ Judge</a>
                 <a href="/hyrox/results/${e.id}" target="_blank" class="btn">📲 Finisher Card</a>
               </div>
@@ -930,14 +1042,47 @@
       }
     }
 
-    function openSplitsModal(entryId) {
+    function onModalPartnerInput(val) {
+      const partner = (val || '').trim();
+      const divSel = document.getElementById('modal-division');
+      if (!divSel || !partner) return;
+      const singleToDoubles = {
+        women_open: 'women_doubles',
+        women_pro: 'women_pro_doubles',
+        men_open: 'men_doubles',
+        men_pro: 'men_pro_doubles',
+      };
+      if (singleToDoubles[divSel.value]) {
+        divSel.value = singleToDoubles[divSel.value];
+      }
+    }
+
+    function openSplitsModal(entryId, focusPartner) {
       const entry = (currentState?.entries || []).find(x => x.id === entryId);
       if (!entry) return;
       editingEntry = entry;
       document.getElementById('modal-entry-title').textContent =
-        `#${entry.bib_number} ${entry.full_display_name} — 16-Split Editor`;
+        `#${entry.bib_number} ${entry.full_display_name} — Athlete, Slot & 16-Split Editor`;
       document.getElementById('modal-entry-subtitle').textContent =
         `${entry.division_label} · Day ${entry.heat_day_number || 1} Slot: ${entry.heat_name} (${entry.heat_start_time}) · Volunteer: ${entry.volunteer_name || 'Unassigned'}`;
+
+      document.getElementById('modal-display-name').value = entry.display_name || '';
+      document.getElementById('modal-partner-name').value = entry.partner_name || '';
+      document.getElementById('modal-division').value = entry.division || 'men_open';
+      document.getElementById('modal-age-category').value = entry.age_category || '30-34';
+      document.getElementById('modal-volunteer').value = entry.volunteer_name || '';
+      document.getElementById('modal-bib').value = entry.bib_number || '';
+      document.getElementById('modal-email').value = entry.email || '';
+      document.getElementById('modal-notes').value = entry.notes || '';
+      document.getElementById('modal-custom-day').value = String(entry.heat_day_number || 1);
+      document.getElementById('modal-custom-time').value = '';
+
+      const heats = currentState?.heats || [];
+      const heatSel = document.getElementById('modal-heat-id');
+      heatSel.innerHTML = `<option value="">Unassigned</option>` + heats.map(h =>
+        `<option value="${h.id}" ${entry.heat_id === h.id ? 'selected' : ''}>Day ${h.day_number || 1} · ${h.start_time} (${escapeHtml(h.name)})</option>`
+      ).join('');
+
       document.getElementById('modal-status').value = entry.status;
       document.getElementById('modal-penalty').value = entry.penalty_formatted || '00:00';
       document.getElementById('modal-wb-reps').value = entry.wall_ball_reps || 0;
@@ -961,6 +1106,12 @@
       `).join('');
 
       document.getElementById('splits-modal').classList.add('open');
+      if (focusPartner) {
+        setTimeout(() => {
+          const pInput = document.getElementById('modal-partner-name');
+          if (pInput) pInput.focus();
+        }, 60);
+      }
     }
 
     function closeSplitsModal() {
@@ -968,8 +1119,68 @@
       editingEntry = null;
     }
 
+    function collectModalEntryMetaPayload() {
+      const payload = {
+        display_name: document.getElementById('modal-display-name').value.trim(),
+        partner_name: document.getElementById('modal-partner-name').value.trim(),
+        division: document.getElementById('modal-division').value,
+        age_category: document.getElementById('modal-age-category').value,
+        heat_id: document.getElementById('modal-heat-id').value || null,
+        volunteer_name: document.getElementById('modal-volunteer').value.trim(),
+        bib_number: document.getElementById('modal-bib').value.trim(),
+        email: document.getElementById('modal-email').value.trim(),
+        status: document.getElementById('modal-status').value,
+        penalty_str: document.getElementById('modal-penalty').value.trim(),
+        wall_ball_reps: parseInt(document.getElementById('modal-wb-reps').value || '0', 10),
+        notes: document.getElementById('modal-notes').value.trim(),
+      };
+      const customTime = document.getElementById('modal-custom-time').value.trim();
+      if (customTime) {
+        payload.custom_slot_time = customTime;
+        payload.custom_slot_day = parseInt(document.getElementById('modal-custom-day').value || '1', 10);
+      }
+      return payload;
+    }
+
+    async function saveEntryDetailsOnly() {
+      if (!editingEntry) return;
+      const metaPayload = collectModalEntryMetaPayload();
+      const res = await fetch(`/api/hyrox/entries/${editingEntry.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(metaPayload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.volunteer_warning) {
+          alert(`⚠️ Same-Slot Volunteer Notice: ${data.volunteer_warning}`);
+        }
+        closeSplitsModal();
+        await refreshEventState();
+      } else {
+        alert(data.error || 'Failed to update athlete details');
+      }
+    }
+
+    async function deleteCurrentEntry() {
+      if (!editingEntry) return;
+      if (!confirm(`Delete #${editingEntry.bib_number} ${editingEntry.full_display_name} from this Sim?`)) return;
+      const res = await fetch(`/api/hyrox/entries/${editingEntry.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        closeSplitsModal();
+        await loadEventsList();
+      }
+    }
+
     async function saveSplitCorrections() {
       if (!editingEntry) return;
+      const metaPayload = collectModalEntryMetaPayload();
+      await fetch(`/api/hyrox/entries/${editingEntry.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(metaPayload),
+      });
+
       const splitsPayload = [];
       document.querySelectorAll('.split-dur-input').forEach(inp => {
         splitsPayload.push({
@@ -1086,8 +1297,8 @@
           body: JSON.stringify({ api_token, provider_id }),
         });
       }
-      const dFrom = (currentEventData && currentEventData.event && currentEventData.event.event_date) || '2026-11-14';
-      const dTo = (currentEventData && currentEventData.event && currentEventData.event.event_end_date) || dFrom;
+      const dFrom = (currentState && currentState.event && currentState.event.event_date) || '2026-11-14';
+      const dTo = (currentState && currentState.event && currentState.event.end_date) || dFrom;
       msgEl.textContent = `Fetching TeamUp classes (${dFrom} → ${dTo})...`;
       const res = await fetch(`/api/hyrox/teamup/events?date_from=${encodeURIComponent(dFrom)}&date_to=${encodeURIComponent(dTo)}`);
       const data = await res.json();

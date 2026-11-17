@@ -398,6 +398,45 @@ def test_teamup_api_v2_sync_and_webhooks(client):
     assert wh_json["deduplicated"] is False
     assert wh_json["processed_count"] == 1
 
+    # 4. Edit an imported single athlete to add a Doubles partner, change division, age group, volunteer, and custom 1:1 slot
+    edit_resp = client.put(
+        f"/api/hyrox/entries/{rory['id']}",
+        json={
+            "display_name": "Rory MacDonald",
+            "partner_name": "Kirsty Stewart",
+            "division": "mixed_doubles",
+            "age_category": "40-44",
+            "volunteer_name": "Coach Emma",
+            "custom_slot_day": 2,
+            "custom_slot_time": "09:40",
+        },
+    )
+    assert edit_resp.status_code == 200
+    edited_entry = edit_resp.get_json()
+    assert edited_entry["partner_name"] == "Kirsty Stewart"
+    assert edited_entry["full_display_name"] == "Rory MacDonald & Kirsty Stewart"
+    assert edited_entry["division"] == "mixed_doubles"
+    assert edited_entry["age_category"] == "40-44"
+    assert edited_entry["volunteer_name"] == "Coach Emma"
+    assert edited_entry["heat_day_number"] == 2
+    assert edited_entry["heat_start_time"] == "09:40"
+    assert edited_entry["partner_athlete_id"] is not None
+
+    # Re-syncing from TeamUp should preserve the Race Director's manual Doubles partner, division, slot, and volunteer
+    resync_after_edit = client.post(
+        f"/api/hyrox/events/{event_id}/sync-teamup",
+        json=teamup_v2_payload,
+    )
+    assert resync_after_edit.status_code == 200
+    state_after = client.get(f"/api/hyrox/events/{event_id}/state").get_json()
+    rory_after = next(e for e in state_after["entries"] if "Rory MacDonald" in e["display_name"])
+    assert rory_after["partner_name"] == "Kirsty Stewart"
+    assert rory_after["division"] == "mixed_doubles"
+    assert rory_after["volunteer_name"] == "Coach Emma"
+    assert rory_after["heat_start_time"] == "09:40"
+
+
+
     # Duplicate delivery with same TEAMUP-WEBHOOK-ID is deduplicated
     wh_dup = client.post(
         f"/api/hyrox/teamup/webhook?event_id={event_id}&secret=cs_secret_99",
