@@ -140,33 +140,108 @@
       line-height: 1;
       font-variant-numeric: tabular-nums;
     }
-    .stage-strip {
-      display: grid;
-      grid-template-columns: repeat(16, 1fr);
-      gap: 4px;
-      margin: 0.65rem 0;
+    /* Roxfit / HYROX App Proportional Split Bars for Live TV */
+    .tv-roxfit-board {
+      background: #070a10;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 0.75rem 0.85rem;
+      margin-top: 0.55rem;
     }
-    .stage-pill {
-      height: 18px;
-      border-radius: 4px;
-      background: rgba(255, 255, 255, 0.08);
+    .tv-roxfit-head {
+      display: grid;
+      grid-template-columns: 1fr 96px 52px;
+      gap: 0.45rem;
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      padding: 0 0.4rem 0.35rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      margin-bottom: 0.4rem;
+    }
+    .tv-roxfit-row {
+      display: grid;
+      grid-template-columns: 1fr 96px 52px;
+      gap: 0.45rem;
+      align-items: center;
+      margin-bottom: 0.28rem;
+    }
+    .tv-roxfit-bar-wrap {
+      position: relative;
+      height: 30px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 7px;
+      overflow: hidden;
       display: flex;
       align-items: center;
-      justify-content: center;
-      font-size: 0.58rem;
+    }
+    .tv-roxfit-bar-wrap.active-stage {
+      border: 1px solid var(--green);
+      background: rgba(61, 255, 79, 0.08);
+    }
+    .tv-roxfit-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      border-radius: 7px;
+      background: linear-gradient(90deg, rgba(99, 102, 241, 0.75), rgba(139, 92, 246, 0.85));
+      transition: width 0.25s ease;
+    }
+    .tv-roxfit-fill.station {
+      background: linear-gradient(90deg, rgba(79, 70, 229, 0.8), rgba(168, 85, 247, 0.88));
+    }
+    .tv-roxfit-fill.avg-run {
+      background: linear-gradient(90deg, rgba(248, 250, 252, 0.94), rgba(203, 213, 225, 0.9));
+    }
+    .tv-roxfit-label {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0 0.65rem;
       font-weight: 800;
-      color: rgba(255, 255, 255, 0.45);
+      font-size: 0.82rem;
+      color: #fff;
+      white-space: nowrap;
     }
-    .stage-pill.done-run { background: var(--blue); color: #02131d; }
-    .stage-pill.done-station { background: var(--green); color: #041206; }
-    .stage-pill.active {
+    .tv-roxfit-label.dark {
+      color: #090d16;
+    }
+    .tv-pb-pill {
       background: var(--yellow);
-      color: #111;
-      animation: blink 1s infinite;
+      color: #09090b;
+      font-size: 0.62rem;
+      font-weight: 900;
+      padding: 0.08rem 0.35rem;
+      border-radius: 4px;
+      text-transform: uppercase;
     }
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.45; }
+    .tv-roxfit-time {
+      font-weight: 800;
+      font-size: 0.86rem;
+      text-align: right;
+      color: #f8fafc;
+      font-variant-numeric: tabular-nums;
+    }
+    .tv-roxfit-rank {
+      font-weight: 700;
+      font-size: 0.8rem;
+      text-align: right;
+      color: #cbd5e1;
+      font-variant-numeric: tabular-nums;
+    }
+    .tv-select {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      padding: 0.38rem 0.65rem;
+      font-size: 0.78rem;
+      font-weight: 700;
     }
     .racer-meta {
       display: flex;
@@ -227,28 +302,31 @@
 <body>
   <header class="tv-header">
     <div class="tv-brand">
-      <img src="/static/logo.jpg" alt="CS" class="tv-logo" onerror="this.style.display='none'" />
+      <img src="/static/logo.jpg" alt="CS Performance Gym" class="tv-logo" />
       <div>
         <div class="tv-title">CS PERFORMANCE <span>HYROX</span> LIVE RACE BROADCAST</div>
         <div class="tv-event-name" id="tv-event-subtitle">Loading Active HYROX Sim...</div>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:1rem">
+    <div style="display:flex;align-items:center;gap:0.85rem">
+      <select id="tv-spotlight-select" class="tv-select" onchange="setSpotlightEntry(this.value)">
+        <option value="auto">🎯 Auto-Follow Active Racer</option>
+      </select>
       <div class="tv-clock" id="wall-clock">--:--:--</div>
     </div>
   </header>
 
   <main class="tv-grid">
-    <!-- LEFT: LIVE ON-FLOOR TRACKER -->
+    <!-- LEFT: HYROX APP / ROXFIT 16-SPLIT LIVE FLOOR TRACKER -->
     <section class="panel">
       <div class="panel-header">
-        <div class="panel-title">🔥 LIVE ON-FLOOR TRACKER (16-SPLIT PROGRESS)</div>
-        <span style="font-size:0.8rem;font-weight:800;color:var(--green)" id="active-count-badge">0 RACING</span>
+        <div class="panel-title">🔥 LIVE ON-FLOOR SPLITS &amp; PACE (HYROX APP VIEW)</div>
+        <span style="font-size:0.8rem;font-weight:800;color:var(--green)" id="active-count-badge">1 ON FLOOR</span>
       </div>
       <div id="live-racers-container"></div>
     </section>
 
-    <!-- RIGHT: AUTO-ROTATING DIVISION LEADERBOARDS + NEXT HEAT ON DECK -->
+    <!-- RIGHT: AUTO-ROTATING 9-DIVISION LEADERBOARDS + NEXT 1:1 SLOT ON DECK -->
     <section class="panel">
       <div class="panel-header">
         <div class="panel-title" id="lb-division-title">🏆 DIVISION LEADERBOARD</div>
@@ -258,7 +336,7 @@
 
       <div class="ondeck-box">
         <div style="font-family:'Barlow Condensed',sans-serif;font-style:italic;font-weight:800;font-size:1.35rem;color:var(--blue);text-transform:uppercase;margin-bottom:0.45rem">
-          ⏳ NEXT HEAT ON DECK
+          ⏳ NEXT 1:1 SLOTS ON DECK &amp; WEIGHT SETUP
         </div>
         <div id="ondeck-rows"></div>
       </div>
@@ -269,7 +347,23 @@
     const activeEventId = {{ active_event_id or 'null' }};
     let tvState = null;
     let rotationIndex = 0;
-    const divisionOrder = ['men_open', 'women_open', 'men_pro', 'women_pro', 'mixed_doubles', 'women_doubles', 'men_doubles'];
+    let spotlightEntryId = 'auto';
+    const divisionOrder = [
+      'women_open',
+      'women_doubles',
+      'women_pro',
+      'women_pro_doubles',
+      'men_open',
+      'men_doubles',
+      'mixed_doubles',
+      'men_pro',
+      'men_pro_doubles'
+    ];
+
+    function setSpotlightEntry(val) {
+      spotlightEntryId = val;
+      renderLiveRacers();
+    }
 
     function formatElapsed(ms) {
       if (!ms || ms < 0) ms = 0;
@@ -293,56 +387,133 @@
       if (!res.ok) return;
       tvState = await res.json();
       document.getElementById('tv-event-subtitle').textContent =
-        `${tvState.event.name} · ${tvState.event.venue} · Extended Run Loop (No Roxzone)`;
+        `${tvState.event.name} · ${tvState.event.venue} · 1 Racer + 1 Volunteer per Slot · 1.2 km Run Loop`;
+      populateSpotlightSelect();
       renderLiveRacers();
       renderRotatingLeaderboard();
       renderOnDeck();
     }
 
+    function populateSpotlightSelect() {
+      if (!tvState) return;
+      const sel = document.getElementById('tv-spotlight-select');
+      const prev = spotlightEntryId;
+      const allEntries = tvState.entries || [];
+      sel.innerHTML = `<option value="auto">🎯 Auto-Follow Active Racer</option>` +
+        allEntries.map(e => `<option value="${e.id}" ${String(prev) === String(e.id) ? 'selected' : ''}>#${e.bib_number} ${e.full_display_name} (${e.division_short_label} · ${e.status.toUpperCase()})</option>`).join('');
+    }
+
     function renderLiveRacers() {
       if (!tvState) return;
       const racers = tvState.racing_entries || [];
-      document.getElementById('active-count-badge').textContent = `${racers.length} ON FLOOR NOW`;
+      const allEntries = tvState.entries || [];
+      document.getElementById('active-count-badge').textContent = `${racers.length} RACING NOW`;
       const container = document.getElementById('live-racers-container');
 
-      if (!racers.length) {
-        container.innerHTML = `<div style="padding:2rem;text-align:center;color:var(--muted)">No athletes currently on the floor. Waiting for next wave start...</div>`;
+      let targetEntries = [];
+      if (spotlightEntryId !== 'auto') {
+        const picked = allEntries.find(x => String(x.id) === String(spotlightEntryId));
+        if (picked) targetEntries = [picked];
+      } else if (racers.length > 0) {
+        targetEntries = racers;
+      } else if ((tvState.finished_entries || []).length > 0) {
+        targetEntries = [tvState.finished_entries[0]];
+      }
+
+      if (!targetEntries.length) {
+        container.innerHTML = `<div style="padding:2rem;text-align:center;color:var(--muted)">No athletes currently on the floor. Waiting for next 1:1 slot start...</div>`;
         return;
       }
 
-      container.innerHTML = racers.map(e => {
-        const pills = (e.splits || []).map(s => {
-          const shortTag = s.split_type === 'run' ? `R${(s.split_index + 1) / 2}` : `S${s.split_index / 2}`;
-          let cls = 'stage-pill';
-          if (s.duration_ms !== null && s.duration_ms !== undefined) {
-            cls += s.split_type === 'run' ? ' done-run' : ' done-station';
-          } else if (s.split_index === e.current_split_index) {
-            cls += ' active';
+      container.innerHTML = targetEntries.map(e => {
+        const splits = e.splits || [];
+        const maxMs = Math.max(...splits.map(s => s.duration_ms || 1), e.avg_run_ms || 1, 240000);
+        const avgRunPct = e.avg_run_ms
+          ? Math.max(22, Math.min(92, Math.round((e.avg_run_ms / maxMs) * 85)))
+          : 40;
+
+        const avgRunRow = `
+          <div class="tv-roxfit-row" style="margin-bottom:0.45rem;padding-bottom:0.35rem;border-bottom:1px solid rgba(255,255,255,0.08)">
+            <div class="tv-roxfit-bar-wrap">
+              <div class="tv-roxfit-fill avg-run" style="width:${avgRunPct}%"></div>
+              <div class="tv-roxfit-label dark">
+                <span>Avg Run</span>
+                <span style="font-size:0.72rem;font-weight:800;opacity:0.8">(${e.avg_run_kph_formatted || '1.2 km'})</span>
+              </div>
+            </div>
+            <div class="tv-roxfit-time">${e.avg_run_formatted || '--:--'}</div>
+            <div class="tv-roxfit-rank">${e.avg_run_rank ? '#' + e.avg_run_rank : '—'}</div>
+          </div>
+        `;
+
+        const completedSumMs = splits.reduce((acc, s) => acc + (s.duration_ms || 0), 0);
+
+        const splitRows = splits.map(s => {
+          const isDone = s.duration_ms !== null && s.duration_ms !== undefined;
+          const isCurrent = e.status === 'racing' && s.split_index === e.current_split_index;
+          const pct = isDone ? Math.max(20, Math.min(96, Math.round((s.duration_ms / maxMs) * 88))) : (isCurrent ? 35 : 0);
+          const fillCls = s.split_type === 'run' ? '' : 'station';
+          const pbTag = s.is_pb ? `<span class="tv-pb-pill">PB</span>` : '';
+          const kphTag = (isDone && s.split_type === 'run' && s.pace_kph_formatted && s.pace_kph_formatted !== '—')
+            ? `<span style="font-size:0.68rem;color:#bae6fd;font-weight:700">${s.pace_kph_formatted}</span>`
+            : '';
+
+          let rightTimeHtml = isDone ? s.duration_formatted : '—';
+          if (isCurrent) {
+            rightTimeHtml = `<span class="live-split-clock" data-started-ms="${e.started_at_ms || 0}" data-completed-sum-ms="${completedSumMs}" style="color:var(--green)">00:00</span>`;
           }
-          return `<div class="${cls}">${shortTag}</div>`;
+
+          return `
+            <div class="tv-roxfit-row">
+              <div class="tv-roxfit-bar-wrap ${isCurrent ? 'active-stage' : ''}">
+                <div class="tv-roxfit-fill ${fillCls}" style="width:${pct}%;opacity:${isDone ? 1 : (isCurrent ? 0.35 : 0)}"></div>
+                <div class="tv-roxfit-label">
+                  <span>${s.roxfit_label || s.label}</span>
+                  ${pbTag}
+                  ${kphTag}
+                  ${isCurrent ? `<span style="font-size:0.66rem;color:var(--green);font-weight:800">● NOW (${s.prescription})</span>` : ''}
+                </div>
+              </div>
+              <div class="tv-roxfit-time">${rightTimeHtml}</div>
+              <div class="tv-roxfit-rank">${s.split_rank ? '#' + s.split_rank : '—'}</div>
+            </div>
+          `;
         }).join('');
 
         const cur = e.current_split_info || {};
-        const lastS = e.last_completed_split;
+        const isFinished = e.status === 'finished';
+
         return `
           <div class="racer-card">
             <div class="racer-top">
               <div>
                 <span style="font-size:0.76rem;font-weight:800;color:${e.division_color};text-transform:uppercase">
-                  #${e.bib_number} · ${e.division_label} · ${e.heat_name}
+                  Day ${e.heat_day_number || 1} · #${e.bib_number} · ${e.division_label} · Volunteer: ${e.volunteer_name || 'Assigned'}
                 </span>
                 <div class="racer-name">${e.full_display_name}</div>
               </div>
-              <div class="racer-clock" data-started-ms="${e.started_at_ms || 0}">00:00</div>
+              <div style="text-align:right">
+                <div class="racer-clock" data-started-ms="${isFinished ? 0 : (e.started_at_ms || 0)}">${isFinished ? e.total_formatted : '00:00'}</div>
+                <div style="font-size:0.72rem;color:var(--muted);font-weight:700">
+                  Run ${e.run_total_formatted} (${e.avg_run_kph_formatted || '—'}) · Stn ${e.station_total_formatted}
+                </div>
+              </div>
             </div>
-            <div class="stage-strip">${pills}</div>
-            <div class="racer-meta">
-              <span class="station-callout">Now (${e.completed_splits + 1}/16): ${cur.prescription || cur.label || ''}</span>
-              <span style="color:var(--muted)">
-                ${lastS ? `Last Split (${lastS.short_label}): <strong style="color:#fff">${lastS.duration_formatted}</strong>${lastS.pace_kph ? ` <strong style="color:var(--blue)">(${lastS.pace_kph_formatted})</strong>` : ''}` : 'Just Started'}
-                ${e.avg_run_kph ? ` · Avg Run: <strong style="color:var(--blue)">${e.avg_run_kph_formatted}</strong>` : ''}
-                ${e.wall_ball_reps > 0 ? ` · 🎯 Wall Balls: <strong style="color:var(--yellow)">${e.wall_ball_reps}/${e.wall_ball_target_reps}</strong>` : ''}
+            <div class="racer-meta" style="margin-bottom:0.45rem">
+              <span class="station-callout">
+                ${isFinished ? `🏁 FINISHED · Official Time ${e.total_formatted}` : `Stage ${e.completed_splits + 1}/16: ${cur.label || ''} — ${cur.prescription || ''}`}
               </span>
+              ${e.wall_ball_reps > 0 ? `<span style="color:var(--yellow);font-weight:800">🎯 Wall Balls: ${e.wall_ball_reps}/${e.wall_ball_target_reps}</span>` : ''}
+            </div>
+
+            <div class="tv-roxfit-board">
+              <div class="tv-roxfit-head">
+                <div>Split / Station (HYROX App Breakdown)</div>
+                <div style="text-align:right">Time</div>
+                <div style="text-align:right">Rank</div>
+              </div>
+              ${avgRunRow}
+              ${splitRows}
             </div>
           </div>
         `;
@@ -356,18 +527,19 @@
       const activeList = nonEmptyDivs.length ? nonEmptyDivs : divisionOrder;
       const divKey = activeList[rotationIndex % activeList.length];
       const board = tvState.leaderboards[divKey];
+      if (!board) return;
 
       document.getElementById('lb-division-title').innerHTML =
         `🏆 <span style="color:${board.color}">${board.label}</span> LEADERBOARD`;
 
       const rowsEl = document.getElementById('leaderboard-rows');
       if (!board.entries.length) {
-        rowsEl.innerHTML = `<div style="padding:1.25rem;color:var(--muted);text-align:center">No finished finishers in ${board.label} yet.</div>`;
+        rowsEl.innerHTML = `<div style="padding:1.25rem;color:var(--muted);text-align:center">No finished athletes in ${board.label} yet.</div>`;
         return;
       }
 
       rowsEl.innerHTML = board.entries.slice(0, 6).map((e, i) => `
-        <div class="lb-row">
+        <div class="lb-row" style="cursor:pointer" onclick="setSpotlightEntry('${e.id}')">
           <div class="lb-rank">#${i + 1}</div>
           <div>
             <div style="font-weight:800;font-size:1rem">${e.full_display_name}</div>
@@ -386,17 +558,30 @@
     function renderOnDeck() {
       if (!tvState) return;
       const sched = tvState.scheduled_entries || [];
+      const heats = tvState.heats || [];
+      const heatMap = {};
+      heats.forEach(h => { heatMap[h.id] = h; });
       const el = document.getElementById('ondeck-rows');
       if (!sched.length) {
-        el.innerHTML = `<div style="color:var(--muted);font-size:0.82rem">All scheduled waves are underway or finished.</div>`;
+        el.innerHTML = `<div style="color:var(--muted);font-size:0.82rem">All scheduled slots are underway or finished.</div>`;
         return;
       }
-      el.innerHTML = sched.slice(0, 5).map(e => `
-        <div class="ondeck-item">
-          <span><strong>${e.heat_start_time}</strong> · #${e.bib_number} ${e.full_display_name}</span>
-          <span style="color:${e.division_color};font-weight:700">${e.division_short_label} · Judge: ${e.volunteer_name || 'TBA'}</span>
-        </div>
-      `).join('');
+      el.innerHTML = sched.slice(0, 5).map(e => {
+        const hObj = heatMap[e.heat_id];
+        const chg = hObj && hObj.weight_changeover_before;
+        const chgHtml = chg
+          ? `<div style="font-size:0.72rem;color:var(--yellow);margin-top:0.2rem;font-weight:700">⚖️ Equipment Setup (+${chg.buffer_mins}m): ${chg.to_weights}</div>`
+          : '';
+        return `
+          <div class="ondeck-item" style="flex-direction:column;gap:0.15rem">
+            <div style="display:flex;justify-content:space-between;width:100%">
+              <span><strong>Day ${e.heat_day_number || 1} · ${e.heat_start_time}</strong> · #${e.bib_number} ${e.full_display_name}</span>
+              <span style="color:${e.division_color};font-weight:700">${e.division_short_label} · Vol: ${e.volunteer_name || 'TBA'}</span>
+            </div>
+            ${chgHtml}
+          </div>
+        `;
+      }).join('');
     }
 
     function tickLiveClocks() {
@@ -407,6 +592,14 @@
         const startMs = parseInt(el.dataset.startedMs || '0', 10);
         if (startMs > 0) {
           el.textContent = formatElapsed(nowMs - startMs);
+        }
+      });
+      document.querySelectorAll('.live-split-clock').forEach(el => {
+        const startMs = parseInt(el.dataset.startedMs || '0', 10);
+        const compSum = parseInt(el.dataset.completedSumMs || '0', 10);
+        if (startMs > 0) {
+          const splitElapsed = Math.max(0, (nowMs - startMs) - compSum);
+          el.textContent = formatElapsed(splitElapsed);
         }
       });
     }

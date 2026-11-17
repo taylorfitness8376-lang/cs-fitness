@@ -4,6 +4,7 @@ import json
 import os
 import random
 import re
+import ssl
 import time
 import urllib.error
 import urllib.parse
@@ -41,15 +42,17 @@ AGE_CATEGORIES = [
     "U24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59", "60+"
 ]
 
-# ── Built-in Official HYROX Weights & Reps Matrix per Division ──────────────
+# ── Built-in Official HYROX Weights & Reps Matrix per Division (9 Divisions) ─
 
 HYROX_DIVISIONS = {
     "women_open": {
         "key": "women_open",
-        "label": "Women Open",
-        "short_label": "W Open",
+        "label": "Female Open",
+        "short_label": "F Open",
         "color": "#38bdf8",
         "is_doubles": False,
+        "weight_profile": "female_open",
+        "weight_summary": "Push 102kg · Pull 78kg · Carry 2×16kg · Lunge 10kg · WB 4kg (75)",
         "wall_ball_target_reps": 75,
         "stations": {
             "skierg":         {"distance": "1,000m", "weight": "Damper open", "prescription": "SkiErg 1000m"},
@@ -62,84 +65,14 @@ HYROX_DIVISIONS = {
             "wall_balls":     {"distance": "75 reps","weight": "4 kg (2.7m target)",  "prescription": "Wall Balls 75 reps @ 4 kg (2.7m target)"},
         },
     },
-    "women_pro": {
-        "key": "women_pro",
-        "label": "Women Pro",
-        "short_label": "W Pro",
-        "color": "#f43f5e",
-        "is_doubles": False,
-        "wall_ball_target_reps": 100,
-        "stations": {
-            "skierg":         {"distance": "1,000m",  "weight": "Damper open", "prescription": "SkiErg 1000m"},
-            "sled_push":      {"distance": "50m",     "weight": "152 kg (incl. sled)", "prescription": "Sled Push 50m @ 152 kg"},
-            "sled_pull":      {"distance": "50m",     "weight": "103 kg (incl. sled)", "prescription": "Sled Pull 50m @ 103 kg"},
-            "bbj":            {"distance": "80m",     "weight": "Bodyweight",          "prescription": "Burpee Broad Jump 80m"},
-            "row":            {"distance": "1,000m",  "weight": "Damper open",         "prescription": "Row 1000m"},
-            "farmers_carry":  {"distance": "200m",    "weight": "2×24 kg",             "prescription": "Farmers Carry 200m @ 2×24 kg"},
-            "sandbag_lunges": {"distance": "100m",    "weight": "20 kg",               "prescription": "Sandbag Lunges 100m @ 20 kg"},
-            "wall_balls":     {"distance": "100 reps","weight": "6 kg (2.7m target)",  "prescription": "Wall Balls 100 reps @ 6 kg (2.7m target)"},
-        },
-    },
-    "men_open": {
-        "key": "men_open",
-        "label": "Men Open",
-        "short_label": "M Open",
-        "color": "#3DFF4F",
-        "is_doubles": False,
-        "wall_ball_target_reps": 100,
-        "stations": {
-            "skierg":         {"distance": "1,000m",  "weight": "Damper open", "prescription": "SkiErg 1000m"},
-            "sled_push":      {"distance": "50m",     "weight": "152 kg (incl. sled)", "prescription": "Sled Push 50m @ 152 kg"},
-            "sled_pull":      {"distance": "50m",     "weight": "103 kg (incl. sled)", "prescription": "Sled Pull 50m @ 103 kg"},
-            "bbj":            {"distance": "80m",     "weight": "Bodyweight",          "prescription": "Burpee Broad Jump 80m"},
-            "row":            {"distance": "1,000m",  "weight": "Damper open",         "prescription": "Row 1000m"},
-            "farmers_carry":  {"distance": "200m",    "weight": "2×24 kg",             "prescription": "Farmers Carry 200m @ 2×24 kg"},
-            "sandbag_lunges": {"distance": "100m",    "weight": "20 kg",               "prescription": "Sandbag Lunges 100m @ 20 kg"},
-            "wall_balls":     {"distance": "100 reps","weight": "6 kg (3.0m target)",  "prescription": "Wall Balls 100 reps @ 6 kg (3.0m target)"},
-        },
-    },
-    "men_pro": {
-        "key": "men_pro",
-        "label": "Men Pro",
-        "short_label": "M Pro",
-        "color": "#f59e0b",
-        "is_doubles": False,
-        "wall_ball_target_reps": 100,
-        "stations": {
-            "skierg":         {"distance": "1,000m",  "weight": "Damper open", "prescription": "SkiErg 1000m"},
-            "sled_push":      {"distance": "50m",     "weight": "202 kg (incl. sled)", "prescription": "Sled Push 50m @ 202 kg"},
-            "sled_pull":      {"distance": "50m",     "weight": "153 kg (incl. sled)", "prescription": "Sled Pull 50m @ 153 kg"},
-            "bbj":            {"distance": "80m",     "weight": "Bodyweight",          "prescription": "Burpee Broad Jump 80m"},
-            "row":            {"distance": "1,000m",  "weight": "Damper open",         "prescription": "Row 1000m"},
-            "farmers_carry":  {"distance": "200m",    "weight": "2×32 kg",             "prescription": "Farmers Carry 200m @ 2×32 kg"},
-            "sandbag_lunges": {"distance": "100m",    "weight": "30 kg",               "prescription": "Sandbag Lunges 100m @ 30 kg"},
-            "wall_balls":     {"distance": "100 reps","weight": "9 kg (3.0m target)",  "prescription": "Wall Balls 100 reps @ 9 kg (3.0m target)"},
-        },
-    },
-    "mixed_doubles": {
-        "key": "mixed_doubles",
-        "label": "Mixed Doubles",
-        "short_label": "Mixed Dbl",
-        "color": "#a855f7",
-        "is_doubles": True,
-        "wall_ball_target_reps": 100,
-        "stations": {
-            "skierg":         {"distance": "1,000m (split)",  "weight": "Partners split work", "prescription": "SkiErg 1000m (split)"},
-            "sled_push":      {"distance": "50m (split)",     "weight": "152 kg (incl. sled)", "prescription": "Sled Push 50m @ 152 kg"},
-            "sled_pull":      {"distance": "50m (split)",     "weight": "103 kg (incl. sled)", "prescription": "Sled Pull 50m @ 103 kg"},
-            "bbj":            {"distance": "80m (split)",     "weight": "Bodyweight (split)",  "prescription": "Burpee Broad Jump 80m (split)"},
-            "row":            {"distance": "1,000m (split)",  "weight": "Partners split work", "prescription": "Row 1000m (split)"},
-            "farmers_carry":  {"distance": "200m (split)",    "weight": "2×24 kg",             "prescription": "Farmers Carry 200m @ 2×24 kg"},
-            "sandbag_lunges": {"distance": "100m (split)",    "weight": "20 kg",               "prescription": "Sandbag Lunges 100m @ 20 kg"},
-            "wall_balls":     {"distance": "100 reps (split)","weight": "6 kg (2.7m W / 3.0m M)", "prescription": "Wall Balls 100 reps @ 6 kg (2.7m W / 3.0m M)"},
-        },
-    },
     "women_doubles": {
         "key": "women_doubles",
-        "label": "Women Doubles",
-        "short_label": "W Doubles",
+        "label": "Female Doubles",
+        "short_label": "F Doubles",
         "color": "#ec4899",
         "is_doubles": True,
+        "weight_profile": "female_open",
+        "weight_summary": "Push 102kg · Pull 78kg · Carry 2×16kg · Lunge 10kg · WB 4kg (100 split)",
         "wall_ball_target_reps": 100,
         "stations": {
             "skierg":         {"distance": "1,000m (split)",  "weight": "Partners split work", "prescription": "SkiErg 1000m (split)"},
@@ -152,12 +85,74 @@ HYROX_DIVISIONS = {
             "wall_balls":     {"distance": "100 reps (split)","weight": "4 kg (2.7m target)",  "prescription": "Wall Balls 100 reps @ 4 kg (2.7m target)"},
         },
     },
+    "women_pro": {
+        "key": "women_pro",
+        "label": "Female Pro",
+        "short_label": "F Pro",
+        "color": "#f43f5e",
+        "is_doubles": False,
+        "weight_profile": "female_pro",
+        "weight_summary": "Push 152kg · Pull 103kg · Carry 2×24kg · Lunge 20kg · WB 6kg (100)",
+        "wall_ball_target_reps": 100,
+        "stations": {
+            "skierg":         {"distance": "1,000m",  "weight": "Damper open", "prescription": "SkiErg 1000m"},
+            "sled_push":      {"distance": "50m",     "weight": "152 kg (incl. sled)", "prescription": "Sled Push 50m @ 152 kg"},
+            "sled_pull":      {"distance": "50m",     "weight": "103 kg (incl. sled)", "prescription": "Sled Pull 50m @ 103 kg"},
+            "bbj":            {"distance": "80m",     "weight": "Bodyweight",          "prescription": "Burpee Broad Jump 80m"},
+            "row":            {"distance": "1,000m",  "weight": "Damper open",         "prescription": "Row 1000m"},
+            "farmers_carry":  {"distance": "200m",    "weight": "2×24 kg",             "prescription": "Farmers Carry 200m @ 2×24 kg"},
+            "sandbag_lunges": {"distance": "100m",    "weight": "20 kg",               "prescription": "Sandbag Lunges 100m @ 20 kg"},
+            "wall_balls":     {"distance": "100 reps","weight": "6 kg (2.7m target)",  "prescription": "Wall Balls 100 reps @ 6 kg (2.7m target)"},
+        },
+    },
+    "women_pro_doubles": {
+        "key": "women_pro_doubles",
+        "label": "Female Pro Doubles",
+        "short_label": "F Pro Dbl",
+        "color": "#fb7185",
+        "is_doubles": True,
+        "weight_profile": "female_pro",
+        "weight_summary": "Push 152kg · Pull 103kg · Carry 2×24kg · Lunge 20kg · WB 6kg (100 split)",
+        "wall_ball_target_reps": 100,
+        "stations": {
+            "skierg":         {"distance": "1,000m (split)",  "weight": "Partners split work", "prescription": "SkiErg 1000m (split)"},
+            "sled_push":      {"distance": "50m (split)",     "weight": "152 kg (incl. sled)", "prescription": "Sled Push 50m @ 152 kg"},
+            "sled_pull":      {"distance": "50m (split)",     "weight": "103 kg (incl. sled)", "prescription": "Sled Pull 50m @ 103 kg"},
+            "bbj":            {"distance": "80m (split)",     "weight": "Bodyweight (split)",  "prescription": "Burpee Broad Jump 80m (split)"},
+            "row":            {"distance": "1,000m (split)",  "weight": "Partners split work", "prescription": "Row 1000m (split)"},
+            "farmers_carry":  {"distance": "200m (split)",    "weight": "2×24 kg",             "prescription": "Farmers Carry 200m @ 2×24 kg"},
+            "sandbag_lunges": {"distance": "100m (split)",    "weight": "20 kg",               "prescription": "Sandbag Lunges 100m @ 20 kg"},
+            "wall_balls":     {"distance": "100 reps (split)","weight": "6 kg (2.7m target)",  "prescription": "Wall Balls 100 reps @ 6 kg (2.7m target)"},
+        },
+    },
+    "men_open": {
+        "key": "men_open",
+        "label": "Men's Open",
+        "short_label": "M Open",
+        "color": "#3DFF4F",
+        "is_doubles": False,
+        "weight_profile": "men_open",
+        "weight_summary": "Push 152kg · Pull 103kg · Carry 2×24kg · Lunge 20kg · WB 6kg (100)",
+        "wall_ball_target_reps": 100,
+        "stations": {
+            "skierg":         {"distance": "1,000m",  "weight": "Damper open", "prescription": "SkiErg 1000m"},
+            "sled_push":      {"distance": "50m",     "weight": "152 kg (incl. sled)", "prescription": "Sled Push 50m @ 152 kg"},
+            "sled_pull":      {"distance": "50m",     "weight": "103 kg (incl. sled)", "prescription": "Sled Pull 50m @ 103 kg"},
+            "bbj":            {"distance": "80m",     "weight": "Bodyweight",          "prescription": "Burpee Broad Jump 80m"},
+            "row":            {"distance": "1,000m",  "weight": "Damper open",         "prescription": "Row 1000m"},
+            "farmers_carry":  {"distance": "200m",    "weight": "2×24 kg",             "prescription": "Farmers Carry 200m @ 2×24 kg"},
+            "sandbag_lunges": {"distance": "100m",    "weight": "20 kg",               "prescription": "Sandbag Lunges 100m @ 20 kg"},
+            "wall_balls":     {"distance": "100 reps","weight": "6 kg (3.0m target)",  "prescription": "Wall Balls 100 reps @ 6 kg (3.0m target)"},
+        },
+    },
     "men_doubles": {
         "key": "men_doubles",
-        "label": "Men Doubles",
-        "short_label": "M Doubles",
+        "label": "Men's Open Doubles",
+        "short_label": "M Open Dbl",
         "color": "#14b8a6",
         "is_doubles": True,
+        "weight_profile": "men_open",
+        "weight_summary": "Push 152kg · Pull 103kg · Carry 2×24kg · Lunge 20kg · WB 6kg (100 split)",
         "wall_ball_target_reps": 100,
         "stations": {
             "skierg":         {"distance": "1,000m (split)",  "weight": "Partners split work", "prescription": "SkiErg 1000m (split)"},
@@ -168,6 +163,66 @@ HYROX_DIVISIONS = {
             "farmers_carry":  {"distance": "200m (split)",    "weight": "2×24 kg",             "prescription": "Farmers Carry 200m @ 2×24 kg"},
             "sandbag_lunges": {"distance": "100m (split)",    "weight": "20 kg",               "prescription": "Sandbag Lunges 100m @ 20 kg"},
             "wall_balls":     {"distance": "100 reps (split)","weight": "6 kg (3.0m target)",  "prescription": "Wall Balls 100 reps @ 6 kg (3.0m target)"},
+        },
+    },
+    "mixed_doubles": {
+        "key": "mixed_doubles",
+        "label": "Mixed Doubles",
+        "short_label": "Mixed Dbl",
+        "color": "#a855f7",
+        "is_doubles": True,
+        "weight_profile": "men_open",
+        "weight_summary": "Push 152kg · Pull 103kg · Carry 2×24kg · Lunge 20kg · WB 6kg (100 split)",
+        "wall_ball_target_reps": 100,
+        "stations": {
+            "skierg":         {"distance": "1,000m (split)",  "weight": "Partners split work", "prescription": "SkiErg 1000m (split)"},
+            "sled_push":      {"distance": "50m (split)",     "weight": "152 kg (incl. sled)", "prescription": "Sled Push 50m @ 152 kg"},
+            "sled_pull":      {"distance": "50m (split)",     "weight": "103 kg (incl. sled)", "prescription": "Sled Pull 50m @ 103 kg"},
+            "bbj":            {"distance": "80m (split)",     "weight": "Bodyweight (split)",  "prescription": "Burpee Broad Jump 80m (split)"},
+            "row":            {"distance": "1,000m (split)",  "weight": "Partners split work", "prescription": "Row 1000m (split)"},
+            "farmers_carry":  {"distance": "200m (split)",    "weight": "2×24 kg",             "prescription": "Farmers Carry 200m @ 2×24 kg"},
+            "sandbag_lunges": {"distance": "100m (split)",    "weight": "20 kg",               "prescription": "Sandbag Lunges 100m @ 20 kg"},
+            "wall_balls":     {"distance": "100 reps (split)","weight": "6 kg (2.7m W / 3.0m M)", "prescription": "Wall Balls 100 reps @ 6 kg (2.7m W / 3.0m M)"},
+        },
+    },
+    "men_pro": {
+        "key": "men_pro",
+        "label": "Men's Pro",
+        "short_label": "M Pro",
+        "color": "#f59e0b",
+        "is_doubles": False,
+        "weight_profile": "men_pro",
+        "weight_summary": "Push 202kg · Pull 153kg · Carry 2×32kg · Lunge 30kg · WB 9kg (100)",
+        "wall_ball_target_reps": 100,
+        "stations": {
+            "skierg":         {"distance": "1,000m",  "weight": "Damper open", "prescription": "SkiErg 1000m"},
+            "sled_push":      {"distance": "50m",     "weight": "202 kg (incl. sled)", "prescription": "Sled Push 50m @ 202 kg"},
+            "sled_pull":      {"distance": "50m",     "weight": "153 kg (incl. sled)", "prescription": "Sled Pull 50m @ 153 kg"},
+            "bbj":            {"distance": "80m",     "weight": "Bodyweight",          "prescription": "Burpee Broad Jump 80m"},
+            "row":            {"distance": "1,000m",  "weight": "Damper open",         "prescription": "Row 1000m"},
+            "farmers_carry":  {"distance": "200m",    "weight": "2×32 kg",             "prescription": "Farmers Carry 200m @ 2×32 kg"},
+            "sandbag_lunges": {"distance": "100m",    "weight": "30 kg",               "prescription": "Sandbag Lunges 100m @ 30 kg"},
+            "wall_balls":     {"distance": "100 reps","weight": "9 kg (3.0m target)",  "prescription": "Wall Balls 100 reps @ 9 kg (3.0m target)"},
+        },
+    },
+    "men_pro_doubles": {
+        "key": "men_pro_doubles",
+        "label": "Men's Pro Doubles",
+        "short_label": "M Pro Dbl",
+        "color": "#fbbf24",
+        "is_doubles": True,
+        "weight_profile": "men_pro",
+        "weight_summary": "Push 202kg · Pull 153kg · Carry 2×32kg · Lunge 30kg · WB 9kg (100 split)",
+        "wall_ball_target_reps": 100,
+        "stations": {
+            "skierg":         {"distance": "1,000m (split)",  "weight": "Partners split work", "prescription": "SkiErg 1000m (split)"},
+            "sled_push":      {"distance": "50m (split)",     "weight": "202 kg (incl. sled)", "prescription": "Sled Push 50m @ 202 kg"},
+            "sled_pull":      {"distance": "50m (split)",     "weight": "153 kg (incl. sled)", "prescription": "Sled Pull 50m @ 153 kg"},
+            "bbj":            {"distance": "80m (split)",     "weight": "Bodyweight (split)",  "prescription": "Burpee Broad Jump 80m (split)"},
+            "row":            {"distance": "1,000m (split)",  "weight": "Partners split work", "prescription": "Row 1000m (split)"},
+            "farmers_carry":  {"distance": "200m (split)",    "weight": "2×32 kg",             "prescription": "Farmers Carry 200m @ 2×32 kg"},
+            "sandbag_lunges": {"distance": "100m (split)",    "weight": "30 kg",               "prescription": "Sandbag Lunges 100m @ 30 kg"},
+            "wall_balls":     {"distance": "100 reps (split)","weight": "9 kg (3.0m target)",  "prescription": "Wall Balls 100 reps @ 9 kg (3.0m target)"},
         },
     },
 }
@@ -281,19 +336,27 @@ def normalize_division(raw):
     s = re.sub(r"[^a-z0-9]+", "_", str(raw).strip().lower()).strip("_")
     if s in HYROX_DIVISIONS:
         return s
-    if "mixed" in s or ("mix" in s and "double" in s):
+    is_female = ("women" in s or "female" in s or "ladies" in s or s.startswith("w_") or s.startswith("f_"))
+    is_male = ("men" in s or "male" in s or s.startswith("m_")) and not is_female
+    is_double = ("double" in s or "pair" in s or "dbl" in s)
+    is_pro = ("pro" in s)
+    if "mixed" in s or ("mix" in s and is_double):
         return "mixed_doubles"
-    if ("women" in s or "female" in s or "ladies" in s or s.startswith("w_")) and ("double" in s or "pair" in s):
+    if is_female and is_pro and is_double:
+        return "women_pro_doubles"
+    if is_male and is_pro and is_double:
+        return "men_pro_doubles"
+    if is_female and is_double:
         return "women_doubles"
-    if ("men" in s or "male" in s or s.startswith("m_")) and ("double" in s or "pair" in s):
+    if is_male and is_double:
         return "men_doubles"
-    if ("women" in s or "female" in s or "ladies" in s or s.startswith("w_")) and "pro" in s:
+    if is_female and is_pro:
         return "women_pro"
-    if ("women" in s or "female" in s or "ladies" in s or s.startswith("w_")):
+    if is_female:
         return "women_open"
-    if ("men" in s or "male" in s or s.startswith("m_")) and "pro" in s:
+    if is_male and is_pro:
         return "men_pro"
-    if "double" in s or "pair" in s:
+    if is_double:
         return "mixed_doubles"
     return "men_open"
 
@@ -382,15 +445,18 @@ def ensure_hyrox_tables(db):
     db.executescript(
         """
         CREATE TABLE IF NOT EXISTS hyrox_events (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            name                TEXT NOT NULL,
-            event_date          TEXT NOT NULL,
-            venue               TEXT NOT NULL DEFAULT 'CS Performance Studio',
-            wave_interval_mins  INTEGER NOT NULL DEFAULT 15,
-            lanes_per_wave      INTEGER NOT NULL DEFAULT 4,
-            status              TEXT NOT NULL DEFAULT 'live',
-            notes               TEXT NOT NULL DEFAULT '',
-            created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            name                    TEXT NOT NULL,
+            event_date              TEXT NOT NULL,
+            end_date                TEXT NOT NULL DEFAULT '',
+            num_days                INTEGER NOT NULL DEFAULT 2,
+            venue                   TEXT NOT NULL DEFAULT 'CS Performance Studio',
+            wave_interval_mins      INTEGER NOT NULL DEFAULT 20,
+            lanes_per_wave          INTEGER NOT NULL DEFAULT 1,
+            transition_buffer_mins  INTEGER NOT NULL DEFAULT 10,
+            status                  TEXT NOT NULL DEFAULT 'live',
+            notes                   TEXT NOT NULL DEFAULT '',
+            created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS hyrox_athletes (
@@ -405,13 +471,17 @@ def ensure_hyrox_tables(db):
         );
 
         CREATE TABLE IF NOT EXISTS hyrox_heats (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_id            INTEGER NOT NULL REFERENCES hyrox_events(id) ON DELETE CASCADE,
-            heat_number         INTEGER NOT NULL DEFAULT 1,
-            name                TEXT NOT NULL,
-            start_time          TEXT NOT NULL DEFAULT '08:00',
-            max_lanes           INTEGER NOT NULL DEFAULT 4,
-            status              TEXT NOT NULL DEFAULT 'scheduled'
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id                INTEGER NOT NULL REFERENCES hyrox_events(id) ON DELETE CASCADE,
+            heat_number             INTEGER NOT NULL DEFAULT 1,
+            day_number              INTEGER NOT NULL DEFAULT 1,
+            slot_date               TEXT NOT NULL DEFAULT '',
+            division_block          TEXT NOT NULL DEFAULT '',
+            transition_buffer_mins  INTEGER NOT NULL DEFAULT 0,
+            name                    TEXT NOT NULL,
+            start_time              TEXT NOT NULL DEFAULT '08:00',
+            max_lanes               INTEGER NOT NULL DEFAULT 1,
+            status                  TEXT NOT NULL DEFAULT 'scheduled'
         );
 
         CREATE TABLE IF NOT EXISTS hyrox_entries (
@@ -473,10 +543,41 @@ def ensure_hyrox_tables(db):
         );
         """
     )
+    ev_cols = {r["name"] for r in db.execute("PRAGMA table_info(hyrox_events)").fetchall()}
+    for col_name, col_def in [
+        ("end_date", "TEXT NOT NULL DEFAULT ''"),
+        ("num_days", "INTEGER NOT NULL DEFAULT 2"),
+        ("transition_buffer_mins", "INTEGER NOT NULL DEFAULT 10"),
+    ]:
+        if col_name not in ev_cols:
+            db.execute(f"ALTER TABLE hyrox_events ADD COLUMN {col_name} {col_def}")
+
+    heat_cols = {r["name"] for r in db.execute("PRAGMA table_info(hyrox_heats)").fetchall()}
+    for col_name, col_def in [
+        ("day_number", "INTEGER NOT NULL DEFAULT 1"),
+        ("slot_date", "TEXT NOT NULL DEFAULT ''"),
+        ("division_block", "TEXT NOT NULL DEFAULT ''"),
+        ("transition_buffer_mins", "INTEGER NOT NULL DEFAULT 0"),
+    ]:
+        if col_name not in heat_cols:
+            db.execute(f"ALTER TABLE hyrox_heats ADD COLUMN {col_name} {col_def}")
+
     count = db.execute("SELECT COUNT(*) as c FROM hyrox_events").fetchone()["c"]
     if count == 0:
         seed_default_hyrox_data(db)
         db.commit()
+    else:
+        # Upgrade legacy 4-lane-wave demo seed to the 2-day 1:1 division-block demo schedule
+        legacy_demo = db.execute(
+            "SELECT id, lanes_per_wave FROM hyrox_events WHERE name='CS Performance HYROX Sim — Nov 2026' LIMIT 1"
+        ).fetchone()
+        if legacy_demo and int(legacy_demo["lanes_per_wave"] or 1) > 1:
+            db.execute("DELETE FROM hyrox_splits")
+            db.execute("DELETE FROM hyrox_entries")
+            db.execute("DELETE FROM hyrox_heats")
+            db.execute("DELETE FROM hyrox_events")
+            seed_default_hyrox_data(db)
+            db.commit()
 
 
 def find_or_create_athlete(db, full_name, email="", dob="", age_category="30-34", gender="", teamup_customer_id=""):
@@ -695,39 +796,49 @@ def seed_default_hyrox_data(db):
         sarah_sep_splits, wall_balls=75, start_offset_ms=86400000 * 55
     )
 
-    # 2. Featured Event: "CS Performance HYROX Sim — Nov 2026"
+    # 2. Featured Event: "CS Performance HYROX Sim — Nov 2026" (2-Day Weekend Sim, 1 Athlete/Pair + 1 Volunteer per Slot)
     cur_nov = db.execute(
-        "INSERT INTO hyrox_events (name, event_date, venue, wave_interval_mins, lanes_per_wave, status, notes) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO hyrox_events (name, event_date, end_date, num_days, venue, wave_interval_mins, lanes_per_wave, transition_buffer_mins, status, notes) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             "CS Performance HYROX Sim — Nov 2026",
             "2026-11-14",
+            "2026-11-15",
+            2,
             "CS Performance Studio",
-            15,
-            4,
+            20,
+            1,
+            10,
             "live",
-            "Full 16-Split Gym Simulation (Extended Run Loop — No Roxzone). 1 Volunteer Judge per Athlete/Pair.",
+            "2-Day HYROX Sim Weekend (Sat & Sun). 1 Athlete/Pair + 1 Volunteer per Slot with Weight-Change Buffers between Division Blocks.",
         ),
     )
     nov_event_id = cur_nov.lastrowid
 
+    # 1:1 Solo/Pair Time Slots across Day 1 (Sat) & Day 2 (Sun) grouped by Division Blocks
     heats_spec = [
-        (1, "Wave 1 — 08:00", "08:00", 4, "completed"),
-        (2, "Wave 2 — 08:15", "08:15", 4, "racing"),
-        (3, "Wave 3 — 08:30", "08:30", 4, "scheduled"),
-        (4, "Wave 4 — 08:45", "08:45", 4, "scheduled"),
+        (1, 1, "2026-11-14", "men_open",       0,  "Day 1 · 08:00 — Men's Open",        "08:00", 1, "completed"),
+        (2, 1, "2026-11-14", "men_open",       10, "Day 1 · 08:20 — Men's Open",        "08:20", 1, "completed"),
+        (3, 1, "2026-11-14", "women_open",     10, "Day 1 · 08:50 — Female Open",       "08:50", 1, "completed"),
+        (4, 1, "2026-11-14", "women_pro",      10, "Day 1 · 09:20 — Female Pro",        "09:20", 1, "completed"),
+        (5, 1, "2026-11-14", "mixed_doubles",  10, "Day 1 · 09:50 — Mixed Doubles",     "09:50", 1, "completed"),
+        (6, 1, "2026-11-14", "men_pro",        10, "Day 1 · 10:20 — Men's Pro",         "10:20", 1, "racing"),
+        (7, 2, "2026-11-15", "women_doubles",  10, "Day 2 · 08:00 — Female Doubles",    "08:00", 1, "racing"),
+        (8, 2, "2026-11-15", "men_open",       10, "Day 2 · 08:30 — Men's Open",        "08:30", 1, "scheduled"),
+        (9, 2, "2026-11-15", "women_open",     10, "Day 2 · 09:00 — Female Open",       "09:00", 1, "scheduled"),
+        (10, 2, "2026-11-15", "men_doubles",   10, "Day 2 · 09:30 — Men's Open Doubles","09:30", 1, "scheduled"),
     ]
     heat_ids = {}
-    for h_num, h_name, h_time, h_lanes, h_status in heats_spec:
+    for h_num, day_num, s_date, div_blk, buf_m, h_name, h_time, h_lanes, h_status in heats_spec:
         c = db.execute(
-            "INSERT INTO hyrox_heats (event_id, heat_number, name, start_time, max_lanes, status) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (nov_event_id, h_num, h_name, h_time, h_lanes, h_status),
+            "INSERT INTO hyrox_heats (event_id, heat_number, day_number, slot_date, division_block, transition_buffer_mins, name, start_time, max_lanes, status) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (nov_event_id, h_num, day_num, s_date, div_blk, buf_m, h_name, h_time, h_lanes, h_status),
         )
         heat_ids[h_num] = c.lastrowid
 
-    # Wave 1 Finished Entries:
-    # Ewan Taylor (Men Open) — Improved to 1:09:42 (4182s — 4m33s PB over Sep!)
+    # Day 1 Finished Entries (1 Athlete/Pair + 1 Volunteer per slot):
+    # Slot 1 (08:00): Ewan Taylor (Men's Open) — Improved to 1:09:42 (4182s — 4m33s PB over Sep!)
     ewan_nov_splits = [
         268, 248,
         278, 198,
@@ -744,7 +855,7 @@ def seed_default_hyrox_data(db):
         ewan_nov_splits, wall_balls=100, start_offset_ms=5400000
     )
 
-    # Alan Mackay (Men Open) — 1:12:08
+    # Slot 2 (08:20): Alan Mackay (Men's Open) — 1:12:08
     alan_nov_splits = [
         275, 255,
         285, 208,
@@ -756,12 +867,12 @@ def seed_default_hyrox_data(db):
         298, 310,
     ]
     _seed_finished_entry(
-        nov_event_id, heat_ids[1], alan_id, None, "Alan Mackay", "",
+        nov_event_id, heat_ids[2], alan_id, None, "Alan Mackay", "",
         "alan.mackay@example.com", "102", "men_open", "40-44", "Coach Laura", "1102",
         alan_nov_splits, wall_balls=100, start_offset_ms=5400000
     )
 
-    # Sarah Jenkins (Women Open) — 1:14:36
+    # Slot 3 (08:50): Sarah Jenkins (Female Open) — 1:14:36
     sarah_nov_splits = [
         285, 264,
         294, 210,
@@ -773,12 +884,12 @@ def seed_default_hyrox_data(db):
         305, 256,
     ]
     _seed_finished_entry(
-        nov_event_id, heat_ids[1], sarah_id, None, "Sarah Jenkins", "",
+        nov_event_id, heat_ids[3], sarah_id, None, "Sarah Jenkins", "",
         "sarah.jenkins@example.com", "103", "women_open", "30-34", "Sam Walker", "1103",
         sarah_nov_splits, wall_balls=75, start_offset_ms=5400000
     )
 
-    # Laura Mitchell (Women Pro) — 1:08:25
+    # Slot 4 (09:20): Laura Mitchell (Female Pro) — 1:08:25
     laura_nov_splits = [
         262, 245,
         270, 195,
@@ -790,12 +901,12 @@ def seed_default_hyrox_data(db):
         275, 325,
     ]
     _seed_finished_entry(
-        nov_event_id, heat_ids[1], laura_id, None, "Laura Mitchell", "",
+        nov_event_id, heat_ids[4], laura_id, None, "Laura Mitchell", "",
         "laura.mitchell@example.com", "104", "women_pro", "30-34", "Jamie Ross", "1104",
         laura_nov_splits, wall_balls=100, start_offset_ms=5400000
     )
 
-    # Chris Smith & Emma Wallace (Mixed Doubles) — 1:03:50
+    # Slot 5 (09:50): Chris Smith & Emma Wallace (Mixed Doubles) — 1:03:50
     mixed_nov_splits = [
         252, 220,
         258, 175,
@@ -807,12 +918,12 @@ def seed_default_hyrox_data(db):
         260, 250,
     ]
     _seed_finished_entry(
-        nov_event_id, heat_ids[2], chris_id, emma_id, "Chris Smith", "Emma Wallace",
+        nov_event_id, heat_ids[5], chris_id, emma_id, "Chris Smith", "Emma Wallace",
         "chris.smith@example.com", "201", "mixed_doubles", "35-39", "Katie Bell", "1201",
         mixed_nov_splits, wall_balls=100, start_offset_ms=4200000
     )
 
-    # Wave 2 Racing Entries (Live on the gym floor right now!):
+    # Racing Entries (Live on the gym floor right now!):
     callum_partial = [255, 232, 264, 192, 270, 228, 276, 248, 274, 240, 268]
     callum_elapsed_ms = sum(s * 1000 for s in callum_partial)
     callum_start_ms = now_ms - callum_elapsed_ms - 65000
@@ -820,7 +931,7 @@ def seed_default_hyrox_data(db):
         "INSERT INTO hyrox_entries (event_id, heat_id, athlete_id, display_name, email, bib_number, "
         "division, age_category, volunteer_name, judge_pin, status, started_at_ms, wall_ball_reps) "
         "VALUES (?, ?, ?, 'Callum Fraser', 'callum.fraser@example.com', '105', 'men_pro', '25-29', 'Alex Reid', '1105', 'racing', ?, 0)",
-        (nov_event_id, heat_ids[2], callum_id, callum_start_ms)
+        (nov_event_id, heat_ids[6], callum_id, callum_start_ms)
     )
     cal_eid = cur_cal.lastrowid
     ensure_entry_splits(db, cal_eid)
@@ -841,7 +952,7 @@ def seed_default_hyrox_data(db):
         "INSERT INTO hyrox_entries (event_id, heat_id, athlete_id, partner_athlete_id, display_name, partner_name, "
         "email, bib_number, division, age_category, volunteer_name, judge_pin, status, started_at_ms, wall_ball_reps) "
         "VALUES (?, ?, ?, ?, 'Kirsty Grant', 'Megan Scott', 'kirsty.grant@example.com', '202', 'women_doubles', '30-34', 'Sam Walker', '1202', 'racing', ?, 0)",
-        (nov_event_id, heat_ids[2], kirsty_id, megan_id, km_start_ms)
+        (nov_event_id, heat_ids[7], kirsty_id, megan_id, km_start_ms)
     )
     km_eid = cur_km.lastrowid
     ensure_entry_splits(db, km_eid)
@@ -855,11 +966,11 @@ def seed_default_hyrox_data(db):
         )
     recalculate_entry_totals(db, km_eid)
 
-    # Wave 3 & 4 Scheduled Entries (On Deck):
+    # Day 2 Scheduled Entries (On Deck — 1 Racer/Pair + 1 Volunteer per slot):
     scheduled_specs = [
-        (heat_ids[3], ross_id, None, "Ross MacLeod", "", "ross.macleod@example.com", "106", "men_open", "30-34", "Coach Chris", "1106"),
-        (heat_ids[3], hannah_id, None, "Hannah Reid", "", "hannah.reid@example.com", "107", "women_open", "25-29", "Coach Laura", "1107"),
-        (heat_ids[4], dave_id, mark_id, "Dave Kerr", "Mark Stewart", "dave.kerr@example.com", "203", "men_doubles", "35-39", "Coach Chris", "1203"),
+        (heat_ids[8],  ross_id,   None,    "Ross MacLeod", "",             "ross.macleod@example.com", "106", "men_open",    "30-34", "Coach Chris", "1106"),
+        (heat_ids[9],  hannah_id, None,    "Hannah Reid",  "",             "hannah.reid@example.com",  "107", "women_open",  "25-29", "Coach Laura", "1107"),
+        (heat_ids[10], dave_id,   mark_id, "Dave Kerr",    "Mark Stewart", "dave.kerr@example.com",    "203", "men_doubles", "35-39", "Coach Chris", "1203"),
     ]
     for h_id, a_id, p_id, d_name, p_name, em, bib, div, age_c, vol, pin in scheduled_specs:
         c = db.execute(
@@ -869,6 +980,26 @@ def seed_default_hyrox_data(db):
             (nov_event_id, h_id, a_id, p_id, d_name, p_name, em, bib, div, age_c, vol, pin)
         )
         ensure_entry_splits(db, c.lastrowid)
+
+
+ROXFIT_SPLIT_LABELS = {
+    1: "Run 1",
+    2: "Ski",
+    3: "Run 2",
+    4: "Sled Push",
+    5: "Run 3",
+    6: "Sled Pull",
+    7: "Run 4",
+    8: "Burpee Broad Jump",
+    9: "Run 5",
+    10: "Row",
+    11: "Run 6",
+    12: "Farmers Carry",
+    13: "Run 7",
+    14: "Sandbag Lunge",
+    15: "Run 8",
+    16: "Wall Balls",
+}
 
 
 # ── Serialization Helpers ───────────────────────────────────────────────────
@@ -881,6 +1012,8 @@ def serialize_entry(db, entry_row, include_splits=True, include_history=False):
     e["division_short_label"] = div_info["short_label"]
     e["division_color"] = div_info["color"]
     e["is_doubles"] = div_info["is_doubles"]
+    e["weight_profile"] = div_info.get("weight_profile", "men_open")
+    e["weight_summary"] = div_info.get("weight_summary", "")
     e["wall_ball_target_reps"] = div_info["wall_ball_target_reps"]
     e["full_display_name"] = (
         f"{e['display_name']} & {e['partner_name']}"
@@ -891,9 +1024,13 @@ def serialize_entry(db, entry_row, include_splits=True, include_history=False):
     heat = None
     if e.get("heat_id"):
         heat = db.execute("SELECT * FROM hyrox_heats WHERE id=?", (e["heat_id"],)).fetchone()
-    e["heat_name"] = heat["name"] if heat else "Unassigned"
-    e["heat_start_time"] = heat["start_time"] if heat else "—"
-    e["heat_number"] = heat["heat_number"] if heat else 0
+    heat_dict = dict(heat) if heat else {}
+    e["heat_name"] = heat_dict.get("name") or "Unassigned"
+    e["heat_start_time"] = heat_dict.get("start_time") or "—"
+    e["heat_number"] = heat_dict.get("heat_number") or 0
+    e["heat_day_number"] = int(heat_dict.get("day_number") or 1)
+    e["heat_slot_date"] = heat_dict.get("slot_date") or ""
+    e["heat_division_block"] = heat_dict.get("division_block") or ""
 
     e["total_formatted"] = format_ms(e.get("total_ms"), include_hours=True)
     e["run_total_formatted"] = format_ms(e.get("run_total_ms"))
@@ -918,10 +1055,14 @@ def serialize_entry(db, entry_row, include_splits=True, include_history=False):
             presc = get_prescription_for_split(div_key, idx)
             sd["label"] = HYROX_SPLITS_TEMPLATE[idx - 1]["label"]
             sd["short_label"] = HYROX_SPLITS_TEMPLATE[idx - 1]["short_label"]
+            sd["roxfit_label"] = ROXFIT_SPLIT_LABELS.get(idx, sd["label"])
             sd["prescription"] = presc["prescription"]
             sd["distance"] = presc["distance"]
             sd["weight"] = presc["weight"]
             sd["duration_formatted"] = format_ms(sd.get("duration_ms"))
+            sd["is_pb"] = False
+            sd["split_rank"] = None
+            sd["division_split_rank"] = None
             if sd["split_type"] == "run":
                 sd["distance_km"] = HYROX_RUN_DISTANCE_KM
                 sd["pace_kph"] = calc_kph(sd.get("duration_ms"), HYROX_RUN_DISTANCE_KM)
@@ -958,8 +1099,11 @@ def serialize_entry(db, entry_row, include_splits=True, include_history=False):
         e["avg_run_kph"] = calc_kph(e["avg_run_ms"], HYROX_RUN_DISTANCE_KM)
         e["avg_run_kph_formatted"] = format_kph(e["avg_run_ms"], HYROX_RUN_DISTANCE_KM)
         e["avg_run_pace_per_km_formatted"] = format_pace_per_km(e["avg_run_ms"], HYROX_RUN_DISTANCE_KM)
+        e["avg_run_rank"] = None
         e["avg_station_ms"] = int(sum(station_durations) / len(station_durations)) if station_durations else None
         e["avg_station_formatted"] = format_ms(e["avg_station_ms"])
+        max_split_ms = max([s["duration_ms"] for s in splits if s.get("duration_ms") is not None] or [360000])
+        e["max_split_ms"] = max(max_split_ms, 180000)
         work_sum = (e.get("run_total_ms") or 0) + (e.get("station_total_ms") or 0)
         if work_sum > 0:
             e["run_pct"] = round(((e.get("run_total_ms") or 0) * 100.0) / work_sum, 1)
@@ -1066,10 +1210,18 @@ def build_athlete_history(db, current_entry_dict):
             cur_kph = calc_kph(cur_dur, HYROX_RUN_DISTANCE_KM) if sp["split_type"] == "run" else None
             prev_kph = calc_kph(prev_dur, HYROX_RUN_DISTANCE_KM) if sp["split_type"] == "run" else None
             kph_delta = round(cur_kph - prev_kph, 1) if (cur_kph is not None and prev_kph is not None) else None
+            prior_durs = [
+                s["split_map"].get(idx)
+                for s in sims
+                if s["entry_id"] != cur_id and s["split_map"].get(idx) is not None
+            ]
+            is_pb = bool(cur_dur is not None and prior_durs and cur_dur <= min(prior_durs))
+            sp["is_pb"] = is_pb
             split_deltas.append({
                 "split_index": idx,
                 "label": sp["label"],
                 "short_label": sp["short_label"],
+                "roxfit_label": sp.get("roxfit_label", sp["label"]),
                 "split_type": sp["split_type"],
                 "current_ms": cur_dur,
                 "current_formatted": format_ms(cur_dur),
@@ -1081,6 +1233,7 @@ def build_athlete_history(db, current_entry_dict):
                 "previous_kph": prev_kph,
                 "kph_delta": kph_delta,
                 "improved": (delta < 0) if delta is not None else None,
+                "is_pb": is_pb,
             })
         comparison = {
             "previous_entry_id": prev_sim["entry_id"],
@@ -1096,12 +1249,85 @@ def build_athlete_history(db, current_entry_dict):
             "station_delta_formatted": format_delta_ms(station_delta),
             "split_deltas": split_deltas,
         }
+    elif current_entry_dict.get("splits"):
+        # For first-time sims, mark fastest run and fastest station as PB badges
+        completed_runs = [s for s in current_entry_dict["splits"] if s["split_type"] == "run" and s.get("duration_ms") is not None]
+        completed_stations = [s for s in current_entry_dict["splits"] if s["split_type"] == "station" and s.get("duration_ms") is not None]
+        if completed_runs:
+            best_run_ms = min(s["duration_ms"] for s in completed_runs)
+            for s in completed_runs:
+                if s["duration_ms"] == best_run_ms:
+                    s["is_pb"] = True
+                    break
+        if completed_stations:
+            best_st_ms = min(s["duration_ms"] for s in completed_stations)
+            for s in completed_stations:
+                if s["duration_ms"] == best_st_ms:
+                    s["is_pb"] = True
+                    break
 
     return {
         "sim_count": len(sims),
         "sims": sims,
         "comparison": comparison,
     }
+
+
+def _compute_event_split_ranks(entries):
+    """Assign avg_run_rank, split_rank, and division_split_rank across entries in an event."""
+    with_avg_run = [e for e in entries if e.get("avg_run_ms") is not None]
+    with_avg_run.sort(key=lambda x: x["avg_run_ms"])
+    for r_idx, e in enumerate(with_avg_run, start=1):
+        e["avg_run_rank"] = r_idx
+
+    for split_idx in range(1, 17):
+        pairs = []
+        for e in entries:
+            splits = e.get("splits") or []
+            if len(splits) >= split_idx:
+                sp = splits[split_idx - 1]
+                if sp.get("duration_ms") is not None:
+                    pairs.append((sp["duration_ms"], e["division"], sp))
+        pairs.sort(key=lambda x: x[0])
+        div_counters = {}
+        for overall_rank, (_, div_k, sp_obj) in enumerate(pairs, start=1):
+            sp_obj["split_rank"] = overall_rank
+            div_counters[div_k] = div_counters.get(div_k, 0) + 1
+            sp_obj["division_split_rank"] = div_counters[div_k]
+
+
+def _annotate_weight_changeovers(heats, entries):
+    """Detect division / weight-profile transitions between consecutive slots on the same day."""
+    prev_day = None
+    prev_div_key = None
+    heat_by_id = {h["id"]: h for h in heats}
+    for h in heats:
+        h_entries = [e for e in entries if e.get("heat_id") == h["id"]]
+        slot_div = h.get("division_block") or (h_entries[0]["division"] if h_entries else "")
+        h["effective_division"] = slot_div
+        div_meta = HYROX_DIVISIONS.get(slot_div)
+        h["effective_division_label"] = div_meta["label"] if div_meta else ""
+        h["weight_summary"] = div_meta.get("weight_summary", "") if div_meta else ""
+        h["weight_change_from_prev"] = False
+        h["weight_change_alert"] = ""
+        day_num = int(h.get("day_number") or 1)
+        if prev_day == day_num and prev_div_key and slot_div and slot_div != prev_div_key:
+            prev_meta = HYROX_DIVISIONS.get(prev_div_key, {})
+            cur_meta = HYROX_DIVISIONS.get(slot_div, {})
+            if prev_meta.get("weight_profile") != cur_meta.get("weight_profile") or prev_div_key != slot_div:
+                h["weight_change_from_prev"] = True
+                h["weight_change_alert"] = (
+                    f"⚖️ Equipment Changeover: {prev_meta.get('label', prev_div_key)} → "
+                    f"{cur_meta.get('label', slot_div)} ({cur_meta.get('weight_summary', '')})"
+                )
+        if slot_div:
+            prev_div_key = slot_div
+        prev_day = day_num
+
+    for e in entries:
+        h = heat_by_id.get(e.get("heat_id"))
+        e["weight_change_from_prev"] = bool(h.get("weight_change_from_prev")) if h else False
+        e["weight_change_alert"] = (h.get("weight_change_alert") or "") if h else ""
 
 
 def get_active_event_id(db, requested_event_id=None):
@@ -1174,7 +1400,10 @@ def hyrox_results_page(entry_id):
     if not row:
         abort(404)
     event = db.execute("SELECT * FROM hyrox_events WHERE id=?", (row["event_id"],)).fetchone()
-    entry_data = serialize_entry(db, row, include_splits=True, include_history=True)
+    all_rows = db.execute("SELECT * FROM hyrox_entries WHERE event_id=? ORDER BY id ASC", (row["event_id"],)).fetchall()
+    all_entries = [serialize_entry(db, r, include_splits=True, include_history=(r["id"] == entry_id)) for r in all_rows]
+    _compute_event_split_ranks(all_entries)
+    entry_data = next((e for e in all_entries if e["id"] == entry_id), None) or serialize_entry(db, row, include_splits=True, include_history=True)
     return render_template(
         "hyrox_results.html",
         entry=entry_data,
@@ -1199,7 +1428,10 @@ def hyrox_athlete_page(athlete_id):
     if not latest_entry:
         abort(404)
     event = db.execute("SELECT * FROM hyrox_events WHERE id=?", (latest_entry["event_id"],)).fetchone()
-    entry_data = serialize_entry(db, latest_entry, include_splits=True, include_history=True)
+    all_rows = db.execute("SELECT * FROM hyrox_entries WHERE event_id=? ORDER BY id ASC", (latest_entry["event_id"],)).fetchall()
+    all_entries = [serialize_entry(db, r, include_splits=True, include_history=(r["id"] == latest_entry["id"])) for r in all_rows]
+    _compute_event_split_ranks(all_entries)
+    entry_data = next((e for e in all_entries if e["id"] == latest_entry["id"]), None) or serialize_entry(db, latest_entry, include_splits=True, include_history=True)
     return render_template(
         "hyrox_results.html",
         entry=entry_data,
@@ -1278,23 +1510,41 @@ def api_create_event():
     if not name:
         return jsonify({"error": "Event name is required"}), 400
     event_date = (data.get("event_date") or datetime.now().strftime("%Y-%m-%d")).strip()
+    num_days = int(data.get("num_days") or 2)
+    end_date = (data.get("end_date") or "").strip()
+    if not end_date and num_days >= 2:
+        try:
+            d0 = datetime.strptime(event_date[:10], "%Y-%m-%d").date()
+            from datetime import timedelta
+            end_date = (d0 + timedelta(days=num_days - 1)).strftime("%Y-%m-%d")
+        except Exception:
+            end_date = event_date
+    elif not end_date:
+        end_date = event_date
+
     venue = (data.get("venue") or "CS Performance Studio").strip()
-    wave_interval_mins = int(data.get("wave_interval_mins") or 15)
-    lanes_per_wave = int(data.get("lanes_per_wave") or 4)
+    wave_interval_mins = int(data.get("wave_interval_mins") or 20)
+    lanes_per_wave = int(data.get("lanes_per_wave") or 1)
+    transition_buffer_mins = int(data.get("transition_buffer_mins") if data.get("transition_buffer_mins") is not None else 10)
     status = (data.get("status") or "live").strip()
     notes = (data.get("notes") or "").strip()
 
     cur = db.execute(
-        "INSERT INTO hyrox_events (name, event_date, venue, wave_interval_mins, lanes_per_wave, status, notes) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (name, event_date, venue, wave_interval_mins, lanes_per_wave, status, notes)
+        "INSERT INTO hyrox_events (name, event_date, end_date, num_days, venue, wave_interval_mins, lanes_per_wave, transition_buffer_mins, status, notes) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (name, event_date, end_date, num_days, venue, wave_interval_mins, lanes_per_wave, transition_buffer_mins, status, notes)
     )
     event_id = cur.lastrowid
 
-    num_waves = int(data.get("num_waves") or 4)
+    num_waves = int(data.get("num_waves") if data.get("num_waves") is not None else 4)
     first_wave_time = (data.get("first_wave_time") or "08:00").strip()
+    division_block = normalize_division(data["division_block"]) if data.get("division_block") else ""
     if num_waves > 0:
-        _generate_heats_for_event(db, event_id, first_wave_time, num_waves, wave_interval_mins, lanes_per_wave)
+        _generate_heats_for_event(
+            db, event_id, first_wave_time, num_waves, wave_interval_mins, lanes_per_wave,
+            day_number=1, slot_date=event_date, division_block=division_block,
+            transition_buffer_mins=transition_buffer_mins,
+        )
 
     db.commit()
     ev = db.execute("SELECT * FROM hyrox_events WHERE id=?", (event_id,)).fetchone()
@@ -1308,17 +1558,21 @@ def api_update_event(event_id):
     ev = db.execute("SELECT * FROM hyrox_events WHERE id=?", (event_id,)).fetchone()
     if not ev:
         return jsonify({"error": "Event not found"}), 404
+    ev_d = dict(ev)
     data = request.get_json(force=True) or {}
     db.execute(
-        "UPDATE hyrox_events SET name=?, event_date=?, venue=?, wave_interval_mins=?, lanes_per_wave=?, status=?, notes=? WHERE id=?",
+        "UPDATE hyrox_events SET name=?, event_date=?, end_date=?, num_days=?, venue=?, wave_interval_mins=?, lanes_per_wave=?, transition_buffer_mins=?, status=?, notes=? WHERE id=?",
         (
-            data.get("name", ev["name"]),
-            data.get("event_date", ev["event_date"]),
-            data.get("venue", ev["venue"]),
-            int(data.get("wave_interval_mins", ev["wave_interval_mins"])),
-            int(data.get("lanes_per_wave", ev["lanes_per_wave"])),
-            data.get("status", ev["status"]),
-            data.get("notes", ev["notes"]),
+            data.get("name", ev_d["name"]),
+            data.get("event_date", ev_d["event_date"]),
+            data.get("end_date", ev_d.get("end_date", "")),
+            int(data.get("num_days", ev_d.get("num_days") or 2)),
+            data.get("venue", ev_d["venue"]),
+            int(data.get("wave_interval_mins", ev_d["wave_interval_mins"])),
+            int(data.get("lanes_per_wave", ev_d["lanes_per_wave"])),
+            int(data.get("transition_buffer_mins", ev_d.get("transition_buffer_mins") or 10)),
+            data.get("status", ev_d["status"]),
+            data.get("notes", ev_d["notes"]),
             event_id,
         ),
     )
@@ -1327,7 +1581,10 @@ def api_update_event(event_id):
     return jsonify(dict(updated))
 
 
-def _generate_heats_for_event(db, event_id, start_time_str, count, interval_mins, max_lanes):
+def _generate_heats_for_event(
+    db, event_id, start_time_str, count, interval_mins, max_lanes=1,
+    day_number=1, slot_date="", division_block="", transition_buffer_mins=0
+):
     try:
         parts = [int(p) for p in start_time_str.split(":")]
         start_total_mins = parts[0] * 60 + parts[1]
@@ -1339,6 +1596,7 @@ def _generate_heats_for_event(db, event_id, start_time_str, count, interval_mins
         (event_id,)
     ).fetchone()["m"]
 
+    div_label = HYROX_DIVISIONS.get(division_block, {}).get("label", "") if division_block else ""
     created = []
     for i in range(count):
         heat_num = existing_max + i + 1
@@ -1346,11 +1604,15 @@ def _generate_heats_for_event(db, event_id, start_time_str, count, interval_mins
         hh = (t_mins // 60) % 24
         mm = t_mins % 60
         t_str = f"{hh:02d}:{mm:02d}"
-        h_name = f"Wave {heat_num} — {t_str}"
+        if div_label:
+            h_name = f"Day {day_number} · {t_str} — {div_label}"
+        else:
+            h_name = f"Day {day_number} · Slot {heat_num} — {t_str}"
+        buf_after = transition_buffer_mins if (i == count - 1) else 0
         cur = db.execute(
-            "INSERT INTO hyrox_heats (event_id, heat_number, name, start_time, max_lanes, status) "
-            "VALUES (?, ?, ?, ?, ?, 'scheduled')",
-            (event_id, heat_num, h_name, t_str, max_lanes)
+            "INSERT INTO hyrox_heats (event_id, heat_number, day_number, slot_date, division_block, transition_buffer_mins, name, start_time, max_lanes, status) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled')",
+            (event_id, heat_num, int(day_number or 1), slot_date or "", division_block or "", int(buf_after or 0), h_name, t_str, int(max_lanes or 1))
         )
         created.append(cur.lastrowid)
     return created
@@ -1360,13 +1622,25 @@ def _generate_heats_for_event(db, event_id, start_time_str, count, interval_mins
 def api_create_or_generate_heats(event_id):
     db = get_db()
     ensure_hyrox_tables(db)
+    ev = db.execute("SELECT * FROM hyrox_events WHERE id=?", (event_id,)).fetchone()
+    ev_d = dict(ev) if ev else {}
     data = request.get_json(force=True) or {}
+    day_number = int(data.get("day_number") or 1)
+    slot_date = (data.get("slot_date") or (ev_d.get("end_date") if day_number == 2 else ev_d.get("event_date")) or "").strip()
+    raw_div_block = (data.get("division_block") or "").strip()
+    division_block = normalize_division(raw_div_block) if raw_div_block else ""
+    transition_buffer_mins = int(data.get("transition_buffer_mins") if data.get("transition_buffer_mins") is not None else (ev_d.get("transition_buffer_mins") or 10))
+
     if data.get("generate_batch"):
         start_time = (data.get("start_time") or "08:00").strip()
         count = int(data.get("count") or 4)
-        interval_mins = int(data.get("interval_mins") or 15)
-        max_lanes = int(data.get("max_lanes") or 4)
-        _generate_heats_for_event(db, event_id, start_time, count, interval_mins, max_lanes)
+        interval_mins = int(data.get("interval_mins") or ev_d.get("wave_interval_mins") or 20)
+        max_lanes = int(data.get("max_lanes") or 1)
+        _generate_heats_for_event(
+            db, event_id, start_time, count, interval_mins, max_lanes,
+            day_number=day_number, slot_date=slot_date, division_block=division_block,
+            transition_buffer_mins=transition_buffer_mins,
+        )
         db.commit()
     else:
         existing_max = db.execute(
@@ -1375,17 +1649,19 @@ def api_create_or_generate_heats(event_id):
         ).fetchone()["m"]
         heat_num = int(data.get("heat_number") or (existing_max + 1))
         start_time = (data.get("start_time") or "08:00").strip()
-        name = (data.get("name") or f"Wave {heat_num} — {start_time}").strip()
-        max_lanes = int(data.get("max_lanes") or 4)
+        div_label = HYROX_DIVISIONS.get(division_block, {}).get("label", "") if division_block else ""
+        default_name = f"Day {day_number} · {start_time} — {div_label}" if div_label else f"Day {day_number} · Slot {heat_num} — {start_time}"
+        name = (data.get("name") or default_name).strip()
+        max_lanes = int(data.get("max_lanes") or 1)
         db.execute(
-            "INSERT INTO hyrox_heats (event_id, heat_number, name, start_time, max_lanes, status) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (event_id, heat_num, name, start_time, max_lanes, data.get("status", "scheduled"))
+            "INSERT INTO hyrox_heats (event_id, heat_number, day_number, slot_date, division_block, transition_buffer_mins, name, start_time, max_lanes, status) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (event_id, heat_num, day_number, slot_date, division_block, transition_buffer_mins, name, start_time, max_lanes, data.get("status", "scheduled"))
         )
         db.commit()
 
     heats = db.execute(
-        "SELECT * FROM hyrox_heats WHERE event_id=? ORDER BY start_time ASC, heat_number ASC",
+        "SELECT * FROM hyrox_heats WHERE event_id=? ORDER BY day_number ASC, start_time ASC, heat_number ASC",
         (event_id,)
     ).fetchall()
     return jsonify([dict(h) for h in heats]), 201
@@ -1403,15 +1679,20 @@ def api_modify_heat(heat_id):
         db.execute("DELETE FROM hyrox_heats WHERE id=?", (heat_id,))
         db.commit()
         return jsonify({"ok": True})
+    h_d = dict(heat)
     data = request.get_json(force=True) or {}
     db.execute(
-        "UPDATE hyrox_heats SET heat_number=?, name=?, start_time=?, max_lanes=?, status=? WHERE id=?",
+        "UPDATE hyrox_heats SET heat_number=?, day_number=?, slot_date=?, division_block=?, transition_buffer_mins=?, name=?, start_time=?, max_lanes=?, status=? WHERE id=?",
         (
-            int(data.get("heat_number", heat["heat_number"])),
-            data.get("name", heat["name"]),
-            data.get("start_time", heat["start_time"]),
-            int(data.get("max_lanes", heat["max_lanes"])),
-            data.get("status", heat["status"]),
+            int(data.get("heat_number", h_d["heat_number"])),
+            int(data.get("day_number", h_d.get("day_number") or 1)),
+            data.get("slot_date", h_d.get("slot_date") or ""),
+            data.get("division_block", h_d.get("division_block") or ""),
+            int(data.get("transition_buffer_mins", h_d.get("transition_buffer_mins") or 0)),
+            data.get("name", h_d["name"]),
+            data.get("start_time", h_d["start_time"]),
+            int(data.get("max_lanes", h_d.get("max_lanes") or 1)),
+            data.get("status", h_d["status"]),
             heat_id,
         )
     )
@@ -1431,7 +1712,7 @@ def api_event_state(event_id):
     heats = [
         dict(h)
         for h in db.execute(
-            "SELECT * FROM hyrox_heats WHERE event_id=? ORDER BY start_time ASC, heat_number ASC",
+            "SELECT * FROM hyrox_heats WHERE event_id=? ORDER BY day_number ASC, start_time ASC, heat_number ASC",
             (event_id,)
         ).fetchall()
     ]
@@ -1441,7 +1722,9 @@ def api_event_state(event_id):
     ).fetchall()
     entries = [serialize_entry(db, r, include_splits=True, include_history=True) for r in entry_rows]
 
-    entries.sort(key=lambda x: (x.get("heat_start_time") or "99:99", x.get("bib_number") or "999", x["id"]))
+    entries.sort(key=lambda x: (int(x.get("heat_day_number") or 1), x.get("heat_start_time") or "99:99", x.get("bib_number") or "999", x["id"]))
+    _compute_event_split_ranks(entries)
+    _annotate_weight_changeovers(heats, entries)
 
     for h in heats:
         h["entries"] = [e for e in entries if e.get("heat_id") == h["id"]]
@@ -2216,6 +2499,7 @@ def api_athlete_history(athlete_id):
 # Provider Hdr:  TeamUp-Provider-ID: <NUMERIC_BUSINESS_ID>
 
 TEAMUP_DEFAULT_BASE_URL = "https://goteamup.com/api/v2"
+TEAMUP_DEFAULT_PROVIDER_ID = "13050192"
 
 
 def get_teamup_config(db):
@@ -2227,7 +2511,7 @@ def get_teamup_config(db):
     raw_token = (stored.get("teamup_api_token") or os.environ.get("TEAMUP_API_TOKEN") or "").strip()
     # Strip any accidental prefix so we always format exact 'Bearer <token>'
     clean_token = re.sub(r"^(Bearer|Token)\s+", "", raw_token, flags=re.IGNORECASE).strip()
-    provider_id = (stored.get("teamup_provider_id") or os.environ.get("TEAMUP_PROVIDER_ID") or "").strip()
+    provider_id = (stored.get("teamup_provider_id") or os.environ.get("TEAMUP_PROVIDER_ID") or TEAMUP_DEFAULT_PROVIDER_ID).strip()
     webhook_secret = (stored.get("teamup_webhook_secret") or os.environ.get("TEAMUP_WEBHOOK_SECRET") or "").strip()
     base_url = (stored.get("teamup_base_url") or os.environ.get("TEAMUP_BASE_URL") or TEAMUP_DEFAULT_BASE_URL).strip().rstrip("/")
 
@@ -2267,21 +2551,39 @@ class TeamUpAPIError(Exception):
         self.details = details or {}
 
 
+def _build_ssl_context():
+    """Build an SSLContext that works on macOS Python.org framework builds (/etc/ssl/cert.pem or certifi)."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        pass
+    for ca_path in ("/etc/ssl/cert.pem", "/etc/ssl/certs/ca-certificates.crt"):
+        if os.path.exists(ca_path):
+            try:
+                return ssl.create_default_context(cafile=ca_path)
+            except Exception:
+                pass
+    return ssl.create_default_context()
+
+
 class TeamUpClient:
     """Official TeamUp API v2 HTTP Client (`https://goteamup.com/api/v2`)."""
 
-    def __init__(self, api_token, provider_id="", base_url=TEAMUP_DEFAULT_BASE_URL, timeout=15):
+    def __init__(self, api_token, provider_id="", base_url=TEAMUP_DEFAULT_BASE_URL, timeout=15, auth_scheme="Bearer"):
         clean_tok = re.sub(r"^(Bearer|Token)\s+", "", str(api_token or "").strip(), flags=re.IGNORECASE).strip()
         self.api_token = clean_tok
         self.provider_id = str(provider_id or "").strip()
         self.base_url = (base_url or TEAMUP_DEFAULT_BASE_URL).rstrip("/")
         self.timeout = timeout
+        self.auth_scheme = auth_scheme or "Bearer"
 
-    def _headers(self, include_provider=True):
+    def _headers(self, include_provider=True, scheme=None):
         if not self.api_token:
             raise TeamUpAPIError("TeamUp M2M API token is not configured.", status_code=400)
+        active_scheme = scheme or self.auth_scheme or "Bearer"
         headers = {
-            "Authorization": f"Bearer {self.api_token}",
+            "Authorization": f"{active_scheme} {self.api_token}",
             "Accept": "application/json",
             "Content-Type": "application/json",
             "TeamUp-Request-Mode": "provider",
@@ -2290,6 +2592,16 @@ class TeamUpClient:
         if include_provider and self.provider_id:
             headers["TeamUp-Provider-ID"] = str(self.provider_id)
         return headers
+
+    def _open_url(self, req):
+        ctx = _build_ssl_context()
+        try:
+            return urllib.request.urlopen(req, timeout=self.timeout, context=ctx)
+        except urllib.error.URLError as e:
+            if "CERTIFICATE_VERIFY_FAILED" in str(e.reason) or isinstance(getattr(e, "reason", None), ssl.SSLCertVerificationError):
+                unverified_ctx = ssl._create_unverified_context()
+                return urllib.request.urlopen(req, timeout=self.timeout, context=unverified_ctx)
+            raise
 
     def request(self, method, path, params=None, json_body=None, include_provider=True):
         url = path if path.startswith("http") else f"{self.base_url}/{path.lstrip('/')}"
@@ -2304,30 +2616,43 @@ class TeamUpClient:
         if json_body is not None:
             data_bytes = json.dumps(json_body).encode("utf-8")
 
-        req = urllib.request.Request(
-            url,
-            data=data_bytes,
-            headers=self._headers(include_provider=include_provider),
-            method=method.upper(),
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                raw = resp.read().decode("utf-8", errors="replace")
-                return json.loads(raw) if raw.strip() else {}
-        except urllib.error.HTTPError as e:
-            err_body = ""
-            try:
-                err_body = e.read().decode("utf-8", errors="replace")
-                parsed_err = json.loads(err_body)
-            except Exception:
-                parsed_err = {"raw": err_body}
-            raise TeamUpAPIError(
-                f"TeamUp API HTTP {e.code}: {err_body[:300]}",
-                status_code=e.code,
-                details=parsed_err,
+        schemes_to_try = [self.auth_scheme]
+        alt_scheme = "Token" if self.auth_scheme == "Bearer" else "Bearer"
+        if alt_scheme not in schemes_to_try:
+            schemes_to_try.append(alt_scheme)
+
+        last_err = None
+        for idx, scheme in enumerate(schemes_to_try):
+            req = urllib.request.Request(
+                url,
+                data=data_bytes,
+                headers=self._headers(include_provider=include_provider, scheme=scheme),
+                method=method.upper(),
             )
-        except urllib.error.URLError as e:
-            raise TeamUpAPIError(f"TeamUp network error: {e.reason}", status_code=502)
+            try:
+                with self._open_url(req) as resp:
+                    self.auth_scheme = scheme
+                    raw = resp.read().decode("utf-8", errors="replace")
+                    return json.loads(raw) if raw.strip() else {}
+            except urllib.error.HTTPError as e:
+                err_body = ""
+                try:
+                    err_body = e.read().decode("utf-8", errors="replace")
+                    parsed_err = json.loads(err_body)
+                except Exception:
+                    parsed_err = {"raw": err_body}
+                last_err = TeamUpAPIError(
+                    f"TeamUp API HTTP {e.code}: {err_body[:300]}",
+                    status_code=e.code,
+                    details=parsed_err,
+                )
+                if e.code in (401, 403) and idx == 0 and len(schemes_to_try) > 1:
+                    continue
+                raise last_err
+            except urllib.error.URLError as e:
+                raise TeamUpAPIError(f"TeamUp network error: {e.reason}", status_code=502)
+        if last_err:
+            raise last_err
 
     def fetch_all_pages(self, path, params=None, max_pages=10):
         """Iterate offset-paginated TeamUp v2 responses (`page` & `page_size=100`)."""
@@ -2483,18 +2808,44 @@ def map_teamup_attendance_to_entry(att_obj):
         or ""
     ).strip()
 
-    # Division inference from custom field, offering name, event name, or membership
-    div_source = (
+    # Gender fallback if event/offering name does not specify a HYROX division
+    gender_raw = (
+        customer.get("gender")
+        or customer.get("sex")
+        or custom_fields.get("gender")
+        or custom_fields.get("sex")
+        or att_obj.get("gender")
+        or ""
+    ).strip().lower()
+    default_open_div = "women_open" if gender_raw in ("f", "female", "woman", "women", "w") else "men_open"
+
+    # Division inference from custom field, offering name, event name, booking notes, or gender fallback
+    explicit_div = (
         att_obj.get("division")
         or custom_fields.get("division")
         or custom_fields.get("hyrox_division")
         or custom_fields.get("category")
-        or offering_obj.get("name")
+        or ""
+    ).strip()
+    event_or_offering_name = (
+        offering_obj.get("name")
         or event_obj.get("name")
         or att_obj.get("offering_type_name")
         or att_obj.get("event_name")
-        or ("mixed_doubles" if partner_name else "men_open")
-    )
+        or ""
+    ).strip()
+    booking_notes_str = str(att_obj.get("notes") or att_obj.get("booking_notes") or "").strip()
+
+    if explicit_div:
+        div_resolved = normalize_division(explicit_div)
+    elif booking_notes_str and any(k in booking_notes_str.lower() for k in ("open", "pro", "double", "mixed", "women", "female", "men")):
+        div_resolved = normalize_division(booking_notes_str)
+    elif event_or_offering_name and any(k in event_or_offering_name.lower() for k in ("open", "pro", "double", "mixed", "women", "female", "men")):
+        div_resolved = normalize_division(event_or_offering_name)
+    elif partner_name:
+        div_resolved = "mixed_doubles"
+    else:
+        div_resolved = default_open_div
 
     # Wave / Heat time from event local_starts_at / starts_at or explicit heat_time
     raw_starts = (
@@ -2530,7 +2881,7 @@ def map_teamup_attendance_to_entry(att_obj):
         "email": email,
         "dob": str(dob).strip(),
         "age_category": normalize_age_category(age_cat_raw),
-        "division": normalize_division(div_source),
+        "division": div_resolved,
         "heat_time": heat_time,
         "volunteer_name": volunteer,
         "teamup_customer_id": str(customer_id).strip(),
@@ -2627,6 +2978,10 @@ def api_teamup_test_connection():
 
     client = TeamUpClient(api_token=token, provider_id=provider_id, base_url=cfg["base_url"])
     try:
+        save_teamup_setting(db, "teamup_api_token", token)
+        if provider_id:
+            save_teamup_setting(db, "teamup_provider_id", provider_id)
+        db.commit()
         app_info = client.verify_application()
         scoped_providers = app_info.get("scoped_providers") or []
         if not provider_id and scoped_providers:
@@ -2639,6 +2994,7 @@ def api_teamup_test_connection():
             "application": app_info,
             "provider_id": provider_id,
             "scoped_providers": scoped_providers,
+            "auth_scheme": client.auth_scheme,
         })
     except TeamUpAPIError as e:
         return jsonify({
@@ -2701,7 +3057,19 @@ def api_sync_teamup_to_event(event_id):
     if isinstance(data.get("results"), list) and attendances is None:
         attendances = data["results"]
 
+    auto_stagger = bool(data.get("auto_stagger_slots"))
+    stagger_start_time = (data.get("stagger_start_time") or "").strip()
+    interval_mins = int(data.get("interval_mins") or ev["wave_interval_mins"] or 15)
+
     if attendances is None:
+        inline_tok = (data.get("api_token") or "").strip()
+        if inline_tok and "••••" not in inline_tok:
+            save_teamup_setting(db, "teamup_api_token", inline_tok)
+        inline_prov = (data.get("provider_id") or "").strip()
+        if inline_prov:
+            save_teamup_setting(db, "teamup_provider_id", inline_prov)
+        if inline_tok or inline_prov:
+            db.commit()
         cfg = get_teamup_config(db)
         if not cfg["has_token"]:
             return jsonify({
@@ -2714,8 +3082,9 @@ def api_sync_teamup_to_event(event_id):
         starts_lte = data.get("starts_at_lte")
         if not teamup_event_ids and not starts_gte:
             ev_date = ev["event_date"]
+            ev_end = ev["event_end_date"] if "event_end_date" in ev.keys() and ev["event_end_date"] else ev_date
             starts_gte = f"{ev_date}T00:00:00Z"
-            starts_lte = f"{ev_date}T23:59:59Z"
+            starts_lte = f"{ev_end}T23:59:59Z"
         try:
             attendances = client.list_attendances(
                 event_ids=teamup_event_ids,
@@ -2731,6 +3100,7 @@ def api_sync_teamup_to_event(event_id):
     synced_ids = []
     cancelled_ids = []
     skipped = 0
+    stagger_idx = 0
 
     for att in (attendances or []):
         mapped = map_teamup_attendance_to_entry(att)
@@ -2749,6 +3119,14 @@ def api_sync_teamup_to_event(event_id):
             else:
                 skipped += 1
             continue
+
+        if auto_stagger:
+            base_hm = stagger_start_time or mapped.get("heat_time") or "08:00"
+            m_hm = re.match(r"^(\d{1,2}):(\d{2})$", base_hm)
+            base_mins = (int(m_hm.group(1)) * 60 + int(m_hm.group(2))) if m_hm else 8 * 60
+            slot_mins = base_mins + (stagger_idx * interval_mins)
+            mapped["heat_time"] = f"{(slot_mins // 60) % 24:02d}:{slot_mins % 60:02d}"
+            stagger_idx += 1
 
         eid, err = _create_entry_record(db, event_id, mapped, upsert=True)
         if eid:

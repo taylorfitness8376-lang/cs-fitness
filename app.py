@@ -32,6 +32,8 @@ app.jinja_loader = ChoiceLoader([
 app.secret_key = config.SECRET_KEY
 app.permanent_session_lifetime = timedelta(days=90)
 app.config["DATABASE_PATH"] = config.DATABASE_PATH
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.jinja_env.auto_reload = True
 
 
 @app.before_request
@@ -464,4 +466,5 @@ def clear_override():
 if __name__ == "__main__":
     with app.app_context():
         init_db()
-    app.run(host="0.0.0.0", port=config.PORT, debug=config.DEBUG)
+        ensure_hyrox_tables(get_db())
+    app.run(host="0.0.0.0", port=config.PORT, debug=config.DEBUG, use_reloader=True)

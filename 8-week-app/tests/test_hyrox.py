@@ -41,16 +41,34 @@ def test_seeded_demo_events_and_divisions_matrix(client):
     divisions = state["divisions"]
     assert set(divisions.keys()) == {
         "women_open",
-        "women_pro",
-        "men_open",
-        "men_pro",
-        "mixed_doubles",
         "women_doubles",
+        "women_pro",
+        "women_pro_doubles",
+        "men_open",
         "men_doubles",
+        "mixed_doubles",
+        "men_pro",
+        "men_pro_doubles",
     }
     assert divisions["men_open"]["wall_ball_target_reps"] == 100
     assert divisions["women_open"]["wall_ball_target_reps"] == 75
     assert "202 kg" in divisions["men_pro"]["stations"]["sled_push"]["prescription"]
+    assert "202 kg" in divisions["men_pro_doubles"]["stations"]["sled_push"]["prescription"]
+    assert "152 kg" in divisions["women_pro_doubles"]["stations"]["sled_push"]["prescription"]
+
+    # Verify 2-day event & 1-racer-per-slot heats + weight changeover annotations
+    assert state["event"]["num_days"] == 2
+    heats = state["heats"]
+    assert any(h.get("day_number") == 1 for h in heats)
+    assert any(h.get("day_number") == 2 for h in heats)
+    assert all(h.get("max_lanes") == 1 for h in heats)
+    assert any(h.get("weight_change_from_prev") is True and h.get("weight_change_alert") for h in heats)
+
+    # Verify Roxfit labels, PB detection, and split ranks on Ewan Taylor
+    assert ewan["avg_run_rank"] >= 1
+    assert ewan["splits"][1]["roxfit_label"] == "Ski"
+    assert any(s.get("is_pb") for s in ewan["splits"])
+    assert all(s.get("split_rank") is not None for s in ewan["splits"])
 
 
 def test_event_heat_creation_and_teamup_csv_import(client):
@@ -221,25 +239,30 @@ def test_historical_progression_and_web_surfaces(client):
     root_hyrox_resp = client.get("/hyrox")
     assert root_hyrox_resp.status_code == 200
     assert b"RACE DIRECTOR CONSOLE" in root_hyrox_resp.data
+    assert b"/static/logo.jpg" in root_hyrox_resp.data
 
     admin_resp = client.get("/hyrox/admin")
     assert admin_resp.status_code == 200
     assert b"TEAMUP CSV IMPORT" in admin_resp.data
 
-    # Surface 2: Volunteer Judge App
+    # Surface 2: Volunteer Judge App (Direct Athlete Selector + Top Run Pace Strip)
     judge_resp = client.get(f"/hyrox/judge?entry={ewan['id']}")
     assert judge_resp.status_code == 200
     assert b"Wall Ball Rep Counter" in judge_resp.data
+    assert b"Avg Run Pace" in judge_resp.data
+    assert b"/static/logo.jpg" in judge_resp.data
 
-    # Surface 3: Live Gym TV Broadcast
+    # Surface 3: Live Gym TV Broadcast (HYROX App / Roxfit 16-split view)
     tv_resp = client.get("/hyrox/tv")
     assert tv_resp.status_code == 200
-    assert b"LIVE ON-FLOOR TRACKER" in tv_resp.data
+    assert b"HYROX APP VIEW" in tv_resp.data
+    assert b"/static/logo.jpg" in tv_resp.data
 
     # Surface 4: Athlete Results & Social Finisher Card
     res_resp = client.get(f"/hyrox/results/{ewan['id']}")
     assert res_resp.status_code == 200
     assert b"FINISHER CARD GENERATOR" in res_resp.data
+    assert b"/static/logo.jpg" in res_resp.data
 
     ath_resp = client.get(f"/hyrox/athlete/{ewan['athlete_id']}")
     assert ath_resp.status_code == 200
@@ -388,4 +411,36 @@ def test_teamup_api_v2_sync_and_webhooks(client):
     state_after = client.get(f"/api/hyrox/events/{event_id}/state").get_json()
     rory_after = next(e for e in state_after["entries"] if "Rory MacDonald" in e["display_name"])
     assert rory_after["status"] == "dns"
+
+    # 4. Verify SSL CERTIFICATE_VERIFY_FAILED fallback on macOS Python framework builds
+    import io
+    import ssl
+    import urllib.error
+    import urllib.request
+    from unittest.mock import patch
+
+    calls = []
+
+    class _DummyResp:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def read(self):
+            return b'{"name": "CS Performance HYROX", "scoped_providers": [{"id": 285151, "name": "CS Performance"}]}'
+
+    def _fake_urlopen(req, timeout=15, context=None):
+        calls.append(req.headers.get("Authorization"))
+        if len(calls) == 1:
+            raise urllib.error.URLError(ssl.SSLCertVerificationError(1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed"))
+        return _DummyResp()
+
+    with patch.object(urllib.request, "urlopen", side_effect=_fake_urlopen):
+        test_resp = client.post("/api/hyrox/teamup/test", json={"api_token": "tu_test_ssl_fallback_token"})
+        assert test_resp.status_code == 200
+        tdata = test_resp.get_json()
+        assert tdata["ok"] is True
+        assert tdata["provider_id"] == "285151"
+        assert len(calls) == 2
+
 

@@ -36,14 +36,121 @@
       flex-wrap: wrap;
       gap: 0.75rem;
     }
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 9px;
+      object-fit: cover;
+      border: 1px solid var(--border);
+      background: #000;
+    }
     .brand {
       font-family: 'Barlow Condensed', sans-serif;
       font-style: italic;
       font-weight: 800;
       font-size: 1.45rem;
       text-transform: uppercase;
+      line-height: 1;
     }
     .brand span { color: var(--green); }
+
+    /* Roxfit / Official HYROX App Proportional Split Bars */
+    .roxfit-splits-board {
+      background: #080b11;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 0.85rem;
+    }
+    .roxfit-header-row {
+      display: grid;
+      grid-template-columns: 1fr 90px 52px;
+      gap: 0.5rem;
+      padding: 0 0.5rem 0.45rem;
+      font-size: 0.68rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      margin-bottom: 0.5rem;
+    }
+    .roxfit-row {
+      display: grid;
+      grid-template-columns: 1fr 95px 52px;
+      gap: 0.55rem;
+      align-items: center;
+      margin-bottom: 0.38rem;
+    }
+    .roxfit-bar-wrap {
+      position: relative;
+      height: 36px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+    }
+    .roxfit-bar-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      border-radius: 8px;
+      background: linear-gradient(90deg, rgba(99, 102, 241, 0.72), rgba(139, 92, 246, 0.82));
+      transition: width 0.25s ease;
+    }
+    .roxfit-bar-fill.station-bar {
+      background: linear-gradient(90deg, rgba(79, 70, 229, 0.78), rgba(168, 85, 247, 0.85));
+    }
+    .roxfit-bar-fill.avg-run-bar {
+      background: linear-gradient(90deg, rgba(248, 250, 252, 0.92), rgba(203, 213, 225, 0.88));
+    }
+    .roxfit-bar-content {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0 0.75rem;
+      font-weight: 800;
+      font-size: 0.86rem;
+      color: #fff;
+      white-space: nowrap;
+    }
+    .roxfit-bar-content.dark-text {
+      color: #090d16;
+    }
+    .pb-badge {
+      background: var(--yellow);
+      color: #09090b;
+      font-size: 0.65rem;
+      font-weight: 900;
+      padding: 0.1rem 0.38rem;
+      border-radius: 5px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .roxfit-time {
+      font-family: 'Inter', sans-serif;
+      font-weight: 800;
+      font-size: 0.9rem;
+      text-align: right;
+      color: #f8fafc;
+      font-variant-numeric: tabular-nums;
+    }
+    .roxfit-rank {
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 0.84rem;
+      text-align: right;
+      color: #cbd5e1;
+      font-variant-numeric: tabular-nums;
+    }
     .container {
       max-width: 1120px;
       margin: 1.5rem auto;
@@ -204,7 +311,13 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">CS PERFORMANCE <span>HYROX</span> · ROXFIT-LITE ANALYTICS</div>
+    <div class="brand-wrap">
+      <img src="/static/logo.jpg" alt="CS Performance Gym" class="brand-logo" />
+      <div>
+        <div class="brand">CS PERFORMANCE <span>HYROX</span> · FINISHER &amp; ROXFIT ANALYTICS</div>
+        <div style="font-size:0.7rem;color:var(--muted);font-weight:700">Official 16-Split Breakdown · 1.2 km Run Pace · Social Finisher Card</div>
+      </div>
+    </div>
     <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
       <a href="/hyrox/admin" class="btn">🏁 Race Console</a>
       <a href="/hyrox/judge?entry={{ entry.id }}" class="btn">⏱️ Judge View</a>
@@ -215,24 +328,27 @@
   <main class="container">
     <!-- HERO CARD -->
     <section class="hero-card">
-      <div>
-        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.4rem">
-          <span style="background:{{ entry.division_color }};color:#050806;padding:0.2rem 0.6rem;border-radius:6px;font-weight:800;font-size:0.76rem;text-transform:uppercase">
-            {{ entry.division_label }}
-          </span>
-          <span style="font-size:0.8rem;color:var(--muted);font-weight:700">
-            Bib #{{ entry.bib_number }} · Age Cat {{ entry.age_category }} · {{ entry.event_name }} ({{ entry.event_date }})
-          </span>
+      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+        <img src="/static/logo.jpg" alt="CS Performance Gym" style="width:68px;height:68px;border-radius:14px;border:2px solid var(--green);object-fit:cover;background:#000" />
+        <div>
+          <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.4rem">
+            <span style="background:{{ entry.division_color }};color:#050806;padding:0.2rem 0.6rem;border-radius:6px;font-weight:800;font-size:0.76rem;text-transform:uppercase">
+              {{ entry.division_label }}
+            </span>
+            <span style="font-size:0.8rem;color:var(--muted);font-weight:700">
+              Bib #{{ entry.bib_number }} · Age Cat {{ entry.age_category }} · {{ entry.event_name }} ({{ entry.event_date }})
+            </span>
+          </div>
+          <h1 class="athlete-name">{{ entry.full_display_name }}</h1>
+          {% if entry.history and entry.history.comparison %}
+          <div style="margin-top:0.5rem;font-size:0.86rem;font-weight:700;color:var(--green)">
+            📈 Sim-over-Sim vs {{ entry.history.comparison.previous_event_name }} ({{ entry.history.comparison.previous_total_formatted }}):
+            <span class="delta-pill {{ 'delta-faster' if entry.history.comparison.total_delta_ms <= 0 else 'delta-slower' }}">
+              {{ entry.history.comparison.total_delta_formatted }}
+            </span>
+          </div>
+          {% endif %}
         </div>
-        <h1 class="athlete-name">{{ entry.full_display_name }}</h1>
-        {% if entry.history and entry.history.comparison %}
-        <div style="margin-top:0.5rem;font-size:0.86rem;font-weight:700;color:var(--green)">
-          📈 Sim-over-Sim vs {{ entry.history.comparison.previous_event_name }} ({{ entry.history.comparison.previous_total_formatted }}):
-          <span class="delta-pill {{ 'delta-faster' if entry.history.comparison.total_delta_ms <= 0 else 'delta-slower' }}">
-            {{ entry.history.comparison.total_delta_formatted }}
-          </span>
-        </div>
-        {% endif %}
       </div>
       <div style="text-align:right">
         <div style="font-size:0.74rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:0.08em">Official Total Time</div>
@@ -324,49 +440,78 @@
   <script>
     const entryData = {{ entry | tojson }};
     let currentFormat = 'story';
+    const csLogoImg = new Image();
+    csLogoImg.crossOrigin = 'anonymous';
+    csLogoImg.onload = () => renderFinisherCanvas(currentFormat);
+    csLogoImg.src = '/static/logo.jpg';
 
     function renderSplitTable() {
       const splits = entryData.splits || [];
-      const maxMs = Math.max(...splits.map(s => s.duration_ms || 1), 1);
+      const maxMs = Math.max(...splits.map(s => s.duration_ms || 1), entryData.avg_run_ms || 1, 1);
       const cmpSplits = entryData.history?.comparison?.split_deltas || [];
 
-      const listEl = document.getElementById('splits-breakdown-list');
-      listEl.innerHTML = splits.map(s => {
-        const pct = s.duration_ms ? Math.min(100, Math.round((s.duration_ms / maxMs) * 100)) : 0;
-        const barColor = s.split_type === 'run' ? 'var(--blue)' : 'var(--green)';
+      const avgRunPct = entryData.avg_run_ms
+        ? Math.max(22, Math.min(92, Math.round((entryData.avg_run_ms / maxMs) * 85)))
+        : 55;
+
+      const avgRunRowHtml = `
+        <div class="roxfit-row" style="margin-bottom:0.65rem;padding-bottom:0.45rem;border-bottom:1px solid rgba(255,255,255,0.08)">
+          <div class="roxfit-bar-wrap">
+            <div class="roxfit-bar-fill avg-run-bar" style="width:${avgRunPct}%"></div>
+            <div class="roxfit-bar-content dark-text">
+              <span>Avg Run</span>
+              <span style="font-size:0.74rem;font-weight:800;opacity:0.8">(${entryData.avg_run_kph_formatted || '1.2 km'})</span>
+            </div>
+          </div>
+          <div class="roxfit-time">${entryData.avg_run_formatted || '--:--'}</div>
+          <div class="roxfit-rank">#${entryData.avg_run_rank || 1}</div>
+        </div>
+      `;
+
+      const rowsHtml = splits.map(s => {
+        const pct = s.duration_ms ? Math.max(20, Math.min(96, Math.round((s.duration_ms / maxMs) * 88))) : 0;
+        const barCls = s.split_type === 'run' ? '' : 'station-bar';
         const deltaInfo = Array.isArray(cmpSplits)
           ? cmpSplits.find(d => d.split_index === s.split_index)
           : (cmpSplits[s.split_index] || cmpSplits[String(s.split_index)]);
-        let deltaHtml = '<span style="color:var(--muted);font-size:0.75rem">—</span>';
+        let deltaTag = '';
         if (deltaInfo && deltaInfo.delta_ms !== null && deltaInfo.delta_ms !== undefined) {
-          const cls = deltaInfo.delta_ms <= 0 ? 'delta-faster' : 'delta-slower';
-          const kphDiff = (s.split_type === 'run' && deltaInfo.kph_delta !== null && deltaInfo.kph_delta !== undefined)
-            ? ` (${deltaInfo.kph_delta >= 0 ? '+' : ''}${deltaInfo.kph_delta} kph)`
-            : '';
-          deltaHtml = `<span class="delta-pill ${cls}" title="Previous: ${deltaInfo.previous_formatted}${kphDiff}">${deltaInfo.delta_formatted}</span>`;
+          const faster = deltaInfo.delta_ms <= 0;
+          deltaTag = `<span style="font-size:0.68rem;color:${faster ? 'var(--green)' : '#fda4af'};font-weight:800;margin-left:0.25rem">${deltaInfo.delta_formatted}</span>`;
         }
-        const kphBadge = (s.split_type === 'run' && s.pace_kph !== null && s.pace_kph !== undefined)
-          ? `<span style="color:var(--blue);font-weight:800;margin-left:0.35rem">· ${s.pace_kph_formatted} (${s.pace_per_km_formatted})</span>`
+        const pbBadge = s.is_pb ? `<span class="pb-badge">PB</span>` : '';
+        const kphText = (s.split_type === 'run' && s.pace_kph_formatted && s.pace_kph_formatted !== '—')
+          ? `<span style="font-size:0.72rem;color:#bae6fd;font-weight:700">${s.pace_kph_formatted}</span>`
           : '';
         return `
-          <div class="split-row">
-            <div style="font-weight:800;color:var(--muted)">#${s.split_index}</div>
-            <div>
-              <div style="font-weight:700">${s.label}</div>
-              <div style="font-size:0.72rem;color:var(--muted)">${s.prescription}${kphBadge}</div>
-            </div>
-            <div class="split-bar-cell">
-              <div class="bar-track">
-                <div class="bar-fill" style="width:${pct}%;background:${barColor}"></div>
+          <div class="roxfit-row">
+            <div class="roxfit-bar-wrap">
+              <div class="roxfit-bar-fill ${barCls}" style="width:${pct}%"></div>
+              <div class="roxfit-bar-content">
+                <span>${s.roxfit_label || s.label}</span>
+                ${pbBadge}
+                ${kphText}
+                ${deltaTag}
               </div>
             </div>
-            <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.3rem;text-align:right">
-              ${s.duration_formatted}
-            </div>
-            <div style="text-align:right">${deltaHtml}</div>
+            <div class="roxfit-time">${s.duration_formatted}</div>
+            <div class="roxfit-rank">${s.split_rank ? '#' + s.split_rank : '—'}</div>
           </div>
         `;
       }).join('');
+
+      const listEl = document.getElementById('splits-breakdown-list');
+      listEl.innerHTML = `
+        <div class="roxfit-splits-board">
+          <div class="roxfit-header-row">
+            <div>Split / Station (Proportional Duration &amp; PB)</div>
+            <div style="text-align:right">Time</div>
+            <div style="text-align:right">Rank</div>
+          </div>
+          ${avgRunRowHtml}
+          ${rowsHtml}
+        </div>
+      `;
     }
 
     function renderFinisherCanvas(mode) {
@@ -390,6 +535,21 @@
       ctx.lineWidth = 6;
       ctx.strokeRect(36, 36, 1008, canvas.height - 72);
 
+      // Draw CS Performance Gym Logo in Top-Right Header
+      const logoSize = isStory ? 136 : 112;
+      const logoX = 1004 - logoSize;
+      const logoY = isStory ? 68 : 62;
+      if (csLogoImg && csLogoImg.complete && csLogoImg.naturalWidth > 0) {
+        ctx.save();
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(logoX - 4, logoY - 4, logoSize + 8, logoSize + 8);
+        ctx.strokeStyle = '#3DFF4F';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(logoX - 4, logoY - 4, logoSize + 8, logoSize + 8);
+        ctx.drawImage(csLogoImg, logoX, logoY, logoSize, logoSize);
+        ctx.restore();
+      }
+
       // Header branding
       ctx.fillStyle = '#3DFF4F';
       ctx.font = 'italic 800 44px "Barlow Condensed", sans-serif';
@@ -401,10 +561,10 @@
 
       // Division Pill
       ctx.fillStyle = entryData.division_color || '#3DFF4F';
-      ctx.fillRect(76, isStory ? 185 : 160, 420, 54);
+      ctx.fillRect(76, isStory ? 185 : 160, 480, 54);
       ctx.fillStyle = '#050806';
-      ctx.font = '800 28px "Inter", sans-serif';
-      ctx.fillText(`${entryData.division_label.toUpperCase()} · AG ${entryData.age_category}`, 94, isStory ? 222 : 197);
+      ctx.font = '800 26px "Inter", sans-serif';
+      ctx.fillText(`${entryData.division_label.toUpperCase()} · AG ${entryData.age_category}`, 94, isStory ? 221 : 196);
 
       // Athlete Name
       ctx.fillStyle = '#ffffff';

@@ -138,27 +138,79 @@
     }
     .form-row {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
       gap: 0.65rem;
-      margin-bottom: 0.7rem;
+      margin-bottom: 0.75rem;
+      align-items: end;
+    }
+    .form-row > div, .quick-add-grid > div {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      min-width: 0;
+    }
+    .quick-add-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.7rem;
+      margin-bottom: 0.8rem;
+      align-items: end;
+    }
+    @media (max-width: 1100px) {
+      .quick-add-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 600px) {
+      .quick-add-grid { grid-template-columns: 1fr; }
     }
     label {
       display: block;
-      font-size: 0.72rem;
+      font-size: 0.71rem;
       font-weight: 700;
       text-transform: uppercase;
+      letter-spacing: 0.03em;
       color: var(--muted);
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.28rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     input, select, textarea {
       width: 100%;
       background: #070d09;
       border: 1px solid rgba(255, 255, 255, 0.16);
       color: var(--text);
-      padding: 0.5rem 0.65rem;
+      padding: 0.52rem 0.65rem;
       border-radius: 8px;
       font-size: 0.84rem;
       font-family: inherit;
+      height: 38px;
+    }
+    textarea {
+      height: auto;
+    }
+    .changeover-row td {
+      background: rgba(250, 204, 21, 0.09);
+      border-top: 1px dashed rgba(250, 204, 21, 0.45);
+      border-bottom: 1px dashed rgba(250, 204, 21, 0.45);
+      color: var(--yellow);
+      font-size: 0.76rem;
+      font-weight: 700;
+      padding: 0.48rem 0.7rem;
+    }
+    .day-tab-btn {
+      background: var(--surface-2);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: var(--muted);
+      padding: 0.42rem 0.75rem;
+      border-radius: 8px;
+      font-size: 0.76rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .day-tab-btn.active {
+      background: rgba(61, 255, 79, 0.16);
+      border-color: var(--green);
+      color: var(--green);
     }
     table {
       width: 100%;
@@ -236,14 +288,14 @@
 <body>
   <header class="topbar">
     <div class="brand">
-      <img src="/static/logo.jpg" alt="CS" class="brand-logo" onerror="this.style.display='none'" />
+      <img src="/static/logo.jpg" alt="CS Performance Gym" class="brand-logo" />
       <div>
         <div class="brand-title">CS PERFORMANCE <span>HYROX</span> · RACE DIRECTOR CONSOLE</div>
-        <div style="font-size:0.74rem;color:var(--muted);font-weight:600">Sim Setup · TeamUp CSV Import · Wave &amp; Judge Manager · Live Split Corrections</div>
+        <div style="font-size:0.74rem;color:var(--muted);font-weight:600">2-Day Weekend Schedule · 1 Racer + 1 Volunteer per Slot · Division Weight-Changeover Blocks</div>
       </div>
     </div>
     <div class="nav-actions">
-      <select id="event-selector" onchange="switchEvent(this.value)" style="width:auto;min-width:240px;font-weight:700"></select>
+      <select id="event-selector" onchange="switchEvent(this.value)" style="width:auto;min-width:250px;font-weight:700"></select>
       <a href="/hyrox/judge" target="_blank" class="btn btn-yellow">⏱️ Open Volunteer Judge App</a>
       <a href="/hyrox/tv" target="_blank" class="btn btn-green">📺 Launch Live Gym TV</a>
       <a href="/" class="btn">🏠 CS Hub</a>
@@ -251,44 +303,90 @@
   </header>
 
   <main class="container">
-    <!-- ROW 1: CREATE EVENT / GENERATE WAVES + TEAMUP CSV IMPORT -->
+    <!-- ROW 1: CREATE 2-DAY SIM & DIVISION BLOCK SLOTS + TEAMUP CSV IMPORT -->
     <div class="grid-2">
-      <!-- Create Sim Event & Generate Waves -->
+      <!-- Create Sim Event & Division Block Slots (1 Racer + 1 Volunteer per Slot) -->
       <section class="card">
         <div class="card-header">
-          <div class="card-title">🗓️ 1. SIM EVENT &amp; WAVE SCHEDULE GENERATOR</div>
+          <div>
+            <div class="card-title">🗓️ 1. 2-DAY EVENT &amp; DIVISION BLOCK SCHEDULER</div>
+            <div style="font-size:0.73rem;color:var(--muted)">1 Athlete/Pair + 1 Volunteer per slot · Staggered gaps · Buffer time between division blocks to change weights</div>
+          </div>
         </div>
         <div class="form-row">
           <div>
-            <label>New Sim Event Name</label>
+            <label title="New Sim Event Name">New Sim Event Name</label>
             <input type="text" id="new-ev-name" placeholder="e.g. CS Performance HYROX Sim — Feb 2027" />
           </div>
           <div>
-            <label>Event Date</label>
+            <label title="Day 1 Date (Saturday)">Day 1 Date</label>
             <input type="date" id="new-ev-date" value="2026-11-28" />
+          </div>
+          <div>
+            <label title="1-Day or 2-Day Weekend">Event Duration</label>
+            <select id="new-ev-days">
+              <option value="2" selected>2 Days (Sat &amp; Sun)</option>
+              <option value="1">1 Day Event</option>
+            </select>
           </div>
         </div>
         <div class="form-row">
           <div>
-            <label>First Wave Start</label>
+            <label title="First Racer Start Time">First Slot Start</label>
             <input type="time" id="new-ev-time" value="08:00" />
           </div>
           <div>
-            <label># of Waves</label>
-            <input type="number" id="new-ev-waves" value="6" min="1" max="30" />
+            <label title="Number of 1:1 Athlete Slots">Initial Slots</label>
+            <input type="number" id="new-ev-waves" value="6" min="1" max="40" />
           </div>
           <div>
-            <label>Wave Interval (mins)</label>
-            <input type="number" id="new-ev-interval" value="15" min="5" max="60" />
+            <label title="Minutes between each racer starting">Gap Between Racers (m)</label>
+            <input type="number" id="new-ev-interval" value="20" min="5" max="90" />
           </div>
           <div>
-            <label>Lanes / Wave</label>
-            <input type="number" id="new-ev-lanes" value="4" min="1" max="12" />
+            <label title="Buffer minutes between division blocks to swap sled/kettlebell/wall-ball weights">Weight Buffer (m)</label>
+            <input type="number" id="new-ev-buffer" value="15" min="0" max="60" />
           </div>
         </div>
-        <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
-          <button type="button" class="btn btn-green" onclick="createNewSimEvent()">➕ Create New Sim Event</button>
-          <button type="button" class="btn" onclick="addWavesToCurrentEvent()">🌊 + Add Waves to Current Event</button>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.85rem">
+          <button type="button" class="btn btn-green" onclick="createNewSimEvent()">➕ Create 2-Day Sim Event</button>
+        </div>
+
+        <!-- Add Division Block of 1:1 Slots to Current Event -->
+        <div style="background:var(--surface-2);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.75rem">
+          <div style="font-size:0.75rem;font-weight:800;color:var(--green);margin-bottom:0.5rem;text-transform:uppercase">
+            🧱 + Add Division Block of 1:1 Slots (with Equipment Setup Buffer)
+          </div>
+          <div class="form-row" style="margin-bottom:0.55rem">
+            <div>
+              <label>Day</label>
+              <select id="blk-day">
+                <option value="1">Day 1 (Sat)</option>
+                <option value="2">Day 2 (Sun)</option>
+              </select>
+            </div>
+            <div>
+              <label>Division Block</label>
+              <select id="blk-division">
+                {% for div_key, div in divisions.items() %}
+                <option value="{{ div_key }}">{{ div.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label>Block Start</label>
+              <input type="time" id="blk-start" value="10:30" />
+            </div>
+            <div>
+              <label># Slots (1:1)</label>
+              <input type="number" id="blk-count" value="3" min="1" max="20" />
+            </div>
+            <div>
+              <label>Slot Gap (m)</label>
+              <input type="number" id="blk-gap" value="20" min="5" max="90" />
+            </div>
+          </div>
+          <button type="button" class="btn" onclick="addWavesToCurrentEvent()">🧱 + Add Division Block Slots to Schedule</button>
         </div>
       </section>
 
@@ -331,8 +429,25 @@
               </div>
               <div>
                 <label>TeamUp Provider ID</label>
-                <input type="text" id="tu-provider-id" placeholder="e.g. 285151 (auto-discovered on test)" />
+                <input type="text" id="tu-provider-id" placeholder="e.g. 13050192 (auto-discovered on test)" />
               </div>
+            </div>
+            <div class="form-row" style="margin-bottom:0.5rem">
+              <div>
+                <label>Filter by Specific TeamUp Class / Event (Optional)</label>
+                <select id="tu-event-select">
+                  <option value="">All TeamUp Classes on Sim Dates</option>
+                </select>
+              </div>
+              <div style="display:flex;align-items:flex-end;gap:0.4rem">
+                <button type="button" class="btn" onclick="loadRemoteTeamUpEvents()" style="width:100%">📅 Load TeamUp Classes for Sim Dates</button>
+              </div>
+            </div>
+            <div style="margin-bottom:0.55rem;display:flex;align-items:center;gap:0.5rem;font-size:0.75rem;color:var(--muted)">
+              <input type="checkbox" id="tu-auto-stagger" style="width:auto" />
+              <label for="tu-auto-stagger" style="margin:0;text-transform:none;font-weight:600;color:var(--text);cursor:pointer">
+                Auto-stagger sign-ups into sequential 1:1 slots (instead of grouping everyone under the class start time)
+              </label>
             </div>
             <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">
               <button type="button" class="btn" onclick="saveAndTestTeamUpApi()">🔑 Save &amp; Verify Token</button>
@@ -347,23 +462,26 @@
     <!-- QUICK ADD SINGLE ATHLETE / DOUBLES PAIR -->
     <section class="card">
       <div class="card-header">
-        <div class="card-title">➕ QUICK ADD ATHLETE OR DOUBLES PAIR</div>
-      </div>
-      <div class="form-row">
         <div>
-          <label>Athlete 1 Full Name *</label>
+          <div class="card-title">➕ QUICK ADD ATHLETE OR DOUBLES PAIR</div>
+          <div style="font-size:0.74rem;color:var(--muted)">1 Racer (or Doubles Pair) + 1 Volunteer per time slot · Supports all 9 Official HYROX Divisions</div>
+        </div>
+      </div>
+      <div class="quick-add-grid">
+        <div>
+          <label title="Athlete 1 Full Name">Athlete 1 Full Name *</label>
           <input type="text" id="qa-name" placeholder="e.g. Ewan Taylor" />
         </div>
         <div>
-          <label>Partner Name (Doubles Only)</label>
+          <label title="Partner Name (Doubles Only)">Partner Name (Doubles)</label>
           <input type="text" id="qa-partner" placeholder="Optional partner name" />
         </div>
         <div>
-          <label>Email (for Roxfit-Lite History)</label>
+          <label title="Email for Roxfit-Lite Sim History">Email (Sim History)</label>
           <input type="email" id="qa-email" placeholder="athlete@email.com" />
         </div>
         <div>
-          <label>Division</label>
+          <label title="HYROX Division (9 Categories)">Division</label>
           <select id="qa-division">
             {% for div_key, div in divisions.items() %}
             <option value="{{ div_key }}">{{ div.label }}</option>
@@ -371,7 +489,7 @@
           </select>
         </div>
         <div>
-          <label>Age Category</label>
+          <label title="Age Category">Age Category</label>
           <select id="qa-age">
             {% for ag in age_categories %}
             <option value="{{ ag }}" {% if ag == '30-34' %}selected{% endif %}>{{ ag }}</option>
@@ -379,29 +497,35 @@
           </select>
         </div>
         <div>
-          <label>Wave / Heat Slot</label>
+          <label title="1:1 Race Slot">Day &amp; Time Slot (1:1)</label>
           <select id="qa-heat"></select>
         </div>
         <div>
-          <label>Assigned Lane Volunteer (1:1)</label>
+          <label title="Assigned 1:1 Volunteer Timer">Assigned Volunteer (1:1)</label>
           <input type="text" id="qa-volunteer" placeholder="e.g. Coach Chris" />
         </div>
+        <div>
+          <label>&nbsp;</label>
+          <button type="button" class="btn btn-green" style="width:100%;height:38px;justify-content:center" onclick="quickAddEntry()">✅ Add Athlete / Pair</button>
+        </div>
       </div>
-      <button type="button" class="btn btn-green" onclick="quickAddEntry()">✅ Add Entry &amp; Generate Judge PIN</button>
     </section>
 
-    <!-- LIVE RACE MONITOR, HEAT/VOLUNTEER MANAGER & SPLIT CORRECTIONS -->
+    <!-- LIVE RACE MONITOR, 2-DAY SLOT/VOLUNTEER MANAGER & SPLIT CORRECTIONS -->
     <section class="card">
       <div class="card-header">
         <div>
-          <div class="card-title">🏁 3. HEAT &amp; VOLUNTEER MANAGER + LIVE RACE MONITOR</div>
+          <div class="card-title">🏁 3. 2-DAY SLOT &amp; VOLUNTEER SCHEDULE + LIVE RACE MONITOR</div>
           <div style="font-size:0.76rem;color:var(--muted)">
-            1 Volunteer per active Sim entry (volunteers can judge multiple entries in different heats). Click <strong>Edit Splits / Corrections</strong> on any athlete to adjust any of the 16 splits or split a combined segment.
+            1 Athlete/Pair + 1 Volunteer per time slot with equipment changeover alerts between division blocks. Click <strong>Edit Splits / Corrections</strong> on any athlete to adjust any of the 16 splits.
           </div>
         </div>
-        <div style="display:flex;gap:0.5rem;align-items:center">
+        <div style="display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap">
+          <button type="button" class="day-tab-btn active" data-day="all" onclick="setAdminDayFilter('all')">All Days</button>
+          <button type="button" class="day-tab-btn" data-day="1" onclick="setAdminDayFilter('1')">Day 1 (Sat)</button>
+          <button type="button" class="day-tab-btn" data-day="2" onclick="setAdminDayFilter('2')">Day 2 (Sun)</button>
           <select id="filter-division" onchange="renderEntriesTable()" style="width:auto">
-            <option value="all">All Divisions</option>
+            <option value="all">All 9 Divisions</option>
             {% for div_key, div in divisions.items() %}
             <option value="{{ div_key }}">{{ div.label }}</option>
             {% endfor %}
@@ -414,10 +538,10 @@
           <thead>
             <tr>
               <th>Bib</th>
-              <th>Wave / Heat</th>
+              <th>Day &amp; Slot (1:1)</th>
               <th>Athlete / Pair</th>
               <th>Division &amp; AG</th>
-              <th>1:1 Lane Volunteer &amp; PIN</th>
+              <th>1:1 Volunteer</th>
               <th>Status &amp; Progress</th>
               <th>Run / Station / Total</th>
               <th>Actions</th>
@@ -428,10 +552,10 @@
       </div>
     </section>
 
-    <!-- OFFICIAL 7-DIVISION HYROX WEIGHTS & REPS REFERENCE MATRIX -->
+    <!-- OFFICIAL 9-DIVISION HYROX WEIGHTS & REPS REFERENCE MATRIX -->
     <section class="card">
       <div class="card-header">
-        <div class="card-title">🏋️ OFFICIAL HYROX DIVISION STANDARDS MATRIX (EXTENDED RUN LOOP · NO ROXZONE)</div>
+        <div class="card-title">🏋️ OFFICIAL 9-DIVISION HYROX STANDARDS MATRIX (1.2 KM RUN LOOP · NO ROXZONE)</div>
       </div>
       <div style="overflow-x:auto">
         <table>
@@ -540,6 +664,15 @@
     let currentEventId = {{ active_event_id or 'null' }};
     let currentState = null;
     let editingEntry = null;
+    let adminDayFilter = 'all';
+
+    function setAdminDayFilter(dayVal) {
+      adminDayFilter = dayVal;
+      document.querySelectorAll('.day-tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-day') === dayVal);
+      });
+      renderEntriesTable();
+    }
 
     async function loadEventsList() {
       const res = await fetch('/api/hyrox/events');
@@ -547,7 +680,7 @@
       const sel = document.getElementById('event-selector');
       if (!currentEventId && events.length) currentEventId = events[0].id;
       sel.innerHTML = events.map(ev =>
-        `<option value="${ev.id}" ${ev.id === currentEventId ? 'selected' : ''}>${ev.name} (${ev.event_date}) · ${ev.entry_count} entries</option>`
+        `<option value="${ev.id}" ${ev.id === currentEventId ? 'selected' : ''}>${ev.name} (${ev.event_date}${ev.end_date && ev.end_date !== ev.event_date ? ' → ' + ev.end_date : ''}) · ${ev.entry_count} entries</option>`
       ).join('');
       if (currentEventId) await refreshEventState();
     }
@@ -569,8 +702,8 @@
     function populateHeatDropdown() {
       const sel = document.getElementById('qa-heat');
       const heats = currentState?.heats || [];
-      sel.innerHTML = `<option value="">Auto-Assign Wave</option>` + heats.map(h =>
-        `<option value="${h.id}">${h.name} (${h.start_time}) — ${h.assigned_lanes}/${h.max_lanes} lanes</option>`
+      sel.innerHTML = `<option value="">Auto-Assign Next Open 1:1 Slot</option>` + heats.map(h =>
+        `<option value="${h.id}">Day ${h.day_number || 1} · ${h.start_time} (${h.name}) — ${h.assigned_lanes ? 'Assigned' : 'Open'}</option>`
       ).join('');
     }
 
@@ -578,14 +711,51 @@
       if (!currentState) return;
       const filterDiv = document.getElementById('filter-division').value;
       const heats = currentState.heats || [];
-      const entries = (currentState.entries || []).filter(e =>
-        filterDiv === 'all' || e.division === filterDiv
-      );
+      const heatMap = {};
+      heats.forEach(h => { heatMap[h.id] = h; });
+
+      const entries = (currentState.entries || []).filter(e => {
+        if (adminDayFilter !== 'all' && String(e.heat_day_number || 1) !== String(adminDayFilter)) return false;
+        if (filterDiv !== 'all' && e.division !== filterDiv) return false;
+        return true;
+      });
       const tbody = document.getElementById('entries-tbody');
 
-      tbody.innerHTML = entries.map(e => {
+      let prevDivision = null;
+      let prevDay = null;
+      const rowsHtml = [];
+
+      entries.forEach(e => {
+        const curDay = e.heat_day_number || 1;
+        if (prevDay !== null && curDay !== prevDay) {
+          rowsHtml.push(`
+            <tr class="changeover-row">
+              <td colspan="8" style="background:rgba(56,189,248,0.12);border-color:rgba(56,189,248,0.45);color:var(--blue)">
+                📅 DAY ${curDay} SCHEDULE START (${e.heat_slot_date || 'Day ' + curDay})
+              </td>
+            </tr>
+          `);
+          prevDivision = null;
+        }
+        prevDay = curDay;
+
+        const hObj = heatMap[e.heat_id];
+        const changeover = hObj && hObj.weight_changeover_before;
+        if (changeover || (prevDivision && prevDivision !== e.division)) {
+          const toWeights = (changeover && changeover.to_weights) || e.weight_summary || '';
+          const bufMins = (changeover && changeover.buffer_mins) || (currentState.event?.transition_buffer_mins) || 15;
+          rowsHtml.push(`
+            <tr class="changeover-row">
+              <td colspan="8">
+                ⚖️ <strong>DIVISION &amp; EQUIPMENT CHANGEOVER (+${bufMins}m buffer)</strong> → Switching to <strong style="color:#fff">${e.division_label}</strong>: ${toWeights}
+              </td>
+            </tr>
+          `);
+        }
+        prevDivision = e.division;
+
         const heatOpts = `<option value="">Unassigned</option>` + heats.map(h =>
-          `<option value="${h.id}" ${e.heat_id === h.id ? 'selected' : ''}>${h.start_time} · ${h.name}</option>`
+          `<option value="${h.id}" ${e.heat_id === h.id ? 'selected' : ''}>Day ${h.day_number || 1} · ${h.start_time} · ${h.name}</option>`
         ).join('');
 
         const statusClass = `status-${e.status}`;
@@ -593,11 +763,11 @@
           ? `<div style="font-size:0.7rem;color:var(--green);font-weight:700">📈 vs Prev Sim: ${e.history.comparison.total_delta_formatted}</div>`
           : '';
 
-        return `
+        rowsHtml.push(`
           <tr>
             <td><strong>#${e.bib_number}</strong></td>
             <td>
-              <select onchange="updateEntryMeta(${e.id}, {heat_id: this.value})" style="min-width:140px;padding:0.32rem">
+              <select onchange="updateEntryMeta(${e.id}, {heat_id: this.value})" style="min-width:175px;padding:0.32rem;height:34px">
                 ${heatOpts}
               </select>
             </td>
@@ -611,12 +781,9 @@
               <span style="font-size:0.75rem;color:var(--muted);margin-left:0.25rem">AG ${e.age_category}</span>
             </td>
             <td>
-              <div style="display:flex;gap:0.35rem;align-items:center">
-                <input type="text" value="${e.volunteer_name || ''}" placeholder="Assign Judge"
-                  onchange="updateEntryMeta(${e.id}, {volunteer_name: this.value})"
-                  style="width:125px;padding:0.3rem 0.45rem" />
-                <span class="pill" style="background:rgba(255,255,255,0.09);color:var(--yellow)" title="4-Digit Volunteer PIN">PIN ${e.judge_pin}</span>
-              </div>
+              <input type="text" value="${e.volunteer_name || ''}" placeholder="Assign 1:1 Volunteer"
+                onchange="updateEntryMeta(${e.id}, {volunteer_name: this.value})"
+                style="width:145px;padding:0.3rem 0.5rem;height:34px" />
             </td>
             <td>
               <span class="pill ${statusClass}">${e.status}</span>
@@ -628,14 +795,16 @@
             </td>
             <td>
               <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
-                <button type="button" class="btn" onclick="openSplitsModal(${e.id})">✏️ Edit Splits / Corrections</button>
+                <button type="button" class="btn" onclick="openSplitsModal(${e.id})">✏️ Edit Splits</button>
                 <a href="/hyrox/judge?entry=${e.id}" target="_blank" class="btn">⏱️ Judge</a>
                 <a href="/hyrox/results/${e.id}" target="_blank" class="btn">📲 Finisher Card</a>
               </div>
             </td>
           </tr>
-        `;
-      }).join('');
+        `);
+      });
+
+      tbody.innerHTML = rowsHtml.join('');
     }
 
     async function updateEntryMeta(entryId, patch) {
@@ -646,7 +815,7 @@
       });
       const data = await res.json();
       if (data.volunteer_warning) {
-        alert(`⚠️ Same-Wave Judge Notice: ${data.volunteer_warning}`);
+        alert(`⚠️ Same-Slot Volunteer Notice: ${data.volunteer_warning}`);
       }
       await refreshEventState();
     }
@@ -660,10 +829,12 @@
         body: JSON.stringify({
           name,
           event_date: document.getElementById('new-ev-date').value,
+          num_days: parseInt(document.getElementById('new-ev-days').value || '2', 10),
           first_wave_time: document.getElementById('new-ev-time').value,
-          num_waves: parseInt(document.getElementById('new-ev-waves').value || '4', 10),
-          wave_interval_mins: parseInt(document.getElementById('new-ev-interval').value || '15', 10),
-          lanes_per_wave: parseInt(document.getElementById('new-ev-lanes').value || '4', 10),
+          num_waves: parseInt(document.getElementById('new-ev-waves').value || '6', 10),
+          wave_interval_mins: parseInt(document.getElementById('new-ev-interval').value || '20', 10),
+          transition_buffer_mins: parseInt(document.getElementById('new-ev-buffer').value || '15', 10),
+          lanes_per_wave: 1,
         }),
       });
       if (res.ok) {
@@ -676,14 +847,23 @@
 
     async function addWavesToCurrentEvent() {
       if (!currentEventId) return;
+      const dayNumber = parseInt(document.getElementById('blk-day').value || '1', 10);
+      const divisionBlock = document.getElementById('blk-division').value || 'women_open';
+      const startTime = document.getElementById('blk-start').value || '10:30';
+      const count = parseInt(document.getElementById('blk-count').value || '3', 10);
+      const gapMins = parseInt(document.getElementById('blk-gap').value || '20', 10);
+      const bufferMins = parseInt(document.getElementById('new-ev-buffer').value || '15', 10);
       await fetch(`/api/hyrox/events/${currentEventId}/heats/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          start_time: document.getElementById('new-ev-time').value || '09:00',
-          count: 2,
-          interval_mins: parseInt(document.getElementById('new-ev-interval').value || '15', 10),
-          max_lanes: parseInt(document.getElementById('new-ev-lanes').value || '4', 10),
+          day_number: dayNumber,
+          division_block: divisionBlock,
+          start_time: startTime,
+          count: count,
+          interval_mins: gapMins,
+          transition_buffer_mins: bufferMins,
+          max_lanes: 1,
         }),
       });
       await refreshEventState();
@@ -750,7 +930,7 @@
       document.getElementById('modal-entry-title').textContent =
         `#${entry.bib_number} ${entry.full_display_name} — 16-Split Editor`;
       document.getElementById('modal-entry-subtitle').textContent =
-        `${entry.division_label} · Wave: ${entry.heat_name} (${entry.heat_start_time}) · Volunteer PIN: ${entry.judge_pin}`;
+        `${entry.division_label} · Day ${entry.heat_day_number || 1} Slot: ${entry.heat_name} (${entry.heat_start_time}) · Volunteer: ${entry.volunteer_name || 'Unassigned'}`;
       document.getElementById('modal-status').value = entry.status;
       document.getElementById('modal-penalty').value = entry.penalty_formatted || '00:00';
       document.getElementById('modal-wb-reps').value = entry.wall_ball_reps || 0;
@@ -887,18 +1067,58 @@
       }
     }
 
+    async function loadRemoteTeamUpEvents() {
+      const msgEl = document.getElementById('tu-status-msg');
+      const sel = document.getElementById('tu-event-select');
+      const api_token = ((document.getElementById('tu-api-token') || {}).value || '').trim();
+      const provider_id = ((document.getElementById('tu-provider-id') || {}).value || '').trim();
+      if (api_token && !api_token.includes('••••')) {
+        await fetch('/api/hyrox/teamup/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_token, provider_id }),
+        });
+      }
+      const dFrom = (currentEventData && currentEventData.event && currentEventData.event.event_date) || '2026-11-14';
+      const dTo = (currentEventData && currentEventData.event && currentEventData.event.event_end_date) || dFrom;
+      msgEl.textContent = `Fetching TeamUp classes (${dFrom} → ${dTo})...`;
+      const res = await fetch(`/api/hyrox/teamup/events?date_from=${encodeURIComponent(dFrom)}&date_to=${encodeURIComponent(dTo)}`);
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        const events = data.events || [];
+        sel.innerHTML = `<option value="">All TeamUp Classes on Sim Dates (${events.length} classes)</option>` +
+          events.map(ev => {
+            const dt = (ev.starts_at || '').replace('T', ' ').slice(0, 16);
+            const occ = ev.attending_count !== undefined ? ev.attending_count : (ev.occupancy || 0);
+            return `<option value="${ev.id}">${dt} — ${escapeHtml(ev.name)} (${occ}/${ev.max_occupancy || '?'} signed up)</option>`;
+          }).join('');
+        msgEl.innerHTML = `<span style="color:var(--green);font-weight:700">✅ Loaded ${events.length} TeamUp classes for ${dFrom} → ${dTo}</span>`;
+      } else {
+        msgEl.innerHTML = `<span style="color:var(--red)">${data.error || 'Could not load TeamUp events'}</span>`;
+      }
+    }
+
     async function syncFromTeamUpApi() {
       if (!currentEventId) return;
       const msgEl = document.getElementById('tu-status-msg');
+      const selectedTuEventId = (document.getElementById('tu-event-select') || {}).value || '';
+      const autoStagger = !!(document.getElementById('tu-auto-stagger') || {}).checked;
+      const api_token = ((document.getElementById('tu-api-token') || {}).value || '').trim();
+      const provider_id = ((document.getElementById('tu-provider-id') || {}).value || '').trim();
       msgEl.textContent = 'Pulling /api/v2/attendances?expand=event,customer...';
+      const payload = { auto_stagger_slots: autoStagger };
+      if (selectedTuEventId) payload.teamup_event_ids = [selectedTuEventId];
+      if (api_token && !api_token.includes('••••')) payload.api_token = api_token;
+      if (provider_id) payload.provider_id = provider_id;
       const res = await fetch(`/api/hyrox/events/${currentEventId}/sync-teamup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (res.ok && data.ok) {
         msgEl.innerHTML = `<span style="color:var(--green);font-weight:700">✅ Synced ${data.synced_count} entries (${data.cancelled_count} cancelled)</span>`;
+        await loadTeamUpStatus();
         await loadEventsList();
       } else {
         msgEl.innerHTML = `<span style="color:var(--red)">${data.error || 'Sync failed'}</span>`;
