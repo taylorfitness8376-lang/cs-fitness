@@ -563,7 +563,34 @@
       </div>
     </div>
 
-    <!-- Top Section Run Split & Average Run Pace Bar -->
+    <!-- Giant Primary Action Button directly below the Timer -->
+    <button type="button" class="giant-tap-btn" id="primary-action-btn" onpointerdown="handleFastTap(event, handlePrimaryTap)" onclick="handleFallbackClick(event, handlePrimaryTap)">
+      <span id="primary-btn-main">START RACE</span>
+      <span class="sub" id="primary-btn-sub">Tap when athlete crosses start line</span>
+    </button>
+
+    <!-- Station 8 Wall Ball Counter (only visible on Station 8) -->
+    <div class="wallball-card" id="wallball-card">
+      <div style="font-size:0.75rem;font-weight:800;text-transform:uppercase;color:var(--yellow)">🎯 Station 8 Wall Ball Rep Counter</div>
+      <div class="wb-count" id="wb-display">0 / 100</div>
+      <div class="wb-btns">
+        <button type="button" class="wb-btn primary" onpointerdown="handleFastTap(event, () => adjustWallBalls(1))" onclick="handleFallbackClick(event, () => adjustWallBalls(1))">+1</button>
+        <button type="button" class="wb-btn primary" onpointerdown="handleFastTap(event, () => adjustWallBalls(5))" onclick="handleFallbackClick(event, () => adjustWallBalls(5))">+5</button>
+        <button type="button" class="wb-btn primary" onpointerdown="handleFastTap(event, () => adjustWallBalls(10))" onclick="handleFallbackClick(event, () => adjustWallBalls(10))">+10</button>
+        <button type="button" class="wb-btn" onpointerdown="handleFastTap(event, () => adjustWallBalls(-1))" onclick="handleFallbackClick(event, () => adjustWallBalls(-1))">-1</button>
+        <button type="button" class="wb-btn" onpointerdown="handleFastTap(event, () => setWallBalls(0))" onclick="handleFallbackClick(event, () => setWallBalls(0))">Reset</button>
+      </div>
+    </div>
+
+    <!-- Live Prescribed Standard & Up Next Card (above Average Run Pace) -->
+    <div class="prescription-card" id="presc-card">
+      <div class="presc-eyebrow" id="presc-stage">STAGE 1 OF 16 · CURRENT REQUIREMENT</div>
+      <div class="presc-title" id="presc-title">Run 1</div>
+      <div class="presc-standard" id="presc-standard">Standard Gym Run Loop (1.2 km)</div>
+      <div class="presc-next" id="presc-next">Up Next: 1. SkiErg (1,000m)</div>
+    </div>
+
+    <!-- Run Split & Average Run Pace Bar -->
     <div class="run-telemetry-strip" id="run-telemetry-strip">
       <div class="rt-cell">
         <div class="rt-lbl">Avg Run Pace</div>
@@ -581,33 +608,6 @@
         <div class="rt-sub" id="rt-last-pace">No run yet</div>
       </div>
     </div>
-
-    <!-- Live Prescribed Standard Card -->
-    <div class="prescription-card" id="presc-card">
-      <div class="presc-eyebrow" id="presc-stage">STAGE 1 OF 16 · CURRENT REQUIREMENT</div>
-      <div class="presc-title" id="presc-title">Run 1</div>
-      <div class="presc-standard" id="presc-standard">Standard Gym Run Loop (1.2 km)</div>
-      <div class="presc-next" id="presc-next">Up Next: 1. SkiErg (1,000m)</div>
-    </div>
-
-    <!-- Station 8 Wall Ball Counter -->
-    <div class="wallball-card" id="wallball-card">
-      <div style="font-size:0.75rem;font-weight:800;text-transform:uppercase;color:var(--yellow)">🎯 Station 8 Wall Ball Rep Counter</div>
-      <div class="wb-count" id="wb-display">0 / 100</div>
-      <div class="wb-btns">
-        <button type="button" class="wb-btn primary" onpointerdown="handleFastTap(event, () => adjustWallBalls(1))" onclick="handleFallbackClick(event, () => adjustWallBalls(1))">+1</button>
-        <button type="button" class="wb-btn primary" onpointerdown="handleFastTap(event, () => adjustWallBalls(5))" onclick="handleFallbackClick(event, () => adjustWallBalls(5))">+5</button>
-        <button type="button" class="wb-btn primary" onpointerdown="handleFastTap(event, () => adjustWallBalls(10))" onclick="handleFallbackClick(event, () => adjustWallBalls(10))">+10</button>
-        <button type="button" class="wb-btn" onpointerdown="handleFastTap(event, () => adjustWallBalls(-1))" onclick="handleFallbackClick(event, () => adjustWallBalls(-1))">-1</button>
-        <button type="button" class="wb-btn" onpointerdown="handleFastTap(event, () => setWallBalls(0))" onclick="handleFallbackClick(event, () => setWallBalls(0))">Reset</button>
-      </div>
-    </div>
-
-    <!-- Giant Primary Action Button with Instant 0ms Touch Response -->
-    <button type="button" class="giant-tap-btn" id="primary-action-btn" onpointerdown="handleFastTap(event, handlePrimaryTap)" onclick="handleFallbackClick(event, handlePrimaryTap)">
-      <span id="primary-btn-main">START RACE</span>
-      <span class="sub" id="primary-btn-sub">Tap when athlete crosses start line</span>
-    </button>
 
     <div class="controls-row">
       <button type="button" class="undo-btn" id="undo-btn" onclick="handleUndoSplit()">↩ Undo Last Split</button>
