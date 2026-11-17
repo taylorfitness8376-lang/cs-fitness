@@ -390,69 +390,76 @@
         </div>
       </section>
 
-      <!-- TeamUp CSV Import & Direct API v2 Sync -->
+      <!-- Direct TeamUp API v2 Sync & CSV Import -->
       <section class="card">
         <div class="card-header">
-          <div class="card-title">📥 2. TEAMUP CSV IMPORT &amp; LIVE API v2 SYNC</div>
+          <div class="card-title">🔌 2. TEAMUP LIVE API v2 SYNC &amp; CSV IMPORT</div>
           <div style="display:flex;gap:0.4rem;align-items:center">
             <span id="teamup-api-badge" class="pill" style="background:rgba(255,255,255,0.08);color:var(--muted)">API v2: Ready</span>
             <a href="/api/hyrox/sample-csv" class="btn" download>⬇️ Sample TeamUp CSV</a>
           </div>
         </div>
-        <div class="form-row">
-          <div>
-            <label>Upload TeamUp Export (.csv)</label>
-            <input type="file" id="csv-file-input" accept=".csv,text/csv" onchange="loadCsvFile(this)" />
+
+        <!-- Primary Direct TeamUp REST API v2 Connector (Always Visible) -->
+        <div style="background:var(--surface-2);border:1px solid rgba(56,189,248,0.28);border-radius:10px;padding:0.75rem 0.85rem;margin-bottom:0.75rem">
+          <div style="font-size:0.8rem;font-weight:800;color:var(--blue);margin-bottom:0.35rem">
+            🔌 Direct TeamUp REST API v2 &amp; Webhook Sync (https://goteamup.com/api/v2)
+          </div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.55rem">
+            Pulls live registrations from <code>/api/v2/attendances?expand=event,customer</code> for Provider <code>13050192</code> (CS Fitness) and receives real-time <code>event_registration.*</code> webhooks.
+          </div>
+          <div class="form-row" style="margin-bottom:0.5rem">
+            <div>
+              <label>TeamUp API Key / Token</label>
+              <input type="password" id="tu-api-token" placeholder="Paste TeamUp API Key (Settings → Integrations)" />
+            </div>
+            <div>
+              <label>TeamUp Provider ID</label>
+              <input type="text" id="tu-provider-id" value="13050192" placeholder="13050192 (CS Fitness)" />
+            </div>
+          </div>
+          <div class="form-row" style="margin-bottom:0.5rem">
+            <div>
+              <label>Filter by Specific TeamUp Class / Event (Optional)</label>
+              <select id="tu-event-select">
+                <option value="">All TeamUp Classes on Sim Dates</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:flex-end;gap:0.4rem">
+              <button type="button" class="btn" onclick="loadRemoteTeamUpEvents()" style="width:100%">📅 Load TeamUp Classes for Sim Dates</button>
+            </div>
+          </div>
+          <div style="margin-bottom:0.55rem;display:flex;align-items:center;gap:0.5rem;font-size:0.75rem;color:var(--muted)">
+            <input type="checkbox" id="tu-auto-stagger" style="width:auto" />
+            <label for="tu-auto-stagger" style="margin:0;text-transform:none;font-weight:600;color:var(--text);cursor:pointer">
+              Auto-stagger sign-ups into sequential 1:1 slots (instead of grouping everyone under the class start time)
+            </label>
+          </div>
+          <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">
+            <button type="button" class="btn" onclick="saveAndTestTeamUpApi()">🔑 Save &amp; Verify Token</button>
+            <button type="button" class="btn btn-green" onclick="syncFromTeamUpApi()">🔄 Sync Registrations via TeamUp API v2</button>
+            <span id="tu-status-msg" style="font-size:0.72rem;color:var(--muted)">Webhook: <code>POST /api/hyrox/teamup/webhook</code></span>
           </div>
         </div>
-        <div style="margin-bottom:0.6rem">
-          <label>Or Paste CSV Rows (Auto-detects Name, First+Last, Email, DOB/Age Cat, Offering/Division, Partner, Event Time, Volunteer)</label>
-          <textarea id="csv-text-input" rows="2" placeholder="First Name,Last Name,Email,DOB,Division,Partner Name,Heat Time,Volunteer&#10;Jamie,Vardy,jamie@example.com,1987-01-11,Men Open,,08:45,Coach Chris"></textarea>
-        </div>
-        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem">
-          <button type="button" class="btn btn-green" onclick="importTeamUpCsv()">🚀 Import CSV Roster into Active Sim</button>
-        </div>
 
-        <!-- Collapsible Direct TeamUp REST API v2 Connector -->
+        <!-- Secondary CSV Import Fallback -->
         <details style="background:var(--surface-2);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.65rem 0.8rem">
-          <summary style="cursor:pointer;font-size:0.78rem;font-weight:800;color:var(--blue)">
-            🔌 Direct TeamUp REST API v2 &amp; Webhook Integration (https://goteamup.com/api/v2)
+          <summary style="cursor:pointer;font-size:0.78rem;font-weight:800;color:var(--muted)">
+            📄 Or Import via TeamUp CSV Export (.csv / Paste Rows)
           </summary>
           <div style="margin-top:0.65rem">
-            <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.55rem">
-              Uses official TeamUp API v2 (<code>Authorization: Bearer &lt;M2M_TOKEN&gt;</code>, <code>TeamUp-Provider-ID</code>, <code>TeamUp-Request-Mode: provider</code>) to pull <code>/api/v2/attendances?expand=event,customer</code> and receive <code>event_registration.*</code> webhooks.
-            </div>
-            <div class="form-row" style="margin-bottom:0.5rem">
+            <div class="form-row">
               <div>
-                <label>TeamUp M2M API Token</label>
-                <input type="password" id="tu-api-token" placeholder="Paste M2M Token from TeamUp → Settings → Integrations" />
-              </div>
-              <div>
-                <label>TeamUp Provider ID</label>
-                <input type="text" id="tu-provider-id" placeholder="e.g. 13050192 (auto-discovered on test)" />
+                <label>Upload TeamUp Export (.csv)</label>
+                <input type="file" id="csv-file-input" accept=".csv,text/csv" onchange="loadCsvFile(this)" />
               </div>
             </div>
-            <div class="form-row" style="margin-bottom:0.5rem">
-              <div>
-                <label>Filter by Specific TeamUp Class / Event (Optional)</label>
-                <select id="tu-event-select">
-                  <option value="">All TeamUp Classes on Sim Dates</option>
-                </select>
-              </div>
-              <div style="display:flex;align-items:flex-end;gap:0.4rem">
-                <button type="button" class="btn" onclick="loadRemoteTeamUpEvents()" style="width:100%">📅 Load TeamUp Classes for Sim Dates</button>
-              </div>
+            <div style="margin-bottom:0.6rem">
+              <label>Or Paste CSV Rows (Auto-detects Name, First+Last, Email, DOB/Age Cat, Offering/Division, Partner, Event Time, Volunteer)</label>
+              <textarea id="csv-text-input" rows="2" placeholder="First Name,Last Name,Email,DOB,Division,Partner Name,Heat Time,Volunteer&#10;Jamie,Vardy,jamie@example.com,1987-01-11,Men Open,,08:45,Coach Chris"></textarea>
             </div>
-            <div style="margin-bottom:0.55rem;display:flex;align-items:center;gap:0.5rem;font-size:0.75rem;color:var(--muted)">
-              <input type="checkbox" id="tu-auto-stagger" style="width:auto" />
-              <label for="tu-auto-stagger" style="margin:0;text-transform:none;font-weight:600;color:var(--text);cursor:pointer">
-                Auto-stagger sign-ups into sequential 1:1 slots (instead of grouping everyone under the class start time)
-              </label>
-            </div>
-            <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">
-              <button type="button" class="btn" onclick="saveAndTestTeamUpApi()">🔑 Save &amp; Verify Token</button>
-              <button type="button" class="btn btn-green" onclick="syncFromTeamUpApi()">🔄 Sync Registrations via TeamUp API v2</button>
-              <span id="tu-status-msg" style="font-size:0.72rem;color:var(--muted)">Webhook: <code>POST /api/hyrox/teamup/webhook</code></span>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+              <button type="button" class="btn btn-green" onclick="importTeamUpCsv()">🚀 Import CSV Roster into Active Sim</button>
             </div>
           </div>
         </details>
