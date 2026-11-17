@@ -1359,6 +1359,7 @@ def hyrox_admin_page():
         "hyrox_admin.html",
         active_event_id=event_id,
         divisions=HYROX_DIVISIONS,
+        division_order=list(HYROX_DIVISIONS.keys()),
         age_categories=AGE_CATEGORIES,
         splits_template=HYROX_SPLITS_TEMPLATE,
     )

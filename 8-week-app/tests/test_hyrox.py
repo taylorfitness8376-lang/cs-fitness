@@ -244,6 +244,10 @@ def test_historical_progression_and_web_surfaces(client):
     admin_resp = client.get("/hyrox/admin")
     assert admin_resp.status_code == 200
     assert b"TEAMUP CSV IMPORT" in admin_resp.data
+    assert b'id="modal-division"' in admin_resp.data
+    assert b'<option value="men_doubles">Men&#39;s Open Doubles (M Open Dbl)</option>' in admin_resp.data
+    assert b'<option value="mixed_doubles">Mixed Doubles (Mixed Dbl)</option>' in admin_resp.data
+    assert b'<option value="women_pro_doubles">Female Pro Doubles (F Pro Dbl)</option>' in admin_resp.data
 
     # Surface 2: Volunteer Judge App (Direct Athlete Selector + Top Run Pace Strip)
     judge_resp = client.get(f"/hyrox/judge?entry={ewan['id']}")

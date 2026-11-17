@@ -633,10 +633,15 @@
           <div>
             <label>Division (All 9 Official HYROX Divisions)</label>
             <select id="modal-division">
-              {% for dkey in division_order %}
-              {% set div = divisions[dkey] %}
-              <option value="{{ dkey }}">{{ div.label }} ({{ div.short_label }})</option>
-              {% endfor %}
+              <option value="women_open">Female Open (F Open)</option>
+              <option value="women_doubles">Female Doubles (F Doubles)</option>
+              <option value="women_pro">Female Pro (F Pro)</option>
+              <option value="women_pro_doubles">Female Pro Doubles (F Pro Dbl)</option>
+              <option value="men_open">Men&#39;s Open (M Open)</option>
+              <option value="men_doubles">Men&#39;s Open Doubles (M Open Dbl)</option>
+              <option value="mixed_doubles">Mixed Doubles (Mixed Dbl)</option>
+              <option value="men_pro">Men&#39;s Pro (M Pro)</option>
+              <option value="men_pro_doubles">Men&#39;s Pro Doubles (M Pro Dbl)</option>
             </select>
           </div>
           <div>
@@ -1066,9 +1071,15 @@
       document.getElementById('modal-entry-subtitle').textContent =
         `${entry.division_label} · Day ${entry.heat_day_number || 1} Slot: ${entry.heat_name} (${entry.heat_start_time}) · Volunteer: ${entry.volunteer_name || 'Unassigned'}`;
 
+      const divSel = document.getElementById('modal-division');
+      if (divSel) {
+        divSel.innerHTML = ADMIN_DIVISIONS.map(d =>
+          `<option value="${d.key}" ${(entry.division || 'men_open') === d.key ? 'selected' : ''}>${d.label} (${d.short})</option>`
+        ).join('');
+        divSel.value = entry.division || 'men_open';
+      }
       document.getElementById('modal-display-name').value = entry.display_name || '';
       document.getElementById('modal-partner-name').value = entry.partner_name || '';
-      document.getElementById('modal-division').value = entry.division || 'men_open';
       document.getElementById('modal-age-category').value = entry.age_category || '30-34';
       document.getElementById('modal-volunteer').value = entry.volunteer_name || '';
       document.getElementById('modal-bib').value = entry.bib_number || '';
