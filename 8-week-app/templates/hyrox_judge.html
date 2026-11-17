@@ -3,6 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="HYROX Judge" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#040805" />
+  <link rel="manifest" href="/hyrox/manifest.json" />
   <title>CS Performance HYROX — Volunteer Lane Judge Timer</title>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;1,800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <style>
@@ -370,10 +376,24 @@
       padding: 0.65rem 0.2rem;
       border-radius: 10px;
       cursor: pointer;
+      touch-action: manipulation;
+      user-select: none;
+      transition: transform 0.04s ease, background 0.06s ease;
+    }
+    .wb-btn:active, .wb-btn.tap-flash {
+      transform: scale(0.93);
     }
     .wb-btn.primary {
       background: var(--yellow);
       color: #111;
+    }
+    .btn-small.locked-active {
+      background: rgba(250, 204, 21, 0.2);
+      border-color: var(--yellow);
+      color: var(--yellow);
+    }
+    body.focus-locked .hide-when-locked {
+      display: none !important;
     }
 
     /* Giant Action Button */
@@ -481,9 +501,10 @@
         <div class="brand-sub">1 Athlete / Pair · 1 Volunteer Timer</div>
       </div>
     </div>
-    <div style="display:flex;gap:0.4rem">
-      <button type="button" class="btn-small" onclick="switchAthletePrompt()">🔄 Select Athlete</button>
-      <a href="/hyrox/admin" class="btn-small">⚙️ Console</a>
+    <div style="display:flex;gap:0.4rem;align-items:center">
+      <button type="button" class="btn-small" id="lock-screen-btn" onclick="toggleFocusLock()" title="Lock navigation buttons so you can't accidentally tap off the timer">🔒 Lock View</button>
+      <button type="button" class="btn-small hide-when-locked" onclick="switchAthletePrompt()">🔄 Athlete</button>
+      <a href="/hyrox/admin" class="btn-small hide-when-locked">⚙️ Console</a>
     </div>
   </div>
 
@@ -522,6 +543,8 @@
         <span id="jt-age">AG 25-29</span>
         <span>·</span>
         <span id="jt-volunteer">Volunteer: —</span>
+        <span>·</span>
+        <span id="jt-wakelock-status" style="color:var(--green)">🔆 Screen Awake</span>
         <span>·</span>
         <span id="jt-sync-status" style="color:var(--green)">● Instant Sync</span>
       </div>
@@ -572,23 +595,23 @@
       <div style="font-size:0.75rem;font-weight:800;text-transform:uppercase;color:var(--yellow)">🎯 Station 8 Wall Ball Rep Counter</div>
       <div class="wb-count" id="wb-display">0 / 100</div>
       <div class="wb-btns">
-        <button type="button" class="wb-btn primary" onclick="adjustWallBalls(1)">+1</button>
-        <button type="button" class="wb-btn primary" onclick="adjustWallBalls(5)">+5</button>
-        <button type="button" class="wb-btn primary" onclick="adjustWallBalls(10)">+10</button>
-        <button type="button" class="wb-btn" onclick="adjustWallBalls(-1)">-1</button>
-        <button type="button" class="wb-btn" onclick="setWallBalls(0)">Reset</button>
+        <button type="button" class="wb-btn primary" onpointerdown="handleFastTap(event, () => adjustWallBalls(1))" onclick="handleFallbackClick(event, () => adjustWallBalls(1))">+1</button>
+        <button type="button" class="wb-btn primary" onpointerdown="handleFastTap(event, () => adjustWallBalls(5))" onclick="handleFallbackClick(event, () => adjustWallBalls(5))">+5</button>
+        <button type="button" class="wb-btn primary" onpointerdown="handleFastTap(event, () => adjustWallBalls(10))" onclick="handleFallbackClick(event, () => adjustWallBalls(10))">+10</button>
+        <button type="button" class="wb-btn" onpointerdown="handleFastTap(event, () => adjustWallBalls(-1))" onclick="handleFallbackClick(event, () => adjustWallBalls(-1))">-1</button>
+        <button type="button" class="wb-btn" onpointerdown="handleFastTap(event, () => setWallBalls(0))" onclick="handleFallbackClick(event, () => setWallBalls(0))">Reset</button>
       </div>
     </div>
 
-    <!-- Giant Primary Action Button with Instant Response -->
-    <button type="button" class="giant-tap-btn" id="primary-action-btn" onclick="handlePrimaryTap()">
+    <!-- Giant Primary Action Button with Instant 0ms Touch Response -->
+    <button type="button" class="giant-tap-btn" id="primary-action-btn" onpointerdown="handleFastTap(event, handlePrimaryTap)" onclick="handleFallbackClick(event, handlePrimaryTap)">
       <span id="primary-btn-main">START RACE</span>
       <span class="sub" id="primary-btn-sub">Tap when athlete crosses start line</span>
     </button>
 
     <div class="controls-row">
       <button type="button" class="undo-btn" id="undo-btn" onclick="handleUndoSplit()">↩ Undo Last Split</button>
-      <a href="#" id="results-link" target="_blank" class="btn-small" style="padding:0.65rem 0.9rem">🏆 View Results &amp; Card</a>
+      <a href="#" id="results-link" target="_blank" class="btn-small hide-when-locked" style="padding:0.65rem 0.9rem">🏆 View Results &amp; Card</a>
     </div>
 
     <div class="splits-list">
@@ -603,12 +626,98 @@
   <script>
     const initialEntryId = {{ initial_entry_id or 'null' }};
     const activeEventId = {{ active_event_id or 'null' }};
-    let currentEntry = null;
-    let eventEntries = [];
-    let eventHeats = [];
+    const initialEntryData = {{ (initial_entry_data or None) | tojson }};
+    const initialEntries = {{ (initial_entries or []) | tojson }};
+    const initialHeats = {{ (initial_heats or []) | tojson }};
+
+    let currentEntry = initialEntryData || null;
+    let eventEntries = Array.isArray(initialEntries) ? initialEntries : [];
+    let eventHeats = Array.isArray(initialHeats) ? initialHeats : [];
     let selectedDayFilter = '';
     let tapCooldownUntil = 0;
     let cooldownTimerId = null;
+    let lastPointerTapAt = 0;
+    let pendingSyncCount = 0;
+    let wakeLockSentinel = null;
+    let focusLocked = false;
+    let audioCtx = null;
+
+    function playTapFeedback(freq = 880, durationMs = 28) {
+      if (navigator.vibrate) {
+        try { navigator.vibrate(25); } catch (e) {}
+      }
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
+        if (!audioCtx) audioCtx = new AudioContextClass();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.14, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + durationMs / 1000);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + durationMs / 1000);
+      } catch (e) {}
+    }
+
+    function handleFastTap(ev, fn) {
+      if (ev && ev.button && ev.button !== 0) return;
+      if (ev) ev.preventDefault();
+      lastPointerTapAt = Date.now();
+      requestWakeLock();
+      fn();
+    }
+
+    function handleFallbackClick(ev, fn) {
+      if (Date.now() - lastPointerTapAt < 450) {
+        if (ev) ev.preventDefault();
+        return;
+      }
+      requestWakeLock();
+      fn();
+    }
+
+    async function requestWakeLock() {
+      const statusEl = document.getElementById('jt-wakelock-status');
+      if (!('wakeLock' in navigator)) {
+        if (statusEl) statusEl.textContent = '📱 Active Timer';
+        return;
+      }
+      try {
+        if (!wakeLockSentinel) {
+          wakeLockSentinel = await navigator.wakeLock.request('screen');
+          wakeLockSentinel.addEventListener('release', () => {
+            wakeLockSentinel = null;
+          });
+        }
+        if (statusEl) {
+          statusEl.textContent = '🔆 Screen Awake';
+          statusEl.style.color = 'var(--green)';
+        }
+      } catch (e) {}
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
+        updateLiveClocks();
+      }
+    });
+
+    function toggleFocusLock() {
+      focusLocked = !focusLocked;
+      document.body.classList.toggle('focus-locked', focusLocked);
+      const btn = document.getElementById('lock-screen-btn');
+      if (btn) {
+        btn.classList.toggle('locked-active', focusLocked);
+        btn.textContent = focusLocked ? '🔓 Locked (Tap to Unlock)' : '🔒 Lock View';
+      }
+      requestWakeLock();
+    }
 
     function formatClockMs(ms) {
       if (ms === null || ms === undefined || ms < 0) ms = 0;
@@ -647,23 +756,53 @@
       } catch (e) {}
     }
 
+    function loadLocalBackup(entryId) {
+      try {
+        const raw = localStorage.getItem(`hyrox_judge_entry_${entryId}`);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed && parsed.entry ? parsed.entry : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
     async function initJudgeApp() {
-      if (activeEventId) {
-        const res = await fetch(`/api/hyrox/events/${activeEventId}/state`);
-        if (res.ok) {
-          const st = await res.json();
-          eventEntries = st.entries || [];
-          eventHeats = st.heats || [];
-          renderWaveFilter();
-          renderRosterPicker();
-        }
+      // 1. Render immediately in 0ms from server-injected data or localStorage
+      if (eventHeats.length || eventEntries.length) {
+        renderWaveFilter();
+        renderRosterPicker();
       }
 
       const targetId = initialEntryId || parseInt(localStorage.getItem('hyrox_judge_active_id') || '0', 10);
-      if (targetId) {
-        await loadEntryForJudging(targetId);
+      if (currentEntry && (!targetId || currentEntry.id === targetId)) {
+        saveLocalBackup(currentEntry);
+        renderJudgeScreen();
+      } else if (targetId) {
+        const localEntry = loadLocalBackup(targetId) || eventEntries.find(x => x.id === targetId);
+        if (localEntry) {
+          currentEntry = JSON.parse(JSON.stringify(localEntry));
+          renderJudgeScreen();
+        }
+        loadEntryForJudging(targetId);
       } else {
         showSelectorView();
+      }
+
+      requestWakeLock();
+
+      // 2. Refresh roster quietly in the background without blocking UI
+      if (activeEventId && !eventEntries.length) {
+        fetch(`/api/hyrox/events/${activeEventId}/state`)
+          .then(r => r.ok ? r.json() : null)
+          .then(st => {
+            if (st) {
+              eventEntries = st.entries || [];
+              eventHeats = st.heats || [];
+              renderWaveFilter();
+              renderRosterPicker();
+            }
+          }).catch(() => {});
       }
     }
 
@@ -751,20 +890,30 @@
     }
 
     async function loadEntryForJudging(entryId) {
-      const cached = eventEntries.find(x => x.id === entryId);
+      const loadStartedAt = Date.now();
+      const cached = eventEntries.find(x => x.id === entryId) || loadLocalBackup(entryId);
       if (cached && cached.splits) {
         currentEntry = JSON.parse(JSON.stringify(cached));
+        saveLocalBackup(currentEntry);
         renderJudgeScreen();
       }
-      const res = await fetch(`/api/hyrox/entries/${entryId}`);
-      if (!res.ok) {
+      try {
+        const res = await fetch(`/api/hyrox/entries/${entryId}`);
+        if (!res.ok) {
+          if (!cached) showSelectorView();
+          return;
+        }
+        const data = await res.json();
+        // Never overwrite if the volunteer already tapped Start/Split while this background fetch was in flight
+        if (pendingSyncCount > 0 || lastPointerTapAt >= loadStartedAt) {
+          return;
+        }
+        currentEntry = data.entry;
+        saveLocalBackup(currentEntry);
+        renderJudgeScreen();
+      } catch (e) {
         if (!cached) showSelectorView();
-        return;
       }
-      const data = await res.json();
-      currentEntry = data.entry;
-      saveLocalBackup(currentEntry);
-      renderJudgeScreen();
     }
 
     function updateRunTelemetryBar() {
@@ -867,7 +1016,7 @@
         subTxt.textContent = `Official Time: ${currentEntry.total_formatted}`;
       } else if (curInfo) {
         const inCooldown = Date.now() < tapCooldownUntil;
-        btn.disabled = inCooldown;
+        btn.disabled = false;
         if (curInfo.split_index === 16) {
           btn.style.background = 'var(--yellow)';
           mainTxt.textContent = '🏁 FINISH WALL BALLS & COMPLETE RACE';
@@ -903,7 +1052,7 @@
               <span style="font-family:monospace;font-weight:800;font-size:0.9rem;color:${isDone ? '#fff' : 'var(--muted)'}">
                 ${isDone ? s.duration_formatted : (isCurrent ? '⏱️ Active' : '—')}
               </span>
-              <button type="button" class="inline-edit-btn" onclick="promptInlineSplitEdit(${s.split_index}, '${s.label}', '${isDone ? s.duration_formatted : ''}')">✏️ Edit</button>
+              <button type="button" class="inline-edit-btn hide-when-locked" onclick="promptInlineSplitEdit(${s.split_index}, '${s.label}', '${isDone ? s.duration_formatted : ''}')">✏️ Edit</button>
             </div>
           </div>
         `;
@@ -1063,51 +1212,53 @@
     }
 
     async function handlePrimaryTap() {
-      if (!currentEntry) return;
+      if (!currentEntry || currentEntry.status === 'finished') return;
       const now = Date.now();
       if (now < tapCooldownUntil) return;
 
-      // Haptic & visual flash immediately (<16ms)
-      if (navigator.vibrate) {
-        try { navigator.vibrate(35); } catch (e) {}
-      }
+      // Instant tactile audio + haptic + visual flash (<5ms)
+      playTapFeedback(940, 32);
       const btn = document.getElementById('primary-action-btn');
       btn.classList.add('tap-flash');
-      setTimeout(() => btn.classList.remove('tap-flash'), 160);
+      setTimeout(() => btn.classList.remove('tap-flash'), 120);
 
-      // Brief 1.1s accidental double-bounce guard (was 3s; keeps UI responsive)
-      tapCooldownUntil = now + 1100;
+      // 280ms micro-bounce guard against accidental touch jitter (never disables/grays out button)
+      tapCooldownUntil = now + 280;
       if (cooldownTimerId) clearTimeout(cooldownTimerId);
       cooldownTimerId = setTimeout(() => {
         tapCooldownUntil = 0;
-        if (currentEntry && currentEntry.status !== 'finished') {
-          btn.disabled = false;
-          renderJudgeScreen();
-        }
-      }, 1100);
+        if (currentEntry) renderJudgeScreen();
+      }, 280);
 
       // Optimistically update UI immediately before network round-trip
+      const entryId = currentEntry.id;
       applyOptimisticAdvance(now);
       saveLocalBackup(currentEntry);
       document.getElementById('jt-sync-status').textContent = '⚡ Saving...';
       document.getElementById('jt-sync-status').style.color = 'var(--blue)';
       renderJudgeScreen();
 
+      pendingSyncCount++;
       try {
-        const res = await fetch(`/api/hyrox/entries/${currentEntry.id}/advance`, {
+        const res = await fetch(`/api/hyrox/entries/${entryId}/advance`, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({ timestamp_ms: now })
         });
+        pendingSyncCount = Math.max(0, pendingSyncCount - 1);
         if (res.ok) {
           const data = await res.json();
-          currentEntry = data.entry;
-          saveLocalBackup(currentEntry);
+          // Only overwrite local state if no newer taps are in flight
+          if (pendingSyncCount === 0 && currentEntry && currentEntry.id === entryId) {
+            currentEntry = data.entry;
+            saveLocalBackup(currentEntry);
+            renderJudgeScreen();
+          }
           document.getElementById('jt-sync-status').textContent = '● Instant Sync';
           document.getElementById('jt-sync-status').style.color = 'var(--green)';
-          renderJudgeScreen();
         }
       } catch (err) {
+        pendingSyncCount = Math.max(0, pendingSyncCount - 1);
         document.getElementById('jt-sync-status').textContent = '⚠️ Offline (Saved Locally)';
         document.getElementById('jt-sync-status').style.color = 'var(--yellow)';
       }
@@ -1115,6 +1266,7 @@
 
     async function handleUndoSplit() {
       if (!currentEntry) return;
+      playTapFeedback(520, 30);
       const res = await fetch(`/api/hyrox/entries/${currentEntry.id}/undo`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'}
@@ -1151,40 +1303,35 @@
 
     async function adjustWallBalls(delta) {
       if (!currentEntry) return;
+      playTapFeedback(720, 20);
       const target = currentEntry.wall_ball_target_reps || 100;
       const nextVal = Math.max(0, (currentEntry.wall_ball_reps || 0) + delta);
       currentEntry.wall_ball_reps = nextVal;
       document.getElementById('wb-display').textContent = `${nextVal} / ${target}`;
-      const res = await fetch(`/api/hyrox/entries/${currentEntry.id}/wall-balls`, {
+      saveLocalBackup(currentEntry);
+      fetch(`/api/hyrox/entries/${currentEntry.id}/wall-balls`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ delta: delta })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        currentEntry.wall_ball_reps = data.wall_ball_reps;
-        document.getElementById('wb-display').textContent = `${data.wall_ball_reps} / ${data.wall_ball_target_reps}`;
-      }
+        body: JSON.stringify({ reps: nextVal })
+      }).catch(() => {});
     }
 
     async function setWallBalls(reps) {
       if (!currentEntry) return;
+      playTapFeedback(600, 24);
       const target = currentEntry.wall_ball_target_reps || 100;
-      currentEntry.wall_ball_reps = Math.max(0, reps);
-      document.getElementById('wb-display').textContent = `${currentEntry.wall_ball_reps} / ${target}`;
-      const res = await fetch(`/api/hyrox/entries/${currentEntry.id}/wall-balls`, {
+      const nextVal = Math.max(0, reps);
+      currentEntry.wall_ball_reps = nextVal;
+      document.getElementById('wb-display').textContent = `${nextVal} / ${target}`;
+      saveLocalBackup(currentEntry);
+      fetch(`/api/hyrox/entries/${currentEntry.id}/wall-balls`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ reps: reps })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        currentEntry.wall_ball_reps = data.wall_ball_reps;
-        document.getElementById('wb-display').textContent = `${data.wall_ball_reps} / ${data.wall_ball_target_reps}`;
-      }
+        body: JSON.stringify({ reps: nextVal })
+      }).catch(() => {});
     }
 
-    setInterval(updateLiveClocks, 250);
+    setInterval(updateLiveClocks, 100);
     initJudgeApp();
   </script>
 </body>

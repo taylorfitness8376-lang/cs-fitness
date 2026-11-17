@@ -486,4 +486,17 @@ def test_teamup_api_v2_sync_and_webhooks(client):
         assert tdata["provider_id"] == "285151"
         assert len(calls) == 2
 
+    # 5. Verify PWA manifest & pre-hydrated instant Judge UI
+    manifest_resp = client.get("/hyrox/manifest.json")
+    assert manifest_resp.status_code == 200
+    assert manifest_resp.get_json()["display"] == "standalone"
+
+    judge_resp = client.get(f"/hyrox/judge?entry={rory_after['id']}")
+    assert judge_resp.status_code == 200
+    judge_html = judge_resp.get_data(as_text=True)
+    assert "initialEntryData" in judge_html
+    assert "toggleFocusLock" in judge_html
+    assert "handleFastTap" in judge_html
+
+
 

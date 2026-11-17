@@ -1365,16 +1365,75 @@ def hyrox_admin_page():
     )
 
 
+@hyrox_bp.route("/hyrox/manifest.json")
+def hyrox_pwa_manifest():
+    return jsonify({
+        "name": "CS Performance HYROX Judge Timer",
+        "short_name": "CS HYROX Timer",
+        "description": "1:1 Volunteer Lane Judge Timer for CS Performance HYROX Race Simulations",
+        "start_url": "/hyrox/judge",
+        "scope": "/hyrox",
+        "display": "standalone",
+        "orientation": "portrait",
+        "background_color": "#040805",
+        "theme_color": "#040805",
+        "icons": [
+            {
+                "src": "/static/logo.jpg",
+                "sizes": "192x192",
+                "type": "image/jpeg",
+            },
+            {
+                "src": "/static/logo.jpg",
+                "sizes": "512x512",
+                "type": "image/jpeg",
+            },
+        ],
+    })
+
+
 @hyrox_bp.route("/hyrox/judge")
 def hyrox_judge_page():
     db = get_db()
     ensure_hyrox_tables(db)
     entry_id = request.args.get("entry", type=int) or request.args.get("entry_id", type=int)
     event_id = get_active_event_id(db, request.args.get("event_id", type=int))
+
+    initial_entry_data = None
+    if entry_id:
+        erow = db.execute("SELECT * FROM hyrox_entries WHERE id=?", (entry_id,)).fetchone()
+        if erow:
+            event_id = erow["event_id"]
+            initial_entry_data = serialize_entry(db, erow, include_splits=True, include_history=False)
+
+    initial_heats = []
+    initial_entries = []
+    if event_id:
+        initial_heats = [
+            dict(h)
+            for h in db.execute(
+                "SELECT * FROM hyrox_heats WHERE event_id=? ORDER BY day_number ASC, start_time ASC, heat_number ASC",
+                (event_id,),
+            ).fetchall()
+        ]
+        erows = db.execute("SELECT * FROM hyrox_entries WHERE event_id=? ORDER BY id ASC", (event_id,)).fetchall()
+        initial_entries = [serialize_entry(db, r, include_splits=True, include_history=False) for r in erows]
+        initial_entries.sort(
+            key=lambda x: (
+                int(x.get("heat_day_number") or 1),
+                x.get("heat_start_time") or "99:99",
+                x.get("bib_number") or "999",
+                x["id"],
+            )
+        )
+
     return render_template(
         "hyrox_judge.html",
         initial_entry_id=entry_id,
         active_event_id=event_id,
+        initial_entry_data=initial_entry_data,
+        initial_heats=initial_heats,
+        initial_entries=initial_entries,
         divisions=HYROX_DIVISIONS,
         splits_template=HYROX_SPLITS_TEMPLATE,
     )
