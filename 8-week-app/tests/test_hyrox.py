@@ -159,6 +159,57 @@ def test_volunteer_16_split_progression_undo_and_wall_balls(client):
     assert undo_entry["completed_splits"] == 0
     assert (undo_entry["run_total_ms"] or 0) == 0
 
+    # Simulate completing Splits 1..4 + accidental tap on Split 5, then Undo Last Split
+    # Even if client sends explicit undone_split_index + remaining_splits, only Split 5 is cleared
+    remaining_after_undo_5 = [
+        {"split_index": 1, "duration_ms": 210_000, "completed_at_ms": t0 + 210_000},
+        {"split_index": 2, "duration_ms": 195_000, "completed_at_ms": t0 + 405_000},
+        {"split_index": 3, "duration_ms": 220_000, "completed_at_ms": t0 + 625_000},
+        {"split_index": 4, "duration_ms": 180_000, "completed_at_ms": t0 + 805_000},
+    ]
+    adv_5 = client.post(
+        f"/api/hyrox/entries/{entry_id}/advance",
+        json={
+            "action": "split",
+            "split_index": 5,
+            "duration_ms": 2_000,
+            "completed_at_ms": t0 + 807_000,
+            "timestamp_ms": t0 + 807_000,
+            "started_at_ms": t0,
+            "splits_state": remaining_after_undo_5 + [
+                {"split_index": 5, "duration_ms": 2_000, "completed_at_ms": t0 + 807_000}
+            ],
+        },
+    ).get_json()["entry"]
+    assert adv_5["completed_splits"] == 5
+    assert adv_5["current_split_index"] == 6
+
+    # Undo Split 5 -> must keep Splits 1..4 intact and move back to Split 5
+    undo_5 = client.post(
+        f"/api/hyrox/entries/{entry_id}/undo",
+        json={
+            "undone_split_index": 5,
+            "started_at_ms": t0,
+            "remaining_splits": remaining_after_undo_5,
+        },
+    ).get_json()["entry"]
+    assert undo_5["status"] == "racing"
+    assert undo_5["completed_splits"] == 4
+    assert undo_5["current_split_index"] == 5
+    assert undo_5["splits"][0]["duration_ms"] == 210_000
+    assert undo_5["splits"][1]["duration_ms"] == 195_000
+    assert undo_5["splits"][2]["duration_ms"] == 220_000
+    assert undo_5["splits"][3]["duration_ms"] == 180_000
+    assert undo_5["splits"][4]["duration_ms"] is None
+
+    # Reset back to racing at t0 with 0 splits before testing full 16-split loop
+    for idx in (4, 3, 2, 1):
+        u_res = client.post(
+            f"/api/hyrox/entries/{entry_id}/undo",
+            json={"undone_split_index": idx, "started_at_ms": t0, "remaining_splits": remaining_after_undo_5[: idx - 1]},
+        ).get_json()["entry"]
+        assert u_res["completed_splits"] == idx - 1
+
     # Complete all 16 splits sequentially
     cur_t = t0
     for idx in range(1, 17):

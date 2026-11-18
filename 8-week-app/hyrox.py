@@ -2304,6 +2304,31 @@ def api_start_entry(entry_id):
     })
 
 
+def _sync_client_splits_state(db, entry_id, started_at_ms=None, splits_state=None):
+    """Ensure server entry has client's started_at_ms and any completed splits from splits_state."""
+    if started_at_ms:
+        db.execute(
+            "UPDATE hyrox_entries SET started_at_ms=COALESCE(started_at_ms, ?), "
+            "status=CASE WHEN status='scheduled' THEN 'racing' ELSE status END, "
+            "updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (int(started_at_ms), entry_id),
+        )
+    if isinstance(splits_state, list):
+        for item in splits_state:
+            if not isinstance(item, dict):
+                continue
+            s_idx = item.get("split_index")
+            s_dur = item.get("duration_ms")
+            s_comp = item.get("completed_at_ms")
+            if s_idx is not None and s_dur is not None:
+                db.execute(
+                    "UPDATE hyrox_splits SET duration_ms=?, completed_at_ms=COALESCE(?, completed_at_ms), "
+                    "edited_by= CASE WHEN edited_by='' THEN 'volunteer' ELSE edited_by END "
+                    "WHERE entry_id=? AND split_index=?",
+                    (int(s_dur), int(s_comp) if s_comp else None, entry_id, int(s_idx)),
+                )
+
+
 @hyrox_bp.route("/api/hyrox/entries/<int:entry_id>/advance", methods=["POST"])
 def api_advance_split(entry_id):
     db = get_db()
@@ -2315,11 +2340,24 @@ def api_advance_split(entry_id):
     ensure_entry_splits(db, entry_id)
     data = request.get_json(silent=True) or {}
     now_ms = int(data.get("timestamp_ms") or data.get("completed_at_ms") or (time.time() * 1000))
+    explicit_action = data.get("action")
+    target_split_index = data.get("split_index")
 
-    if not row["started_at_ms"]:
+    # Sync any prior client state first so out-of-order/rapid mobile taps never lose earlier splits
+    if data.get("started_at_ms") or data.get("splits_state"):
+        _sync_client_splits_state(
+            db,
+            entry_id,
+            started_at_ms=data.get("started_at_ms"),
+            splits_state=data.get("splits_state"),
+        )
+        row = db.execute("SELECT * FROM hyrox_entries WHERE id=?", (entry_id,)).fetchone()
+
+    if explicit_action == "start" or (not row["started_at_ms"] and not target_split_index):
+        start_val = int(data.get("started_at_ms") or now_ms)
         db.execute(
             "UPDATE hyrox_entries SET status='racing', started_at_ms=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-            (now_ms, entry_id)
+            (start_val, entry_id)
         )
         db.commit()
         updated = db.execute("SELECT * FROM hyrox_entries WHERE id=?", (entry_id,)).fetchone()
@@ -2330,12 +2368,18 @@ def api_advance_split(entry_id):
             "entry": serialize_entry(db, updated, include_splits=True, include_history=False),
         })
 
+    if not row["started_at_ms"]:
+        db.execute(
+            "UPDATE hyrox_entries SET status='racing', started_at_ms=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (int(data.get("started_at_ms") or (now_ms - 1000)), entry_id)
+        )
+        row = db.execute("SELECT * FROM hyrox_entries WHERE id=?", (entry_id,)).fetchone()
+
     splits = db.execute(
         "SELECT * FROM hyrox_splits WHERE entry_id=? ORDER BY split_index ASC",
         (entry_id,)
     ).fetchall()
 
-    target_split_index = data.get("split_index")
     target_split = None
     if target_split_index:
         for s in splits:
@@ -2398,29 +2442,54 @@ def api_undo_last_split(entry_id):
         return jsonify({"error": "Entry not found"}), 404
 
     ensure_entry_splits(db, entry_id)
-    last_done = db.execute(
-        "SELECT * FROM hyrox_splits WHERE entry_id=? AND duration_ms IS NOT NULL ORDER BY split_index DESC LIMIT 1",
-        (entry_id,)
-    ).fetchone()
+    data = request.get_json(silent=True) or {}
+    req_undone_idx = data.get("undone_split_index")
+    remaining_splits = data.get("remaining_splits")
 
-    if last_done:
+    # If client sent its authoritative remaining splits + undone_split_index, sync prior splits first
+    if data.get("started_at_ms") or isinstance(remaining_splits, list):
+        _sync_client_splits_state(
+            db,
+            entry_id,
+            started_at_ms=data.get("started_at_ms"),
+            splits_state=remaining_splits,
+        )
+
+    if req_undone_idx is not None and int(req_undone_idx) >= 1:
+        undone_index = int(req_undone_idx)
         db.execute(
-            "UPDATE hyrox_splits SET duration_ms=NULL, completed_at_ms=NULL WHERE id=?",
-            (last_done["id"],)
+            "UPDATE hyrox_splits SET duration_ms=NULL, completed_at_ms=NULL WHERE entry_id=? AND split_index>=?",
+            (entry_id, undone_index),
         )
         db.execute(
             "UPDATE hyrox_entries SET status='racing', finished_at_ms=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-            (entry_id,)
+            (entry_id,),
         )
         recalculate_entry_totals(db, entry_id)
-        undone_index = last_done["split_index"]
     else:
-        db.execute(
-            "UPDATE hyrox_entries SET status='scheduled', started_at_ms=NULL, finished_at_ms=NULL, "
-            "total_ms=NULL, run_total_ms=NULL, station_total_ms=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+        last_done = db.execute(
+            "SELECT * FROM hyrox_splits WHERE entry_id=? AND duration_ms IS NOT NULL ORDER BY split_index DESC LIMIT 1",
             (entry_id,)
-        )
-        undone_index = 0
+        ).fetchone()
+
+        if last_done:
+            db.execute(
+                "UPDATE hyrox_splits SET duration_ms=NULL, completed_at_ms=NULL WHERE id=?",
+                (last_done["id"],)
+            )
+            db.execute(
+                "UPDATE hyrox_entries SET status='racing', finished_at_ms=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (entry_id,)
+            )
+            recalculate_entry_totals(db, entry_id)
+            undone_index = last_done["split_index"]
+        else:
+            db.execute(
+                "UPDATE hyrox_entries SET status='scheduled', started_at_ms=NULL, finished_at_ms=NULL, "
+                "total_ms=NULL, run_total_ms=NULL, station_total_ms=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (entry_id,)
+            )
+            undone_index = 0
 
     db.commit()
     updated = db.execute("SELECT * FROM hyrox_entries WHERE id=?", (entry_id,)).fetchone()

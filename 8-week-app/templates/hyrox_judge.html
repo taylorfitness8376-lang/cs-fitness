@@ -1051,6 +1051,10 @@
           entry: entry
         }));
         localStorage.setItem('hyrox_judge_active_id', String(entry.id));
+        const idx = eventEntries.findIndex(x => x.id === entry.id);
+        if (idx >= 0) {
+          eventEntries[idx] = JSON.parse(JSON.stringify(entry));
+        }
       } catch (e) {}
     }
 
@@ -1194,7 +1198,7 @@
 
     async function loadEntryForJudging(entryId) {
       const loadStartedAt = Date.now();
-      const cached = eventEntries.find(x => x.id === entryId) || loadLocalBackup(entryId);
+      const cached = loadLocalBackup(entryId) || eventEntries.find(x => x.id === entryId);
       if (cached && cached.splits) {
         currentEntry = JSON.parse(JSON.stringify(cached));
         saveLocalBackup(currentEntry);
@@ -1211,7 +1215,17 @@
         if (pendingSyncCount > 0 || lastPointerTapAt >= loadStartedAt) {
           return;
         }
-        currentEntry = data.entry;
+        // If local backup has more completed splits for the same active race, keep local splits and sync
+        const serverEntry = data.entry;
+        if (
+          currentEntry &&
+          currentEntry.id === entryId &&
+          currentEntry.started_at_ms &&
+          (currentEntry.completed_splits || 0) > (serverEntry.completed_splits || 0)
+        ) {
+          return;
+        }
+        currentEntry = serverEntry;
         saveLocalBackup(currentEntry);
         renderJudgeScreen();
       } catch (e) {
@@ -1453,8 +1467,89 @@
       }
     }
 
+    let syncChain = Promise.resolve();
+
+    function enqueueSyncTask(taskFn) {
+      pendingSyncCount++;
+      syncChain = syncChain
+        .then(() => taskFn())
+        .catch(() => {})
+        .finally(() => {
+          pendingSyncCount = Math.max(0, pendingSyncCount - 1);
+        });
+      return syncChain;
+    }
+
+    function recomputeOptimisticEntryTotals(entry, nowMs) {
+      if (!entry) return;
+      const splits = entry.splits || [];
+      let runTotal = 0;
+      let stnTotal = 0;
+      let runCount = 0;
+      let doneCount = 0;
+      let lastDoneSplit = null;
+
+      splits.forEach(s => {
+        if (s.duration_ms !== null && s.duration_ms !== undefined) {
+          doneCount++;
+          lastDoneSplit = s;
+          if (s.split_type === 'run') {
+            runTotal += s.duration_ms;
+            runCount++;
+          } else {
+            stnTotal += s.duration_ms;
+          }
+        }
+      });
+
+      entry.completed_splits = doneCount;
+      entry.run_total_ms = doneCount > 0 ? runTotal : null;
+      entry.run_total_formatted = formatClockMs(runTotal);
+      entry.station_total_ms = doneCount > 0 ? stnTotal : null;
+      entry.station_total_formatted = formatClockMs(stnTotal);
+      entry.last_completed_split = lastDoneSplit;
+
+      if (runCount > 0) {
+        const avgRunMs = Math.round(runTotal / runCount);
+        const avgM = computeRunPaceMetrics(avgRunMs);
+        entry.avg_run_ms = avgRunMs;
+        entry.avg_run_formatted = formatClockMs(avgRunMs);
+        if (avgM) {
+          entry.avg_run_kph = avgM.kph;
+          entry.avg_run_kph_formatted = avgM.kphFormatted;
+          entry.avg_run_pace_per_km_formatted = avgM.perKmFormatted;
+        }
+      } else {
+        entry.avg_run_ms = null;
+        entry.avg_run_formatted = '--:--';
+        entry.avg_run_kph = null;
+        entry.avg_run_kph_formatted = '—';
+        entry.avg_run_pace_per_km_formatted = '—';
+      }
+
+      if (doneCount >= 16) {
+        entry.status = 'finished';
+        entry.finished_at_ms = entry.finished_at_ms || nowMs || Date.now();
+        entry.total_ms = runTotal + stnTotal + (entry.penalty_ms || 0);
+        entry.total_formatted = formatClockMs(entry.total_ms);
+        entry.current_split_index = 16;
+        entry.current_split_info = null;
+        entry.next_split_info = null;
+      } else {
+        entry.status = entry.started_at_ms ? 'racing' : 'scheduled';
+        entry.finished_at_ms = null;
+        entry.total_ms = doneCount > 0 ? (runTotal + stnTotal + (entry.penalty_ms || 0)) : null;
+        entry.total_formatted = entry.total_ms ? formatClockMs(entry.total_ms) : '--:--';
+        const nextSplit = splits.find(s => s.duration_ms === null || s.duration_ms === undefined);
+        const nextIdx = nextSplit ? nextSplit.split_index : 1;
+        entry.current_split_index = nextIdx;
+        entry.current_split_info = nextSplit || null;
+        entry.next_split_info = splits.find(s => s.split_index === nextIdx + 1) || null;
+      }
+    }
+
     function applyOptimisticAdvance(now) {
-      if (!currentEntry) return;
+      if (!currentEntry) return null;
       const splits = currentEntry.splits || [];
 
       // Case 1: Starting the race from scheduled state
@@ -1467,13 +1562,17 @@
           currentEntry.current_split_info = splits[0];
           currentEntry.next_split_info = splits[1] || null;
         }
-        return;
+        return {
+          action: 'start',
+          timestamp_ms: now,
+          started_at_ms: now
+        };
       }
 
       // Case 2: Completing the active split
       const idx = currentEntry.current_split_index || 1;
       const curSplit = splits.find(s => s.split_index === idx);
-      if (!curSplit) return;
+      if (!curSplit) return null;
 
       let prevCompletedSum = 0;
       splits.forEach(s => {
@@ -1496,56 +1595,77 @@
         }
       }
 
-      // Recompute totals immediately
-      let runTotal = 0;
-      let stnTotal = 0;
-      let runCount = 0;
-      let doneCount = 0;
-      splits.forEach(s => {
-        if (s.duration_ms !== null && s.duration_ms !== undefined) {
-          doneCount++;
-          if (s.split_type === 'run') {
-            runTotal += s.duration_ms;
-            runCount++;
-          } else {
-            stnTotal += s.duration_ms;
-          }
-        }
-      });
+      recomputeOptimisticEntryTotals(currentEntry, now);
 
-      currentEntry.completed_splits = doneCount;
-      currentEntry.run_total_ms = runTotal;
-      currentEntry.run_total_formatted = formatClockMs(runTotal);
-      currentEntry.station_total_ms = stnTotal;
-      currentEntry.station_total_formatted = formatClockMs(stnTotal);
-      currentEntry.last_completed_split = curSplit;
+      const splitsSnapshot = splits
+        .filter(s => s.duration_ms !== null && s.duration_ms !== undefined)
+        .map(s => ({
+          split_index: s.split_index,
+          duration_ms: s.duration_ms,
+          completed_at_ms: s.completed_at_ms
+        }));
 
-      if (runCount > 0) {
-        const avgRunMs = Math.round(runTotal / runCount);
-        const avgM = computeRunPaceMetrics(avgRunMs);
-        currentEntry.avg_run_ms = avgRunMs;
-        currentEntry.avg_run_formatted = formatClockMs(avgRunMs);
-        if (avgM) {
-          currentEntry.avg_run_kph = avgM.kph;
-          currentEntry.avg_run_kph_formatted = avgM.kphFormatted;
-          currentEntry.avg_run_pace_per_km_formatted = avgM.perKmFormatted;
-        }
+      return {
+        action: 'split',
+        split_index: idx,
+        duration_ms: durMs,
+        completed_at_ms: now,
+        timestamp_ms: now,
+        started_at_ms: currentEntry.started_at_ms,
+        splits_state: splitsSnapshot
+      };
+    }
+
+    function applyOptimisticUndo() {
+      if (!currentEntry) return null;
+      const splits = currentEntry.splits || [];
+      const completedSplits = splits
+        .filter(s => s.duration_ms !== null && s.duration_ms !== undefined)
+        .sort((a, b) => a.split_index - b.split_index);
+
+      // If at least 1 split is recorded, ONLY clear the most recent completed split!
+      if (completedSplits.length > 0) {
+        const lastSplit = completedSplits[completedSplits.length - 1];
+        const undoneIdx = lastSplit.split_index;
+        lastSplit.duration_ms = null;
+        lastSplit.duration_formatted = '—';
+        lastSplit.completed_at_ms = null;
+        lastSplit.pace_kph = null;
+        lastSplit.pace_kph_formatted = '—';
+        lastSplit.pace_per_km_formatted = '—';
+
+        recomputeOptimisticEntryTotals(currentEntry);
+
+        const remainingSplits = splits
+          .filter(s => s.duration_ms !== null && s.duration_ms !== undefined)
+          .map(s => ({
+            split_index: s.split_index,
+            duration_ms: s.duration_ms,
+            completed_at_ms: s.completed_at_ms
+          }));
+
+        return {
+          undone_split_index: undoneIdx,
+          started_at_ms: currentEntry.started_at_ms,
+          remaining_splits: remainingSplits
+        };
       }
 
-      if (idx >= 16) {
-        currentEntry.status = 'finished';
-        currentEntry.finished_at_ms = now;
-        currentEntry.total_ms = runTotal + stnTotal + (currentEntry.penalty_ms || 0);
-        currentEntry.total_formatted = formatClockMs(currentEntry.total_ms);
-        currentEntry.current_split_index = 16;
-        currentEntry.current_split_info = null;
-        currentEntry.next_split_info = null;
-      } else {
-        const nextIdx = idx + 1;
-        currentEntry.current_split_index = nextIdx;
-        currentEntry.current_split_info = splits.find(s => s.split_index === nextIdx) || null;
-        currentEntry.next_split_info = splits.find(s => s.split_index === nextIdx + 1) || null;
+      // If 0 splits are recorded and the race clock is running on Run 1, confirm before resetting start
+      if (currentEntry.started_at_ms) {
+        if (!window.confirm('No splits recorded yet. Reset the race start clock back to 00:00?')) {
+          return null;
+        }
+        currentEntry.started_at_ms = null;
+        currentEntry.finished_at_ms = null;
+        currentEntry.status = 'scheduled';
+        recomputeOptimisticEntryTotals(currentEntry);
+        return {
+          undone_split_index: 0
+        };
       }
+
+      return null;
     }
 
     async function handlePrimaryTap(fromCountdown = false) {
@@ -1581,54 +1701,76 @@
 
       // Optimistically update UI immediately before network round-trip
       const entryId = currentEntry.id;
-      applyOptimisticAdvance(now);
+      const payload = applyOptimisticAdvance(now);
+      if (!payload) return;
       saveLocalBackup(currentEntry);
       document.getElementById('jt-sync-status').textContent = '⚡ Saving...';
       document.getElementById('jt-sync-status').style.color = 'var(--blue)';
       renderJudgeScreen();
 
-      pendingSyncCount++;
-      try {
-        const res = await fetch(`/api/hyrox/entries/${entryId}/advance`, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ timestamp_ms: now })
-        });
-        pendingSyncCount = Math.max(0, pendingSyncCount - 1);
-        if (res.ok) {
-          const data = await res.json();
-          // Only overwrite local state if no newer taps are in flight
-          if (pendingSyncCount === 0 && currentEntry && currentEntry.id === entryId) {
-            currentEntry = data.entry;
-            saveLocalBackup(currentEntry);
-            renderJudgeScreen();
+      enqueueSyncTask(async () => {
+        try {
+          const res = await fetch(`/api/hyrox/entries/${entryId}/advance`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (pendingSyncCount <= 1 && currentEntry && currentEntry.id === entryId) {
+              currentEntry = data.entry;
+              saveLocalBackup(currentEntry);
+              renderJudgeScreen();
+            }
+            document.getElementById('jt-sync-status').textContent = '● Instant Sync';
+            document.getElementById('jt-sync-status').style.color = 'var(--green)';
           }
-          document.getElementById('jt-sync-status').textContent = '● Instant Sync';
-          document.getElementById('jt-sync-status').style.color = 'var(--green)';
+        } catch (err) {
+          document.getElementById('jt-sync-status').textContent = '⚠️ Offline (Saved Locally)';
+          document.getElementById('jt-sync-status').style.color = 'var(--yellow)';
         }
-      } catch (err) {
-        pendingSyncCount = Math.max(0, pendingSyncCount - 1);
-        document.getElementById('jt-sync-status').textContent = '⚠️ Offline (Saved Locally)';
-        document.getElementById('jt-sync-status').style.color = 'var(--yellow)';
-      }
+      });
     }
 
     async function handleUndoSplit() {
       if (!currentEntry) return;
       cancelStartCountdown();
+      lastPointerTapAt = Date.now();
+
+      const entryId = currentEntry.id;
+      const undoPayload = applyOptimisticUndo();
+      if (!undoPayload) return;
+
       playTapFeedback(520, 30);
-      const res = await fetch(`/api/hyrox/entries/${currentEntry.id}/undo`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'}
+      saveLocalBackup(currentEntry);
+      tapCooldownUntil = 0;
+      resetStartSliderVisual();
+      document.getElementById('jt-sync-status').textContent = '⚡ Undoing Split...';
+      document.getElementById('jt-sync-status').style.color = 'var(--blue)';
+      renderJudgeScreen();
+
+      enqueueSyncTask(async () => {
+        try {
+          const res = await fetch(`/api/hyrox/entries/${entryId}/undo`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(undoPayload)
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (pendingSyncCount <= 1 && currentEntry && currentEntry.id === entryId) {
+              currentEntry = data.entry;
+              saveLocalBackup(currentEntry);
+              renderJudgeScreen();
+            }
+            document.getElementById('jt-sync-status').textContent = '● Instant Sync';
+            document.getElementById('jt-sync-status').style.color = 'var(--green)';
+          }
+        } catch (err) {
+          document.getElementById('jt-sync-status').textContent = '⚠️ Offline (Saved Locally)';
+          document.getElementById('jt-sync-status').style.color = 'var(--yellow)';
+        }
       });
-      if (res.ok) {
-        const data = await res.json();
-        currentEntry = data.entry;
-        saveLocalBackup(currentEntry);
-        tapCooldownUntil = 0;
-        resetStartSliderVisual();
-        renderJudgeScreen();
-      }
     }
 
     async function promptInlineSplitEdit(splitIndex, label, currentStr) {
