@@ -398,26 +398,27 @@
 
     /* Slide-to-Start Track & 3-Second Countdown */
     .start-slider-card {
-      background: linear-gradient(135deg, rgba(61, 255, 79, 0.12), rgba(11, 19, 13, 0.98));
-      border: 2px solid rgba(61, 255, 79, 0.55);
-      border-radius: 18px;
+      background: linear-gradient(180deg, #0c160e 0%, #050a06 100%);
+      border: 1.5px solid rgba(61, 255, 79, 0.45);
+      border-radius: 26px;
       padding: 0.75rem 0.85rem;
-      margin-bottom: 0.65rem;
+      margin-bottom: 0.7rem;
       user-select: none;
       touch-action: pan-y;
+      box-shadow: 0 10px 26px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.1);
     }
     .slider-track {
       position: relative;
       width: 100%;
-      height: 68px;
-      background: #050a06;
-      border: 1px solid rgba(61, 255, 79, 0.4);
+      height: 74px;
+      background: linear-gradient(180deg, #020503 0%, #0a140c 100%);
+      border: 2px solid rgba(61, 255, 79, 0.38);
       border-radius: 999px;
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.75);
+      box-shadow: inset 0 5px 12px rgba(0, 0, 0, 0.92), inset 0 -2px 4px rgba(61, 255, 79, 0.12), 0 2px 6px rgba(0, 0, 0, 0.6);
     }
     .slider-fill {
       position: absolute;
@@ -425,7 +426,7 @@
       top: 0;
       bottom: 0;
       width: 0%;
-      background: linear-gradient(90deg, rgba(61, 255, 79, 0.25), rgba(61, 255, 79, 0.55));
+      background: linear-gradient(90deg, rgba(61, 255, 79, 0.2), rgba(61, 255, 79, 0.58));
       pointer-events: none;
     }
     .slider-label {
@@ -434,28 +435,34 @@
       font-family: 'Barlow Condensed', sans-serif;
       font-style: italic;
       font-weight: 800;
-      font-size: 1.35rem;
-      letter-spacing: 0.04em;
+      font-size: 1.38rem;
+      letter-spacing: 0.05em;
       text-transform: uppercase;
       color: var(--green);
+      text-shadow: 0 2px 8px rgba(61, 255, 79, 0.35);
       pointer-events: none;
-      padding-left: 44px;
+      padding-left: 52px;
     }
     .slider-thumb {
       position: absolute;
-      left: 5px;
+      left: 6px;
       top: 5px;
-      width: 56px;
+      width: 60px;
       height: 56px;
       border-radius: 999px;
-      background: var(--green);
-      color: #041006;
+      background: linear-gradient(180deg, #9effa7 0%, #3DFF4F 38%, #1ed632 82%, #139e22 100%);
+      color: #031205;
       font-weight: 900;
-      font-size: 1.45rem;
+      font-size: 1.5rem;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 16px rgba(61, 255, 79, 0.45);
+      border: 1.5px solid rgba(255, 255, 255, 0.65);
+      box-shadow:
+        0 5px 0 #0a6914,
+        0 8px 18px rgba(61, 255, 79, 0.55),
+        inset 0 2px 3px rgba(255, 255, 255, 0.8),
+        inset 0 -3px 5px rgba(0, 0, 0, 0.28);
       z-index: 2;
       pointer-events: none;
     }
@@ -478,60 +485,149 @@
     }
     .countdown-cancel-btn {
       width: 100%;
-      background: rgba(244, 63, 94, 0.16);
-      border: 1px solid rgba(244, 63, 94, 0.5);
-      color: #fda4af;
-      padding: 0.52rem;
-      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(244, 63, 94, 0.24), rgba(159, 18, 57, 0.28));
+      border: 1px solid rgba(244, 63, 94, 0.55);
+      color: #fecdd3;
+      padding: 0.55rem;
+      border-radius: 999px;
       font-weight: 800;
       font-size: 0.78rem;
       cursor: pointer;
       margin-bottom: 0.65rem;
       display: none;
+      box-shadow: 0 3px 0 rgba(136, 19, 55, 0.8);
     }
 
-    /* Giant Action Button */
+    /* Recessed Bezel Socket + 3D Contoured Physical Stopwatch Button */
+    .tap-btn-well {
+      background: linear-gradient(180deg, #020503 0%, #0c170f 100%);
+      border: 1.5px solid rgba(255, 255, 255, 0.14);
+      border-radius: 999px;
+      padding: 7px 7px 13px;
+      margin-bottom: 0.7rem;
+      box-shadow:
+        inset 0 5px 12px rgba(0, 0, 0, 0.92),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.08),
+        0 8px 22px rgba(0, 0, 0, 0.65);
+    }
     .giant-tap-btn {
+      --btn-grad: linear-gradient(180deg, #98ffa2 0%, #3DFF4F 34%, #1ed432 78%, #129921 100%);
+      --btn-edge: #0a6314;
+      --btn-glow: rgba(61, 255, 79, 0.45);
+      --btn-border: rgba(255, 255, 255, 0.62);
+      --btn-text: #031406;
+      position: relative;
       width: 100%;
-      min-height: 110px;
-      border-radius: 18px;
-      border: none;
-      background: var(--green);
-      color: #041006;
+      min-height: 112px;
+      border-radius: 999px;
+      border: 2px solid var(--btn-border);
+      background: var(--btn-grad);
+      color: var(--btn-text);
       font-family: 'Barlow Condensed', sans-serif;
       font-style: italic;
       font-weight: 800;
-      font-size: 1.85rem;
+      font-size: 1.95rem;
       text-transform: uppercase;
-      letter-spacing: 0.02em;
-      padding: 1rem;
+      letter-spacing: 0.03em;
+      padding: 0.95rem 1.35rem;
       cursor: pointer;
-      box-shadow: 0 8px 28px rgba(61, 255, 79, 0.3);
-      transition: transform 0.05s ease, box-shadow 0.08s ease, opacity 0.12s ease;
-      margin-bottom: 0.65rem;
+      box-shadow:
+        0 7px 0 var(--btn-edge),
+        0 12px 26px var(--btn-glow),
+        inset 0 3px 5px rgba(255, 255, 255, 0.78),
+        inset 0 -5px 10px rgba(0, 0, 0, 0.28);
+      transition: transform 0.04s ease, box-shadow 0.05s ease, filter 0.08s ease;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      line-height: 1.1;
+      line-height: 1.08;
       touch-action: manipulation;
       user-select: none;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+      overflow: hidden;
+    }
+    /* Contoured inner bevel ring & top specular dome gloss */
+    .giant-tap-btn::before {
+      content: '';
+      position: absolute;
+      inset: 5px;
+      border-radius: 999px;
+      border: 1.5px solid rgba(255, 255, 255, 0.38);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.04) 46%, rgba(0, 0, 0, 0.12) 100%);
+      pointer-events: none;
+    }
+    .giant-tap-btn.btn-theme-green {
+      --btn-grad: linear-gradient(180deg, #98ffa2 0%, #3DFF4F 34%, #1ed432 78%, #129921 100%);
+      --btn-edge: #0a6314;
+      --btn-glow: rgba(61, 255, 79, 0.45);
+      --btn-text: #031406;
+    }
+    .giant-tap-btn.btn-theme-blue {
+      --btn-grad: linear-gradient(180deg, #bae6fd 0%, #38bdf8 34%, #0ea5e9 78%, #0284c7 100%);
+      --btn-edge: #075985;
+      --btn-glow: rgba(56, 189, 248, 0.45);
+      --btn-text: #02131f;
+    }
+    .giant-tap-btn.btn-theme-yellow {
+      --btn-grad: linear-gradient(180deg, #fef08a 0%, #facc15 34%, #eab308 78%, #ca8a04 100%);
+      --btn-edge: #854d0e;
+      --btn-glow: rgba(250, 204, 21, 0.48);
+      --btn-text: #1c1002;
+    }
+    .giant-tap-btn.btn-theme-done {
+      --btn-grad: linear-gradient(180deg, #64748b 0%, #334155 50%, #1e293b 100%);
+      --btn-edge: #0f172a;
+      --btn-glow: rgba(15, 23, 42, 0.35);
+      --btn-border: rgba(255, 255, 255, 0.25);
+      --btn-text: #f8fafc;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
     }
     .giant-tap-btn:active, .giant-tap-btn.tap-flash {
-      transform: scale(0.96);
-      box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.85), 0 4px 16px rgba(61, 255, 79, 0.55);
+      transform: translateY(6px);
+      box-shadow:
+        0 1px 0 var(--btn-edge),
+        0 4px 12px var(--btn-glow),
+        inset 0 3px 8px rgba(0, 0, 0, 0.35),
+        inset 0 1px 2px rgba(255, 255, 255, 0.5);
+      filter: brightness(1.05);
     }
     .giant-tap-btn[disabled] {
-      opacity: 0.65;
-      cursor: not-allowed;
+      cursor: default;
     }
-    .giant-tap-btn .sub {
+    .giant-tap-btn .btn-kicker {
+      position: relative;
+      z-index: 1;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: rgba(0, 0, 0, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      padding: 0.14rem 0.65rem;
+      border-radius: 999px;
       font-family: 'Inter', sans-serif;
       font-style: normal;
-      font-size: 0.76rem;
-      font-weight: 700;
-      margin-top: 0.3rem;
-      opacity: 0.88;
+      font-size: 0.62rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 0.22rem;
+      text-shadow: none;
+    }
+    .giant-tap-btn #primary-btn-main {
+      position: relative;
+      z-index: 1;
+    }
+    .giant-tap-btn .sub {
+      position: relative;
+      z-index: 1;
+      font-family: 'Inter', sans-serif;
+      font-style: normal;
+      font-size: 0.75rem;
+      font-weight: 800;
+      margin-top: 0.22rem;
+      opacity: 0.9;
+      text-shadow: none;
     }
 
     .controls-row {
@@ -680,11 +776,14 @@
       <div class="slider-sub" id="start-slider-sub">Slide all the way right to trigger 3-2-1 countdown, or press button after sliding</div>
     </div>
 
-    <!-- Giant Primary Action Button directly below the Timer -->
-    <button type="button" class="giant-tap-btn" id="primary-action-btn" onpointerdown="handleFastTap(event, handlePrimaryTap)" onclick="handleFallbackClick(event, handlePrimaryTap)">
-      <span id="primary-btn-main">START RACE</span>
-      <span class="sub" id="primary-btn-sub">Tap when athlete crosses start line</span>
-    </button>
+    <!-- Giant 3D Contoured Stopwatch Button inside Recessed Bezel Socket -->
+    <div class="tap-btn-well" id="primary-btn-well">
+      <button type="button" class="giant-tap-btn btn-theme-green" id="primary-action-btn" onpointerdown="handleFastTap(event, handlePrimaryTap)" onclick="handleFallbackClick(event, handlePrimaryTap)">
+        <span class="btn-kicker" id="primary-btn-kicker">● PRESS TO RECORD SPLIT</span>
+        <span id="primary-btn-main">START RACE</span>
+        <span class="sub" id="primary-btn-sub">Tap when athlete crosses start line</span>
+      </button>
+    </div>
     <button type="button" class="countdown-cancel-btn" id="countdown-cancel-btn" onclick="cancelStartCountdown()">✕ Cancel Countdown / Re-Lock Start</button>
 
     <!-- Station 8 Wall Ball Counter (only visible on Station 8) -->
@@ -1203,10 +1302,12 @@
         wbCard.classList.remove('visible');
       }
 
-      // Configure Pre-Race Slide-to-Start vs Giant Primary Action Button
+      // Configure Pre-Race Slide-to-Start vs Giant 3D Contoured Stopwatch Button
       const sliderWrap = document.getElementById('start-slider-wrap');
       const cancelBtn = document.getElementById('countdown-cancel-btn');
+      const btnWell = document.getElementById('primary-btn-well');
       const btn = document.getElementById('primary-action-btn');
+      const kickerTxt = document.getElementById('primary-btn-kicker');
       const mainTxt = document.getElementById('primary-btn-main');
       const subTxt = document.getElementById('primary-btn-sub');
 
@@ -1214,39 +1315,47 @@
         if (startCountdownSec > 0) {
           if (sliderWrap) sliderWrap.style.display = 'none';
           if (cancelBtn) cancelBtn.style.display = 'block';
+          if (btnWell) btnWell.style.display = 'block';
           btn.style.display = 'flex';
           btn.disabled = false;
-          btn.style.background = 'var(--yellow)';
-          mainTxt.textContent = `⏱️ STARTING IN ${startCountdownSec}...`;
-          subTxt.textContent = '3-2-1 Countdown active — or press now to start immediately';
+          btn.className = 'giant-tap-btn btn-theme-yellow';
+          if (kickerTxt) kickerTxt.textContent = '⏱️ COUNTDOWN ACTIVE · PRESS FOR INSTANT START';
+          mainTxt.textContent = `STARTING IN ${startCountdownSec}...`;
+          subTxt.textContent = '3-2-1 Auto-Start — or press button now to launch Run 1';
         } else {
           if (sliderWrap) sliderWrap.style.display = 'block';
           if (cancelBtn) cancelBtn.style.display = 'none';
+          if (btnWell) btnWell.style.display = 'none';
           btn.style.display = 'none';
           resetStartSliderVisual();
         }
       } else if (currentEntry.status === 'finished') {
         if (sliderWrap) sliderWrap.style.display = 'none';
         if (cancelBtn) cancelBtn.style.display = 'none';
+        if (btnWell) btnWell.style.display = 'block';
         btn.style.display = 'flex';
         btn.disabled = true;
-        btn.style.background = 'var(--blue)';
+        btn.className = 'giant-tap-btn btn-theme-done';
+        if (kickerTxt) kickerTxt.textContent = '🏁 16 / 16 SPLITS RECORDED';
         mainTxt.textContent = '✅ SIM COMPLETED';
         subTxt.textContent = `Official Time: ${currentEntry.total_formatted}`;
       } else if (curInfo) {
         if (sliderWrap) sliderWrap.style.display = 'none';
         if (cancelBtn) cancelBtn.style.display = 'none';
+        if (btnWell) btnWell.style.display = 'block';
         btn.style.display = 'flex';
         const inCooldown = Date.now() < tapCooldownUntil;
         btn.disabled = false;
         if (curInfo.split_index === 16) {
-          btn.style.background = 'var(--yellow)';
+          btn.className = 'giant-tap-btn btn-theme-yellow';
+          if (kickerTxt) kickerTxt.textContent = '🎯 FINAL STATION · PRESS ON LAST REP';
           mainTxt.textContent = '🏁 FINISH WALL BALLS & COMPLETE RACE';
           subTxt.textContent = inCooldown
             ? '✓ Split recorded! Ready for final tap...'
             : `Tap on final Wall Ball rep (${currentEntry.wall_ball_target_reps} reps)`;
         } else {
-          btn.style.background = curInfo.split_type === 'run' ? 'var(--blue)' : 'var(--green)';
+          btn.className = 'giant-tap-btn ' + (curInfo.split_type === 'run' ? 'btn-theme-blue' : 'btn-theme-green');
+          if (kickerTxt) kickerTxt.textContent = `● STAGE ${curInfo.split_index} OF 16 · PRESS BUTTON TO SPLIT`;
           mainTxt.textContent = `COMPLETE ${curInfo.label.toUpperCase()}`;
           subTxt.textContent = inCooldown
             ? `✓ Recorded! Next: ${nextInfo ? nextInfo.label : ''}`

@@ -506,6 +506,9 @@ def test_teamup_api_v2_sync_and_webhooks(client):
     assert idx_clocks < idx_slider < idx_btn < idx_presc < idx_telemetry
     assert "triggerStartCountdown" in judge_html
     assert "cancelStartCountdown" in judge_html
+    assert "tap-btn-well" in judge_html
+    assert "btn-theme-green" in judge_html
+    assert "primary-btn-kicker" in judge_html
 
 
 
