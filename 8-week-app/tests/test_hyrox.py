@@ -497,12 +497,15 @@ def test_teamup_api_v2_sync_and_webhooks(client):
     assert "initialEntryData" in judge_html
     assert "toggleFocusLock" in judge_html
     assert "handleFastTap" in judge_html
-    # Verify layout order: clocks -> primary tap button -> prescription/next event box -> average run pace strip
+    # Verify layout order: clocks -> slide-to-start / primary tap button -> prescription/next event box -> average run pace strip
     idx_clocks = judge_html.index('class="clocks-grid"')
+    idx_slider = judge_html.index('id="start-slider-wrap"')
     idx_btn = judge_html.index('id="primary-action-btn"')
     idx_presc = judge_html.index('id="presc-card"')
     idx_telemetry = judge_html.index('id="run-telemetry-strip"')
-    assert idx_clocks < idx_btn < idx_presc < idx_telemetry
+    assert idx_clocks < idx_slider < idx_btn < idx_presc < idx_telemetry
+    assert "triggerStartCountdown" in judge_html
+    assert "cancelStartCountdown" in judge_html
 
 
 
