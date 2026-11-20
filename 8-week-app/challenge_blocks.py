@@ -2436,25 +2436,34 @@ def _auto_seed_ewan_backup_if_empty(db):
             "SELECT challenger_comments FROM weekly_submissions WHERE profile_id=1 AND week_num=4"
         ).fetchone()
         has_wk4_comments = bool(wk4_sub and (wk4_sub["challenger_comments"] or "").strip())
+        wk5_sub = db.execute(
+            "SELECT challenger_comments FROM weekly_submissions WHERE profile_id=1 AND week_num=5"
+        ).fetchone()
+        has_wk5_comments = bool(wk5_sub and (wk5_sub["challenger_comments"] or "").strip())
         wk3_photos = db.execute(
             "SELECT COUNT(*) AS c FROM progress_photos WHERE profile_id=1 AND week_num=3 AND LENGTH(photo_data_url) > 100"
         ).fetchone()["c"]
         wk4_photos = db.execute(
             "SELECT COUNT(*) AS c FROM progress_photos WHERE profile_id=1 AND week_num=4 AND LENGTH(photo_data_url) > 100"
         ).fetchone()["c"]
+        wk5_photos = db.execute(
+            "SELECT COUNT(*) AS c FROM progress_photos WHERE profile_id=1 AND week_num=5 AND LENGTH(photo_data_url) > 100"
+        ).fetchone()["c"]
         wk0_front = db.execute(
             "SELECT LENGTH(photo_data_url) AS plen FROM progress_photos WHERE profile_id=1 AND week_num=0 AND pose='Front'"
         ).fetchone()
         wk0_needs_crop = not wk0_front or int(wk0_front["plen"] or 0) > 60000 or int(wk0_front["plen"] or 0) < 1000
         if (
-            cnt < 26
+            cnt < 32
             or wk3_fri_steps < 1000
             or cname1 != "Ewan Taylor"
             or abs(sw1 - 84.0) < 0.05
             or not has_wk3_comments
             or not has_wk4_comments
+            or not has_wk5_comments
             or wk3_photos < 3
             or wk4_photos < 3
+            or wk5_photos < 3
             or wk0_needs_crop
         ):
             seed_path = os.path.join(data_dir, "ewan_seed_backup.json")

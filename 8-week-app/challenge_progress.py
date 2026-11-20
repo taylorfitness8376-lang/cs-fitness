@@ -232,9 +232,12 @@ def compute_week_over_week(db, profile):
             tot_diff = round(avg_w - start_w, 2) if avg_w > 0 else None
             if avg_w > 0:
                 prev_avg_w = avg_w
-        avg_steps = int(round(sum(int(r.get("steps") or 0) for r in real_rows) / len(real_rows))) if real_rows else 0
-        avg_cals = int(round(sum(int(r.get("calories") or 0) for r in real_rows) / len(real_rows))) if real_rows else 0
-        avg_prot = int(round(sum(int(r.get("protein_g") or 0) for r in real_rows) / len(real_rows))) if real_rows else 0
+        step_vals = [int(r.get("steps") or 0) for r in real_rows if int(r.get("steps") or 0) > 0]
+        cal_vals = [int(r.get("calories") or 0) for r in real_rows if int(r.get("calories") or 0) > 0]
+        prot_vals = [int(r.get("protein_g") or 0) for r in real_rows if int(r.get("protein_g") or 0) > 0]
+        avg_steps = int(round(sum(step_vals) / len(step_vals))) if step_vals else 0
+        avg_cals = int(round(sum(cal_vals) / len(cal_vals))) if cal_vals else 0
+        avg_prot = int(round(sum(prot_vals) / len(prot_vals))) if prot_vals else 0
         days_on_plan = sum(1 for r in real_rows if r.get("stick_to_plan") == "Y")
 
         acts = db.execute(
