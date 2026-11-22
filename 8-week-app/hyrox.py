@@ -344,7 +344,7 @@ def normalize_division(raw):
     has_mixed = bool(tokens & {"mixed", "mix"}) or ("mixed" in s)
     # If string says both 'male doubles' and 'mixed doubles' (e.g. a combined Saturday session title),
     # default to men_doubles unless only mixed is specified
-    if has_mixed and not ("male_double" in s or "men_double" in s or "male_pair" in s or "men_pair" in s):
+    if has_mixed and not ("male_double" in s or "men_double" in s or "male_pair" in s or "men_pair" in s or ("male" in tokens and is_double)):
         return "mixed_doubles"
     if is_female and is_pro and is_double:
         return "women_pro_doubles"
@@ -671,11 +671,51 @@ def ensure_hyrox_tables(db):
         _purge_legacy_sample_data(db)
 
 
+def _purge_non_sim_teamup_entries(db, event_id=None):
+    """
+    Remove any entries in `hyrox_entries` that were accidentally synced from regular
+    non-simulation gym classes on Saturday/Sunday (e.g., 'Hot Strength & Ergs' [30 people],
+    'Hyrox Youngstars specific training (age 8-16)' [2 people], 'Thresholds',
+    'Strength & conditioning', 'NXTGen little legends', or 'Hyrox Specific Training').
+    """
+    non_sim_patterns = (
+        "%hot strength%",
+        "%youngstars%",
+        "%little legends%",
+        "%nxtgen%",
+        "%thresholds%",
+        "%strength & conditioning%",
+        "%specific training%",
+        "%teamup event #111112517%",
+        "%teamup event #104498152%",
+        "%teamup event #104505072%",
+        "%teamup event #104498108%",
+        "%teamup event #110290059%",
+        "%teamup event #104756703%",
+    )
+    where_clauses = " OR ".join("LOWER(COALESCE(notes, '')) LIKE ?" for _ in non_sim_patterns)
+    params = list(non_sim_patterns)
+    sql = f"SELECT id FROM hyrox_entries WHERE ({where_clauses})"
+    if event_id is not None:
+        sql += " AND event_id=?"
+        params.append(event_id)
+    bad_rows = db.execute(sql, params).fetchall()
+    if not bad_rows:
+        return 0
+    bad_ids = [r["id"] for r in bad_rows]
+    placeholders = ",".join("?" for _ in bad_ids)
+    db.execute(f"DELETE FROM hyrox_splits WHERE entry_id IN ({placeholders})", bad_ids)
+    db.execute(f"DELETE FROM hyrox_entries WHERE id IN ({placeholders})", bad_ids)
+    return len(bad_ids)
+
+
 def _purge_legacy_sample_data(db):
     """
     Remove legacy pre-seeded sample events ('CS Performance HYROX Baseline Sim — Sep 2026'),
-    sample entries (@example.com or demo judge PINs 1101..1203 / 9101..9103), and sample athletes
-    (TU-1001..TU-1013) so the Saturday 28th & Sunday 29th event starts clean with 0 sample entries.
+    sample entries (@example.com or demo judge PINs 1101..1203 / 9101..9103), sample athletes
+    (TU-1001..TU-1013), and any non-simulation regular gym class entries ('Hot Strength & Ergs',
+    'Hyrox Youngstars', 'Thresholds', 'Hyrox Specific Training') so only actual HYROX Simulation
+    sign-ups remain.
     """
     changed = False
 
@@ -697,6 +737,11 @@ def _purge_legacy_sample_data(db):
         seed_default_hyrox_data(db)
         db.commit()
         return
+
+    # 0b. Always purge any non-simulation regular gym class attendances (e.g. Hot Strength & Ergs,
+    #     Youngstars, Thresholds, Specific Training) that were pulled before class filtering.
+    if _purge_non_sim_teamup_entries(db) > 0:
+        changed = True
 
     # 1. Remove the seeded September 2026 baseline demo event if present
     sep_events = db.execute(
@@ -976,6 +1021,11 @@ def serialize_entry(db, entry_row, include_splits=True, include_history=False):
     e["signup_group"] = grp_key
     e["signup_group_label"] = grp_meta["label"]
     e["signup_group_number"] = grp_meta["number"]
+    raw_notes = str(e.get("notes") or "").strip()
+    if "TeamUp" in raw_notes and "·" in raw_notes:
+        e["teamup_event_name"] = raw_notes.split("·")[0].strip()
+    else:
+        e["teamup_event_name"] = ""
     e["full_display_name"] = (
         f"{e['display_name']} & {e['partner_name']}"
         if e.get("partner_name")
@@ -1950,7 +2000,7 @@ def _create_entry_record(db, event_id, payload, upsert=False):
                 new_div = division if has_exp_div else existing_entry["division"]
             new_age = age_cat if has_exp_age else existing_entry["age_category"]
             new_vol = existing_entry["volunteer_name"] or volunteer_name
-            new_notes = existing_entry["notes"] or notes
+            new_notes = notes if (payload.get("replace_notes") and notes) else (existing_entry["notes"] or notes)
             db.execute(
                 "UPDATE hyrox_entries SET heat_id=?, athlete_id=?, partner_athlete_id=?, display_name=?, "
                 "partner_name=?, email=?, division=?, age_category=?, volunteer_name=?, notes=?, "
@@ -3146,7 +3196,9 @@ def map_teamup_attendance_to_entry(att_obj):
     ).strip().lower()
     default_open_div = "women_open" if gender_raw in ("f", "female", "woman", "women", "w") else "men_open"
 
-    # Division inference from custom field, offering name, event name, booking notes, day/time window, or gender fallback
+    # Division inference from custom field, TeamUp event name (prioritized over shared offering_type name),
+    # booking notes, Saturday (Group 1 Male Solo / Group 2 Male & Mixed Doubles) vs Sunday (Group 3 Female Solo / Group 4 Female Doubles),
+    # or gender fallback.
     explicit_div = (
         att_obj.get("division")
         or custom_fields.get("division")
@@ -3154,13 +3206,20 @@ def map_teamup_attendance_to_entry(att_obj):
         or custom_fields.get("category")
         or ""
     ).strip()
-    event_or_offering_name = (
-        offering_obj.get("name")
-        or event_obj.get("name")
-        or att_obj.get("offering_type_name")
+    event_name = (
+        event_obj.get("name")
         or att_obj.get("event_name")
         or ""
     ).strip()
+    offering_name = (
+        offering_obj.get("name")
+        or att_obj.get("offering_type_name")
+        or ""
+    ).strip()
+    # Prioritize event.name (e.g. 'Hyrox simulation solo', 'Hyrox simulation doubles male and mixed doubles',
+    # 'Hyrox simulations female open solo', 'Hyrox simulations female open doubles') over offering_type.name,
+    # because TeamUp reuses a combined offering_type ('Hyrox simulation solo males ,solo woman pro & female pro double')
+    event_or_offering_name = event_name or offering_name
     booking_notes_str = str(att_obj.get("notes") or att_obj.get("booking_notes") or "").strip()
 
     # Wave / Heat time & weekday from event local_starts_at / starts_at or explicit heat_time
@@ -3175,6 +3234,7 @@ def map_teamup_attendance_to_entry(att_obj):
     heat_time = _normalize_heat_time_str(raw_starts)
 
     # Detect Saturday (Day 1, 14:00-17:00) vs Sunday (Day 2, 10:00-14:00) from event date or title
+    primary_title_low = event_or_offering_name.lower()
     combined_title_low = f"{event_or_offering_name} {booking_notes_str}".lower()
     is_sunday_event = ("sunday" in combined_title_low or "sun " in combined_title_low)
     is_saturday_event = ("saturday" in combined_title_low or "sat " in combined_title_low)
@@ -3190,35 +3250,46 @@ def map_teamup_attendance_to_entry(att_obj):
             pass
 
     div_keywords = (
-        "open", "pro", "double", "doubles", "pair", "pairs", "solo", "single",
+        "open", "pro", "double", "doubles", "pair", "pairs", "solo", "sole", "single",
         "mixed", "women", "womens", "female", "females", "ladies", "men", "mens", "male", "males",
     )
+    is_female_gender = gender_raw in ("f", "female", "woman", "women", "w")
+    ev_tokens = set(re.sub(r"[^a-z0-9]+", " ", primary_title_low).split())
+    is_doubles_event = bool(ev_tokens & {"double", "doubles", "pair", "pairs", "dbl"}) or ("double" in primary_title_low or "pair" in primary_title_low) or bool(partner_name)
+    is_pro_event = bool(ev_tokens & {"pro", "pros"})
+    has_female_in_event = bool(ev_tokens & {"female", "females", "women", "womens", "woman", "ladies"})
+    has_male_in_event = bool(ev_tokens & {"male", "males", "men", "mens", "man"}) and not has_female_in_event
+
     has_explicit_division = True
     if explicit_div:
         div_resolved = normalize_division(explicit_div)
     elif booking_notes_str and any(k in booking_notes_str.lower() for k in div_keywords):
         div_resolved = normalize_division(booking_notes_str)
-    elif event_or_offering_name and any(k in event_or_offering_name.lower() for k in div_keywords):
-        div_resolved = normalize_division(event_or_offering_name)
-        # If event is a combined Saturday "Male Doubles & Mixed Doubles" session, refine using gender/notes
-        ev_low = event_or_offering_name.lower()
-        if ("double" in ev_low or "pair" in ev_low) and ("mixed" in ev_low and ("male" in ev_low or "men" in ev_low)):
-            if gender_raw in ("f", "female", "woman", "women", "w") or "mixed" in booking_notes_str.lower():
+    elif is_sunday_event and not has_male_in_event:
+        # Sunday (10:00-14:00) has 2 options:
+        #   - Group 3: Female Solo ('Hyrox simulations female open solo' / Sunday 'Hyrox simulation solo')
+        #   - Group 4: Female Doubles ('Hyrox simulations female open doubles' / Sunday 'Hyrox simulation doubles')
+        if is_doubles_event:
+            div_resolved = "women_pro_doubles" if is_pro_event else "women_doubles"
+        else:
+            div_resolved = "women_pro" if is_pro_event else "women_open"
+    elif is_saturday_event and not has_female_in_event:
+        # Saturday (14:00-17:00) has 2 options:
+        #   - Group 1: Male Solo ('Hyrox simulation solo')
+        #   - Group 2: Male Doubles / Mixed Doubles ('Hyrox simulation doubles male and mixed doubles' / 'Hyrox simulation doubles')
+        if is_doubles_event:
+            if is_female_gender or "mixed" in booking_notes_str.lower() or ("mixed" in ev_tokens and not has_male_in_event):
                 div_resolved = "mixed_doubles"
             else:
-                div_resolved = "men_doubles"
-    elif is_sunday_event:
-        if partner_name or "double" in combined_title_low or "pair" in combined_title_low:
-            div_resolved = "women_doubles"
+                div_resolved = "men_pro_doubles" if is_pro_event else "men_doubles"
         else:
-            div_resolved = "women_open"
-    elif is_saturday_event:
-        if partner_name or "double" in combined_title_low or "pair" in combined_title_low:
-            div_resolved = "mixed_doubles" if gender_raw in ("f", "female", "woman", "women", "w") else "men_doubles"
-        else:
-            div_resolved = "men_open"
+            div_resolved = "men_pro" if is_pro_event else "men_open"
+    elif event_or_offering_name and any(k in primary_title_low for k in div_keywords):
+        div_resolved = normalize_division(event_or_offering_name)
+        if is_doubles_event and ("mixed" in primary_title_low and has_male_in_event):
+            div_resolved = "mixed_doubles" if is_female_gender else "men_doubles"
     elif partner_name:
-        div_resolved = "women_doubles" if gender_raw in ("f", "female", "woman", "women", "w") else "mixed_doubles"
+        div_resolved = "women_doubles" if is_female_gender else "mixed_doubles"
     else:
         div_resolved = default_open_div
         has_explicit_division = False
@@ -3432,42 +3503,35 @@ def get_next_weekend_dates(ref_date=None):
 def _is_weekend_hyrox_sim_attendance(att_obj):
     """
     Filter TeamUp attendances so regular morning gym classes (e.g. 05:30 Thresholds,
-    07:00 Strength & conditioning, 09:30 Hot Strength & Ergs, 10:45 Hyrox Youngstars age 8-16,
-    12:45 NXTGen little legends, and Sunday 07:00 Hyrox Specific Training) are excluded
-    when pulling Saturday (14:00-17:00) & Sunday (10:00-14:00) HYROX event sign-ups.
+    07:00 Strength & conditioning, 09:30 Hot Strength & Ergs [30 attendees],
+    10:45 Hyrox Youngstars age 8-16 [2 attendees], 12:45 NXTGen little legends,
+    and Sunday 07:00 Hyrox Specific Training) are excluded when pulling
+    Saturday (14:00-17:00) & Sunday (10:00-14:00) HYROX Simulation sign-ups.
     """
     if not isinstance(att_obj, dict):
         return False
     event_obj = att_obj.get("event") if isinstance(att_obj.get("event"), dict) else {}
     offering_obj = event_obj.get("offering_type") if isinstance(event_obj.get("offering_type"), dict) else {}
     title = " ".join([
-        str(offering_obj.get("name") or ""),
         str(event_obj.get("name") or ""),
-        str(att_obj.get("offering_type_name") or ""),
+        str(offering_obj.get("name") or ""),
         str(att_obj.get("event_name") or ""),
+        str(att_obj.get("offering_type_name") or ""),
     ]).strip().lower()
 
     # Exclude kids classes and non-HYROX regular gym classes
     excluded_phrases = (
         "youngstars", "little legends", "nxtgen", "age 8-16", "age 5-7",
-        "thresholds", "hot strength", "strength & conditioning",
+        "thresholds", "hot strength", "strength & conditioning", "specific training",
     )
     if any(p in title for p in excluded_phrases):
         return False
 
-    raw_starts = (
-        att_obj.get("heat_time")
-        or event_obj.get("local_starts_at")
-        or event_obj.get("starts_at")
-        or att_obj.get("event_starts_at")
-        or ""
-    )
-    heat_time = _normalize_heat_time_str(raw_starts)
-    hm = _hm_to_mins(heat_time, -1)
-
-    # Exclude regular Sunday 07:00 "Hyrox Specific Training" class unless it's in the 10:00+ window
-    if "specific training" in title and 0 <= hm < 9 * 60 + 30:
-        return False
+    # If a class title is present, require that it is a HYROX simulation / division event
+    if title:
+        has_sim_or_hyrox = ("sim" in title or "hyrox" in title)
+        if not has_sim_or_hyrox:
+            return False
 
     return True
 
@@ -3539,18 +3603,6 @@ def _assign_weekend_group_slot(db, event_id, mapped, interval_mins=10):
     Otherwise, pick the earliest unoccupied 1:1 heat in that group's day & time window
     (or create the next staggered slot at `interval_mins`).
     """
-    display_name = (mapped.get("display_name") or "").strip()
-    email = (mapped.get("email") or "").strip().lower()
-    if display_name:
-        existing = db.execute(
-            "SELECT id, heat_id FROM hyrox_entries WHERE event_id=? AND ("
-            "(? != '' AND LOWER(email)=?) OR LOWER(display_name)=?) LIMIT 1",
-            (event_id, email, email, display_name.lower()),
-        ).fetchone()
-        if existing and existing["heat_id"]:
-            mapped["heat_id"] = existing["heat_id"]
-            return
-
     div_key = normalize_division(mapped.get("division") or "men_open")
     grp_key = division_to_signup_group_key(div_key)
     grp_meta = HYROX_SIGNUP_GROUPS[grp_key]
@@ -3559,6 +3611,30 @@ def _assign_weekend_group_slot(db, event_id, mapped, interval_mins=10):
 
     start_floor_mins = _hm_to_mins(grp_meta["default_start_time"], 14 * 60 if day_num == 1 else 10 * 60)
     end_ceil_mins = _hm_to_mins(grp_meta["default_end_time"], 17 * 60 if day_num == 1 else 14 * 60)
+
+    display_name = (mapped.get("display_name") or "").strip()
+    email = (mapped.get("email") or "").strip().lower()
+    if display_name:
+        existing = db.execute(
+            "SELECT id, heat_id, division, partner_name FROM hyrox_entries WHERE event_id=? AND ("
+            "(? != '' AND LOWER(email)=?) OR LOWER(display_name)=?) LIMIT 1",
+            (event_id, email, email, display_name.lower()),
+        ).fetchone()
+        if existing and existing["heat_id"]:
+            # If the Race Director manually added a partner, preserve their custom slot/division
+            if existing["partner_name"] and not mapped.get("partner_name"):
+                mapped["heat_id"] = existing["heat_id"]
+                return
+            # Check if existing heat is already on the right day & within this group's time window
+            cur_heat = db.execute("SELECT day_number, start_time FROM hyrox_heats WHERE id=?", (existing["heat_id"],)).fetchone()
+            if cur_heat:
+                cur_hm = _hm_to_mins(cur_heat["start_time"], -1)
+                if int(cur_heat["day_number"] or 1) == day_num and start_floor_mins <= cur_hm <= end_ceil_mins:
+                    mapped["heat_id"] = existing["heat_id"]
+                    return
+            # Otherwise, the entry was previously in the wrong group/day window — move it to this group's slot
+            mapped["force_heat_time"] = True
+            mapped["replace_notes"] = True
 
     heats = db.execute(
         "SELECT h.*, (SELECT COUNT(*) FROM hyrox_entries e WHERE e.heat_id=h.id AND e.status != 'dns') as used_lanes "
@@ -3908,12 +3984,19 @@ def api_sync_teamup_to_event(event_id):
                 e.status_code if 400 <= e.status_code < 600 else 502
             )
 
+    # Clean up any previously imported non-simulation regular gym class entries on this event
+    _purge_non_sim_teamup_entries(db, event_id=event_id)
+
     synced_ids = []
     cancelled_ids = []
     skipped = 0
     stagger_idx = 0
+    explicit_event_filter = bool(data.get("teamup_event_ids") or data.get("teamup_event_id"))
 
     for att in (attendances or []):
+        if not explicit_event_filter and not _is_weekend_hyrox_sim_attendance(att):
+            skipped += 1
+            continue
         mapped = map_teamup_attendance_to_entry(att)
         if not mapped or not mapped.get("display_name"):
             skipped += 1

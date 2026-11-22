@@ -808,6 +808,142 @@ def test_weekend_sat28_sun29_four_group_signups_and_setup(client):
     assert entries_by_name["Megan Ross"]["heat_start_time"] == "12:00"
 
 
+def test_teamup_real_event_names_and_sync_filters_regular_classes(client):
+    """
+    Verify that `/api/hyrox/events/<id>/sync-teamup` filters out regular gym classes
+    ('Hot Strength & Ergs', 'Hyrox Youngstars specific training (age 8-16)', 'Thresholds')
+    and accurately sorts CS Fitness's exact TeamUp class names into the 4 groups:
+      - Sat 'Hyrox simulation solo' (even with shared offering 'Hyrox simulation solo males ,solo woman pro & female pro double') -> 1. Male Solo
+      - Sat 'Hyrox simulation doubles male and mixed doubles' -> 2. Male Doubles / Mixed Doubles
+      - Sun 'Hyrox simulations female open solo' & Sun 'Hyrox simulation solo' -> 3. Female Solo
+      - Sun 'Hyrox simulations female open doubles' & Sun 'Hyrox simulation doubles' -> 4. Female Doubles
+    """
+    events = client.get("/api/hyrox/events").get_json()
+    event_id = events[0]["id"]
+
+    real_weekend_payload = {
+        "results": [
+            # Regular Saturday morning classes that previously inflated count to 45 (must be skipped!)
+            {
+                "id": 9901,
+                "status": "registered",
+                "customer": {"id": 501, "first_name": "Eilidh", "last_name": "Mcmanus", "gender": "F"},
+                "event": {
+                    "id": 111112517,
+                    "name": "Hot Strength & Ergs",
+                    "starts_at": "2026-11-28T09:30:00Z",
+                    "offering_type": {"name": "Hot Strength & Ergs"},
+                },
+            },
+            {
+                "id": 9902,
+                "status": "registered",
+                "customer": {"id": 502, "first_name": "Young", "last_name": "Athlete"},
+                "event": {
+                    "id": 104498152,
+                    "name": "Hyrox Youngstars specific training (age 8-16)",
+                    "starts_at": "2026-11-28T10:45:00Z",
+                },
+            },
+            # Saturday 14:00 Group 1: Hyrox simulation solo (with misleading shared offering_type name)
+            {
+                "id": 9903,
+                "status": "registered",
+                "customer": {"id": 503, "first_name": "Lucas", "last_name": "Kane"},
+                "event": {
+                    "id": 112225965,
+                    "name": "Hyrox simulation solo",
+                    "starts_at": "2026-11-28T14:00:00Z",
+                    "offering_type": {"name": "Hyrox simulation solo males ,solo woman pro & female pro double"},
+                },
+            },
+            # Saturday 14:00 Group 2: Hyrox simulation doubles male and mixed doubles
+            {
+                "id": 9904,
+                "status": "registered",
+                "customer": {"id": 501, "first_name": "Eilidh", "last_name": "Mcmanus", "gender": "F"},
+                "event": {
+                    "id": 112228753,
+                    "name": "Hyrox simulation doubles male and mixed doubles",
+                    "starts_at": "2026-11-28T14:00:00Z",
+                    "offering_type": {"name": "Hyrox simulation doubles male and mixed doubles"},
+                },
+            },
+            {
+                "id": 9905,
+                "status": "registered",
+                "customer": {"id": 504, "first_name": "Ewan", "last_name": "Stewart", "gender": "M"},
+                "event": {
+                    "id": 112228753,
+                    "name": "Hyrox simulation doubles male and mixed doubles",
+                    "starts_at": "2026-11-28T14:00:00Z",
+                    "offering_type": {"name": "Hyrox simulation doubles male and mixed doubles"},
+                },
+            },
+            # Sunday 10:00 Group 3: Hyrox simulations female open solo + Sunday Hyrox simulation solo
+            {
+                "id": 9906,
+                "status": "registered",
+                "customer": {"id": 505, "first_name": "Eve", "last_name": "Cunningham", "gender": "F"},
+                "event": {
+                    "id": 112228742,
+                    "name": "Hyrox simulations female open solo",
+                    "starts_at": "2026-11-29T10:00:00Z",
+                    "offering_type": {"name": "Hyrox simulations female open solo"},
+                },
+            },
+            {
+                "id": 9907,
+                "status": "registered",
+                "customer": {"id": 506, "first_name": "Ava", "last_name": "Stewart"},
+                "event": {
+                    "id": 112226190,
+                    "name": "Hyrox simulation solo",
+                    "starts_at": "2026-11-29T10:00:00Z",
+                    "offering_type": {"name": "Hyrox simulation solo males ,solo woman pro & female pro double"},
+                },
+            },
+            # Sunday 10:00 Group 4: Hyrox simulations female open doubles + Sunday Hyrox simulation doubles
+            {
+                "id": 9908,
+                "status": "registered",
+                "customer": {"id": 507, "first_name": "Claire", "last_name": "Robertson"},
+                "event": {
+                    "id": 112228735,
+                    "name": "Hyrox simulations female open doubles",
+                    "starts_at": "2026-11-29T10:00:00Z",
+                    "offering_type": {"name": "Hyrox simulations female open doubles"},
+                },
+            },
+        ]
+    }
+
+    sync_res = client.post(f"/api/hyrox/events/{event_id}/sync-teamup", json=real_weekend_payload)
+    assert sync_res.status_code == 200
+    sync_json = sync_res.get_json()
+    assert sync_json["synced_count"] == 6
+    assert sync_json["skipped_count"] == 2
+
+    groups = {g["key"]: g for g in sync_json["signup_groups"]}
+    assert groups["male_solo"]["count"] == 1
+    assert groups["male_solo"]["entries"][0]["display_name"] == "Lucas Kane"
+    assert groups["male_solo"]["entries"][0]["teamup_event_name"] == "Hyrox simulation solo"
+
+    assert groups["male_mixed_doubles"]["count"] == 2
+    dbl_by_name = {e["display_name"]: e for e in groups["male_mixed_doubles"]["entries"]}
+    assert dbl_by_name["Eilidh Mcmanus"]["division"] == "mixed_doubles"
+    assert dbl_by_name["Ewan Stewart"]["division"] == "men_doubles"
+
+    assert groups["female_solo"]["count"] == 2
+    fsolo_names = {e["display_name"] for e in groups["female_solo"]["entries"]}
+    assert fsolo_names == {"Eve Cunningham", "Ava Stewart"}
+
+    assert groups["female_doubles"]["count"] == 1
+    assert groups["female_doubles"]["entries"][0]["display_name"] == "Claire Robertson"
+    assert groups["female_doubles"]["entries"][0]["division"] == "women_doubles"
+
+
+
 
 
 
