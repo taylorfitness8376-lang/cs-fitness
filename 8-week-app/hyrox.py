@@ -336,11 +336,15 @@ def normalize_division(raw):
     s = re.sub(r"[^a-z0-9]+", "_", str(raw).strip().lower()).strip("_")
     if s in HYROX_DIVISIONS:
         return s
-    is_female = ("women" in s or "female" in s or "ladies" in s or s.startswith("w_") or s.startswith("f_"))
-    is_male = ("men" in s or "male" in s or s.startswith("m_")) and not is_female
-    is_double = ("double" in s or "pair" in s or "dbl" in s)
-    is_pro = ("pro" in s)
-    if "mixed" in s or ("mix" in s and is_double):
+    tokens = set(s.split("_"))
+    is_female = bool(tokens & {"women", "womens", "woman", "female", "females", "ladies", "lady", "w", "f"}) or ("women" in s or "female" in s or "ladies" in s)
+    is_male = (bool(tokens & {"men", "mens", "man", "male", "males", "m"}) or ("male" in s)) and not is_female
+    is_double = bool(tokens & {"double", "doubles", "pair", "pairs", "dbl", "team", "partner"}) or ("double" in s or "pair" in s or "dbl" in s)
+    is_pro = bool(tokens & {"pro", "pros"})
+    has_mixed = bool(tokens & {"mixed", "mix"}) or ("mixed" in s)
+    # If string says both 'male doubles' and 'mixed doubles' (e.g. a combined Saturday session title),
+    # default to men_doubles unless only mixed is specified
+    if has_mixed and not ("male_double" in s or "men_double" in s or "male_pair" in s or "men_pair" in s):
         return "mixed_doubles"
     if is_female and is_pro and is_double:
         return "women_pro_doubles"
@@ -350,6 +354,8 @@ def normalize_division(raw):
         return "women_doubles"
     if is_male and is_double:
         return "men_doubles"
+    if has_mixed:
+        return "mixed_doubles"
     if is_female and is_pro:
         return "women_pro"
     if is_female:
@@ -359,6 +365,101 @@ def normalize_division(raw):
     if is_double:
         return "mixed_doubles"
     return "men_open"
+
+
+HYROX_SIGNUP_GROUPS = {
+    "male_solo": {
+        "key": "male_solo",
+        "order": 1,
+        "number": 1,
+        "label": "1. Male Solo",
+        "short_label": "1. Male Solo",
+        "day_number": 1,
+        "day_label": "Saturday (Day 1)",
+        "time_window": "14:00–17:00",
+        "default_start_time": "14:00",
+        "default_end_time": "15:20",
+        "default_division": "men_open",
+        "divisions": ["men_open", "men_pro"],
+        "color": "#38bdf8",
+    },
+    "male_mixed_doubles": {
+        "key": "male_mixed_doubles",
+        "order": 2,
+        "number": 2,
+        "label": "2. Male Doubles / Mixed Doubles",
+        "short_label": "2. Male / Mixed Doubles",
+        "day_number": 1,
+        "day_label": "Saturday (Day 1)",
+        "time_window": "14:00–17:00",
+        "default_start_time": "15:30",
+        "default_end_time": "17:00",
+        "default_division": "men_doubles",
+        "divisions": ["men_doubles", "mixed_doubles", "men_pro_doubles"],
+        "color": "#a855f7",
+    },
+    "female_solo": {
+        "key": "female_solo",
+        "order": 3,
+        "number": 3,
+        "label": "3. Female Solo",
+        "short_label": "3. Female Solo",
+        "day_number": 2,
+        "day_label": "Sunday (Day 2)",
+        "time_window": "10:00–14:00",
+        "default_start_time": "10:00",
+        "default_end_time": "11:50",
+        "default_division": "women_open",
+        "divisions": ["women_open", "women_pro"],
+        "color": "#f472b6",
+    },
+    "female_doubles": {
+        "key": "female_doubles",
+        "order": 4,
+        "number": 4,
+        "label": "4. Female Doubles",
+        "short_label": "4. Female Doubles",
+        "day_number": 2,
+        "day_label": "Sunday (Day 2)",
+        "time_window": "10:00–14:00",
+        "default_start_time": "12:00",
+        "default_end_time": "14:00",
+        "default_division": "women_doubles",
+        "divisions": ["women_doubles", "women_pro_doubles"],
+        "color": "#fb7185",
+    },
+}
+
+
+def division_to_signup_group_key(division_key):
+    div = normalize_division(division_key)
+    if div in ("women_doubles", "women_pro_doubles"):
+        return "female_doubles"
+    if div in ("women_open", "women_pro"):
+        return "female_solo"
+    if div in ("men_doubles", "mixed_doubles", "men_pro_doubles"):
+        return "male_mixed_doubles"
+    return "male_solo"
+
+
+def build_signup_groups_summary(items):
+    """Group serialized entries or mapped TeamUp sign-ups into the 4 weekend sign-up buckets."""
+    buckets = {}
+    for g_key, g_meta in HYROX_SIGNUP_GROUPS.items():
+        div_ref = HYROX_DIVISIONS.get(g_meta["default_division"], {})
+        buckets[g_key] = {
+            **g_meta,
+            "weight_summary": div_ref.get("weight_summary", ""),
+            "count": 0,
+            "entries": [],
+        }
+    for item in (items or []):
+        g_key = item.get("signup_group") or division_to_signup_group_key(item.get("division"))
+        if g_key not in buckets:
+            g_key = "male_solo"
+        buckets[g_key]["entries"].append(item)
+        buckets[g_key]["count"] = len(buckets[g_key]["entries"])
+    return [buckets["male_solo"], buckets["male_mixed_doubles"], buckets["female_solo"], buckets["female_doubles"]]
 
 
 def normalize_age_category(raw_age_or_dob):
@@ -567,17 +668,98 @@ def ensure_hyrox_tables(db):
         seed_default_hyrox_data(db)
         db.commit()
     else:
-        # Upgrade legacy 4-lane-wave demo seed to the 2-day 1:1 division-block demo schedule
-        legacy_demo = db.execute(
-            "SELECT id, lanes_per_wave FROM hyrox_events WHERE name='CS Performance HYROX Sim — Nov 2026' LIMIT 1"
-        ).fetchone()
-        if legacy_demo and int(legacy_demo["lanes_per_wave"] or 1) > 1:
-            db.execute("DELETE FROM hyrox_splits")
-            db.execute("DELETE FROM hyrox_entries")
-            db.execute("DELETE FROM hyrox_heats")
-            db.execute("DELETE FROM hyrox_events")
-            seed_default_hyrox_data(db)
-            db.commit()
+        _purge_legacy_sample_data(db)
+
+
+def _purge_legacy_sample_data(db):
+    """
+    Remove legacy pre-seeded sample events ('CS Performance HYROX Baseline Sim — Sep 2026'),
+    sample entries (@example.com or demo judge PINs 1101..1203 / 9101..9103), and sample athletes
+    (TU-1001..TU-1013) so the Saturday 28th & Sunday 29th event starts clean with 0 sample entries.
+    """
+    changed = False
+
+    # 0. One-time clean-slate reset for the Saturday 28th & Sunday 29th setup so any deployed DB
+    #    with old demo/synced test rows starts completely empty (0 entries).
+    clean_flag = db.execute(
+        "SELECT value FROM hyrox_settings WHERE key='clean_slate_sat28_sun29_v1'"
+    ).fetchone()
+    if not clean_flag:
+        db.execute("DELETE FROM hyrox_splits")
+        db.execute("DELETE FROM hyrox_entries")
+        db.execute("DELETE FROM hyrox_athletes")
+        db.execute("DELETE FROM hyrox_heats")
+        db.execute("DELETE FROM hyrox_events")
+        db.execute(
+            "INSERT INTO hyrox_settings (key, value, updated_at) VALUES ('clean_slate_sat28_sun29_v1', '1', CURRENT_TIMESTAMP) "
+            "ON CONFLICT(key) DO UPDATE SET value='1', updated_at=CURRENT_TIMESTAMP"
+        )
+        seed_default_hyrox_data(db)
+        db.commit()
+        return
+
+    # 1. Remove the seeded September 2026 baseline demo event if present
+    sep_events = db.execute(
+        "SELECT id FROM hyrox_events WHERE name LIKE '%Baseline Sim — Sep 2026%'"
+    ).fetchall()
+    for ev in sep_events:
+        eid = ev["id"]
+        db.execute("DELETE FROM hyrox_splits WHERE entry_id IN (SELECT id FROM hyrox_entries WHERE event_id=?)", (eid,))
+        db.execute("DELETE FROM hyrox_entries WHERE event_id=?", (eid,))
+        db.execute("DELETE FROM hyrox_heats WHERE event_id=?", (eid,))
+        db.execute("DELETE FROM hyrox_events WHERE id=?", (eid,))
+        changed = True
+
+    # 2. Remove seeded demo entries (linked to sample athletes TU-1001..TU-1013)
+    demo_entries = db.execute(
+        "SELECT e.id, e.event_id FROM hyrox_entries e "
+        "LEFT JOIN hyrox_athletes a ON e.athlete_id = a.id "
+        "WHERE a.teamup_customer_id LIKE 'TU-10%'"
+    ).fetchall()
+    if demo_entries:
+        demo_ids = [r["id"] for r in demo_entries]
+        placeholders = ",".join("?" for _ in demo_ids)
+        db.execute(f"DELETE FROM hyrox_splits WHERE entry_id IN ({placeholders})", demo_ids)
+        db.execute(f"DELETE FROM hyrox_entries WHERE id IN ({placeholders})", demo_ids)
+        changed = True
+
+    # 3. Remove seeded demo athletes (TU-1001..TU-1013)
+    cur_del_ath = db.execute(
+        "DELETE FROM hyrox_athletes WHERE teamup_customer_id LIKE 'TU-10%'"
+    )
+    if cur_del_ath.rowcount:
+        changed = True
+
+    # 4. Upgrade any legacy Nov 2026 event date (2026-11-14) to Saturday 28th & Sunday 29th (2026-11-28 / 2026-11-29)
+    legacy_nov = db.execute(
+        "SELECT id, event_date FROM hyrox_events WHERE name LIKE 'CS Performance HYROX Sim —%Nov 2026%' LIMIT 1"
+    ).fetchone()
+    if legacy_nov and legacy_nov["event_date"] == "2026-11-14":
+        db.execute(
+            "UPDATE hyrox_events SET name=?, event_date='2026-11-28', end_date='2026-11-29', num_days=2, "
+            "lanes_per_wave=1, wave_interval_mins=10, transition_buffer_mins=10 WHERE id=?",
+            ("CS Performance HYROX Sim — Sat 28th & Sun 29th Nov 2026", legacy_nov["id"]),
+        )
+        db.execute("UPDATE hyrox_heats SET slot_date='2026-11-28' WHERE event_id=? AND COALESCE(day_number, 1)=1", (legacy_nov["id"],))
+        db.execute("UPDATE hyrox_heats SET slot_date='2026-11-29' WHERE event_id=? AND COALESCE(day_number, 1)=2", (legacy_nov["id"],))
+        changed = True
+
+    # 5. Reset empty heats from 'completed'/'racing' back to 'scheduled'
+    cur_reset_heats = db.execute(
+        "UPDATE hyrox_heats SET status='scheduled' WHERE status != 'scheduled' "
+        "AND id NOT IN (SELECT DISTINCT heat_id FROM hyrox_entries WHERE heat_id IS NOT NULL)"
+    )
+    if cur_reset_heats.rowcount:
+        changed = True
+
+    # 6. If all events were removed, seed the clean empty Saturday 28th & Sunday 29th event
+    rem_events = db.execute("SELECT COUNT(*) as c FROM hyrox_events").fetchone()["c"]
+    if rem_events == 0:
+        seed_default_hyrox_data(db)
+        changed = True
+
+    if changed:
+        db.commit()
 
 
 def find_or_create_athlete(db, full_name, email="", dob="", age_category="30-34", gender="", teamup_customer_id=""):
@@ -697,289 +879,63 @@ def _generate_unique_pin(db, event_id, preferred_pin=None):
     return str(random.randint(1000, 9999))
 
 
-# ── Pre-seed Realistic Demo Event & Baseline Sim ────────────────────────────
+# ── Clean Default Weekend Event (Zero Sample Athletes / Entries) ─────────────
 
 def seed_default_hyrox_data(db):
-    now_ms = int(time.time() * 1000)
-
-    # 1. Baseline Event (September 2026) for Sim-over-Sim "Roxfit-Lite" Progression
-    cur_base = db.execute(
-        "INSERT INTO hyrox_events (name, event_date, venue, wave_interval_mins, lanes_per_wave, status, notes) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (
-            "CS Performance HYROX Baseline Sim — Sep 2026",
-            "2026-09-19",
-            "CS Performance Studio",
-            15,
-            4,
-            "completed",
-            "Autumn Baseline HYROX Simulation (Extended Run Loop, No Roxzone)",
-        ),
-    )
-    base_event_id = cur_base.lastrowid
-    cur_base_heat = db.execute(
-        "INSERT INTO hyrox_heats (event_id, heat_number, name, start_time, max_lanes, status) "
-        "VALUES (?, 1, 'Wave 1 — 08:00', '08:00', 4, 'completed')",
-        (base_event_id,),
-    )
-    base_heat_id = cur_base_heat.lastrowid
-
-    # Persistent Athletes
-    ewan_id = find_or_create_athlete(db, "Ewan Taylor", "taylor.ewan@googlemail.com", "1989-04-12", "35-39", "M", "TU-1001")
-    alan_id = find_or_create_athlete(db, "Alan Mackay", "alan.mackay@example.com", "1984-08-22", "40-44", "M", "TU-1002")
-    sarah_id = find_or_create_athlete(db, "Sarah Jenkins", "sarah.jenkins@example.com", "1993-02-15", "30-34", "F", "TU-1003")
-    laura_id = find_or_create_athlete(db, "Laura Mitchell", "laura.mitchell@example.com", "1992-11-03", "30-34", "F", "TU-1004")
-    chris_id = find_or_create_athlete(db, "Chris Smith", "chris.smith@example.com", "1988-06-19", "35-39", "M", "TU-1005")
-    emma_id = find_or_create_athlete(db, "Emma Wallace", "emma.wallace@example.com", "1990-09-25", "35-39", "F", "TU-1006")
-    callum_id = find_or_create_athlete(db, "Callum Fraser", "callum.fraser@example.com", "1998-01-10", "25-29", "M", "TU-1007")
-    kirsty_id = find_or_create_athlete(db, "Kirsty Grant", "kirsty.grant@example.com", "1994-05-14", "30-34", "F", "TU-1008")
-    megan_id = find_or_create_athlete(db, "Megan Scott", "megan.scott@example.com", "1995-07-30", "30-34", "F", "TU-1009")
-    ross_id = find_or_create_athlete(db, "Ross MacLeod", "ross.macleod@example.com", "1993-12-01", "30-34", "M", "TU-1010")
-    hannah_id = find_or_create_athlete(db, "Hannah Reid", "hannah.reid@example.com", "1999-03-18", "25-29", "F", "TU-1011")
-    dave_id = find_or_create_athlete(db, "Dave Kerr", "dave.kerr@example.com", "1987-10-08", "35-39", "M", "TU-1012")
-    mark_id = find_or_create_athlete(db, "Mark Stewart", "mark.stewart@example.com", "1988-02-27", "35-39", "M", "TU-1013")
-
-    def _seed_finished_entry(event_id, heat_id, athlete_id, partner_athlete_id, display_name, partner_name,
-                             email, bib, division, age_cat, volunteer, pin, split_secs, wall_balls=100, start_offset_ms=7200000):
-        start_ms = now_ms - start_offset_ms
-        cur = db.execute(
-            "INSERT INTO hyrox_entries (event_id, heat_id, athlete_id, partner_athlete_id, display_name, partner_name, "
-            "email, bib_number, division, age_category, volunteer_name, judge_pin, status, started_at_ms, wall_ball_reps) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'finished', ?, ?)",
-            (event_id, heat_id, athlete_id, partner_athlete_id, display_name, partner_name,
-             email, bib, division, age_cat, volunteer, pin, start_ms, wall_balls)
-        )
-        eid = cur.lastrowid
-        ensure_entry_splits(db, eid)
-        elapsed = 0
-        for idx, secs in enumerate(split_secs, start=1):
-            dur_ms = int(secs * 1000)
-            elapsed += dur_ms
-            db.execute(
-                "UPDATE hyrox_splits SET duration_ms=?, completed_at_ms=? WHERE entry_id=? AND split_index=?",
-                (dur_ms, start_ms + elapsed, eid, idx)
-            )
-        recalculate_entry_totals(db, eid)
-        return eid
-
-    # Ewan's Sep 2026 Baseline Sim: Total 1:14:15 (4455s)
-    ewan_sep_splits = [
-        282, 260,
-        295, 215,
-        305, 255,
-        312, 290,
-        310, 268,
-        302, 165,
-        318, 258,
-        305, 315,
-    ]
-    _seed_finished_entry(
-        base_event_id, base_heat_id, ewan_id, None, "Ewan Taylor", "",
-        "taylor.ewan@googlemail.com", "101", "men_open", "35-39", "Coach Chris", "9101",
-        ewan_sep_splits, wall_balls=100, start_offset_ms=86400000 * 55
-    )
-
-    # Sarah's Sep 2026 Baseline Sim: Total 1:18:10
-    sarah_sep_splits = [
-        298, 275,
-        308, 222,
-        315, 265,
-        322, 305,
-        320, 282,
-        314, 178,
-        328, 270,
-        318, 370,
-    ]
-    _seed_finished_entry(
-        base_event_id, base_heat_id, sarah_id, None, "Sarah Jenkins", "",
-        "sarah.jenkins@example.com", "103", "women_open", "30-34", "Coach Laura", "9103",
-        sarah_sep_splits, wall_balls=75, start_offset_ms=86400000 * 55
-    )
-
-    # 2. Featured Event: "CS Performance HYROX Sim — Nov 2026" (2-Day Weekend Sim, 1 Athlete/Pair + 1 Volunteer per Slot)
+    """
+    Create a clean, empty 2-Day HYROX Weekend Event for Saturday 28th (14:00–17:00)
+    & Sunday 29th (10:00–14:00) with 1:1 time slots across the 4 sign-up groups and
+    NO sample athletes or entries.
+    """
     cur_nov = db.execute(
         "INSERT INTO hyrox_events (name, event_date, end_date, num_days, venue, wave_interval_mins, lanes_per_wave, transition_buffer_mins, status, notes) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
-            "CS Performance HYROX Sim — Nov 2026",
-            "2026-11-14",
-            "2026-11-15",
+            "CS Performance HYROX Sim — Sat 28th & Sun 29th Nov 2026",
+            "2026-11-28",
+            "2026-11-29",
             2,
             "CS Performance Studio",
-            20,
+            10,
             1,
             10,
             "live",
-            "2-Day HYROX Sim Weekend (Sat & Sun). 1 Athlete/Pair + 1 Volunteer per Slot with Weight-Change Buffers between Division Blocks.",
+            "Saturday 28th (14:00–17:00): 1. Male Solo & 2. Male Doubles / Mixed Doubles | Sunday 29th (10:00–14:00): 3. Female Solo & 4. Female Doubles.",
         ),
     )
     nov_event_id = cur_nov.lastrowid
 
-    # 1:1 Solo/Pair Time Slots across Day 1 (Sat) & Day 2 (Sun) grouped by Division Blocks
     heats_spec = [
-        (1, 1, "2026-11-14", "men_open",       0,  "Day 1 · 08:00 — Men's Open",        "08:00", 1, "completed"),
-        (2, 1, "2026-11-14", "men_open",       10, "Day 1 · 08:20 — Men's Open",        "08:20", 1, "completed"),
-        (3, 1, "2026-11-14", "women_open",     10, "Day 1 · 08:50 — Female Open",       "08:50", 1, "completed"),
-        (4, 1, "2026-11-14", "women_pro",      10, "Day 1 · 09:20 — Female Pro",        "09:20", 1, "completed"),
-        (5, 1, "2026-11-14", "mixed_doubles",  10, "Day 1 · 09:50 — Mixed Doubles",     "09:50", 1, "completed"),
-        (6, 1, "2026-11-14", "men_pro",        10, "Day 1 · 10:20 — Men's Pro",         "10:20", 1, "racing"),
-        (7, 2, "2026-11-15", "women_doubles",  10, "Day 2 · 08:00 — Female Doubles",    "08:00", 1, "racing"),
-        (8, 2, "2026-11-15", "men_open",       10, "Day 2 · 08:30 — Men's Open",        "08:30", 1, "scheduled"),
-        (9, 2, "2026-11-15", "women_open",     10, "Day 2 · 09:00 — Female Open",       "09:00", 1, "scheduled"),
-        (10, 2, "2026-11-15", "men_doubles",   10, "Day 2 · 09:30 — Men's Open Doubles","09:30", 1, "scheduled"),
+        # Day 1 (Saturday 28th 14:00–17:00): 1. Male Solo & 2. Male Doubles / Mixed Doubles
+        (1,  1, "2026-11-28", "men_open",       0,  "Day 1 · 14:00 — 1. Male Solo",            "14:00", 1, "scheduled"),
+        (2,  1, "2026-11-28", "men_open",       0,  "Day 1 · 14:15 — 1. Male Solo",            "14:15", 1, "scheduled"),
+        (3,  1, "2026-11-28", "men_open",       0,  "Day 1 · 14:30 — 1. Male Solo",            "14:30", 1, "scheduled"),
+        (4,  1, "2026-11-28", "men_open",       10, "Day 1 · 14:45 — 1. Male Solo",            "14:45", 1, "scheduled"),
+        (5,  1, "2026-11-28", "men_doubles",    0,  "Day 1 · 15:30 — 2. Male / Mixed Doubles", "15:30", 1, "scheduled"),
+        (6,  1, "2026-11-28", "mixed_doubles",  0,  "Day 1 · 15:45 — 2. Male / Mixed Doubles", "15:45", 1, "scheduled"),
+        (7,  1, "2026-11-28", "men_doubles",    0,  "Day 1 · 16:00 — 2. Male / Mixed Doubles", "16:00", 1, "scheduled"),
+        (8,  1, "2026-11-28", "mixed_doubles",  10, "Day 1 · 16:15 — 2. Male / Mixed Doubles", "16:15", 1, "scheduled"),
+        # Day 2 (Sunday 29th 10:00–14:00): 3. Female Solo & 4. Female Doubles
+        (9,  2, "2026-11-29", "women_open",     0,  "Day 2 · 10:00 — 3. Female Solo",          "10:00", 1, "scheduled"),
+        (10, 2, "2026-11-29", "women_open",     0,  "Day 2 · 10:15 — 3. Female Solo",          "10:15", 1, "scheduled"),
+        (11, 2, "2026-11-29", "women_open",     0,  "Day 2 · 10:30 — 3. Female Solo",          "10:30", 1, "scheduled"),
+        (12, 2, "2026-11-29", "women_open",     10, "Day 2 · 10:45 — 3. Female Solo",          "10:45", 1, "scheduled"),
+        (13, 2, "2026-11-29", "women_doubles",  0,  "Day 2 · 12:00 — 4. Female Doubles",       "12:00", 1, "scheduled"),
+        (14, 2, "2026-11-29", "women_doubles",  0,  "Day 2 · 12:15 — 4. Female Doubles",       "12:15", 1, "scheduled"),
+        (15, 2, "2026-11-29", "women_doubles",  0,  "Day 2 · 12:30 — 4. Female Doubles",       "12:30", 1, "scheduled"),
+        (16, 2, "2026-11-29", "women_doubles",  10, "Day 2 · 12:45 — 4. Female Doubles",       "12:45", 1, "scheduled"),
     ]
-    heat_ids = {}
     for h_num, day_num, s_date, div_blk, buf_m, h_name, h_time, h_lanes, h_status in heats_spec:
-        c = db.execute(
+        db.execute(
             "INSERT INTO hyrox_heats (event_id, heat_number, day_number, slot_date, division_block, transition_buffer_mins, name, start_time, max_lanes, status) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (nov_event_id, h_num, day_num, s_date, div_blk, buf_m, h_name, h_time, h_lanes, h_status),
         )
-        heat_ids[h_num] = c.lastrowid
 
-    # Day 1 Finished Entries (1 Athlete/Pair + 1 Volunteer per slot):
-    # Slot 1 (08:00): Ewan Taylor (Men's Open) — Improved to 1:09:42 (4182s — 4m33s PB over Sep!)
-    ewan_nov_splits = [
-        268, 248,
-        278, 198,
-        286, 238,
-        292, 268,
-        290, 254,
-        284, 152,
-        296, 240,
-        285, 285,
-    ]
-    _seed_finished_entry(
-        nov_event_id, heat_ids[1], ewan_id, None, "Ewan Taylor", "",
-        "taylor.ewan@googlemail.com", "101", "men_open", "35-39", "Coach Chris", "1101",
-        ewan_nov_splits, wall_balls=100, start_offset_ms=5400000
+    db.execute(
+        "INSERT INTO hyrox_settings (key, value, updated_at) VALUES ('clean_slate_sat28_sun29_v1', '1', CURRENT_TIMESTAMP) "
+        "ON CONFLICT(key) DO UPDATE SET value='1', updated_at=CURRENT_TIMESTAMP"
     )
-
-    # Slot 2 (08:20): Alan Mackay (Men's Open) — 1:12:08
-    alan_nov_splits = [
-        275, 255,
-        285, 208,
-        294, 246,
-        302, 280,
-        300, 262,
-        295, 160,
-        306, 252,
-        298, 310,
-    ]
-    _seed_finished_entry(
-        nov_event_id, heat_ids[2], alan_id, None, "Alan Mackay", "",
-        "alan.mackay@example.com", "102", "men_open", "40-44", "Coach Laura", "1102",
-        alan_nov_splits, wall_balls=100, start_offset_ms=5400000
-    )
-
-    # Slot 3 (08:50): Sarah Jenkins (Female Open) — 1:14:36
-    sarah_nov_splits = [
-        285, 264,
-        294, 210,
-        302, 252,
-        308, 288,
-        306, 270,
-        300, 168,
-        312, 256,
-        305, 256,
-    ]
-    _seed_finished_entry(
-        nov_event_id, heat_ids[3], sarah_id, None, "Sarah Jenkins", "",
-        "sarah.jenkins@example.com", "103", "women_open", "30-34", "Sam Walker", "1103",
-        sarah_nov_splits, wall_balls=75, start_offset_ms=5400000
-    )
-
-    # Slot 4 (09:20): Laura Mitchell (Female Pro) — 1:08:25
-    laura_nov_splits = [
-        262, 245,
-        270, 195,
-        278, 232,
-        284, 260,
-        282, 250,
-        276, 150,
-        286, 235,
-        275, 325,
-    ]
-    _seed_finished_entry(
-        nov_event_id, heat_ids[4], laura_id, None, "Laura Mitchell", "",
-        "laura.mitchell@example.com", "104", "women_pro", "30-34", "Jamie Ross", "1104",
-        laura_nov_splits, wall_balls=100, start_offset_ms=5400000
-    )
-
-    # Slot 5 (09:50): Chris Smith & Emma Wallace (Mixed Doubles) — 1:03:50
-    mixed_nov_splits = [
-        252, 220,
-        258, 175,
-        264, 205,
-        268, 230,
-        266, 224,
-        262, 138,
-        270, 208,
-        260, 250,
-    ]
-    _seed_finished_entry(
-        nov_event_id, heat_ids[5], chris_id, emma_id, "Chris Smith", "Emma Wallace",
-        "chris.smith@example.com", "201", "mixed_doubles", "35-39", "Katie Bell", "1201",
-        mixed_nov_splits, wall_balls=100, start_offset_ms=4200000
-    )
-
-    # Racing Entries (Live on the gym floor right now!):
-    callum_partial = [255, 232, 264, 192, 270, 228, 276, 248, 274, 240, 268]
-    callum_elapsed_ms = sum(s * 1000 for s in callum_partial)
-    callum_start_ms = now_ms - callum_elapsed_ms - 65000
-    cur_cal = db.execute(
-        "INSERT INTO hyrox_entries (event_id, heat_id, athlete_id, display_name, email, bib_number, "
-        "division, age_category, volunteer_name, judge_pin, status, started_at_ms, wall_ball_reps) "
-        "VALUES (?, ?, ?, 'Callum Fraser', 'callum.fraser@example.com', '105', 'men_pro', '25-29', 'Alex Reid', '1105', 'racing', ?, 0)",
-        (nov_event_id, heat_ids[6], callum_id, callum_start_ms)
-    )
-    cal_eid = cur_cal.lastrowid
-    ensure_entry_splits(db, cal_eid)
-    running_t = 0
-    for idx, secs in enumerate(callum_partial, start=1):
-        d_ms = secs * 1000
-        running_t += d_ms
-        db.execute(
-            "UPDATE hyrox_splits SET duration_ms=?, completed_at_ms=? WHERE entry_id=? AND split_index=?",
-            (d_ms, callum_start_ms + running_t, cal_eid, idx)
-        )
-    recalculate_entry_totals(db, cal_eid)
-
-    km_partial = [278, 245, 286, 188, 292, 220, 296]
-    km_elapsed_ms = sum(s * 1000 for s in km_partial)
-    km_start_ms = now_ms - km_elapsed_ms - 95000
-    cur_km = db.execute(
-        "INSERT INTO hyrox_entries (event_id, heat_id, athlete_id, partner_athlete_id, display_name, partner_name, "
-        "email, bib_number, division, age_category, volunteer_name, judge_pin, status, started_at_ms, wall_ball_reps) "
-        "VALUES (?, ?, ?, ?, 'Kirsty Grant', 'Megan Scott', 'kirsty.grant@example.com', '202', 'women_doubles', '30-34', 'Sam Walker', '1202', 'racing', ?, 0)",
-        (nov_event_id, heat_ids[7], kirsty_id, megan_id, km_start_ms)
-    )
-    km_eid = cur_km.lastrowid
-    ensure_entry_splits(db, km_eid)
-    running_t = 0
-    for idx, secs in enumerate(km_partial, start=1):
-        d_ms = secs * 1000
-        running_t += d_ms
-        db.execute(
-            "UPDATE hyrox_splits SET duration_ms=?, completed_at_ms=? WHERE entry_id=? AND split_index=?",
-            (d_ms, km_start_ms + running_t, km_eid, idx)
-        )
-    recalculate_entry_totals(db, km_eid)
-
-    # Day 2 Scheduled Entries (On Deck — 1 Racer/Pair + 1 Volunteer per slot):
-    scheduled_specs = [
-        (heat_ids[8],  ross_id,   None,    "Ross MacLeod", "",             "ross.macleod@example.com", "106", "men_open",    "30-34", "Coach Chris", "1106"),
-        (heat_ids[9],  hannah_id, None,    "Hannah Reid",  "",             "hannah.reid@example.com",  "107", "women_open",  "25-29", "Coach Laura", "1107"),
-        (heat_ids[10], dave_id,   mark_id, "Dave Kerr",    "Mark Stewart", "dave.kerr@example.com",    "203", "men_doubles", "35-39", "Coach Chris", "1203"),
-    ]
-    for h_id, a_id, p_id, d_name, p_name, em, bib, div, age_c, vol, pin in scheduled_specs:
-        c = db.execute(
-            "INSERT INTO hyrox_entries (event_id, heat_id, athlete_id, partner_athlete_id, display_name, partner_name, "
-            "email, bib_number, division, age_category, volunteer_name, judge_pin, status) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled')",
-            (nov_event_id, h_id, a_id, p_id, d_name, p_name, em, bib, div, age_c, vol, pin)
-        )
-        ensure_entry_splits(db, c.lastrowid)
 
 
 ROXFIT_SPLIT_LABELS = {
@@ -1015,6 +971,11 @@ def serialize_entry(db, entry_row, include_splits=True, include_history=False):
     e["weight_profile"] = div_info.get("weight_profile", "men_open")
     e["weight_summary"] = div_info.get("weight_summary", "")
     e["wall_ball_target_reps"] = div_info["wall_ball_target_reps"]
+    grp_key = division_to_signup_group_key(div_key)
+    grp_meta = HYROX_SIGNUP_GROUPS[grp_key]
+    e["signup_group"] = grp_key
+    e["signup_group_label"] = grp_meta["label"]
+    e["signup_group_number"] = grp_meta["number"]
     e["full_display_name"] = (
         f"{e['display_name']} & {e['partner_name']}"
         if e.get("partner_name")
@@ -1821,6 +1782,7 @@ def api_event_state(event_id):
         "scheduled_entries": scheduled_entries,
         "finished_entries": finished_entries,
         "leaderboards": leaderboards,
+        "signup_groups": build_signup_groups_summary(entries),
         "divisions": HYROX_DIVISIONS,
         "age_categories": AGE_CATEGORIES,
         "splits_template": HYROX_SPLITS_TEMPLATE,
@@ -1856,46 +1818,92 @@ def _normalize_heat_time_str(raw_time):
     return s
 
 
+def _split_pair_names(display_name, partner_name=""):
+    d = (display_name or "").strip()
+    p = (partner_name or "").strip()
+    if d and not p:
+        parts = re.split(r"\s*(?:&|\+|/|\band\b|\bwith\b)\s*", d, maxsplit=1, flags=re.IGNORECASE)
+        if len(parts) == 2 and parts[0].strip() and parts[1].strip():
+            return parts[0].strip(), parts[1].strip()
+    return d, p
+
+
 def _create_entry_record(db, event_id, payload, upsert=False):
-    display_name = (payload.get("display_name") or payload.get("full_name") or "").strip()
-    if not display_name:
+    raw_name = (payload.get("display_name") or payload.get("full_name") or "").strip()
+    if not raw_name:
         first = (payload.get("first_name") or "").strip()
         last = (payload.get("last_name") or "").strip()
-        display_name = f"{first} {last}".strip()
-    if not display_name:
+        raw_name = f"{first} {last}".strip()
+    if not raw_name:
         return None, "Athlete name is required"
 
-    partner_name = (payload.get("partner_name") or "").strip()
+    display_name, partner_name = _split_pair_names(raw_name, payload.get("partner_name") or "")
     email = (payload.get("email") or "").strip().lower()
     dob = (payload.get("dob") or "").strip()
     age_cat = normalize_age_category(payload.get("age_category") or dob or "30-34")
-    division = normalize_division(payload.get("division") or ("mixed_doubles" if partner_name else "men_open"))
+
+    raw_div = (payload.get("division") or "").strip()
+    grp_hint = (payload.get("signup_group") or "").strip()
+    if not raw_div and grp_hint in HYROX_SIGNUP_GROUPS:
+        raw_div = HYROX_SIGNUP_GROUPS[grp_hint]["default_division"]
+    division = normalize_division(raw_div or ("mixed_doubles" if partner_name else "men_open"))
+    if partner_name:
+        solo_to_doubles = {
+            "men_open": "men_doubles",
+            "women_open": "women_doubles",
+            "men_pro": "men_pro_doubles",
+            "women_pro": "women_pro_doubles",
+        }
+        if division in solo_to_doubles:
+            division = solo_to_doubles[division]
+
     volunteer_name = (payload.get("volunteer_name") or payload.get("volunteer") or "").strip()
     notes = (payload.get("notes") or "").strip()
 
     heat_id = payload.get("heat_id")
     heat_time = _normalize_heat_time_str(payload.get("heat_time") or payload.get("wave_time") or "")
+    day_num = int(payload.get("day_number") or (2 if division_to_signup_group_key(division) in ("female_solo", "female_doubles") else 1))
     if heat_id:
         heat_id = int(heat_id)
     elif heat_time:
         h_row = db.execute(
-            "SELECT id FROM hyrox_heats WHERE event_id=? AND (start_time=? OR name LIKE ?) LIMIT 1",
-            (event_id, heat_time, f"%{heat_time}%")
+            "SELECT id FROM hyrox_heats WHERE event_id=? AND COALESCE(day_number, 1)=? AND (start_time=? OR name LIKE ?) LIMIT 1",
+            (event_id, day_num, heat_time, f"%{heat_time}%")
         ).fetchone()
+        if not h_row and not payload.get("day_number"):
+            h_row = db.execute(
+                "SELECT id FROM hyrox_heats WHERE event_id=? AND (start_time=? OR name LIKE ?) LIMIT 1",
+                (event_id, heat_time, f"%{heat_time}%")
+            ).fetchone()
         if h_row:
             heat_id = h_row["id"]
         else:
+            ev_row = db.execute("SELECT event_date, end_date FROM hyrox_events WHERE id=?", (event_id,)).fetchone()
+            slot_date = ""
+            if ev_row:
+                slot_date = (ev_row["end_date"] if day_num == 2 and ev_row["end_date"] else ev_row["event_date"]) or ""
             existing_max = db.execute(
                 "SELECT COALESCE(MAX(heat_number), 0) as m FROM hyrox_heats WHERE event_id=?",
                 (event_id,)
             ).fetchone()["m"]
             h_num = existing_max + 1
+            div_label = HYROX_DIVISIONS.get(division, {}).get("label", "")
+            slot_name = f"Day {day_num} · {heat_time} — {div_label}" if div_label else f"Day {day_num} · Slot {h_num} — {heat_time}"
             cur_h = db.execute(
-                "INSERT INTO hyrox_heats (event_id, heat_number, name, start_time, max_lanes, status) "
-                "VALUES (?, ?, ?, ?, 4, 'scheduled')",
-                (event_id, h_num, f"Wave {h_num} — {heat_time}", heat_time)
+                "INSERT INTO hyrox_heats (event_id, heat_number, day_number, slot_date, division_block, name, start_time, max_lanes, status) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'scheduled')",
+                (event_id, h_num, day_num, slot_date, division, slot_name, heat_time)
             )
             heat_id = cur_h.lastrowid
+    else:
+        slot_helper = {
+            "display_name": display_name,
+            "email": email,
+            "division": division,
+        }
+        _assign_weekend_group_slot(db, event_id, slot_helper)
+        if slot_helper.get("heat_id"):
+            heat_id = int(slot_helper["heat_id"])
 
     athlete_id = find_or_create_athlete(
         db,
@@ -2007,6 +2015,145 @@ def api_create_entry(event_id):
     db.commit()
     row = db.execute("SELECT * FROM hyrox_entries WHERE id=?", (entry_id,)).fetchone()
     return jsonify(serialize_entry(db, row, include_splits=True, include_history=True)), 201
+
+
+def _parse_simple_entry_line(raw_line, default_division="men_open"):
+    """
+    Parse a single line of simplified text entry into an entry payload dict.
+    Supported flexible formats:
+      - "Callum Boyd"
+      - "Luke Shaw & Dan Reid"
+      - "14:00 Callum Boyd"
+      - "15:30 - Luke Shaw & Dan Reid"
+      - "Hannah Millar, 10:20, Coach Laura"
+      - "Sam Kerr & Chloe Grant | Mixed Doubles | 16:00 | Coach Chris"
+    """
+    line = (raw_line or "").strip()
+    if not line or line.startswith("#"):
+        return None
+
+    heat_time = ""
+    # Check leading HH:MM time prefix (e.g. "14:00 Callum Boyd" or "14:00 - Callum Boyd")
+    m_lead = re.match(r"^(\d{1,2}:\d{2})\s*[-–—|,:]?\s*(.+)$", line)
+    if m_lead:
+        heat_time = _normalize_heat_time_str(m_lead.group(1))
+        line = m_lead.group(2).strip()
+
+    # Split remaining fields by "|" or "," if present
+    tokens = [t.strip() for t in re.split(r"\s*[|,]\s*", line) if t.strip()]
+    if not tokens:
+        return None
+
+    name_part = tokens[0]
+    division = default_division
+    volunteer = ""
+
+    for extra in tokens[1:]:
+        norm_t = _normalize_heat_time_str(extra)
+        if re.match(r"^\d{2}:\d{2}$", norm_t) and not heat_time:
+            heat_time = norm_t
+            continue
+        low_ex = extra.lower()
+        if any(k in low_ex for k in ("open", "pro", "double", "pair", "mixed", "male", "female", "men", "women", "solo")):
+            division = normalize_division(extra)
+            continue
+        if not volunteer:
+            volunteer = extra
+
+    display_name, partner_name = _split_pair_names(name_part, "")
+    if not display_name:
+        return None
+
+    return {
+        "display_name": display_name,
+        "partner_name": partner_name,
+        "division": division,
+        "heat_time": heat_time,
+        "volunteer_name": volunteer,
+    }
+
+
+@hyrox_bp.route("/api/hyrox/events/<int:event_id>/entries/bulk-simple", methods=["POST"])
+def api_bulk_simple_entries(event_id):
+    """
+    Quickly add multiple athletes or doubles pairs from a plain list of lines
+    (or JSON items) into the specified division / weekend sign-up group.
+    """
+    db = get_db()
+    ensure_hyrox_tables(db)
+    ev = db.execute("SELECT * FROM hyrox_events WHERE id=?", (event_id,)).fetchone()
+    if not ev:
+        return jsonify({"error": "Event not found"}), 404
+
+    data = request.get_json(force=True) or {}
+    group_key = (data.get("signup_group") or "").strip()
+    raw_div = (data.get("division") or "").strip()
+    if not raw_div and group_key in HYROX_SIGNUP_GROUPS:
+        raw_div = HYROX_SIGNUP_GROUPS[group_key]["default_division"]
+    default_div = normalize_division(raw_div or "men_open")
+    default_vol = (data.get("volunteer_name") or "").strip()
+
+    lines_text = data.get("lines_text") or data.get("text") or ""
+    items = data.get("items")
+    parsed_payloads = []
+
+    if isinstance(items, list):
+        for item in items:
+            if isinstance(item, str):
+                p = _parse_simple_entry_line(item, default_division=default_div)
+                if p:
+                    parsed_payloads.append(p)
+            elif isinstance(item, dict):
+                item_copy = dict(item)
+                if not item_copy.get("division"):
+                    item_copy["division"] = default_div
+                parsed_payloads.append(item_copy)
+    elif lines_text.strip():
+        for raw_line in lines_text.splitlines():
+            p = _parse_simple_entry_line(raw_line, default_division=default_div)
+            if p:
+                parsed_payloads.append(p)
+
+    if not parsed_payloads:
+        return jsonify({"error": "Enter at least one athlete or pair name"}), 400
+
+    created_ids = []
+    for p in parsed_payloads:
+        if default_vol and not p.get("volunteer_name"):
+            p["volunteer_name"] = default_vol
+        eid, _ = _create_entry_record(db, event_id, p, upsert=False)
+        if eid:
+            created_ids.append(eid)
+
+    db.commit()
+    rows = db.execute("SELECT * FROM hyrox_entries WHERE event_id=? ORDER BY id ASC", (event_id,)).fetchall()
+    entries = [serialize_entry(db, r, include_splits=False, include_history=False) for r in rows]
+    return jsonify({
+        "ok": True,
+        "added_count": len(created_ids),
+        "added_entry_ids": created_ids,
+        "entries": entries,
+        "signup_groups": build_signup_groups_summary(entries),
+    }), 201
+
+
+@hyrox_bp.route("/api/hyrox/events/<int:event_id>/clear-entries", methods=["POST"])
+def api_clear_event_entries(event_id):
+    """Remove all entries and splits for an event and reset its heats to 'scheduled'."""
+    db = get_db()
+    ensure_hyrox_tables(db)
+    ev = db.execute("SELECT * FROM hyrox_events WHERE id=?", (event_id,)).fetchone()
+    if not ev:
+        return jsonify({"error": "Event not found"}), 404
+
+    db.execute("DELETE FROM hyrox_splits WHERE entry_id IN (SELECT id FROM hyrox_entries WHERE event_id=?)", (event_id,))
+    cur = db.execute("DELETE FROM hyrox_entries WHERE event_id=?", (event_id,))
+    db.execute("UPDATE hyrox_heats SET status='scheduled' WHERE event_id=?", (event_id,))
+    db.commit()
+    return jsonify({
+        "ok": True,
+        "deleted_count": cur.rowcount,
+    })
 
 
 def _auto_map_csv_row(raw_row, custom_map=None):
@@ -2999,7 +3146,7 @@ def map_teamup_attendance_to_entry(att_obj):
     ).strip().lower()
     default_open_div = "women_open" if gender_raw in ("f", "female", "woman", "women", "w") else "men_open"
 
-    # Division inference from custom field, offering name, event name, booking notes, or gender fallback
+    # Division inference from custom field, offering name, event name, booking notes, day/time window, or gender fallback
     explicit_div = (
         att_obj.get("division")
         or custom_fields.get("division")
@@ -3016,20 +3163,7 @@ def map_teamup_attendance_to_entry(att_obj):
     ).strip()
     booking_notes_str = str(att_obj.get("notes") or att_obj.get("booking_notes") or "").strip()
 
-    has_explicit_division = True
-    if explicit_div:
-        div_resolved = normalize_division(explicit_div)
-    elif booking_notes_str and any(k in booking_notes_str.lower() for k in ("open", "pro", "double", "mixed", "women", "female", "men")):
-        div_resolved = normalize_division(booking_notes_str)
-    elif event_or_offering_name and any(k in event_or_offering_name.lower() for k in ("open", "pro", "double", "mixed", "women", "female", "men")):
-        div_resolved = normalize_division(event_or_offering_name)
-    elif partner_name:
-        div_resolved = "mixed_doubles"
-    else:
-        div_resolved = default_open_div
-        has_explicit_division = False
-
-    # Wave / Heat time from event local_starts_at / starts_at or explicit heat_time
+    # Wave / Heat time & weekday from event local_starts_at / starts_at or explicit heat_time
     raw_starts = (
         att_obj.get("heat_time")
         or event_obj.get("local_starts_at")
@@ -3039,6 +3173,59 @@ def map_teamup_attendance_to_entry(att_obj):
         or ""
     )
     heat_time = _normalize_heat_time_str(raw_starts)
+
+    # Detect Saturday (Day 1, 14:00-17:00) vs Sunday (Day 2, 10:00-14:00) from event date or title
+    combined_title_low = f"{event_or_offering_name} {booking_notes_str}".lower()
+    is_sunday_event = ("sunday" in combined_title_low or "sun " in combined_title_low)
+    is_saturday_event = ("saturday" in combined_title_low or "sat " in combined_title_low)
+    m_date = re.search(r"(\d{4}-\d{2}-\d{2})", str(raw_starts))
+    if m_date:
+        try:
+            ev_dt = datetime.strptime(m_date.group(1), "%Y-%m-%d").date()
+            if ev_dt.weekday() == 6:
+                is_sunday_event = True
+            elif ev_dt.weekday() == 5:
+                is_saturday_event = True
+        except Exception:
+            pass
+
+    div_keywords = (
+        "open", "pro", "double", "doubles", "pair", "pairs", "solo", "single",
+        "mixed", "women", "womens", "female", "females", "ladies", "men", "mens", "male", "males",
+    )
+    has_explicit_division = True
+    if explicit_div:
+        div_resolved = normalize_division(explicit_div)
+    elif booking_notes_str and any(k in booking_notes_str.lower() for k in div_keywords):
+        div_resolved = normalize_division(booking_notes_str)
+    elif event_or_offering_name and any(k in event_or_offering_name.lower() for k in div_keywords):
+        div_resolved = normalize_division(event_or_offering_name)
+        # If event is a combined Saturday "Male Doubles & Mixed Doubles" session, refine using gender/notes
+        ev_low = event_or_offering_name.lower()
+        if ("double" in ev_low or "pair" in ev_low) and ("mixed" in ev_low and ("male" in ev_low or "men" in ev_low)):
+            if gender_raw in ("f", "female", "woman", "women", "w") or "mixed" in booking_notes_str.lower():
+                div_resolved = "mixed_doubles"
+            else:
+                div_resolved = "men_doubles"
+    elif is_sunday_event:
+        if partner_name or "double" in combined_title_low or "pair" in combined_title_low:
+            div_resolved = "women_doubles"
+        else:
+            div_resolved = "women_open"
+    elif is_saturday_event:
+        if partner_name or "double" in combined_title_low or "pair" in combined_title_low:
+            div_resolved = "mixed_doubles" if gender_raw in ("f", "female", "woman", "women", "w") else "men_doubles"
+        else:
+            div_resolved = "men_open"
+    elif partner_name:
+        div_resolved = "women_doubles" if gender_raw in ("f", "female", "woman", "women", "w") else "mixed_doubles"
+    else:
+        div_resolved = default_open_div
+        has_explicit_division = False
+
+    signup_group = division_to_signup_group_key(div_resolved)
+    group_meta = HYROX_SIGNUP_GROUPS[signup_group]
+    day_number = group_meta["day_number"]
 
     # Instructor / Volunteer fallback if event has instructors expanded
     volunteer = (att_obj.get("volunteer_name") or "").strip()
@@ -3050,6 +3237,8 @@ def map_teamup_attendance_to_entry(att_obj):
 
     att_status = str(att_obj.get("status") or "registered").strip().lower()
     notes_parts = []
+    if event_or_offering_name:
+        notes_parts.append(event_or_offering_name)
     if att_obj.get("id"):
         notes_parts.append(f"TeamUp Attendance #{att_obj['id']}")
     if event_obj.get("id"):
@@ -3064,9 +3253,15 @@ def map_teamup_attendance_to_entry(att_obj):
         "dob": str(dob).strip(),
         "age_category": normalize_age_category(age_cat_raw),
         "division": div_resolved,
+        "division_label": HYROX_DIVISIONS.get(div_resolved, {}).get("label", div_resolved),
+        "signup_group": signup_group,
+        "signup_group_label": group_meta["label"],
+        "day_number": day_number,
         "has_explicit_division": has_explicit_division,
         "has_explicit_age": bool(age_cat_raw or dob),
         "heat_time": heat_time,
+        "event_starts_at": str(raw_starts),
+        "teamup_event_name": event_or_offering_name,
         "volunteer_name": volunteer,
         "teamup_customer_id": str(customer_id).strip(),
         "teamup_attendance_status": att_status,
@@ -3222,6 +3417,437 @@ def api_teamup_remote_events():
         )
 
 
+def get_next_weekend_dates(ref_date=None):
+    """Return (saturday_iso, sunday_iso) defaulting to Saturday 28th & Sunday 29th (2026-11-28 / 2026-11-29)."""
+    if ref_date is None:
+        return "2026-11-28", "2026-11-29"
+    from datetime import timedelta
+    d = ref_date
+    days_ahead = (5 - d.weekday()) % 7
+    sat = d + timedelta(days=days_ahead)
+    sun = sat + timedelta(days=1)
+    return sat.isoformat(), sun.isoformat()
+
+
+def _is_weekend_hyrox_sim_attendance(att_obj):
+    """
+    Filter TeamUp attendances so regular morning gym classes (e.g. 05:30 Thresholds,
+    07:00 Strength & conditioning, 09:30 Hot Strength & Ergs, 10:45 Hyrox Youngstars age 8-16,
+    12:45 NXTGen little legends, and Sunday 07:00 Hyrox Specific Training) are excluded
+    when pulling Saturday (14:00-17:00) & Sunday (10:00-14:00) HYROX event sign-ups.
+    """
+    if not isinstance(att_obj, dict):
+        return False
+    event_obj = att_obj.get("event") if isinstance(att_obj.get("event"), dict) else {}
+    offering_obj = event_obj.get("offering_type") if isinstance(event_obj.get("offering_type"), dict) else {}
+    title = " ".join([
+        str(offering_obj.get("name") or ""),
+        str(event_obj.get("name") or ""),
+        str(att_obj.get("offering_type_name") or ""),
+        str(att_obj.get("event_name") or ""),
+    ]).strip().lower()
+
+    # Exclude kids classes and non-HYROX regular gym classes
+    excluded_phrases = (
+        "youngstars", "little legends", "nxtgen", "age 8-16", "age 5-7",
+        "thresholds", "hot strength", "strength & conditioning",
+    )
+    if any(p in title for p in excluded_phrases):
+        return False
+
+    raw_starts = (
+        att_obj.get("heat_time")
+        or event_obj.get("local_starts_at")
+        or event_obj.get("starts_at")
+        or att_obj.get("event_starts_at")
+        or ""
+    )
+    heat_time = _normalize_heat_time_str(raw_starts)
+    hm = _hm_to_mins(heat_time, -1)
+
+    # Exclude regular Sunday 07:00 "Hyrox Specific Training" class unless it's in the 10:00+ window
+    if "specific training" in title and 0 <= hm < 9 * 60 + 30:
+        return False
+
+    return True
+
+
+def _fetch_weekend_teamup_signups(client, sat_date, sun_date, query=None, event_ids=None, status="registered"):
+    """
+    Query TeamUp API v2 for Saturday (`sat_date`) & Sunday (`sun_date`) sign-ups.
+    If 0 HYROX sign-ups are found on the primary dates and `event_ids` is not pinned,
+    also check candidate 28th/29th weekend windows in 2026 so Saturday 28th & Sunday 29th
+    sign-ups are discovered regardless of month.
+    """
+    candidate_windows = [(sat_date, sun_date)]
+    for cand_sat, cand_sun in [
+        ("2026-11-28", "2026-11-29"),
+        ("2026-03-28", "2026-03-29"),
+        ("2026-04-28", "2026-04-29"),
+        ("2026-04-25", "2026-04-26"),
+        ("2026-05-30", "2026-05-31"),
+    ]:
+        if (cand_sat, cand_sun) not in candidate_windows:
+            candidate_windows.append((cand_sat, cand_sun))
+
+    if event_ids:
+        candidate_windows = [(sat_date, sun_date)]
+
+    chosen_sat, chosen_sun = sat_date, sun_date
+    chosen_events = []
+    chosen_attendances = []
+
+    for idx, (c_sat, c_sun) in enumerate(candidate_windows):
+        starts_gte = f"{c_sat}T00:00:00Z" if len(c_sat) == 10 else c_sat
+        starts_lte = f"{c_sun}T23:59:59Z" if len(c_sun) == 10 else c_sun
+        evs = client.list_events(starts_at_gte=starts_gte, starts_at_lte=starts_lte, query=query)
+        atts = client.list_attendances(
+            event_ids=event_ids,
+            starts_at_gte=starts_gte,
+            starts_at_lte=starts_lte,
+            status=status,
+        )
+        filtered_atts = [a for a in (atts or []) if _is_weekend_hyrox_sim_attendance(a)]
+        if idx == 0:
+            chosen_events = evs
+            chosen_attendances = filtered_atts
+        if filtered_atts:
+            return c_sat, c_sun, evs, filtered_atts
+
+    return chosen_sat, chosen_sun, chosen_events, chosen_attendances
+
+
+def _hm_to_mins(hm_str, default_mins=840):
+    m = re.match(r"^(\d{1,2}):(\d{2})$", str(hm_str or "").strip())
+    if not m:
+        return default_mins
+    return int(m.group(1)) * 60 + int(m.group(2))
+
+
+def _mins_to_hm(total_mins):
+    return f"{(int(total_mins) // 60) % 24:02d}:{int(total_mins) % 60:02d}"
+
+
+def _assign_weekend_group_slot(db, event_id, mapped, interval_mins=10):
+    """
+    Assign a 1:1 heat slot within the entry's 4-group weekend window:
+      - Group 1 (male_solo):           Day 1 (Sat) 14:00 - 15:20
+      - Group 2 (male_mixed_doubles):  Day 1 (Sat) 15:30 - 17:00
+      - Group 3 (female_solo):         Day 2 (Sun) 10:00 - 11:50
+      - Group 4 (female_doubles):      Day 2 (Sun) 12:00 - 14:00
+    If the athlete already has an entry in `event_id` with a `heat_id`, keep it.
+    Otherwise, pick the earliest unoccupied 1:1 heat in that group's day & time window
+    (or create the next staggered slot at `interval_mins`).
+    """
+    display_name = (mapped.get("display_name") or "").strip()
+    email = (mapped.get("email") or "").strip().lower()
+    if display_name:
+        existing = db.execute(
+            "SELECT id, heat_id FROM hyrox_entries WHERE event_id=? AND ("
+            "(? != '' AND LOWER(email)=?) OR LOWER(display_name)=?) LIMIT 1",
+            (event_id, email, email, display_name.lower()),
+        ).fetchone()
+        if existing and existing["heat_id"]:
+            mapped["heat_id"] = existing["heat_id"]
+            return
+
+    div_key = normalize_division(mapped.get("division") or "men_open")
+    grp_key = division_to_signup_group_key(div_key)
+    grp_meta = HYROX_SIGNUP_GROUPS[grp_key]
+    day_num = grp_meta["day_number"]
+    mapped["day_number"] = day_num
+
+    start_floor_mins = _hm_to_mins(grp_meta["default_start_time"], 14 * 60 if day_num == 1 else 10 * 60)
+    end_ceil_mins = _hm_to_mins(grp_meta["default_end_time"], 17 * 60 if day_num == 1 else 14 * 60)
+
+    heats = db.execute(
+        "SELECT h.*, (SELECT COUNT(*) FROM hyrox_entries e WHERE e.heat_id=h.id AND e.status != 'dns') as used_lanes "
+        "FROM hyrox_heats h WHERE h.event_id=? AND COALESCE(h.day_number, 1)=? "
+        "ORDER BY h.start_time ASC, h.heat_number ASC",
+        (event_id, day_num),
+    ).fetchall()
+
+    # 1. Check for an open slot inside this group's time window [start_floor_mins, end_ceil_mins]
+    group_heats = []
+    for h in heats:
+        hm = _hm_to_mins(h["start_time"], -1)
+        if start_floor_mins <= hm <= end_ceil_mins:
+            group_heats.append((hm, h))
+            max_l = int(h["max_lanes"] or 1)
+            if int(h["used_lanes"] or 0) < max_l:
+                mapped["heat_id"] = h["id"]
+                mapped["heat_time"] = h["start_time"]
+                return
+
+    # 2. Otherwise create the next staggered slot in this group's block
+    if group_heats:
+        last_mins = group_heats[-1][0]
+        next_mins = last_mins + max(int(interval_mins or 10), 5)
+    else:
+        next_mins = start_floor_mins
+    mapped["heat_time"] = _mins_to_hm(next_mins)
+
+
+@hyrox_bp.route("/api/hyrox/teamup/signups", methods=["GET", "POST"])
+def api_teamup_signups_preview():
+    """
+    Fetch or parse TeamUp sign-ups and return them organized into the 4 weekend groups:
+      1. Male Solo (Sat 14:00-17:00)
+      2. Male Doubles / Mixed Doubles (Sat 14:00-17:00)
+      3. Female Solo (Sun 10:00-14:00)
+      4. Female Doubles (Sun 10:00-14:00)
+    """
+    db = get_db()
+    ensure_hyrox_tables(db)
+    data = (request.get_json(silent=True) or {}) if request.method == "POST" else {}
+    args = request.args
+
+    sat_default, sun_default = get_next_weekend_dates()
+    sat_date = (data.get("saturday_date") or args.get("saturday_date") or sat_default).strip()
+    sun_date = (data.get("sunday_date") or args.get("sunday_date") or sun_default).strip()
+
+    attendances = data.get("attendances")
+    if isinstance(data.get("results"), list) and attendances is None:
+        attendances = data["results"]
+
+    remote_events = []
+    teamup_configured = False
+    if attendances is None:
+        cfg = get_teamup_config(db)
+        teamup_configured = cfg["configured"]
+        if not cfg["has_token"]:
+            return jsonify({
+                "ok": False,
+                "configured": False,
+                "saturday_date": sat_date,
+                "sunday_date": sun_date,
+                "error": "TeamUp M2M API token is not configured yet. Add your TeamUp API token or use 'Setup Next Sat/Sun Event' to configure slots.",
+                "signup_groups": build_signup_groups_summary([]),
+            }), 400
+
+        client = TeamUpClient(api_token=cfg["api_token"], provider_id=cfg["provider_id"], base_url=cfg["base_url"])
+        try:
+            sat_date, sun_date, remote_events, attendances = _fetch_weekend_teamup_signups(
+                client,
+                sat_date,
+                sun_date,
+                query=data.get("query") or args.get("query"),
+                event_ids=data.get("teamup_event_ids") or args.get("teamup_event_ids"),
+                status=data.get("status") or args.get("status") or "registered",
+            )
+        except TeamUpAPIError as e:
+            return jsonify({
+                "ok": False,
+                "configured": True,
+                "error": e.message,
+                "details": e.details,
+                "signup_groups": build_signup_groups_summary([]),
+            }), (e.status_code if 400 <= e.status_code < 600 else 502)
+
+    mapped_entries = []
+    for att in (attendances or []):
+        if not _is_weekend_hyrox_sim_attendance(att):
+            continue
+        mapped = map_teamup_attendance_to_entry(att)
+        if not mapped or not mapped.get("display_name"):
+            continue
+        att_status = mapped.get("teamup_attendance_status", "registered")
+        if att_status in ("late_cancelled", "not_registered", "cancelled", "removed"):
+            continue
+        mapped_entries.append(mapped)
+
+    groups_summary = build_signup_groups_summary(mapped_entries)
+    return jsonify({
+        "ok": True,
+        "configured": teamup_configured,
+        "saturday_date": sat_date,
+        "sunday_date": sun_date,
+        "total_signups": len(mapped_entries),
+        "signup_groups": groups_summary,
+        "entries": mapped_entries,
+        "remote_events_count": len(remote_events),
+        "remote_events": remote_events,
+    })
+
+
+@hyrox_bp.route("/api/hyrox/events/setup-weekend", methods=["POST"])
+def api_setup_weekend_event():
+    """
+    Create or update the 2-Day Weekend HYROX Event for Next Saturday & Sunday:
+      - Saturday (Day 1, 14:00 - 17:00):
+          1. Male Solo (14:00 - 15:20, 1:1 slots)
+          2. Male Doubles / Mixed Doubles (15:30 - 16:50, 1:1 slots)
+      - Sunday (Day 2, 10:00 - 14:00):
+          3. Female Solo (10:00 - 11:50, 1:1 slots)
+          4. Female Doubles (12:00 - 13:50, 1:1 slots)
+    Optionally syncs TeamUp sign-ups directly into those 4 blocks.
+    """
+    db = get_db()
+    ensure_hyrox_tables(db)
+    data = request.get_json(silent=True) or {}
+
+    sat_default, sun_default = get_next_weekend_dates()
+    sat_date = (data.get("saturday_date") or data.get("event_date") or sat_default).strip()
+    sun_date = (data.get("sunday_date") or data.get("end_date") or sun_default).strip()
+    interval_mins = max(int(data.get("interval_mins") or 10), 5)
+    transition_buffer_mins = int(data.get("transition_buffer_mins") if data.get("transition_buffer_mins") is not None else 10)
+
+    try:
+        sat_dt = datetime.strptime(sat_date, "%Y-%m-%d")
+        sun_dt = datetime.strptime(sun_date, "%Y-%m-%d")
+        default_name = f"CS Performance HYROX Weekend — Sat {sat_dt.strftime('%d %b')} & Sun {sun_dt.strftime('%d %b %Y')}"
+    except Exception:
+        default_name = f"CS Performance HYROX Weekend — {sat_date} & {sun_date}"
+
+    ev_name = (data.get("name") or default_name).strip()
+    target_event_id = data.get("event_id")
+
+    if target_event_id:
+        ev_row = db.execute("SELECT * FROM hyrox_events WHERE id=?", (int(target_event_id),)).fetchone()
+        if not ev_row:
+            return jsonify({"error": "Event not found"}), 404
+        event_id = ev_row["id"]
+        db.execute(
+            "UPDATE hyrox_events SET name=?, event_date=?, end_date=?, num_days=2, wave_interval_mins=?, "
+            "lanes_per_wave=1, transition_buffer_mins=?, status='live' WHERE id=?",
+            (ev_name, sat_date, sun_date, interval_mins, transition_buffer_mins, event_id),
+        )
+    else:
+        existing_ev = db.execute(
+            "SELECT * FROM hyrox_events WHERE event_date=? AND end_date=? ORDER BY id DESC LIMIT 1",
+            (sat_date, sun_date),
+        ).fetchone()
+        if existing_ev and not data.get("force_new"):
+            event_id = existing_ev["id"]
+            db.execute(
+                "UPDATE hyrox_events SET name=?, wave_interval_mins=?, lanes_per_wave=1, "
+                "transition_buffer_mins=?, num_days=2, status='live' WHERE id=?",
+                (ev_name, interval_mins, transition_buffer_mins, event_id),
+            )
+        else:
+            cur_ev = db.execute(
+                "INSERT INTO hyrox_events (name, event_date, end_date, num_days, venue, wave_interval_mins, "
+                "lanes_per_wave, transition_buffer_mins, status, notes) "
+                "VALUES (?, ?, ?, 2, 'CS Performance Studio', ?, 1, ?, 'live', ?)",
+                (
+                    ev_name,
+                    sat_date,
+                    sun_date,
+                    interval_mins,
+                    transition_buffer_mins,
+                    "Saturday 14:00–17:00 (1. Male Solo · 2. Male Doubles / Mixed Doubles) | "
+                    "Sunday 10:00–14:00 (3. Female Solo · 4. Female Doubles)",
+                ),
+            )
+            event_id = cur_ev.lastrowid
+
+    if data.get("clear_empty_heats", True):
+        db.execute(
+            "DELETE FROM hyrox_heats WHERE event_id=? AND id NOT IN "
+            "(SELECT DISTINCT heat_id FROM hyrox_entries WHERE event_id=? AND heat_id IS NOT NULL)",
+            (event_id, event_id),
+        )
+
+    # Generate the 4 Weekend Blocks (Saturday 14:00-17:00 & Sunday 10:00-14:00)
+    # Saturday 14:00-15:20: 1. Male Solo (9 slots @ 10m = 14:00..15:20)
+    # Saturday 15:30-16:50: 2. Male Doubles / Mixed Doubles (9 slots @ 10m = 15:30..16:50)
+    # Sunday 10:00-11:50:   3. Female Solo (12 slots @ 10m = 10:00..11:50)
+    # Sunday 12:00-13:50:   4. Female Doubles (12 slots @ 10m = 12:00..13:50)
+    sat_solo_slots = int(data.get("male_solo_slots") or max(1, (90 // interval_mins)))
+    sat_doubles_slots = int(data.get("male_mixed_doubles_slots") or max(1, (90 // interval_mins)))
+    sun_solo_slots = int(data.get("female_solo_slots") or max(1, (120 // interval_mins)))
+    sun_doubles_slots = int(data.get("female_doubles_slots") or max(1, (120 // interval_mins)))
+
+    blocks_spec = [
+        (1, sat_date, "men_open", data.get("sat_solo_start") or "14:00", sat_solo_slots, transition_buffer_mins),
+        (1, sat_date, "men_doubles", data.get("sat_doubles_start") or "15:30", sat_doubles_slots, 0),
+        (2, sun_date, "women_open", data.get("sun_solo_start") or "10:00", sun_solo_slots, transition_buffer_mins),
+        (2, sun_date, "women_doubles", data.get("sun_doubles_start") or "12:00", sun_doubles_slots, 0),
+    ]
+
+    created_heat_ids = []
+    for day_num, s_date, div_blk, st_time, count, buf in blocks_spec:
+        start_mins = _hm_to_mins(st_time, 14 * 60 if day_num == 1 else 10 * 60)
+        div_label = HYROX_DIVISIONS.get(div_blk, {}).get("label", "")
+        grp_label = HYROX_SIGNUP_GROUPS[division_to_signup_group_key(div_blk)]["short_label"]
+        for i in range(count):
+            t_str = _mins_to_hm(start_mins + i * interval_mins)
+            exists = db.execute(
+                "SELECT id FROM hyrox_heats WHERE event_id=? AND COALESCE(day_number, 1)=? AND start_time=? LIMIT 1",
+                (event_id, day_num, t_str),
+            ).fetchone()
+            if exists:
+                continue
+            existing_max = db.execute(
+                "SELECT COALESCE(MAX(heat_number), 0) as m FROM hyrox_heats WHERE event_id=?",
+                (event_id,),
+            ).fetchone()["m"]
+            h_num = existing_max + 1
+            h_name = f"Day {day_num} · {t_str} — {grp_label}"
+            buf_after = buf if (i == count - 1) else 0
+            cur_h = db.execute(
+                "INSERT INTO hyrox_heats (event_id, heat_number, day_number, slot_date, division_block, "
+                "transition_buffer_mins, name, start_time, max_lanes, status) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'scheduled')",
+                (event_id, h_num, day_num, s_date, div_blk, buf_after, h_name, t_str),
+            )
+            created_heat_ids.append(cur_h.lastrowid)
+
+    # Optional: Sync TeamUp sign-ups or inline `attendances` into the 4 weekend blocks
+    synced_ids = []
+    teamup_sync_error = None
+    attendances = data.get("attendances")
+    should_sync_teamup = data.get("sync_teamup", True)
+    cfg = get_teamup_config(db)
+
+    if attendances is None and should_sync_teamup and cfg["has_token"]:
+        client = TeamUpClient(api_token=cfg["api_token"], provider_id=cfg["provider_id"], base_url=cfg["base_url"])
+        try:
+            _, _, _, attendances = _fetch_weekend_teamup_signups(
+                client, sat_date, sun_date, status="registered"
+            )
+        except TeamUpAPIError as e:
+            teamup_sync_error = e.message
+
+    for att in (attendances or []):
+        if not _is_weekend_hyrox_sim_attendance(att):
+            continue
+        mapped = map_teamup_attendance_to_entry(att)
+        if not mapped or not mapped.get("display_name"):
+            continue
+        if mapped.get("teamup_attendance_status") in ("late_cancelled", "not_registered", "cancelled", "removed"):
+            continue
+        _assign_weekend_group_slot(db, event_id, mapped, interval_mins=interval_mins)
+        eid, _ = _create_entry_record(db, event_id, mapped, upsert=True)
+        if eid:
+            synced_ids.append(eid)
+
+    db.commit()
+    ev_final = db.execute("SELECT * FROM hyrox_events WHERE id=?", (event_id,)).fetchone()
+    heats_final = [
+        dict(h)
+        for h in db.execute(
+            "SELECT * FROM hyrox_heats WHERE event_id=? ORDER BY day_number ASC, start_time ASC, heat_number ASC",
+            (event_id,),
+        ).fetchall()
+    ]
+    entry_rows = db.execute("SELECT * FROM hyrox_entries WHERE event_id=? ORDER BY id ASC", (event_id,)).fetchall()
+    entries_final = [serialize_entry(db, r, include_splits=False, include_history=False) for r in entry_rows]
+
+    return jsonify({
+        "ok": True,
+        "event": dict(ev_final),
+        "saturday_date": sat_date,
+        "sunday_date": sun_date,
+        "heats_created_count": len(created_heat_ids),
+        "heats_total_count": len(heats_final),
+        "synced_count": len(synced_ids),
+        "teamup_sync_error": teamup_sync_error,
+        "entries": entries_final,
+        "signup_groups": build_signup_groups_summary(entries_final),
+    }), 201
+
+
 @hyrox_bp.route("/api/hyrox/events/<int:event_id>/sync-teamup", methods=["POST"])
 def api_sync_teamup_to_event(event_id):
     """
@@ -3242,8 +3868,9 @@ def api_sync_teamup_to_event(event_id):
         attendances = data["results"]
 
     auto_stagger = bool(data.get("auto_stagger_slots"))
+    assign_weekend_blocks = data.get("assign_weekend_blocks", True)
     stagger_start_time = (data.get("stagger_start_time") or "").strip()
-    interval_mins = int(data.get("interval_mins") or ev["wave_interval_mins"] or 15)
+    interval_mins = int(data.get("interval_mins") or ev["wave_interval_mins"] or 10)
 
     if attendances is None:
         inline_tok = (data.get("api_token") or "").strip()
@@ -3266,7 +3893,7 @@ def api_sync_teamup_to_event(event_id):
         starts_lte = data.get("starts_at_lte")
         if not teamup_event_ids and not starts_gte:
             ev_date = ev["event_date"]
-            ev_end = ev["event_end_date"] if "event_end_date" in ev.keys() and ev["event_end_date"] else ev_date
+            ev_end = (ev["end_date"] if "end_date" in ev.keys() and ev["end_date"] else ev_date)
             starts_gte = f"{ev_date}T00:00:00Z"
             starts_lte = f"{ev_end}T23:59:59Z"
         try:
@@ -3304,13 +3931,15 @@ def api_sync_teamup_to_event(event_id):
                 skipped += 1
             continue
 
-        if auto_stagger:
+        if auto_stagger and stagger_start_time:
             base_hm = stagger_start_time or mapped.get("heat_time") or "08:00"
             m_hm = re.match(r"^(\d{1,2}):(\d{2})$", base_hm)
             base_mins = (int(m_hm.group(1)) * 60 + int(m_hm.group(2))) if m_hm else 8 * 60
             slot_mins = base_mins + (stagger_idx * interval_mins)
             mapped["heat_time"] = f"{(slot_mins // 60) % 24:02d}:{slot_mins % 60:02d}"
             stagger_idx += 1
+        elif assign_weekend_blocks and int(ev["lanes_per_wave"] or 1) == 1:
+            _assign_weekend_group_slot(db, event_id, mapped, interval_mins=interval_mins)
 
         eid, err = _create_entry_record(db, event_id, mapped, upsert=True)
         if eid:
@@ -3319,6 +3948,8 @@ def api_sync_teamup_to_event(event_id):
             skipped += 1
 
     db.commit()
+    entry_rows = db.execute("SELECT * FROM hyrox_entries WHERE event_id=? ORDER BY id ASC", (event_id,)).fetchall()
+    entries_final = [serialize_entry(db, r, include_splits=False, include_history=False) for r in entry_rows]
     return jsonify({
         "ok": True,
         "synced_count": len(synced_ids),
@@ -3326,6 +3957,7 @@ def api_sync_teamup_to_event(event_id):
         "skipped_count": skipped,
         "synced_entry_ids": synced_ids,
         "cancelled_entry_ids": cancelled_ids,
+        "signup_groups": build_signup_groups_summary(entries_final),
     })
 
 

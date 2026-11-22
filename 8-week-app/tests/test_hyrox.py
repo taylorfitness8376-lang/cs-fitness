@@ -13,30 +13,23 @@ def test_landing_page_includes_hyrox_card(client):
 
 
 def test_seeded_demo_events_and_divisions_matrix(client):
-    """Verify demo event seeding, 16-split sequence, and 7-division official HYROX weights matrix."""
+    """Verify default weekend event starts with zero sample data, 16-split sequence, and 9-division matrix."""
     resp = client.get("/api/hyrox/events")
     assert resp.status_code == 200
     events = resp.get_json()
-    assert len(events) >= 2
-    nov_event = next(e for e in events if "Nov 2026" in e["name"])
+    assert len(events) >= 1
+    nov_event = next(e for e in events if "Nov 2026" in e["name"] or "28th" in e["name"])
 
     state_resp = client.get(f"/api/hyrox/events/{nov_event['id']}/state")
     assert state_resp.status_code == 200
     state = state_resp.get_json()
 
+    # No sample/fake athletes or entries are pre-seeded
+    assert state["entries"] == []
+
     assert len(state["splits_template"]) == 16
     assert state["splits_template"][0]["label"].startswith("Run 1")
     assert state["splits_template"][15]["station_key"] == "wall_balls"
-
-    ewan = next(e for e in state["entries"] if "Ewan Taylor" in e["display_name"])
-    assert ewan["run_distance_km"] == 1.2
-    assert ewan["total_run_distance_km"] == 9.6
-    assert ewan["avg_run_kph"] > 0
-    assert "kph" in ewan["avg_run_kph_formatted"]
-    run1_split = ewan["splits"][0]
-    assert run1_split["distance_km"] == 1.2
-    assert run1_split["pace_kph"] > 0
-    assert "kph" in run1_split["pace_kph_formatted"]
 
     divisions = state["divisions"]
     assert set(divisions.keys()) == {
@@ -63,12 +56,6 @@ def test_seeded_demo_events_and_divisions_matrix(client):
     assert any(h.get("day_number") == 2 for h in heats)
     assert all(h.get("max_lanes") == 1 for h in heats)
     assert any(h.get("weight_change_from_prev") is True and h.get("weight_change_alert") for h in heats)
-
-    # Verify Roxfit labels, PB detection, and split ranks on Ewan Taylor
-    assert ewan["avg_run_rank"] >= 1
-    assert ewan["splits"][1]["roxfit_label"] == "Ski"
-    assert any(s.get("is_pb") for s in ewan["splits"])
-    assert all(s.get("split_rank") is not None for s in ewan["splits"])
 
 
 def test_event_heat_creation_and_teamup_csv_import(client):
@@ -236,9 +223,12 @@ def test_split_corrections_and_combined_segment_splitter(client):
     """Test Race Director split corrections and splitting a combined Run+Station segment."""
     events = client.get("/api/hyrox/events").get_json()
     event_id = events[0]["id"]
-    state = client.get(f"/api/hyrox/events/{event_id}/state").get_json()
-    ewan = next(e for e in state["entries"] if "Ewan Taylor" in e["display_name"])
-    entry_id = ewan["id"]
+    create_resp = client.post(
+        f"/api/hyrox/events/{event_id}/entries",
+        json={"display_name": "Split Edit Athlete", "division": "men_open"},
+    )
+    assert create_resp.status_code == 201
+    entry_id = create_resp.get_json()["id"]
 
     # Edit Split 1 and add a 15s penalty
     corr_resp = client.put(
@@ -275,16 +265,50 @@ def test_split_corrections_and_combined_segment_splitter(client):
 
 
 def test_historical_progression_and_web_surfaces(client):
-    """Verify Roxfit-Lite historical comparison for Ewan Taylor and HTML surfaces."""
-    events = client.get("/api/hyrox/events").get_json()
-    nov_event = next(e for e in events if "Nov 2026" in e["name"])
-    state = client.get(f"/api/hyrox/events/{nov_event['id']}/state").get_json()
+    """Verify Roxfit-Lite historical comparison across 2 sims and HTML surfaces."""
+    ev1 = client.post(
+        "/api/hyrox/events",
+        json={"name": "Baseline Sim", "event_date": "2026-09-19", "first_wave_time": "09:00", "num_waves": 2},
+    ).get_json()
+    ev2 = client.post(
+        "/api/hyrox/events",
+        json={"name": "Second Sim", "event_date": "2026-11-28", "first_wave_time": "14:00", "num_waves": 2},
+    ).get_json()
+
+    e1 = client.post(
+        f"/api/hyrox/events/{ev1['id']}/entries",
+        json={"display_name": "Ewan Taylor", "email": "ewan@csfitness.co.uk", "division": "men_open"},
+    ).get_json()
+    client.put(
+        f"/api/hyrox/entries/{e1['id']}/splits",
+        json={
+            "status": "finished",
+            "splits": [{"split_index": i, "duration_str": "04:00"} for i in range(1, 17)],
+        },
+    )
+
+    e2 = client.post(
+        f"/api/hyrox/events/{ev2['id']}/entries",
+        json={"display_name": "Ewan Taylor", "email": "ewan@csfitness.co.uk", "division": "men_open"},
+    ).get_json()
+    client.put(
+        f"/api/hyrox/entries/{e2['id']}/splits",
+        json={
+            "status": "finished",
+            "splits": [{"split_index": i, "duration_str": "03:45"} for i in range(1, 17)],
+        },
+    )
+
+    state = client.get(f"/api/hyrox/events/{ev2['id']}/state").get_json()
     ewan = next(e for e in state["entries"] if "Ewan Taylor" in e["display_name"])
 
     assert ewan["history"] is not None
     assert ewan["history"]["sim_count"] >= 2
     assert ewan["history"]["comparison"] is not None
     assert ewan["history"]["comparison"]["total_delta_ms"] < 0
+    assert ewan["avg_run_rank"] >= 1
+    assert ewan["splits"][1]["roxfit_label"] == "Ski"
+    assert any(s.get("is_pb") for s in ewan["splits"])
 
     # Surface 1: Sim Management & Race Director Console
     root_hyrox_resp = client.get("/hyrox")
@@ -294,7 +318,7 @@ def test_historical_progression_and_web_surfaces(client):
 
     admin_resp = client.get("/hyrox/admin")
     assert admin_resp.status_code == 200
-    assert b"TEAMUP CSV IMPORT" in admin_resp.data
+    assert b"FAST ADD ATHLETE / PAIR &amp; BULK PASTE LIST" in admin_resp.data
     assert b'id="modal-division"' in admin_resp.data
     assert b'<option value="men_doubles">Men&#39;s Open Doubles (M Open Dbl)</option>' in admin_resp.data
     assert b'<option value="mixed_doubles">Mixed Doubles (Mixed Dbl)</option>' in admin_resp.data
@@ -322,6 +346,56 @@ def test_historical_progression_and_web_surfaces(client):
     ath_resp = client.get(f"/hyrox/athlete/{ewan['athlete_id']}")
     assert ath_resp.status_code == 200
     assert b"Ewan Taylor" in ath_resp.data
+
+
+def test_simplified_entry_pair_splitting_bulk_paste_and_clear(client):
+    """Test 1-line pair name splitting, auto-slot assignment, bulk paste list, and clear-entries."""
+    ev_resp = client.post(
+        "/api/hyrox/events/setup-weekend",
+        json={"saturday_date": "2026-11-28", "sunday_date": "2026-11-29", "sync_teamup": False},
+    )
+    assert ev_resp.status_code in (200, 201)
+    event_id = ev_resp.get_json()["event"]["id"]
+
+    # 1. Single-line pair entry with '&' auto-splits partner and auto-assigns Group 2 (Sat 15:30)
+    pair_resp = client.post(
+        f"/api/hyrox/events/{event_id}/entries",
+        json={"display_name": "Luke Shaw & Dan Reid", "signup_group": "male_mixed_doubles"},
+    )
+    assert pair_resp.status_code == 201
+    pair_entry = pair_resp.get_json()
+    assert pair_entry["display_name"] == "Luke Shaw"
+    assert pair_entry["partner_name"] == "Dan Reid"
+    assert pair_entry["division"] == "men_doubles"
+    assert pair_entry["heat_day_number"] == 1
+    assert pair_entry["heat_start_time"] == "15:30"
+
+    # 2. Bulk paste list with multiple lines across formats
+    bulk_resp = client.post(
+        f"/api/hyrox/events/{event_id}/entries/bulk-simple",
+        json={
+            "division": "women_open",
+            "lines_text": (
+                "10:00 Hannah Millar\n"
+                "Chloe Grant & Sophie Robertson | Female Doubles | 12:10 | Coach Laura\n"
+                "10:20 Emma Kerr, Coach Chris\n"
+            ),
+        },
+    )
+    assert bulk_resp.status_code == 201
+    bulk_data = bulk_resp.get_json()
+    assert bulk_data["added_count"] == 3
+    groups_map = {g["key"]: g for g in bulk_data["signup_groups"]}
+    assert groups_map["male_mixed_doubles"]["count"] == 1
+    assert groups_map["female_solo"]["count"] == 2
+    assert groups_map["female_doubles"]["count"] == 1
+
+    # 3. Clear all entries resets the event cleanly back to 0 entries
+    clear_resp = client.post(f"/api/hyrox/events/{event_id}/clear-entries")
+    assert clear_resp.status_code == 200
+    assert clear_resp.get_json()["deleted_count"] == 4
+    state_after = client.get(f"/api/hyrox/events/{event_id}/state").get_json()
+    assert state_after["entries"] == []
 
 
 def test_teamup_api_v2_sync_and_webhooks(client):
@@ -560,6 +634,179 @@ def test_teamup_api_v2_sync_and_webhooks(client):
     assert "tap-btn-well" in judge_html
     assert "btn-theme-green" in judge_html
     assert "primary-btn-kicker" in judge_html
+
+
+def test_weekend_sat28_sun29_four_group_signups_and_setup(client):
+    """
+    Verify Saturday 28th (14:00-17:00) & Sunday 29th (10:00-14:00) 4-group TeamUp sign-up
+    classification, morning class exclusion, and 1:1 staggered slot assignment:
+      1. Male Solo (Sat 14:00-15:20)
+      2. Male Doubles / Mixed Doubles (Sat 15:30-16:50)
+      3. Female Solo (Sun 10:00-11:50)
+      4. Female Doubles (Sun 12:00-13:50)
+    """
+    sample_attendances = [
+        # Regular morning classes on Sat 28th & Sun 29th that should be excluded
+        {
+            "id": 9101,
+            "status": "registered",
+            "customer": {"id": 801, "first_name": "Early", "last_name": "Riser", "email": "early@example.com"},
+            "event": {
+                "id": 701,
+                "name": "05:30 Thresholds",
+                "starts_at": "2026-11-28T05:30:00Z",
+                "offering_type": {"name": "05:30 Thresholds"},
+            },
+        },
+        {
+            "id": 9102,
+            "status": "registered",
+            "customer": {"id": 802, "first_name": "Junior", "last_name": "Kid", "email": "kid@example.com"},
+            "event": {
+                "id": 702,
+                "name": "Hyrox Youngstars specific training (age 8-16)",
+                "starts_at": "2026-11-28T10:45:00Z",
+                "offering_type": {"name": "Hyrox Youngstars specific training (age 8-16)"},
+            },
+        },
+        {
+            "id": 9103,
+            "status": "registered",
+            "customer": {"id": 803, "first_name": "Sunday", "last_name": "Early", "email": "sunearly@example.com"},
+            "event": {
+                "id": 703,
+                "name": "Hyrox Specific Training",
+                "starts_at": "2026-11-29T07:00:00Z",
+                "offering_type": {"name": "Hyrox Specific Training"},
+            },
+        },
+        # Group 1: Male Solo (Saturday 28th 14:00-17:00)
+        {
+            "id": 9201,
+            "status": "registered",
+            "customer": {"id": 811, "first_name": "Callum", "last_name": "Boyd", "email": "callum@example.com", "gender": "M"},
+            "event": {
+                "id": 711,
+                "name": "HYROX Simulation — Male Solo",
+                "starts_at": "2026-11-28T14:00:00Z",
+                "offering_type": {"name": "HYROX Simulation — Male Solo"},
+            },
+        },
+        # Group 2: Male Doubles & Mixed Doubles (Saturday 28th 14:00-17:00)
+        {
+            "id": 9202,
+            "status": "registered",
+            "notes": "Partner: Dan Reid",
+            "customer": {"id": 812, "first_name": "Luke", "last_name": "Shaw", "email": "luke@example.com", "gender": "M"},
+            "event": {
+                "id": 712,
+                "name": "HYROX Simulation — Male Pairs",
+                "starts_at": "2026-11-28T15:30:00Z",
+                "offering_type": {"name": "HYROX Simulation — Male Doubles"},
+            },
+        },
+        {
+            "id": 9203,
+            "status": "registered",
+            "notes": "Partner: Chloe Grant (Mixed Doubles)",
+            "customer": {"id": 813, "first_name": "Sam", "last_name": "Kerr", "email": "sam@example.com"},
+            "event": {
+                "id": 713,
+                "name": "HYROX Simulation — Mixed Doubles",
+                "starts_at": "2026-11-28T16:00:00Z",
+                "offering_type": {"name": "HYROX Simulation — Mixed Doubles"},
+            },
+        },
+        # Group 3: Female Solo (Sunday 29th 10:00-14:00)
+        {
+            "id": 9204,
+            "status": "registered",
+            "customer": {"id": 814, "first_name": "Hannah", "last_name": "Millar", "email": "hannah@example.com", "gender": "F"},
+            "event": {
+                "id": 714,
+                "name": "HYROX Simulation — Female Solo",
+                "starts_at": "2026-11-29T10:00:00Z",
+                "offering_type": {"name": "HYROX Simulation — Female Solo"},
+            },
+        },
+        # Group 4: Female Doubles (Sunday 29th 10:00-14:00)
+        {
+            "id": 9205,
+            "status": "registered",
+            "notes": "Partner: Isla Vance",
+            "customer": {"id": 815, "first_name": "Megan", "last_name": "Ross", "email": "megan@example.com", "gender": "F"},
+            "event": {
+                "id": 715,
+                "name": "HYROX Simulation — Female Pairs",
+                "starts_at": "2026-11-29T12:00:00Z",
+                "offering_type": {"name": "HYROX Simulation — Female Pairs"},
+            },
+        },
+    ]
+
+    # 1. Preview sign-ups via POST /api/hyrox/teamup/signups
+    prev_res = client.post(
+        "/api/hyrox/teamup/signups",
+        json={
+            "saturday_date": "2026-11-28",
+            "sunday_date": "2026-11-29",
+            "attendances": sample_attendances,
+        },
+    )
+    assert prev_res.status_code == 200
+    prev_data = prev_res.get_json()
+    assert prev_data["ok"] is True
+    # Only the 5 HYROX weekend entries should be kept (morning non-sim classes excluded)
+    assert prev_data["total_signups"] == 5
+    groups_by_key = {g["key"]: g for g in prev_data["signup_groups"]}
+    assert groups_by_key["male_solo"]["count"] == 1
+    assert groups_by_key["male_mixed_doubles"]["count"] == 2
+    assert groups_by_key["female_solo"]["count"] == 1
+    assert groups_by_key["female_doubles"]["count"] == 1
+
+    # 2. Setup the Saturday 28th & Sunday 29th event + import sign-ups into 1:1 slots
+    setup_res = client.post(
+        "/api/hyrox/events/setup-weekend",
+        json={
+            "name": "CS Performance HYROX — Sat 28th & Sun 29th",
+            "saturday_date": "2026-11-28",
+            "sunday_date": "2026-11-29",
+            "interval_mins": 10,
+            "force_new": True,
+            "attendances": sample_attendances,
+        },
+    )
+    assert setup_res.status_code in (200, 201)
+    sdata = setup_res.get_json()
+    assert sdata["ok"] is True
+    assert sdata["saturday_date"] == "2026-11-28"
+    assert sdata["sunday_date"] == "2026-11-29"
+    assert sdata["synced_count"] == 5
+
+    entries_by_name = {e["display_name"]: e for e in sdata["entries"]}
+    assert entries_by_name["Callum Boyd"]["signup_group"] == "male_solo"
+    assert entries_by_name["Callum Boyd"]["heat_day_number"] == 1
+    assert entries_by_name["Callum Boyd"]["heat_start_time"] == "14:00"
+
+    assert entries_by_name["Luke Shaw"]["signup_group"] == "male_mixed_doubles"
+    assert entries_by_name["Luke Shaw"]["division"] == "men_doubles"
+    assert entries_by_name["Luke Shaw"]["heat_day_number"] == 1
+    assert entries_by_name["Luke Shaw"]["heat_start_time"] == "15:30"
+
+    assert entries_by_name["Sam Kerr"]["signup_group"] == "male_mixed_doubles"
+    assert entries_by_name["Sam Kerr"]["division"] == "mixed_doubles"
+    assert entries_by_name["Sam Kerr"]["heat_day_number"] == 1
+    assert entries_by_name["Sam Kerr"]["heat_start_time"] == "15:40"
+
+    assert entries_by_name["Hannah Millar"]["signup_group"] == "female_solo"
+    assert entries_by_name["Hannah Millar"]["heat_day_number"] == 2
+    assert entries_by_name["Hannah Millar"]["heat_start_time"] == "10:00"
+
+    assert entries_by_name["Megan Ross"]["signup_group"] == "female_doubles"
+    assert entries_by_name["Megan Ross"]["division"] == "women_doubles"
+    assert entries_by_name["Megan Ross"]["heat_day_number"] == 2
+    assert entries_by_name["Megan Ross"]["heat_start_time"] == "12:00"
+
 
 
 
