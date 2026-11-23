@@ -318,7 +318,14 @@ def test_historical_progression_and_web_surfaces(client):
 
     admin_resp = client.get("/hyrox/admin")
     assert admin_resp.status_code == 200
-    assert b"FAST ADD ATHLETE / PAIR &amp; BULK PASTE LIST" in admin_resp.data
+    assert b"1. EVENT SETUP" in admin_resp.data
+    assert b"2. ADD ATHLETE / PAIR" in admin_resp.data
+    assert b"3. MANAGE ATHLETES &amp; VOLUNTEERS" in admin_resp.data
+    assert b"4. RESULTS &amp; POST-RACE WEB LINKS" in admin_resp.data
+    assert b"ADVANCED: TEAMUP API v2 CONFIG, CSV IMPORT &amp; CUSTOM SLOT GENERATOR" in admin_resp.data
+    assert b"FAST ADD ATHLETE / PAIR &amp; BULK PASTE LIST" not in admin_resp.data
+    assert b"signup-groups-board" not in admin_resp.data
+    assert b"DIVISION &amp; EQUIPMENT CHANGEOVER" not in admin_resp.data
     assert b'id="modal-division"' in admin_resp.data
     assert b'<option value="men_doubles">Men&#39;s Open Doubles (M Open Dbl)</option>' in admin_resp.data
     assert b'<option value="mixed_doubles">Mixed Doubles (Mixed Dbl)</option>' in admin_resp.data

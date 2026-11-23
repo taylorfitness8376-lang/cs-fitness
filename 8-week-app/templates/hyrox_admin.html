@@ -315,149 +315,102 @@
   </header>
 
   <main class="container">
-    <!-- WEEKEND EVENT SETUP (SAT 14:00-17:00 & SUN 10:00-14:00) + 4-GROUP SIGN-UPS BOARD -->
-    <section class="card" style="border-color:rgba(61,255,79,0.35);background:linear-gradient(180deg, rgba(61,255,79,0.06) 0%, var(--surface) 100%)">
+    <!-- ================================================================= -->
+    <!-- 1. EVENT SETUP                                                    -->
+    <!-- ================================================================= -->
+    <section class="card" style="border-color:rgba(61,255,79,0.35)">
       <div class="card-header">
         <div>
-          <div class="card-title" style="color:var(--green)">⚡ WEEKEND EVENT SETUP &amp; 4-GROUP SIGN-UPS (SAT 14:00–17:00 · SUN 10:00–14:00)</div>
+          <div class="card-title" style="color:var(--green)">1. EVENT SETUP</div>
           <div style="font-size:0.75rem;color:var(--muted)">
-            <strong>Saturday (2:00 PM – 5:00 PM)</strong>: 1. Male Solo &amp; 2. Male Doubles / Mixed Doubles &nbsp;|&nbsp;
-            <strong>Sunday (10:00 AM – 2:00 PM)</strong>: 3. Female Solo &amp; 4. Female Doubles
+            <strong>Saturday (14:00–17:00)</strong>: Male Solo &amp; Male / Mixed Doubles &nbsp;|&nbsp;
+            <strong>Sunday (10:00–14:00)</strong>: Female Solo &amp; Female Doubles
           </div>
         </div>
         <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">
-          <button type="button" class="btn btn-green" onclick="setupWeekendEvent(false)">⚡ Setup Next Sat/Sun Event + Sync TeamUp</button>
-          <button type="button" class="btn" onclick="setupWeekendEvent(true)" title="Configure current event with Sat 14:00–17:00 &amp; Sun 10:00–14:00 1:1 slots">🧱 Apply Sat 2–5 / Sun 10–2 Slots to Active Event</button>
+          <button type="button" class="btn btn-green" onclick="setupWeekendEvent(false)">⚡ Setup Event &amp; Sync TeamUp</button>
+          <button type="button" class="btn" onclick="setupWeekendEvent(true)" title="Apply Sat 14:00–17:00 &amp; Sun 10:00–14:00 slots to active event">🧱 Apply Slots to Active Event</button>
           <button type="button" class="btn btn-yellow" onclick="checkLiveTeamUpSignups()">📡 Check TeamUp Sign-Ups</button>
         </div>
       </div>
 
-      <!-- Weekend Dates & Slot Interval Controls -->
       <div class="form-row" style="margin-bottom:0.55rem">
         <div>
-          <label>Weekend Event Name (Auto-Filled if Blank)</label>
+          <label>Event Name (Auto-Filled if Blank)</label>
           <input type="text" id="wk-ev-name" placeholder="CS Performance HYROX Weekend — Sat 28th &amp; Sun 29th" />
         </div>
         <div>
-          <label>Saturday 28th Date (14:00–17:00 · Male Solo + Male/Mixed Doubles)</label>
+          <label>Saturday Date (14:00–17:00)</label>
           <input type="date" id="wk-sat-date" value="2026-11-28" />
         </div>
         <div>
-          <label>Sunday 29th Date (10:00–14:00 · Female Solo + Female Doubles)</label>
+          <label>Sunday Date (10:00–14:00)</label>
           <input type="date" id="wk-sun-date" value="2026-11-29" />
         </div>
         <div>
-          <label>1:1 Slot Interval (mins)</label>
+          <label>Slot Interval (mins)</label>
           <input type="number" id="wk-interval" value="10" min="5" max="60" />
         </div>
       </div>
-      <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;margin-bottom:0.75rem;font-size:0.72rem;color:var(--muted)">
+      <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;font-size:0.72rem;color:var(--muted)">
         <span style="font-weight:700">Quick Date Presets:</span>
         <button type="button" class="btn" style="padding:0.2rem 0.55rem;font-size:0.7rem" onclick="setWeekendDatePreset('2026-11-28','2026-11-29')">Sat 28th &amp; Sun 29th Nov 2026</button>
-        <button type="button" class="btn" style="padding:0.2rem 0.55rem;font-size:0.7rem" onclick="setWeekendDatePreset('2026-03-28','2026-03-29')">Sat 28th &amp; Sun 29th Mar 2026</button>
-        <button type="button" class="btn" style="padding:0.2rem 0.55rem;font-size:0.7rem" onclick="setWeekendDatePreset('2026-04-28','2026-04-29')">28th &amp; 29th Apr 2026</button>
+        <button type="button" class="btn" style="padding:0.2rem 0.55rem;font-size:0.7rem" onclick="setWeekendDatePreset('2027-02-20','2027-02-21')">Feb 2027 Glasgow Sim</button>
         <button type="button" class="btn" style="padding:0.2rem 0.55rem;font-size:0.7rem" onclick="setUpcomingWeekendPreset()">Upcoming Sat &amp; Sun</button>
       </div>
-      <div id="wk-setup-status" style="font-size:0.76rem;color:var(--muted);margin-bottom:0.75rem;display:none"></div>
-
-      <!-- 4-Group Sign-Ups Overview Board (With Inline 1-Line Quick Add per Group) -->
-      <div id="signup-groups-board" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem"></div>
+      <div id="wk-setup-status" style="font-size:0.76rem;color:var(--muted);margin-top:0.65rem;display:none"></div>
     </section>
 
-    <!-- SIMPLIFIED FAST ADD (SINGLE LINE OR BULK PASTE LIST) -->
-    <section class="card" style="border-color:rgba(56,189,248,0.3)">
+    <!-- ================================================================= -->
+    <!-- 2. ADD ATHLETE / PAIR (WITH EMAIL FOR POST-RACE RESULTS LINK)     -->
+    <!-- ================================================================= -->
+    <section class="card">
       <div class="card-header">
         <div>
-          <div class="card-title">➕ FAST ADD ATHLETE / PAIR &amp; BULK PASTE LIST</div>
-          <div style="font-size:0.74rem;color:var(--muted)">
-            Type a single name (<code>Callum Boyd</code>) or a pair with <code>&amp;</code> / <code>/</code> (<code>Luke Shaw &amp; Dan Reid</code>). Leave time blank to auto-assign the next open 1:1 slot.
+          <div class="card-title">2. ADD ATHLETE / PAIR</div>
+          <div style="font-size:0.75rem;color:var(--muted)">
+            Add an athlete or doubles pair (use <code>&amp;</code> for pairs, e.g. <code>Ewan Stewart &amp; Ewan Taylor</code>) and include their email to send their post-race results web link.
           </div>
         </div>
       </div>
 
-      <div class="grid-2" style="margin-bottom:0">
-        <!-- Left: Simple 1-Line Add -->
-        <div style="background:var(--surface-2);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.8rem">
-          <div style="font-size:0.76rem;font-weight:800;color:var(--green);margin-bottom:0.5rem;text-transform:uppercase">
-            ⚡ Quick 1-Line Entry (Press Enter to Add)
-          </div>
-          <div style="display:grid;grid-template-columns:2fr 1.3fr 0.85fr 1fr auto;gap:0.5rem;align-items:end">
-            <div>
-              <label title="Athlete Name or Pair (e.g. Luke & Dan)">Name or Pair *</label>
-              <input type="text" id="qa-name" placeholder="e.g. Callum Boyd or Luke &amp; Dan" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
-            </div>
-            <div>
-              <label title="HYROX Division">Group / Division</label>
-              <select id="qa-division">
-                <optgroup label="Weekend 4 Core Groups">
-                  <option value="men_open">1. Male Solo (Men Open)</option>
-                  <option value="men_doubles">2. Male Doubles</option>
-                  <option value="mixed_doubles">2. Mixed Doubles</option>
-                  <option value="women_open">3. Female Solo (Women Open)</option>
-                  <option value="women_doubles">4. Female Doubles</option>
-                </optgroup>
-                <optgroup label="Pro Divisions">
-                  <option value="men_pro">1. Male Solo (Men Pro)</option>
-                  <option value="men_pro_doubles">2. Men Pro Doubles</option>
-                  <option value="women_pro">3. Female Solo (Women Pro)</option>
-                  <option value="women_pro_doubles">4. Women Pro Doubles</option>
-                </optgroup>
-              </select>
-            </div>
-            <div>
-              <label title="Optional Start Time (HH:MM) — leave blank for next open 1:1 slot">Time (Opt)</label>
-              <input type="text" id="qa-time" placeholder="Auto (e.g. 14:00)" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
-            </div>
-            <div>
-              <label title="Optional Volunteer / Judge">Volunteer (Opt)</label>
-              <input type="text" id="qa-volunteer" placeholder="e.g. Coach Chris" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
-            </div>
-            <div>
-              <button type="button" class="btn btn-green" style="height:38px;padding:0 1rem;justify-content:center" onclick="quickAddEntry()">+ Add</button>
-            </div>
-          </div>
-
-          <!-- Optional Extra Fields Drawer (kept for full compatibility) -->
-          <details style="margin-top:0.55rem">
-            <summary style="cursor:pointer;font-size:0.71rem;color:var(--muted);font-weight:700">
-              ⚙️ More options (Separate Partner field, Specific Slot dropdown, Email)
-            </summary>
-            <div class="form-row" style="margin-top:0.45rem;margin-bottom:0">
-              <div>
-                <label>Partner Name (if not using &amp;)</label>
-                <input type="text" id="qa-partner" placeholder="Optional partner name" />
-              </div>
-              <div>
-                <label>Specific 1:1 Slot</label>
-                <select id="qa-heat"></select>
-              </div>
-              <div>
-                <label>Email (Optional)</label>
-                <input type="email" id="qa-email" placeholder="athlete@email.com" />
-              </div>
-            </div>
-          </details>
+      <div style="display:grid;grid-template-columns:1.6fr 1.2fr 1.3fr 1.1fr 0.9fr auto;gap:0.55rem;align-items:end">
+        <div>
+          <label>Athlete or Pair Name *</label>
+          <input type="text" id="qa-name" placeholder="e.g. Lucas Kane or Ewan &amp; Ewan" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
         </div>
-
-        <!-- Right: Bulk Paste List (1 Athlete or Pair per Line) -->
-        <div style="background:var(--surface-2);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.8rem">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;margin-bottom:0.45rem">
-            <div style="font-size:0.76rem;font-weight:800;color:var(--blue);text-transform:uppercase">
-              📋 Bulk Paste List (1 Athlete or Pair per Line)
-            </div>
-            <select id="bulk-simple-division" style="width:auto;padding:0.22rem 0.5rem;font-size:0.74rem;font-weight:800">
-              <option value="men_open">1. Male Solo (Sat 2–5)</option>
-              <option value="men_doubles">2. Male Doubles (Sat 2–5)</option>
-              <option value="mixed_doubles">2. Mixed Doubles (Sat 2–5)</option>
-              <option value="women_open">3. Female Solo (Sun 10–2)</option>
-              <option value="women_doubles">4. Female Doubles (Sun 10–2)</option>
-            </select>
-          </div>
-          <textarea id="bulk-simple-text" rows="3" style="font-size:0.78rem;margin-bottom:0.45rem" placeholder="Paste 1 per line (time &amp; volunteer optional):&#10;14:00 Callum Boyd&#10;Luke Shaw &amp; Dan Reid&#10;15:40 Sam Kerr &amp; Chloe Grant, Mixed Doubles, Coach Laura"></textarea>
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem">
-            <span id="bulk-simple-status" style="font-size:0.72rem;color:var(--muted)">Pairs with <code>&amp;</code> or <code>/</code> split automatically · Auto-assigns 1:1 slots</span>
-            <button type="button" class="btn btn-green" style="padding:0.35rem 0.85rem;font-size:0.76rem" onclick="submitBulkSimpleEntries()">⚡ Add All Lines</button>
-          </div>
+        <div>
+          <label>Category / Division</label>
+          <select id="qa-division">
+            <optgroup label="Weekend 4 Core Groups">
+              <option value="men_open">1. Male Solo (Men Open)</option>
+              <option value="men_doubles">2. Male Doubles (Open)</option>
+              <option value="mixed_doubles">2. Mixed Doubles (Open)</option>
+              <option value="women_open">3. Female Solo (Women Open)</option>
+              <option value="women_doubles">4. Female Doubles (Open)</option>
+            </optgroup>
+            <optgroup label="Pro Divisions">
+              <option value="men_pro">1. Male Solo (Men Pro)</option>
+              <option value="men_pro_doubles">2. Men Pro Doubles</option>
+              <option value="women_pro">3. Female Solo (Women Pro)</option>
+              <option value="women_pro_doubles">4. Women Pro Doubles</option>
+            </optgroup>
+          </select>
+        </div>
+        <div>
+          <label>Email (For Post-Race Results Link)</label>
+          <input type="email" id="qa-email" placeholder="athlete@email.com" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
+        </div>
+        <div>
+          <label>Time Slot</label>
+          <select id="qa-heat"></select>
+        </div>
+        <div>
+          <label>Volunteer (Opt)</label>
+          <input type="text" id="qa-volunteer" placeholder="e.g. Coach Chris" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
+        </div>
+        <div>
+          <button type="button" class="btn btn-green" style="height:38px;padding:0 1.1rem;justify-content:center" onclick="quickAddEntry()">+ Add</button>
         </div>
       </div>
     </section>
@@ -605,34 +558,37 @@
       </div>
     </details>
 
-    <!-- LIVE RACE MONITOR, 2-DAY SLOT/VOLUNTEER MANAGER & SPLIT CORRECTIONS -->
+    <!-- ================================================================= -->
+    <!-- 3. MANAGE ATHLETES & VOLUNTEERS (GROUPED BY CATEGORY TABLE)       -->
+    <!-- ================================================================= -->
     <section class="card">
       <div class="card-header">
         <div>
-          <div class="card-title">🏁 3. 2-DAY SLOT &amp; VOLUNTEER SCHEDULE + LIVE RACE MONITOR</div>
+          <div class="card-title">3. MANAGE ATHLETES &amp; VOLUNTEERS</div>
           <div style="font-size:0.76rem;color:var(--muted)">
-            1 Athlete/Pair + 1 Volunteer per time slot with equipment changeover alerts between division blocks. Click <strong>Edit Splits / Corrections</strong> on any athlete to adjust any of the 16 splits.
+            Grouped by Saturday &amp; Sunday categories. Assign time slots, emails, and volunteers directly in the table.
           </div>
         </div>
         <div style="display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap">
+          <input type="text" id="filter-search" placeholder="🔍 Search athlete, email, volunteer..." oninput="renderEntriesTable()" style="width:210px;height:34px;font-size:0.76rem" />
           <button type="button" class="day-tab-btn active" data-day="all" onclick="setAdminDayFilter('all')">All Days</button>
-          <button type="button" class="day-tab-btn" data-day="1" onclick="setAdminDayFilter('1')">Day 1 (Sat 2–5 PM)</button>
-          <button type="button" class="day-tab-btn" data-day="2" onclick="setAdminDayFilter('2')">Day 2 (Sun 10 AM–2 PM)</button>
-          <select id="filter-signup-group" onchange="renderEntriesTable()" style="width:auto;font-weight:700;border-color:rgba(61,255,79,0.35)">
-            <option value="all">All 4 Sign-Up Groups</option>
-            <option value="male_solo">1. Male Solo (Sat 14:00–17:00)</option>
-            <option value="male_mixed_doubles">2. Male Doubles / Mixed Doubles (Sat 14:00–17:00)</option>
-            <option value="female_solo">3. Female Solo (Sun 10:00–14:00)</option>
-            <option value="female_doubles">4. Female Doubles (Sun 10:00–14:00)</option>
+          <button type="button" class="day-tab-btn" data-day="1" onclick="setAdminDayFilter('1')">Saturday (2–5 PM)</button>
+          <button type="button" class="day-tab-btn" data-day="2" onclick="setAdminDayFilter('2')">Sunday (10 AM–2 PM)</button>
+          <select id="filter-signup-group" onchange="renderEntriesTable()" style="width:auto;height:34px;font-size:0.76rem;font-weight:700;border-color:rgba(61,255,79,0.35)">
+            <option value="all">All 4 Groups</option>
+            <option value="male_solo">1. Male Solo (Sat)</option>
+            <option value="male_mixed_doubles">2. Male / Mixed Doubles (Sat)</option>
+            <option value="female_solo">3. Female Solo (Sun)</option>
+            <option value="female_doubles">4. Female Doubles (Sun)</option>
           </select>
-          <select id="filter-division" onchange="renderEntriesTable()" style="width:auto">
-            <option value="all">All 9 Divisions</option>
+          <select id="filter-division" onchange="renderEntriesTable()" style="width:auto;height:34px;font-size:0.76rem">
+            <option value="all">All Categories</option>
             {% for div_key, div in divisions.items() %}
             <option value="{{ div_key }}">{{ div.label }}</option>
             {% endfor %}
           </select>
-          <button type="button" class="btn" onclick="refreshEventState()">🔄 Refresh</button>
-          <button type="button" class="btn btn-red" onclick="clearAllEntries()" title="Remove all entries from this event">🗑️ Clear All</button>
+          <button type="button" class="btn" style="height:34px;padding:0 0.65rem" onclick="refreshEventState()">🔄 Refresh</button>
+          <button type="button" class="btn btn-red" style="height:34px;padding:0 0.65rem" onclick="clearAllEntries()" title="Remove all entries from this event">🗑️ Clear All</button>
         </div>
       </div>
       <div style="overflow-x:auto">
@@ -640,12 +596,12 @@
           <thead>
             <tr>
               <th>Bib</th>
-              <th>Day &amp; Slot (1:1)</th>
+              <th>Time Slot</th>
               <th>Athlete / Pair</th>
-              <th>Division</th>
-              <th>1:1 Volunteer</th>
-              <th>Status &amp; Progress</th>
-              <th>Run / Station / Total</th>
+              <th>Category</th>
+              <th>Email (For Results)</th>
+              <th>Volunteer</th>
+              <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -654,44 +610,45 @@
       </div>
     </section>
 
-    <!-- OFFICIAL 9-DIVISION HYROX WEIGHTS & REPS REFERENCE MATRIX (COLLAPSIBLE) -->
-    <details class="card" style="padding:0.85rem 1.15rem">
-      <summary style="cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.02rem;color:var(--muted);letter-spacing:0.03em">
-        🏋️ OFFICIAL 9-DIVISION HYROX STANDARDS MATRIX (1.2 KM RUN LOOP · NO ROXZONE — CLICK TO EXPAND)
-      </summary>
-      <div style="overflow-x:auto;margin-top:0.75rem">
+    <!-- ================================================================= -->
+    <!-- 4. RESULTS & POST-RACE WEB LINKS                                  -->
+    <!-- ================================================================= -->
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">4. RESULTS &amp; POST-RACE WEB LINKS</div>
+          <div style="font-size:0.76rem;color:var(--muted)">
+            View race times, open or copy each athlete&#39;s Results Web Link, or email their results card directly post-race.
+          </div>
+        </div>
+        <div style="display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap">
+          <select id="results-filter-status" onchange="renderResultsTable()" style="width:auto;height:34px;font-size:0.76rem">
+            <option value="all">All Entries</option>
+            <option value="finished">Finished Only</option>
+            <option value="active">Racing / Finished</option>
+          </select>
+          <button type="button" class="btn" style="height:34px;padding:0 0.75rem" onclick="copyAllResultsLinks(this)">📋 Copy All Results Web Links</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
         <table>
           <thead>
             <tr>
-              <th>Division</th>
-              <th>1. SkiErg</th>
-              <th>2. Sled Push</th>
-              <th>3. Sled Pull</th>
-              <th>4. Burpee BJ</th>
-              <th>5. Row</th>
-              <th>6. Farmers Carry</th>
-              <th>7. Sandbag Lunges</th>
-              <th>8. Wall Balls</th>
+              <th>Bib</th>
+              <th>Athlete / Pair</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th>Run Total (Avg Pace)</th>
+              <th>Station Total</th>
+              <th>Total Time</th>
+              <th>Email</th>
+              <th>Post-Race Results Web Link</th>
             </tr>
           </thead>
-          <tbody>
-            {% for dkey, div in divisions.items() %}
-            <tr>
-              <td><strong style="color:{{ div.color }}">{{ div.label }}</strong></td>
-              <td>{{ div.stations.skierg.prescription }}</td>
-              <td>{{ div.stations.sled_push.prescription }}</td>
-              <td>{{ div.stations.sled_pull.prescription }}</td>
-              <td>{{ div.stations.bbj.prescription }}</td>
-              <td>{{ div.stations.row.prescription }}</td>
-              <td>{{ div.stations.farmers_carry.prescription }}</td>
-              <td>{{ div.stations.sandbag_lunges.prescription }}</td>
-              <td>{{ div.stations.wall_balls.prescription }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
+          <tbody id="results-tbody"></tbody>
         </table>
       </div>
-    </details>
+    </section>
   </main>
 
   <!-- MODAL: FULL ATHLETE / PAIR DETAILS, 1:1 SLOT & 16-SPLIT CORRECTIONS EDITOR -->
@@ -866,8 +823,8 @@
       if (!res.ok) return;
       currentState = await res.json();
       populateHeatDropdown();
-      renderSignupGroupsBoard(currentState.signup_groups);
       renderEntriesTable();
+      renderResultsTable();
     }
 
     function initWeekendSetupDates() {
@@ -897,105 +854,6 @@
       setWeekendDatePreset(toIso(sat), toIso(sun));
     }
 
-    function setSignupGroupFilter(groupKey) {
-      const grpSel = document.getElementById('filter-signup-group');
-      if (!grpSel) return;
-      grpSel.value = (grpSel.value === groupKey) ? 'all' : groupKey;
-      renderEntriesTable();
-      renderSignupGroupsBoard(currentState?.signup_groups);
-    }
-
-    function renderSignupGroupsBoard(groupsData) {
-      const board = document.getElementById('signup-groups-board');
-      if (!board) return;
-      const defaultGroups = [
-        { key: 'male_solo', number: 1, label: '1. Male Solo', day_label: 'Saturday', time_window: '14:00–17:00 (2:00 PM – 5:00 PM)', default_start_time: '14:00', default_end_time: '15:20', count: 0, entries: [] },
-        { key: 'male_mixed_doubles', number: 2, label: '2. Male Doubles / Mixed Doubles', day_label: 'Saturday', time_window: '14:00–17:00 (2:00 PM – 5:00 PM)', default_start_time: '15:30', default_end_time: '17:00', count: 0, entries: [] },
-        { key: 'female_solo', number: 3, label: '3. Female Solo', day_label: 'Sunday', time_window: '10:00–14:00 (10:00 AM – 2:00 PM)', default_start_time: '10:00', default_end_time: '11:50', count: 0, entries: [] },
-        { key: 'female_doubles', number: 4, label: '4. Female Doubles', day_label: 'Sunday', time_window: '10:00–14:00 (10:00 AM – 2:00 PM)', default_start_time: '12:00', default_end_time: '14:00', count: 0, entries: [] },
-      ];
-      const groups = (groupsData && groupsData.length === 4) ? groupsData : defaultGroups;
-      const activeGroupFilter = (document.getElementById('filter-signup-group') || {}).value || 'all';
-      const colors = {
-        male_solo: '#38bdf8',
-        male_mixed_doubles: '#3dff4f',
-        female_solo: '#f472b6',
-        female_doubles: '#c084fc',
-      };
-
-      const placeholders = {
-        male_solo: 'Add Male Solo (e.g. Callum Boyd)...',
-        male_mixed_doubles: 'Add Pair (e.g. Luke & Dan)...',
-        female_solo: 'Add Female Solo (e.g. Hannah Millar)...',
-        female_doubles: 'Add Pair (e.g. Sarah & Emma)...',
-      };
-
-      board.innerHTML = groups.map(g => {
-        const col = colors[g.key] || 'var(--green)';
-        const isSelected = activeGroupFilter === g.key;
-        const listHtml = (g.entries && g.entries.length)
-          ? g.entries.map(e => {
-              const nameStr = e.full_display_name || (e.partner_name ? `${e.display_name} & ${e.partner_name}` : e.display_name);
-              const slotTime = e.heat_start_time || e.heat_time || g.default_start_time;
-              const divShort = e.division_short_label || e.division_label || e.division;
-              const clickAttr = e.id ? `onclick="openSplitsModal(${e.id})" style="cursor:pointer"` : '';
-              const delBtn = e.id
-                ? `<button type="button" title="Remove" onclick="event.stopPropagation();quickDeleteEntry(${e.id})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.85rem;padding:0 0.2rem;line-height:1">×</button>`
-                : '';
-              return `
-                <div ${clickAttr} style="display:flex;justify-content:space-between;align-items:center;gap:0.35rem;padding:0.32rem 0.45rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:7px;font-size:0.75rem">
-                  <div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                    <strong style="color:var(--text)">${escapeHtml(nameStr)}</strong>
-                    <span style="color:var(--muted);font-size:0.68rem;margin-left:0.25rem">(${escapeHtml(divShort)})</span>
-                  </div>
-                  <div style="display:flex;align-items:center;gap:0.25rem;flex-shrink:0">
-                    <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:0.84rem;color:${col}">${escapeHtml(slotTime)}</span>
-                    ${delBtn}
-                  </div>
-                </div>
-              `;
-            }).join('')
-          : `<div style="font-size:0.73rem;color:var(--muted);padding:0.5rem 0;text-align:center">No sign-ups yet — type below to add</div>`;
-
-        const divToggleHtml = g.key === 'male_mixed_doubles'
-          ? `<select id="grp-div-${g.key}" style="width:82px;padding:0.25rem 0.3rem;height:30px;font-size:0.68rem;font-weight:800" title="Men Doubles or Mixed Doubles">
-               <option value="men_doubles">Men Dbl</option>
-               <option value="mixed_doubles">Mixed Dbl</option>
-             </select>`
-          : '';
-
-        return `
-          <div style="background:var(--surface-2);border:${isSelected ? '2px' : '1px'} solid ${isSelected ? col : 'rgba(255,255,255,0.1)'};border-radius:11px;padding:0.75rem;display:flex;flex-direction:column;gap:0.45rem">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.4rem">
-              <div>
-                <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.05rem;color:${col};letter-spacing:0.02em">${escapeHtml(g.label)}</div>
-                <div style="font-size:0.7rem;color:var(--muted);font-weight:700">${escapeHtml(g.day_label)} · ${escapeHtml(g.time_window)}</div>
-                <div style="font-size:0.68rem;color:var(--muted)">1:1 Block: <strong>${escapeHtml(g.default_start_time)}–${escapeHtml(g.default_end_time)}</strong></div>
-              </div>
-              <span class="pill" style="background:rgba(255,255,255,0.08);color:${col};font-size:0.82rem;font-weight:900">${g.count || 0}</span>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:0.3rem;max-height:165px;overflow-y:auto;padding-right:2px">
-              ${listHtml}
-            </div>
-            <!-- Inline 1-Line Quick Add directly inside this Group Card -->
-            <div style="margin-top:auto;padding-top:0.35rem;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:0.3rem;align-items:center">
-              ${divToggleHtml}
-              <input type="text" id="grp-add-name-${g.key}" placeholder="${placeholders[g.key] || 'Add athlete...'}"
-                style="flex:1;min-width:0;height:30px;padding:0.25rem 0.45rem;font-size:0.73rem"
-                onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddIntoGroup('${g.key}');}" />
-              <input type="text" id="grp-add-time-${g.key}" placeholder="HH:MM" title="Optional time (e.g. ${g.default_start_time})"
-                style="width:54px;height:30px;padding:0.25rem 0.3rem;font-size:0.71rem;text-align:center"
-                onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddIntoGroup('${g.key}');}" />
-              <button type="button" class="btn btn-green" style="height:30px;padding:0 0.55rem;font-size:0.74rem;flex-shrink:0" onclick="quickAddIntoGroup('${g.key}')">+</button>
-            </div>
-            <button type="button" class="btn" style="width:100%;justify-content:center;font-size:0.7rem;padding:0.22rem 0.5rem" onclick="setSignupGroupFilter('${g.key}')">
-              ${isSelected ? '✓ Filtering Table (Click to Show All)' : '🔍 Filter Schedule Table'}
-            </button>
-          </div>
-        `;
-      }).join('');
-    }
-
     async function setupWeekendEvent(useCurrentEvent) {
       initWeekendSetupDates();
       const satDate = document.getElementById('wk-sat-date').value;
@@ -1004,7 +862,7 @@
       const customName = document.getElementById('wk-ev-name').value.trim();
       const statusEl = document.getElementById('wk-setup-status');
       statusEl.style.display = 'block';
-      statusEl.innerHTML = `<span style="color:var(--yellow)">⏳ Setting up Saturday (${satDate} 14:00–17:00) &amp; Sunday (${sunDate} 10:00–14:00) 4-group slots...</span>`;
+      statusEl.innerHTML = `<span style="color:var(--yellow)">⏳ Setting up Saturday (${satDate} 14:00–17:00) &amp; Sunday (${sunDate} 10:00–14:00) slots...</span>`;
 
       const payload = {
         saturday_date: satDate,
@@ -1026,7 +884,7 @@
         const syncNote = data.synced_count
           ? ` · Synced <strong>${data.synced_count}</strong> TeamUp sign-ups!`
           : (data.teamup_sync_error ? ` · TeamUp note: ${escapeHtml(data.teamup_sync_error)}` : '');
-        statusEl.innerHTML = `<span style="color:var(--green);font-weight:700">✅ Ready: ${escapeHtml(data.event.name)} (${data.heats_total_count} 1:1 slots across Sat 14:00–17:00 &amp; Sun 10:00–14:00)${syncNote}</span>`;
+        statusEl.innerHTML = `<span style="color:var(--green);font-weight:700">✅ Ready: ${escapeHtml(data.event.name)} (${data.heats_total_count} slots across Sat 14:00–17:00 &amp; Sun 10:00–14:00)${syncNote}</span>`;
         await loadEventsList();
       } else {
         statusEl.innerHTML = `<span style="color:var(--red)">❌ ${escapeHtml(data.error || 'Could not set up weekend event')}</span>`;
@@ -1040,7 +898,7 @@
       const statusEl = document.getElementById('wk-setup-status');
       if (!silentIfEmpty) {
         statusEl.style.display = 'block';
-        statusEl.innerHTML = `<span style="color:var(--blue)">📡 Querying TeamUp API v2 for Saturday 28th / Sunday 29th sign-ups (${satDate} → ${sunDate})...</span>`;
+        statusEl.innerHTML = `<span style="color:var(--blue)">📡 Querying TeamUp API v2 for sign-ups (${satDate} → ${sunDate})...</span>`;
       }
 
       const res = await fetch(`/api/hyrox/teamup/signups?saturday_date=${encodeURIComponent(satDate)}&sunday_date=${encodeURIComponent(sunDate)}`);
@@ -1049,27 +907,22 @@
         if (data.saturday_date) document.getElementById('wk-sat-date').value = data.saturday_date;
         if (data.sunday_date) document.getElementById('wk-sun-date').value = data.sunday_date;
         if (data.total_signups > 0 || !silentIfEmpty) {
-          if (data.total_signups > 0) {
-            renderSignupGroupsBoard(data.signup_groups);
-          }
           statusEl.style.display = 'block';
           statusEl.innerHTML = data.total_signups > 0
-            ? `<span style="color:var(--green);font-weight:700">✅ Found ${data.total_signups} live TeamUp sign-ups (${data.saturday_date} → ${data.sunday_date}). Click "⚡ Setup Next Sat/Sun Event + Sync TeamUp" to import &amp; assign 1:1 slots!</span>`
-            : `<span style="color:var(--yellow)">ℹ️ TeamUp API connected (${data.remote_events_count || 0} classes checked for ${data.saturday_date} → ${data.sunday_date}; 0 HYROX sim registrations returned by TeamUp yet). Showing current event's 4-group board below.</span>`;
+            ? `<span style="color:var(--green);font-weight:700">✅ Found ${data.total_signups} live TeamUp sign-ups (${data.saturday_date} → ${data.sunday_date}). Click "⚡ Setup Event &amp; Sync TeamUp" to import &amp; assign slots!</span>`
+            : `<span style="color:var(--yellow)">ℹ️ TeamUp API connected (${data.remote_events_count || 0} classes checked for ${data.saturday_date} → ${data.sunday_date}; 0 HYROX sim registrations returned by TeamUp yet).</span>`;
         }
       } else if (!silentIfEmpty) {
         statusEl.style.display = 'block';
-        statusEl.innerHTML = `<span style="color:var(--yellow)">ℹ️ ${escapeHtml(data.error || 'TeamUp API not connected yet — displaying current event sign-ups categorized into the 4 weekend groups.')}</span>`;
-        if (currentState && currentState.signup_groups) {
-          renderSignupGroupsBoard(currentState.signup_groups);
-        }
+        statusEl.innerHTML = `<span style="color:var(--yellow)">ℹ️ ${escapeHtml(data.error || 'TeamUp API not connected yet — displaying current event sign-ups in Section 3 below.')}</span>`;
       }
     }
 
     function populateHeatDropdown() {
       const sel = document.getElementById('qa-heat');
+      if (!sel) return;
       const heats = currentState?.heats || [];
-      sel.innerHTML = `<option value="">Auto-Assign Next Open 1:1 Slot</option>` + heats.map(h =>
+      sel.innerHTML = `<option value="">Auto-Assign Next Open Slot</option>` + heats.map(h =>
         `<option value="${h.id}">Day ${h.day_number || 1} · ${h.start_time} (${h.name}) — ${h.assigned_lanes ? 'Assigned' : 'Open'}</option>`
       ).join('');
     }
@@ -1085,7 +938,13 @@
       { key: 'men_pro', label: "Men's Pro", short: 'M-PRO' },
       { key: 'men_pro_doubles', label: "Men's Pro Doubles", short: 'M-PRO-DBL' },
     ];
-    const ADMIN_AGE_CATEGORIES = ['U24', '25-29', '30-34', '35-39', '40-44', '45-49', '50-54', '55-59', '60+'];
+
+    const SIGNUP_GROUP_META = [
+      { key: 'male_solo', title: '1. MALE SOLO', day: '1', window: 'Saturday · 14:00–17:00', color: '#38bdf8' },
+      { key: 'male_mixed_doubles', title: '2. MALE DOUBLES / MIXED DOUBLES', day: '1', window: 'Saturday · 14:00–17:00', color: '#3dff4f' },
+      { key: 'female_solo', title: '3. FEMALE SOLO', day: '2', window: 'Sunday · 10:00–14:00', color: '#f472b6' },
+      { key: 'female_doubles', title: '4. FEMALE DOUBLES', day: '2', window: 'Sunday · 10:00–14:00', color: '#c084fc' },
+    ];
 
     function escapeHtml(str) {
       return String(str == null ? '' : str)
@@ -1095,18 +954,32 @@
         .replace(/"/g, '&quot;');
     }
 
+    function inferGroupKeyForEntry(e) {
+      if (e.signup_group) return e.signup_group;
+      const div = e.division || '';
+      if (div === 'men_open' || div === 'men_pro') return 'male_solo';
+      if (div === 'men_doubles' || div === 'men_pro_doubles' || div === 'mixed_doubles') return 'male_mixed_doubles';
+      if (div === 'women_open' || div === 'women_pro') return 'female_solo';
+      if (div === 'women_doubles' || div === 'women_pro_doubles') return 'female_doubles';
+      return 'male_solo';
+    }
+
     function renderEntriesTable() {
       if (!currentState) return;
-      const filterDiv = document.getElementById('filter-division').value;
+      const filterDiv = (document.getElementById('filter-division') || {}).value || 'all';
       const filterGroup = (document.getElementById('filter-signup-group') || {}).value || 'all';
+      const searchQ = ((document.getElementById('filter-search') || {}).value || '').trim().toLowerCase();
       const heats = currentState.heats || [];
-      const heatMap = {};
-      heats.forEach(h => { heatMap[h.id] = h; });
 
       const entries = (currentState.entries || []).filter(e => {
         if (adminDayFilter !== 'all' && String(e.heat_day_number || 1) !== String(adminDayFilter)) return false;
-        if (filterGroup !== 'all' && e.signup_group !== filterGroup) return false;
+        const gKey = inferGroupKeyForEntry(e);
+        if (filterGroup !== 'all' && gKey !== filterGroup) return false;
         if (filterDiv !== 'all' && e.division !== filterDiv) return false;
+        if (searchQ) {
+          const hay = `${e.full_display_name || ''} ${e.display_name || ''} ${e.partner_name || ''} ${e.email || ''} ${e.volunteer_name || ''} ${e.bib_number || ''}`.toLowerCase();
+          if (!hay.includes(searchQ)) return false;
+        }
         return true;
       });
       const tbody = document.getElementById('entries-tbody');
@@ -1115,110 +988,191 @@
         tbody.innerHTML = `
           <tr>
             <td colspan="8" style="text-align:center;padding:1.75rem 1rem;color:var(--muted);font-size:0.84rem">
-              No entries in this view yet. Add athletes or pairs directly inside the <strong>4 Group Cards</strong> above, use <strong>Fast Add / Bulk Paste</strong>, or click <strong>Sync TeamUp</strong>.
+              No athletes match this view yet. Add athletes in <strong>Section 2</strong> above or click <strong>Setup Event &amp; Sync TeamUp</strong> in <strong>Section 1</strong>.
             </td>
           </tr>
         `;
         return;
       }
 
-      let prevDivision = null;
-      let prevDay = null;
       const rowsHtml = [];
-
-      entries.forEach(e => {
-        const curDay = e.heat_day_number || 1;
-        if (prevDay !== null && curDay !== prevDay) {
-          rowsHtml.push(`
-            <tr class="changeover-row">
-              <td colspan="8" style="background:rgba(56,189,248,0.12);border-color:rgba(56,189,248,0.45);color:var(--blue)">
-                📅 DAY ${curDay} SCHEDULE START (${e.heat_slot_date || 'Day ' + curDay})
-              </td>
-            </tr>
-          `);
-          prevDivision = null;
-        }
-        prevDay = curDay;
-
-        const hObj = heatMap[e.heat_id];
-        const changeover = hObj && hObj.weight_changeover_before;
-        if (changeover || (prevDivision && prevDivision !== e.division)) {
-          const toWeights = (changeover && changeover.to_weights) || e.weight_summary || '';
-          const bufMins = (changeover && changeover.buffer_mins) || (currentState.event?.transition_buffer_mins) || 15;
-          rowsHtml.push(`
-            <tr class="changeover-row">
-              <td colspan="8">
-                ⚖️ <strong>DIVISION &amp; EQUIPMENT CHANGEOVER (+${bufMins}m buffer)</strong> → Switching to <strong style="color:#fff">${e.division_label}</strong>: ${toWeights}
-              </td>
-            </tr>
-          `);
-        }
-        prevDivision = e.division;
-
-        const heatOpts = `<option value="">Unassigned</option>` + heats.map(h =>
-          `<option value="${h.id}" ${e.heat_id === h.id ? 'selected' : ''}>Day ${h.day_number || 1} · ${h.start_time} · ${escapeHtml(h.name)}</option>`
-        ).join('');
-
-        const divOpts = ADMIN_DIVISIONS.map(d =>
-          `<option value="${d.key}" ${e.division === d.key ? 'selected' : ''}>${d.label}</option>`
-        ).join('');
-
-        const statusClass = `status-${e.status}`;
-        const histBadge = (e.history && e.history.comparison)
-          ? `<div style="font-size:0.7rem;color:var(--green);font-weight:700">📈 vs Prev Sim: ${e.history.comparison.total_delta_formatted}</div>`
-          : '';
-        const partnerPill = e.partner_name
-          ? `<button type="button" class="btn" style="padding:0.15rem 0.45rem;font-size:0.68rem;margin-top:0.2rem" onclick="openSplitsModal(${e.id}, true)">👥 Partner: ${escapeHtml(e.partner_name)} ✏️</button>`
-          : `<button type="button" class="btn" style="padding:0.15rem 0.45rem;font-size:0.68rem;margin-top:0.2rem;color:var(--green);border-color:rgba(61,255,79,0.35)" onclick="openSplitsModal(${e.id}, true)">+ Add Doubles Partner / Edit</button>`;
+      SIGNUP_GROUP_META.forEach(grp => {
+        if (filterGroup !== 'all' && filterGroup !== grp.key) return;
+        if (adminDayFilter !== 'all' && adminDayFilter !== grp.day) return;
+        const grpEntries = entries.filter(e => inferGroupKeyForEntry(e) === grp.key);
+        if (!grpEntries.length && (filterDiv !== 'all' || searchQ)) return;
 
         rowsHtml.push(`
           <tr>
-            <td><strong>#${escapeHtml(e.bib_number)}</strong></td>
-            <td>
-              <select onchange="updateEntryMeta(${e.id}, {heat_id: this.value})" style="min-width:175px;padding:0.32rem;height:34px">
-                ${heatOpts}
-              </select>
-            </td>
-            <td>
-              <div style="font-weight:800;font-size:0.9rem">${escapeHtml(e.full_display_name)}</div>
-              <div style="font-size:0.72rem;color:var(--muted)">${escapeHtml(e.email || '—')}</div>
-              ${partnerPill}
-              ${histBadge}
-            </td>
-            <td>
-              <div style="display:flex;flex-direction:column;gap:0.28rem">
-                <select onchange="updateEntryMeta(${e.id}, {division: this.value})"
-                  style="min-width:155px;padding:0.26rem 0.45rem;height:31px;font-weight:800;font-size:0.76rem;border-color:${e.division_color};color:${e.division_color}">
-                  ${divOpts}
-                </select>
-              </div>
-            </td>
-            <td>
-              <input type="text" value="${escapeHtml(e.volunteer_name || '')}" placeholder="Assign 1:1 Volunteer"
-                onchange="updateEntryMeta(${e.id}, {volunteer_name: this.value})"
-                style="width:145px;padding:0.3rem 0.5rem;height:34px" />
-            </td>
-            <td>
-              <span class="pill ${statusClass}">${e.status}</span>
-              <span style="font-size:0.75rem;color:var(--muted);margin-left:0.3rem">${e.completed_splits}/16 splits</span>
-            </td>
-            <td>
-              <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.25rem;color:var(--green)">${e.total_formatted}</div>
-              <div style="font-size:0.72rem;color:var(--muted)">Run ${e.run_total_formatted} (${e.avg_run_kph_formatted || '—'}) · Stn ${e.station_total_formatted}</div>
-            </td>
-            <td>
-              <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
-                <button type="button" class="btn" onclick="openSplitsModal(${e.id})">✏️ Edit</button>
-                <a href="/hyrox/judge?entry=${e.id}" target="_blank" class="btn">⏱️ Judge</a>
-                <a href="/hyrox/results/${e.id}" target="_blank" class="btn">📲 Card</a>
-                <button type="button" class="btn btn-red" style="padding:0.3rem 0.5rem" title="Remove Entry" onclick="quickDeleteEntry(${e.id})">🗑️</button>
+            <td colspan="8" style="background:rgba(255,255,255,0.04);border-top:2px solid ${grp.color};border-bottom:1px solid rgba(255,255,255,0.1);padding:0.55rem 0.75rem">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.05rem;color:${grp.color};letter-spacing:0.03em">
+                  ${grp.title}
+                  <span style="color:var(--muted);font-weight:700;font-size:0.8rem;margin-left:0.45rem">(${grp.window})</span>
+                </div>
+                <span class="pill" style="background:rgba(255,255,255,0.08);color:${grp.color};font-weight:900">${grpEntries.length} signed up</span>
               </div>
             </td>
           </tr>
         `);
+
+        if (!grpEntries.length) {
+          rowsHtml.push(`
+            <tr>
+              <td colspan="8" style="padding:0.65rem 0.85rem;color:var(--muted);font-size:0.78rem">
+                No athletes in ${grp.title} yet.
+              </td>
+            </tr>
+          `);
+          return;
+        }
+
+        grpEntries.forEach(e => {
+          const heatOpts = `<option value="">Unassigned</option>` + heats.map(h =>
+            `<option value="${h.id}" ${e.heat_id === h.id ? 'selected' : ''}>Day ${h.day_number || 1} · ${h.start_time} · ${escapeHtml(h.name)}</option>`
+          ).join('');
+
+          const divOpts = ADMIN_DIVISIONS.map(d =>
+            `<option value="${d.key}" ${e.division === d.key ? 'selected' : ''}>${d.label}</option>`
+          ).join('');
+
+          const statusClass = `status-${e.status}`;
+          const noteHtml = e.notes
+            ? `<div style="font-size:0.7rem;color:var(--yellow);margin-top:0.15rem">${escapeHtml(e.notes)}</div>`
+            : '';
+
+          rowsHtml.push(`
+            <tr>
+              <td><strong>#${escapeHtml(e.bib_number)}</strong></td>
+              <td>
+                <select onchange="updateEntryMeta(${e.id}, {heat_id: this.value})" style="min-width:165px;padding:0.28rem 0.45rem;height:32px;font-size:0.76rem">
+                  ${heatOpts}
+                </select>
+              </td>
+              <td>
+                <div style="font-weight:800;font-size:0.9rem">${escapeHtml(e.full_display_name)}</div>
+                ${noteHtml}
+              </td>
+              <td>
+                <select onchange="updateEntryMeta(${e.id}, {division: this.value})"
+                  style="min-width:150px;padding:0.26rem 0.45rem;height:32px;font-weight:800;font-size:0.76rem;border-color:${e.division_color};color:${e.division_color}">
+                  ${divOpts}
+                </select>
+              </td>
+              <td>
+                <input type="email" value="${escapeHtml(e.email || '')}" placeholder="athlete@email.com"
+                  onchange="updateEntryMeta(${e.id}, {email: this.value})"
+                  style="width:175px;padding:0.28rem 0.5rem;height:32px;font-size:0.76rem" />
+              </td>
+              <td>
+                <input type="text" value="${escapeHtml(e.volunteer_name || '')}" placeholder="Assign Volunteer"
+                  onchange="updateEntryMeta(${e.id}, {volunteer_name: this.value})"
+                  style="width:140px;padding:0.28rem 0.5rem;height:32px;font-size:0.76rem" />
+              </td>
+              <td>
+                <span class="pill ${statusClass}">${e.status}</span>
+                <span style="font-size:0.72rem;color:var(--muted);margin-left:0.25rem">${e.completed_splits}/16</span>
+              </td>
+              <td>
+                <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
+                  <button type="button" class="btn" style="padding:0.28rem 0.55rem;font-size:0.74rem" onclick="openSplitsModal(${e.id})">✏️ Edit</button>
+                  <a href="/hyrox/judge?entry=${e.id}" target="_blank" class="btn" style="padding:0.28rem 0.55rem;font-size:0.74rem">⏱️ Judge</a>
+                  <button type="button" class="btn btn-red" style="padding:0.28rem 0.5rem;font-size:0.74rem" title="Remove Entry" onclick="quickDeleteEntry(${e.id})">🗑️</button>
+                </div>
+              </td>
+            </tr>
+          `);
+        });
       });
 
       tbody.innerHTML = rowsHtml.join('');
+    }
+
+    function renderResultsTable() {
+      if (!currentState) return;
+      const tbody = document.getElementById('results-tbody');
+      if (!tbody) return;
+      const statusFilter = (document.getElementById('results-filter-status') || {}).value || 'all';
+      const entries = (currentState.entries || []).filter(e => {
+        if (statusFilter === 'finished') return e.status === 'finished';
+        if (statusFilter === 'active') return e.status === 'finished' || e.status === 'racing' || (e.completed_splits || 0) > 0;
+        return true;
+      });
+
+      if (!entries.length) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="9" style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.82rem">
+              No results matching this filter yet.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = entries.map(e => {
+        const statusClass = `status-${e.status}`;
+        const relUrl = `/hyrox/results/${e.id}`;
+        const fullUrl = `${window.location.origin}${relUrl}`;
+        const mailSubject = encodeURIComponent(`Your CS Performance HYROX Sim Results — ${e.full_display_name}`);
+        const mailBody = encodeURIComponent(
+          `Hi ${e.full_display_name},\n\nWell done at the CS Performance HYROX Simulation! Train Hard & Be Sound.\n\n` +
+          `Category: ${e.division_label}\n` +
+          `Official Time: ${e.total_formatted}\n\n` +
+          `View your full 16-split breakdown and download your Finisher Card here:\n${fullUrl}\n`
+        );
+        const emailBtn = e.email
+          ? `<a href="mailto:${encodeURIComponent(e.email)}?subject=${mailSubject}&body=${mailBody}" class="btn" style="padding:0.26rem 0.55rem;font-size:0.74rem" title="Send results link to ${escapeHtml(e.email)}">✉️ Email Link</a>`
+          : `<button type="button" class="btn" style="padding:0.26rem 0.55rem;font-size:0.74rem;opacity:0.65" onclick="openSplitsModal(${e.id})" title="Add email address to send link">✉️ Add Email</button>`;
+
+        return `
+          <tr>
+            <td><strong>#${escapeHtml(e.bib_number)}</strong></td>
+            <td><strong>${escapeHtml(e.full_display_name)}</strong></td>
+            <td><span style="color:${e.division_color};font-weight:800;font-size:0.78rem">${escapeHtml(e.division_label)}</span></td>
+            <td><span class="pill ${statusClass}">${e.status}</span></td>
+            <td>${e.run_total_formatted} <span style="font-size:0.72rem;color:var(--muted)">(${e.avg_run_kph_formatted || '—'})</span></td>
+            <td>${e.station_total_formatted}</td>
+            <td><strong style="font-family:'Barlow Condensed',sans-serif;font-size:1.22rem;color:var(--green)">${e.total_formatted}</strong></td>
+            <td style="font-size:0.76rem;color:var(--muted)">${escapeHtml(e.email || '—')}</td>
+            <td>
+              <div style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center">
+                <a href="${relUrl}" target="_blank" class="btn btn-green" style="padding:0.26rem 0.55rem;font-size:0.74rem">📲 Results Web Link</a>
+                <button type="button" class="btn" style="padding:0.26rem 0.55rem;font-size:0.74rem" onclick="copyResultWebLink(${e.id}, this)">📋 Copy Link</button>
+                ${emailBtn}
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function copyResultWebLink(entryId, btnEl) {
+      const fullUrl = `${window.location.origin}/hyrox/results/${entryId}`;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(fullUrl);
+      }
+      if (btnEl) {
+        const prev = btnEl.textContent;
+        btnEl.textContent = '✅ Copied!';
+        setTimeout(() => { btnEl.textContent = prev; }, 1600);
+      }
+    }
+
+    function copyAllResultsLinks(btnEl) {
+      const entries = currentState?.entries || [];
+      if (!entries.length) return;
+      const lines = entries.map(e =>
+        `${e.full_display_name} (${e.division_label})${e.email ? ' <' + e.email + '>' : ''}: ${window.location.origin}/hyrox/results/${e.id}`
+      ).join('\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(lines);
+      }
+      if (btnEl) {
+        const prev = btnEl.textContent;
+        btnEl.textContent = `✅ Copied ${entries.length} Links!`;
+        setTimeout(() => { btnEl.textContent = prev; }, 1800);
+      }
     }
 
     async function updateEntryMeta(entryId, patch) {
@@ -1340,69 +1294,6 @@
       } else {
         const err = await res.json();
         alert(err.error || 'Could not add entry');
-      }
-    }
-
-    async function quickAddIntoGroup(groupKey) {
-      if (!currentEventId) return;
-      const nameInput = document.getElementById(`grp-add-name-${groupKey}`);
-      const timeInput = document.getElementById(`grp-add-time-${groupKey}`);
-      const divSel = document.getElementById(`grp-div-${groupKey}`);
-      const rawName = (nameInput?.value || '').trim();
-      if (!rawName) return nameInput?.focus();
-
-      const groupDefaultDiv = {
-        male_solo: 'men_open',
-        male_mixed_doubles: divSel ? divSel.value : 'men_doubles',
-        female_solo: 'women_open',
-        female_doubles: 'women_doubles',
-      };
-      const res = await fetch(`/api/hyrox/events/${currentEventId}/entries`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          display_name: rawName,
-          signup_group: groupKey,
-          division: groupDefaultDiv[groupKey] || 'men_open',
-          heat_time: (timeInput?.value || '').trim(),
-        }),
-      });
-      if (res.ok) {
-        if (nameInput) nameInput.value = '';
-        if (timeInput) timeInput.value = '';
-        await loadEventsList();
-        document.getElementById(`grp-add-name-${groupKey}`)?.focus();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Could not add entry');
-      }
-    }
-
-    async function submitBulkSimpleEntries() {
-      if (!currentEventId) return;
-      const textEl = document.getElementById('bulk-simple-text');
-      const divEl = document.getElementById('bulk-simple-division');
-      const statusEl = document.getElementById('bulk-simple-status');
-      const lines_text = (textEl?.value || '').trim();
-      if (!lines_text) return alert('Paste one or more athlete/pair lines first.');
-
-      const res = await fetch(`/api/hyrox/events/${currentEventId}/entries/bulk-simple`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          division: divEl ? divEl.value : 'men_open',
-          lines_text,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        if (textEl) textEl.value = '';
-        if (statusEl) {
-          statusEl.innerHTML = `<span style="color:var(--green);font-weight:700">✅ Added ${data.added_count} sign-ups into 1:1 slots!</span>`;
-        }
-        await loadEventsList();
-      } else {
-        alert(data.error || 'Bulk add failed');
       }
     }
 
