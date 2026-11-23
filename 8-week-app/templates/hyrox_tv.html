@@ -526,11 +526,13 @@
     <div class="tv-brand">
       <img src="/static/logo.jpg" alt="CS Performance Gym" class="tv-logo" />
       <div>
-        <div class="tv-title">CS PERFORMANCE <span>HYROX</span> LIVE RACE BROADCAST</div>
+        <div class="tv-title">CS PERFORMANCE <span>HYROX</span> · TRAIN HARD &amp; BE SOUND</div>
         <div class="tv-event-name" id="tv-event-subtitle">Loading Active HYROX Sim...</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:0.65rem">
+      <a href="/hyrox/admin" class="tv-btn" style="text-decoration:none" title="Open Race Director Console">⚙️ Console</a>
+      <a href="/" class="tv-btn" style="text-decoration:none" title="Back to CS Performance Hub">🏠 Hub</a>
       <button type="button" id="tv-pause-btn" class="tv-btn" onclick="toggleRollPause()">⏸ Pause Roll</button>
       <select id="tv-spotlight-select" class="tv-select" onchange="setSpotlightEntry(this.value)">
         <option value="auto">📺 Auto-Roll Floor Grid (2 per screen)</option>
@@ -554,11 +556,11 @@
       <div id="live-racers-container"></div>
     </section>
 
-    <!-- RIGHT: AUTO-ROLLING 9-DIVISION LEADERBOARDS + ROLLING NEXT SLOTS ON DECK -->
+    <!-- RIGHT: AUTO-ROLLING 9-DIVISION FINISHER BOARD + ROLLING NEXT SLOTS ON DECK -->
     <div class="right-col-stack">
       <section class="panel">
         <div class="panel-header">
-          <div class="panel-title" id="lb-division-title">🏆 DIVISION LEADERBOARD</div>
+          <div class="panel-title" id="lb-division-title">🤝 FINISHER BOARD · TRAIN HARD &amp; BE SOUND</div>
           <div style="display:flex;align-items:center;gap:0.45rem">
             <span class="page-pill" id="lb-page-badge">1 / 1</span>
             <div id="lb-dots" style="display:flex;gap:0.3rem"></div>
@@ -776,7 +778,7 @@
             <div class="racer-top">
               <div style="min-width:0">
                 <div style="font-size:0.74rem;font-weight:800;color:${e.division_color};text-transform:uppercase;letter-spacing:0.04em">
-                  DAY ${e.heat_day_number || 1} · BIB #${e.bib_number} · ${e.division_label} · AG ${e.age_category} · VOL: ${e.volunteer_name || 'Assigned'}
+                  DAY ${e.heat_day_number || 1} · BIB #${e.bib_number} · ${e.division_label} · VOL: ${e.volunteer_name || 'Assigned'}
                 </div>
                 <div class="racer-name">${e.full_display_name}</div>
               </div>
@@ -880,7 +882,7 @@
       const { board, slice, startRank, pageNum, totalPages } = currentSlide;
 
       document.getElementById('lb-division-title').innerHTML =
-        `🏆 <span style="color:${board.color}">${board.label}</span> LEADERBOARD`;
+        `🤝 <span style="color:${board.color}">${board.label}</span> FINISHERS · TRAIN HARD &amp; BE SOUND`;
 
       const lbBadge = document.getElementById('lb-page-badge');
       if (lbBadge) {
@@ -905,16 +907,16 @@
       }
 
       if (!slice.length) {
-        rowsEl.innerHTML = `<div style="padding:1.25rem;color:var(--muted);text-align:center;margin:auto">No finished athletes in ${board.label} yet.</div>`;
+        rowsEl.innerHTML = `<div style="padding:1.25rem;color:var(--muted);text-align:center;margin:auto">No finished athletes in ${board.label} yet — Train Hard &amp; Be Sound!</div>`;
         return;
       }
 
-      rowsEl.innerHTML = slice.map((e, i) => `
+      rowsEl.innerHTML = slice.map((e) => `
         <div class="lb-row" style="cursor:pointer" onclick="setSpotlightEntry('${e.id}')">
-          <div class="lb-rank">#${startRank + i}</div>
+          <div class="lb-rank">🏁</div>
           <div style="min-width:0">
             <div style="font-weight:800;font-size:0.96rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.full_display_name}</div>
-            <div style="font-size:0.7rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Bib #${e.bib_number} · AG ${e.age_category} · Run ${e.run_total_formatted} (${e.avg_run_kph_formatted}) · Stn ${e.station_total_formatted}</div>
+            <div style="font-size:0.7rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Bib #${e.bib_number} · Run ${e.run_total_formatted} (${e.avg_run_kph_formatted}) · Stn ${e.station_total_formatted}</div>
           </div>
           <div style="text-align:right">
             ${e.history && e.history.comparison && e.history.comparison.total_delta_ms < 0

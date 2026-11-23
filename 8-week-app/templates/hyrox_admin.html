@@ -286,12 +286,24 @@
   </style>
 </head>
 <body>
+  <!-- GLOBAL 3-APP & HUB NAVIGATION BAR -->
+  <nav style="background:#050a06;border-bottom:1px solid rgba(61,255,79,0.22);padding:0.35rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;font-size:0.75rem">
+    <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap">
+      <a href="/" class="btn" style="padding:0.24rem 0.65rem;font-size:0.73rem;border-color:rgba(61,255,79,0.45);color:var(--green)">🏠 CS Hub</a>
+      <a href="/cms" class="btn" style="padding:0.24rem 0.65rem;font-size:0.73rem">📺 TV Workouts</a>
+      <a href="/challenge" class="btn" style="padding:0.24rem 0.65rem;font-size:0.73rem">🔥 8-Week Challenge</a>
+      <a href="/hyrox/admin" class="btn btn-green" style="padding:0.24rem 0.65rem;font-size:0.73rem">🏁 HYROX Sim</a>
+    </div>
+    <div style="font-weight:800;letter-spacing:0.06em;color:var(--green);text-transform:uppercase;font-size:0.72rem">
+      🤝 CS PERFORMANCE · TRAIN HARD &amp; BE SOUND
+    </div>
+  </nav>
   <header class="topbar">
     <div class="brand">
       <img src="/static/logo.jpg" alt="CS Performance Gym" class="brand-logo" />
       <div>
         <div class="brand-title">CS PERFORMANCE <span>HYROX</span> · RACE DIRECTOR CONSOLE</div>
-        <div style="font-size:0.74rem;color:var(--muted);font-weight:600">2-Day Weekend Schedule · 1 Racer + 1 Volunteer per Slot · Division Weight-Changeover Blocks</div>
+        <div style="font-size:0.74rem;color:var(--muted);font-weight:600">Train Hard &amp; Be Sound · 2-Day Weekend Schedule · 1 Racer + 1 Volunteer per Slot</div>
       </div>
     </div>
     <div class="nav-actions">
@@ -408,7 +420,7 @@
           <!-- Optional Extra Fields Drawer (kept for full compatibility) -->
           <details style="margin-top:0.55rem">
             <summary style="cursor:pointer;font-size:0.71rem;color:var(--muted);font-weight:700">
-              ⚙️ More options (Separate Partner field, Specific Slot dropdown, Email, Age Category)
+              ⚙️ More options (Separate Partner field, Specific Slot dropdown, Email)
             </summary>
             <div class="form-row" style="margin-top:0.45rem;margin-bottom:0">
               <div>
@@ -418,14 +430,6 @@
               <div>
                 <label>Specific 1:1 Slot</label>
                 <select id="qa-heat"></select>
-              </div>
-              <div>
-                <label>Age Category</label>
-                <select id="qa-age">
-                  {% for ag in age_categories %}
-                  <option value="{{ ag }}" {% if ag == '30-34' %}selected{% endif %}>{{ ag }}</option>
-                  {% endfor %}
-                </select>
               </div>
               <div>
                 <label>Email (Optional)</label>
@@ -638,7 +642,7 @@
               <th>Bib</th>
               <th>Day &amp; Slot (1:1)</th>
               <th>Athlete / Pair</th>
-              <th>Division &amp; AG</th>
+              <th>Division</th>
               <th>1:1 Volunteer</th>
               <th>Status &amp; Progress</th>
               <th>Run / Station / Total</th>
@@ -701,11 +705,11 @@
         <button type="button" class="btn" onclick="closeSplitsModal()">✕ Close</button>
       </div>
 
-      <!-- Athlete / Pair, Division, Age Category, Slot & Volunteer Editor -->
+      <!-- Athlete / Pair, Division, Slot & Volunteer Editor -->
       <div style="background:rgba(61,255,79,0.06);border:1px solid rgba(61,255,79,0.28);border-radius:10px;padding:0.85rem;margin-bottom:0.9rem">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.55rem">
           <div style="font-size:0.8rem;font-weight:800;color:var(--green);letter-spacing:0.04em">
-            👤 ATHLETE / DOUBLES PAIR, DIVISION, AGE CATEGORY, 1:1 SLOT &amp; VOLUNTEER
+            👤 ATHLETE / DOUBLES PAIR, DIVISION, 1:1 SLOT &amp; VOLUNTEER
           </div>
           <div style="display:flex;gap:0.4rem">
             <button type="button" class="btn btn-red" style="padding:0.28rem 0.6rem;font-size:0.74rem" onclick="deleteCurrentEntry()">🗑️ Delete Entry</button>
@@ -733,14 +737,6 @@
               <option value="mixed_doubles">Mixed Doubles (Mixed Dbl)</option>
               <option value="men_pro">Men&#39;s Pro (M Pro)</option>
               <option value="men_pro_doubles">Men&#39;s Pro Doubles (M Pro Dbl)</option>
-            </select>
-          </div>
-          <div>
-            <label>Age Category</label>
-            <select id="modal-age-category">
-              {% for ac in age_categories %}
-              <option value="{{ ac }}">{{ ac }}</option>
-              {% endfor %}
             </select>
           </div>
         </div>
@@ -1167,10 +1163,6 @@
           `<option value="${d.key}" ${e.division === d.key ? 'selected' : ''}>${d.label}</option>`
         ).join('');
 
-        const ageOpts = ADMIN_AGE_CATEGORIES.map(ac =>
-          `<option value="${ac}" ${e.age_category === ac ? 'selected' : ''}>AG ${ac}</option>`
-        ).join('');
-
         const statusClass = `status-${e.status}`;
         const histBadge = (e.history && e.history.comparison)
           ? `<div style="font-size:0.7rem;color:var(--green);font-weight:700">📈 vs Prev Sim: ${e.history.comparison.total_delta_formatted}</div>`
@@ -1198,10 +1190,6 @@
                 <select onchange="updateEntryMeta(${e.id}, {division: this.value})"
                   style="min-width:155px;padding:0.26rem 0.45rem;height:31px;font-weight:800;font-size:0.76rem;border-color:${e.division_color};color:${e.division_color}">
                   ${divOpts}
-                </select>
-                <select onchange="updateEntryMeta(${e.id}, {age_category: this.value})"
-                  style="min-width:95px;padding:0.22rem 0.45rem;height:28px;font-size:0.74rem;color:var(--muted)">
-                  ${ageOpts}
                 </select>
               </div>
             </td>
@@ -1469,7 +1457,8 @@
       }
       document.getElementById('modal-display-name').value = entry.display_name || '';
       document.getElementById('modal-partner-name').value = entry.partner_name || '';
-      document.getElementById('modal-age-category').value = entry.age_category || '30-34';
+      const modalAgeEl = document.getElementById('modal-age-category');
+      if (modalAgeEl) modalAgeEl.value = entry.age_category || '30-34';
       document.getElementById('modal-volunteer').value = entry.volunteer_name || '';
       document.getElementById('modal-bib').value = entry.bib_number || '';
       document.getElementById('modal-email').value = entry.email || '';
@@ -1524,7 +1513,7 @@
         display_name: document.getElementById('modal-display-name').value.trim(),
         partner_name: document.getElementById('modal-partner-name').value.trim(),
         division: document.getElementById('modal-division').value,
-        age_category: document.getElementById('modal-age-category').value,
+        age_category: (document.getElementById('modal-age-category')?.value || editingEntry?.age_category || '30-34'),
         heat_id: document.getElementById('modal-heat-id').value || null,
         volunteer_name: document.getElementById('modal-volunteer').value.trim(),
         bib_number: document.getElementById('modal-bib').value.trim(),

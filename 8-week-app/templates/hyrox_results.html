@@ -310,18 +310,31 @@
   </style>
 </head>
 <body>
+  <!-- GLOBAL 3-APP & HUB NAVIGATION BAR -->
+  <nav style="background:#050a06;border-bottom:1px solid rgba(61,255,79,0.22);padding:0.35rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;font-size:0.75rem">
+    <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap">
+      <a href="/" class="btn" style="padding:0.24rem 0.65rem;font-size:0.73rem;border-color:rgba(61,255,79,0.45);color:var(--green)">🏠 CS Hub</a>
+      <a href="/cms" class="btn" style="padding:0.24rem 0.65rem;font-size:0.73rem">📺 TV Workouts</a>
+      <a href="/challenge" class="btn" style="padding:0.24rem 0.65rem;font-size:0.73rem">🔥 8-Week Challenge</a>
+      <a href="/hyrox/admin" class="btn btn-green" style="padding:0.24rem 0.65rem;font-size:0.73rem">🏁 HYROX Sim</a>
+    </div>
+    <div style="font-weight:800;letter-spacing:0.06em;color:var(--green);text-transform:uppercase;font-size:0.72rem">
+      🤝 CS PERFORMANCE · TRAIN HARD &amp; BE SOUND
+    </div>
+  </nav>
   <header class="topbar">
     <div class="brand-wrap">
       <img src="/static/logo.jpg" alt="CS Performance Gym" class="brand-logo" />
       <div>
         <div class="brand">CS PERFORMANCE <span>HYROX</span> · FINISHER &amp; ROXFIT ANALYTICS</div>
-        <div style="font-size:0.7rem;color:var(--muted);font-weight:700">Official 16-Split Breakdown · 1.2 km Run Pace · Social Finisher Card</div>
+        <div style="font-size:0.7rem;color:var(--muted);font-weight:700">Train Hard &amp; Be Sound · Official 16-Split Breakdown · Social Finisher Card</div>
       </div>
     </div>
     <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
       <a href="/hyrox/admin" class="btn">🏁 Race Console</a>
       <a href="/hyrox/judge?entry={{ entry.id }}" class="btn">⏱️ Judge View</a>
       <a href="/hyrox/tv" class="btn">📺 Live TV</a>
+      <a href="/" class="btn">🏠 CS Hub</a>
     </div>
   </header>
 
@@ -336,7 +349,7 @@
               {{ entry.division_label }}
             </span>
             <span style="font-size:0.8rem;color:var(--muted);font-weight:700">
-              Bib #{{ entry.bib_number }} · Age Cat {{ entry.age_category }} · {{ entry.event_name }} ({{ entry.event_date }})
+              Bib #{{ entry.bib_number }} · {{ entry.event_name }} ({{ entry.event_date }}) · 🤝 Train Hard &amp; Be Sound
             </span>
           </div>
           <h1 class="athlete-name">{{ entry.full_display_name }}</h1>
@@ -422,7 +435,7 @@
         <canvas id="finisher-canvas" width="1080" height="1920"></canvas>
         <div style="flex:1;min-width:260px">
           <p style="color:var(--muted);font-size:0.88rem;line-height:1.5;margin-bottom:1rem">
-            Generate a high-resolution CS Performance HYROX Finisher PNG with your Official Time, Division &amp; Age Category badge, Run vs. Station summary, and all 8 Run + 8 Station splits ready to save or share directly to Instagram Stories or Feed.
+            Generate a high-resolution CS Performance HYROX Finisher PNG with your Official Time, Division badge, Run vs. Station summary, and all 8 Run + 8 Station splits ready to save or share directly to Instagram Stories or Feed.
           </p>
           <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.85rem">
             <button type="button" class="btn btn-green" onclick="renderFinisherCanvas('story')">📱 Story 9:16 (1080×1920)</button>
@@ -464,7 +477,7 @@
             </div>
           </div>
           <div class="roxfit-time">${entryData.avg_run_formatted || '--:--'}</div>
-          <div class="roxfit-rank">#${entryData.avg_run_rank || 1}</div>
+          <div class="roxfit-rank">🏃</div>
         </div>
       `;
 
@@ -495,7 +508,7 @@
               </div>
             </div>
             <div class="roxfit-time">${s.duration_formatted}</div>
-            <div class="roxfit-rank">${s.split_rank ? '#' + s.split_rank : '—'}</div>
+            <div class="roxfit-rank">${s.duration_ms ? '✓' : '—'}</div>
           </div>
         `;
       }).join('');
@@ -506,7 +519,7 @@
           <div class="roxfit-header-row">
             <div>Split / Station (Proportional Duration &amp; PB)</div>
             <div style="text-align:right">Time</div>
-            <div style="text-align:right">Rank</div>
+            <div style="text-align:right">Status</div>
           </div>
           ${avgRunRowHtml}
           ${rowsHtml}
@@ -561,10 +574,10 @@
 
       // Division Pill
       ctx.fillStyle = entryData.division_color || '#3DFF4F';
-      ctx.fillRect(76, isStory ? 185 : 160, 480, 54);
+      ctx.fillRect(76, isStory ? 185 : 160, 620, 54);
       ctx.fillStyle = '#050806';
-      ctx.font = '800 26px "Inter", sans-serif';
-      ctx.fillText(`${entryData.division_label.toUpperCase()} · AG ${entryData.age_category}`, 94, isStory ? 221 : 196);
+      ctx.font = '800 25px "Inter", sans-serif';
+      ctx.fillText(`${entryData.division_label.toUpperCase()} · TRAIN HARD & BE SOUND`, 94, isStory ? 221 : 196);
 
       // Athlete Name
       ctx.fillStyle = '#ffffff';
@@ -659,7 +672,7 @@
       // Footer
       ctx.fillStyle = '#94a3b8';
       ctx.font = '700 24px "Inter", sans-serif';
-      ctx.fillText('CS PERFORMANCE GYM · VERIFIED 16-SPLIT HYROX SIMULATION', 76, canvas.height - 68);
+      ctx.fillText('CS PERFORMANCE GYM · TRAIN HARD & BE SOUND · VERIFIED 16-SPLIT SIM', 76, canvas.height - 68);
     }
 
     function downloadFinisherPng() {

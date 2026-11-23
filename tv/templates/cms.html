@@ -183,14 +183,16 @@
   <div class="topbar-brand">
     <img class="topbar-logo" src="/static/logo.jpg" alt="CS" />
     <span class="topbar-name">CS Fitness CMS</span>
-    <a href="/classes" style="color:#3DFF4F;font-size:0.85rem">Class Studio CMS</a>
+    <span style="color:#3DFF4F;font-size:0.72rem;font-weight:700;letter-spacing:0.05em;text-transform:uppercase">· Train Hard &amp; Be Sound</span>
+    <a href="/classes" style="color:#3DFF4F;font-size:0.82rem;margin-left:0.35rem">Class Studio CMS</a>
   </div>
-  <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
+  <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+    <a href="/" class="btn btn-accent" style="text-decoration:none;border:1px solid rgba(61,255,79,0.55)" title="Back to CS Performance Hub">🏠 CS Hub</a>
     <a href="/display" target="_blank" class="btn btn-dark" style="text-decoration:none;border:1px solid rgba(61,255,79,0.45)" title="Open TV Display (note hyphen: cs-fitness.onrender.com/display)">📺 Open TV Display</a>
     <button type="button" class="btn btn-dark" onclick="navigator.clipboard.writeText(window.location.origin + '/display');this.textContent='✅ TV URL Copied!';setTimeout(()=>this.textContent='📋 Copy TV URL',1800)" title="Copy exact TV Display URL (cs-fitness with hyphen)">📋 Copy TV URL</button>
-    <a href="/hyrox/tv" target="_blank" class="btn btn-accent" style="text-decoration:none" title="Open Live HYROX Race Sim TV Board">🏁 HYROX TV</a>
-    <a href="/hyrox/admin" class="btn btn-dark" style="text-decoration:none" title="Open HYROX Race Director Console">⏱️ HYROX Console</a>
-    <a href="/challenge" class="btn btn-accent" style="text-decoration:none">⚡ 8-Week Challenge App</a>
+    <a href="/challenge" class="btn btn-accent" style="text-decoration:none">🔥 8-Week Challenge</a>
+    <a href="/hyrox/admin" class="btn btn-accent" style="text-decoration:none" title="Open HYROX Race Director Console">🏁 HYROX Sim</a>
+    <a href="/hyrox/tv" target="_blank" class="btn btn-dark" style="text-decoration:none" title="Open Live HYROX Race Sim TV Board">📺 HYROX TV</a>
     <form method="post" action="/logout" style="display:inline">
       <button class="logout-btn" type="submit">Logout</button>
     </form>

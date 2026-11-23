@@ -323,6 +323,11 @@ def test_historical_progression_and_web_surfaces(client):
     assert b'<option value="men_doubles">Men&#39;s Open Doubles (M Open Dbl)</option>' in admin_resp.data
     assert b'<option value="mixed_doubles">Mixed Doubles (Mixed Dbl)</option>' in admin_resp.data
     assert b'<option value="women_pro_doubles">Female Pro Doubles (F Pro Dbl)</option>' in admin_resp.data
+    assert b"TRAIN HARD &amp; BE SOUND" in admin_resp.data
+    assert b'href="/"' in admin_resp.data
+    assert b'href="/cms"' in admin_resp.data
+    assert b'href="/challenge"' in admin_resp.data
+    assert b"Age Category" not in admin_resp.data
 
     # Surface 2: Volunteer Judge App (Direct Athlete Selector + Top Run Pace Strip)
     judge_resp = client.get(f"/hyrox/judge?entry={ewan['id']}")
@@ -330,18 +335,25 @@ def test_historical_progression_and_web_surfaces(client):
     assert b"Wall Ball Rep Counter" in judge_resp.data
     assert b"Avg Run Pace" in judge_resp.data
     assert b"/static/logo.jpg" in judge_resp.data
+    assert b"Train Hard &amp; Be Sound" in judge_resp.data
+    assert b'href="/"' in judge_resp.data
 
     # Surface 3: Live Gym TV Broadcast (HYROX App / Roxfit 16-split view)
     tv_resp = client.get("/hyrox/tv")
     assert tv_resp.status_code == 200
     assert b"HYROX APP VIEW" in tv_resp.data
     assert b"/static/logo.jpg" in tv_resp.data
+    assert b"FINISHER BOARD" in tv_resp.data
+    assert b"TRAIN HARD &amp; BE SOUND" in tv_resp.data
+    assert b"DIVISION LEADERBOARD" not in tv_resp.data
 
     # Surface 4: Athlete Results & Social Finisher Card
     res_resp = client.get(f"/hyrox/results/{ewan['id']}")
     assert res_resp.status_code == 200
     assert b"FINISHER CARD GENERATOR" in res_resp.data
     assert b"/static/logo.jpg" in res_resp.data
+    assert b"Train Hard &amp; Be Sound" in res_resp.data
+    assert b"Age Cat" not in res_resp.data
 
     ath_resp = client.get(f"/hyrox/athlete/{ewan['athlete_id']}")
     assert ath_resp.status_code == 200

@@ -49,6 +49,21 @@
   </div>
 
   <!-- ========================================================= -->
+  <!-- GLOBAL 3-APP & HUB NAVIGATION BAR                         -->
+  <!-- ========================================================= -->
+  <nav style="max-width:980px;margin:0 auto 0.45rem auto;display:flex;justify-content:space-between;align-items:center;gap:0.4rem;flex-wrap:wrap;padding:0.35rem 0.65rem;background:#050a06;border:1px solid rgba(61,255,79,0.25);border-radius:10px;font-size:0.73rem">
+    <div style="display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap">
+      <a href="/" class="btn btn-sm" style="text-decoration:none;font-size:0.72rem;padding:0.22rem 0.55rem;border-color:rgba(61,255,79,0.45);color:var(--green)">🏠 CS Hub</a>
+      <a href="/cms" class="btn btn-sm" style="text-decoration:none;font-size:0.72rem;padding:0.22rem 0.55rem">📺 TV Workouts</a>
+      <a href="/challenge" class="btn btn-green btn-sm" style="text-decoration:none;font-size:0.72rem;padding:0.22rem 0.55rem">🔥 8-Week Challenge</a>
+      <a href="/hyrox/admin" class="btn btn-sm" style="text-decoration:none;font-size:0.72rem;padding:0.22rem 0.55rem">🏁 HYROX Sim</a>
+    </div>
+    <div style="font-weight:800;letter-spacing:0.05em;color:var(--green);text-transform:uppercase;font-size:0.68rem">
+      🤝 TRAIN HARD &amp; BE SOUND
+    </div>
+  </nav>
+
+  <!-- ========================================================= -->
   <!-- UNIFIED CHALLENGER NAVIGATION BAR (MOBILE-FIRST SHELL)    -->
   <!-- ========================================================= -->
   <div id="challenger-unified-topbar" style="max-width:980px;margin:0 auto 0.65rem auto;display:flex;justify-content:space-between;align-items:center;gap:0.45rem;flex-wrap:wrap;padding:0.5rem 0.7rem;background:#09110b;border:1px solid var(--border);border-radius:12px">
@@ -56,7 +71,7 @@
       <img src="/static/logo.jpg" alt="CS" style="width:30px;height:30px;border-radius:7px;object-fit:cover" />
       <div>
         <div style="font-size:0.82rem;font-weight:900;color:#fff;letter-spacing:0.03em" id="op-client-name">CS FITNESS DAILY</div>
-        <div style="font-size:0.68rem;color:var(--green);font-weight:700" id="op-week-badge">8-Week Challenge</div>
+        <div style="font-size:0.68rem;color:var(--green);font-weight:700" id="op-week-badge">8-Week Challenge · Train Hard &amp; Be Sound</div>
       </div>
     </div>
     <div style="display:flex;gap:0.35rem;align-items:center;flex-wrap:wrap">
@@ -64,6 +79,7 @@
       <button class="btn btn-sm" id="nav-pill-checkin" onclick="openDesktopTab('checkin')" style="font-size:0.74rem;padding:0.32rem 0.65rem">📸 Weekly Check-In</button>
       <button class="btn btn-sm" id="nav-pill-settings" onclick="openDesktopTab('integrations')" style="font-size:0.74rem;padding:0.32rem 0.65rem">⚙️ Setup</button>
       <a href="/challenge/admin" id="op-admin-btn" class="btn btn-sm" style="display:{% if is_admin %}inline-flex{% else %}none{% endif %};text-decoration:none;font-size:0.72rem;padding:0.3rem 0.55rem;border-color:rgba(56,189,248,0.45);color:#38bdf8" title="Separate Coach &amp; Admin Page">🛡️ Admin Page ↗</a>
+      <a href="/" class="btn btn-sm" style="text-decoration:none;font-size:0.72rem;padding:0.3rem 0.55rem" title="Back to CS Performance Hub">🏠 Hub</a>
       <a href="/api/challenge/auth/logout" class="btn btn-sm" style="text-decoration:none;font-size:0.72rem;padding:0.3rem 0.55rem">Sign Out</a>
     </div>
   </div>
