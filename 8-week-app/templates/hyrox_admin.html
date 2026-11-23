@@ -98,15 +98,15 @@
       border-color: rgba(244, 63, 94, 0.4);
     }
     .container {
-      max-width: 1380px;
-      margin: 1.25rem auto;
-      padding: 0 1.2rem;
+      max-width: 1520px;
+      margin: 0.75rem auto;
+      padding: 0 0.95rem;
     }
     .grid-2 {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 1.1rem;
-      margin-bottom: 1.2rem;
+      gap: 0.85rem;
+      margin-bottom: 0.85rem;
     }
     @media (max-width: 960px) {
       .grid-2 { grid-template-columns: 1fr; }
@@ -114,33 +114,33 @@
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 1.15rem;
-      margin-bottom: 1.1rem;
+      border-radius: 12px;
+      padding: 0.75rem 0.95rem;
+      margin-bottom: 0.65rem;
     }
     .card-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
-      gap: 0.6rem;
-      margin-bottom: 0.9rem;
-      padding-bottom: 0.65rem;
+      gap: 0.5rem;
+      margin-bottom: 0.55rem;
+      padding-bottom: 0.45rem;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
     .card-title {
       font-family: 'Barlow Condensed', sans-serif;
       font-style: italic;
       font-weight: 800;
-      font-size: 1.45rem;
+      font-size: 1.25rem;
       text-transform: uppercase;
       letter-spacing: 0.03em;
     }
     .form-row {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
-      gap: 0.65rem;
-      margin-bottom: 0.75rem;
+      grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+      gap: 0.5rem;
+      margin-bottom: 0.45rem;
       align-items: end;
     }
     .form-row > div, .quick-add-grid > div {
@@ -149,27 +149,14 @@
       justify-content: flex-end;
       min-width: 0;
     }
-    .quick-add-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 0.7rem;
-      margin-bottom: 0.8rem;
-      align-items: end;
-    }
-    @media (max-width: 1100px) {
-      .quick-add-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-    @media (max-width: 600px) {
-      .quick-add-grid { grid-template-columns: 1fr; }
-    }
     label {
       display: block;
-      font-size: 0.71rem;
+      font-size: 0.68rem;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.03em;
       color: var(--muted);
-      margin-bottom: 0.28rem;
+      margin-bottom: 0.2rem;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -179,33 +166,25 @@
       background: #070d09;
       border: 1px solid rgba(255, 255, 255, 0.16);
       color: var(--text);
-      padding: 0.52rem 0.65rem;
-      border-radius: 8px;
-      font-size: 0.84rem;
+      padding: 0.35rem 0.55rem;
+      border-radius: 7px;
+      font-size: 0.8rem;
       font-family: inherit;
-      height: 38px;
+      height: 32px;
     }
     textarea {
       height: auto;
-    }
-    .changeover-row td {
-      background: rgba(250, 204, 21, 0.09);
-      border-top: 1px dashed rgba(250, 204, 21, 0.45);
-      border-bottom: 1px dashed rgba(250, 204, 21, 0.45);
-      color: var(--yellow);
-      font-size: 0.76rem;
-      font-weight: 700;
-      padding: 0.48rem 0.7rem;
     }
     .day-tab-btn {
       background: var(--surface-2);
       border: 1px solid rgba(255, 255, 255, 0.14);
       color: var(--muted);
-      padding: 0.42rem 0.75rem;
-      border-radius: 8px;
-      font-size: 0.76rem;
+      padding: 0.28rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.72rem;
       font-weight: 800;
       cursor: pointer;
+      height: 28px;
     }
     .day-tab-btn.active {
       background: rgba(61, 255, 79, 0.16);
@@ -215,27 +194,72 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.82rem;
+      font-size: 0.76rem;
     }
     th, td {
-      padding: 0.6rem 0.55rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      padding: 0.2rem 0.42rem;
+      border: 1px solid rgba(255, 255, 255, 0.07);
       text-align: left;
       vertical-align: middle;
+      white-space: nowrap;
     }
     th {
-      font-size: 0.7rem;
+      background: rgba(255, 255, 255, 0.04);
+      font-size: 0.67rem;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.05em;
       color: var(--muted);
       font-weight: 800;
+      padding: 0.28rem 0.42rem;
+    }
+    tbody tr:hover td {
+      background: rgba(61, 255, 79, 0.035);
+    }
+    .cell-input, .cell-select {
+      height: 24px;
+      padding: 0.1rem 0.32rem;
+      font-size: 0.74rem;
+      border-radius: 4px;
+      background: rgba(7, 13, 9, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.11);
+    }
+    .cell-input:focus, .cell-select:focus {
+      outline: none;
+      border-color: var(--green);
+      background: #070d09;
+    }
+    .btn-xs {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      height: 22px;
+      padding: 0 0.42rem;
+      border-radius: 5px;
+      font-weight: 700;
+      font-size: 0.69rem;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: var(--surface-2);
+      color: var(--text);
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .btn-xs:hover { border-color: var(--green); }
+    .btn-xs.btn-green {
+      background: var(--green);
+      color: #041206;
+      border-color: var(--green);
+    }
+    .btn-xs.btn-red {
+      background: rgba(244, 63, 94, 0.16);
+      color: #fda4af;
+      border-color: rgba(244, 63, 94, 0.4);
     }
     .pill {
       display: inline-block;
-      padding: 0.18rem 0.5rem;
-      border-radius: 6px;
+      padding: 0.1rem 0.38rem;
+      border-radius: 4px;
       font-weight: 800;
-      font-size: 0.72rem;
+      font-size: 0.66rem;
       text-transform: uppercase;
     }
     .status-racing { background: rgba(61, 255, 79, 0.18); color: var(--green); }
@@ -972,13 +996,13 @@
 
         rowsHtml.push(`
           <tr>
-            <td colspan="8" style="background:rgba(255,255,255,0.04);border-top:2px solid ${grp.color};border-bottom:1px solid rgba(255,255,255,0.1);padding:0.55rem 0.75rem">
+            <td colspan="8" style="background:rgba(255,255,255,0.04);border-top:2px solid ${grp.color};border-bottom:1px solid rgba(255,255,255,0.1);padding:0.24rem 0.5rem">
               <div style="display:flex;justify-content:space-between;align-items:center">
-                <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.05rem;color:${grp.color};letter-spacing:0.03em">
+                <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:0.92rem;color:${grp.color};letter-spacing:0.03em">
                   ${grp.title}
-                  <span style="color:var(--muted);font-weight:700;font-size:0.8rem;margin-left:0.45rem">(${grp.window})</span>
+                  <span style="color:var(--muted);font-weight:700;font-size:0.74rem;margin-left:0.35rem">(${grp.window})</span>
                 </div>
-                <span class="pill" style="background:rgba(255,255,255,0.08);color:${grp.color};font-weight:900">${grpEntries.length} signed up</span>
+                <span class="pill" style="background:rgba(255,255,255,0.08);color:${grp.color};font-weight:900">${grpEntries.length}</span>
               </div>
             </td>
           </tr>
@@ -987,7 +1011,7 @@
         if (!grpEntries.length) {
           rowsHtml.push(`
             <tr>
-              <td colspan="8" style="padding:0.65rem 0.85rem;color:var(--muted);font-size:0.78rem">
+              <td colspan="8" style="padding:0.3rem 0.5rem;color:var(--muted);font-size:0.73rem">
                 No athletes in ${grp.title} yet.
               </td>
             </tr>
@@ -996,9 +1020,10 @@
         }
 
         grpEntries.forEach(e => {
-          const heatOpts = `<option value="">Unassigned</option>` + heats.map(h =>
-            `<option value="${h.id}" ${e.heat_id === h.id ? 'selected' : ''}>Day ${h.day_number || 1} · ${h.start_time} · ${escapeHtml(h.name)}</option>`
-          ).join('');
+          const heatOpts = `<option value="">Unassigned</option>` + heats.map(h => {
+            const dayShort = (h.day_number || 1) === 2 ? 'Sun' : 'Sat';
+            return `<option value="${h.id}" ${e.heat_id === h.id ? 'selected' : ''}>${dayShort} ${h.start_time}</option>`;
+          }).join('');
 
           const divOpts = ADMIN_DIVISIONS.map(d =>
             `<option value="${d.key}" ${e.division === d.key ? 'selected' : ''}>${d.label}</option>`
@@ -1015,57 +1040,53 @@
             `View your full 16-split breakdown and download your Finisher Card here:\n${fullUrl}\n`
           );
           const emailActionBtn = e.email
-            ? `<a href="mailto:${encodeURIComponent(e.email)}?subject=${mailSubject}&body=${mailBody}" class="btn" style="padding:0.26rem 0.5rem;font-size:0.73rem" title="Email Results Link to ${escapeHtml(e.email)}">✉️</a>`
+            ? `<a href="mailto:${encodeURIComponent(e.email)}?subject=${mailSubject}&body=${mailBody}" class="btn-xs" title="Email Results Link to ${escapeHtml(e.email)}">✉️</a>`
             : '';
 
           const hasTime = (e.completed_splits || 0) > 0 || e.status === 'finished' || e.status === 'racing';
-          const resultSummaryHtml = hasTime
-            ? `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.15rem;color:var(--green);line-height:1.1;margin-top:0.15rem">${e.total_formatted}</div>
-               <div style="font-size:0.68rem;color:var(--muted)">Run ${e.run_total_formatted} · Stn ${e.station_total_formatted}</div>`
+          const resultInlineHtml = hasTime
+            ? `<strong style="font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;color:var(--green);margin-left:0.3rem">${e.total_formatted}</strong>
+               <span style="font-size:0.66rem;color:var(--muted);margin-left:0.2rem">(R:${e.run_total_formatted} · S:${e.station_total_formatted})</span>`
             : '';
 
           rowsHtml.push(`
             <tr>
-              <td><strong>#${escapeHtml(e.bib_number)}</strong></td>
-              <td>
-                <select onchange="updateEntryMeta(${e.id}, {heat_id: this.value})" style="min-width:165px;padding:0.28rem 0.45rem;height:32px;font-size:0.76rem">
+              <td style="width:46px;font-weight:800;color:var(--muted)">#${escapeHtml(e.bib_number)}</td>
+              <td style="width:105px">
+                <select class="cell-select" onchange="updateEntryMeta(${e.id}, {heat_id: this.value})" style="width:100px">
                   ${heatOpts}
                 </select>
               </td>
-              <td>
-                <div style="font-weight:800;font-size:0.9rem">${escapeHtml(e.full_display_name)}</div>
-              </td>
-              <td>
-                <select onchange="updateEntryMeta(${e.id}, {division: this.value})"
-                  style="min-width:150px;padding:0.26rem 0.45rem;height:32px;font-weight:800;font-size:0.76rem;border-color:${e.division_color};color:${e.division_color}">
+              <td style="font-weight:700;font-size:0.8rem">${escapeHtml(e.full_display_name)}</td>
+              <td style="width:138px">
+                <select class="cell-select" onchange="updateEntryMeta(${e.id}, {division: this.value})"
+                  style="width:134px;font-weight:700;border-color:${e.division_color};color:${e.division_color}">
                   ${divOpts}
                 </select>
               </td>
-              <td>
-                <input type="email" value="${escapeHtml(e.email || '')}" placeholder="athlete@email.com"
+              <td style="width:170px">
+                <input type="email" class="cell-input" value="${escapeHtml(e.email || '')}" placeholder="athlete@email.com"
                   onchange="updateEntryMeta(${e.id}, {email: this.value})"
-                  style="width:170px;padding:0.28rem 0.5rem;height:32px;font-size:0.76rem" />
+                  style="width:165px" />
               </td>
-              <td>
-                <input type="text" value="${escapeHtml(e.volunteer_name || '')}" placeholder="Assign Volunteer"
+              <td style="width:125px">
+                <input type="text" class="cell-input" value="${escapeHtml(e.volunteer_name || '')}" placeholder="Volunteer"
                   onchange="updateEntryMeta(${e.id}, {volunteer_name: this.value})"
-                  style="width:135px;padding:0.28rem 0.5rem;height:32px;font-size:0.76rem" />
+                  style="width:120px" />
               </td>
               <td>
-                <div>
-                  <span class="pill ${statusClass}">${e.status}</span>
-                  <span style="font-size:0.71rem;color:var(--muted);margin-left:0.2rem">${e.completed_splits}/16</span>
-                </div>
-                ${resultSummaryHtml}
+                <span class="pill ${statusClass}">${e.status}</span>
+                <span style="font-size:0.68rem;color:var(--muted);margin-left:0.15rem">${e.completed_splits}/16</span>
+                ${resultInlineHtml}
               </td>
               <td>
-                <div style="display:flex;gap:0.3rem;flex-wrap:wrap;align-items:center">
-                  <a href="/hyrox/judge?entry=${e.id}" target="_blank" class="btn" style="padding:0.26rem 0.5rem;font-size:0.73rem" title="Open Volunteer Judge Timer">⏱️ Judge</a>
-                  <button type="button" class="btn" style="padding:0.26rem 0.5rem;font-size:0.73rem" onclick="openSplitsModal(${e.id})" title="Edit Athlete / Splits">✏️ Edit</button>
-                  <a href="${relUrl}" target="_blank" class="btn btn-green" style="padding:0.26rem 0.5rem;font-size:0.73rem" title="Open Athlete Results Web Link">📲 Results</a>
-                  <button type="button" class="btn" style="padding:0.26rem 0.5rem;font-size:0.73rem" onclick="copyResultWebLink(${e.id}, this)" title="Copy Results Web Link">📋 Link</button>
+                <div style="display:flex;gap:0.22rem;flex-wrap:nowrap;align-items:center">
+                  <a href="/hyrox/judge?entry=${e.id}" target="_blank" class="btn-xs" title="Open Volunteer Judge Timer">⏱️ Judge</a>
+                  <button type="button" class="btn-xs" onclick="openSplitsModal(${e.id})" title="Edit Athlete / Splits">✏️ Edit</button>
+                  <a href="${relUrl}" target="_blank" class="btn-xs btn-green" title="Open Athlete Results Web Link">📲 Results</a>
+                  <button type="button" class="btn-xs" onclick="copyResultWebLink(${e.id}, this)" title="Copy Results Web Link">📋 Link</button>
                   ${emailActionBtn}
-                  <button type="button" class="btn btn-red" style="padding:0.26rem 0.45rem;font-size:0.73rem" title="Remove Entry" onclick="quickDeleteEntry(${e.id})">🗑️</button>
+                  <button type="button" class="btn-xs btn-red" title="Remove Entry" onclick="quickDeleteEntry(${e.id})">🗑️</button>
                 </div>
               </td>
             </tr>
