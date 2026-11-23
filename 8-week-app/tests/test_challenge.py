@@ -1612,13 +1612,28 @@ def test_ewan_taylor_week3_share_report_and_training_inference(client):
     assert "22,417" in html_wk4
 
 
-def test_separate_ewan_admin_account_and_admin_only_landing_page(client):
+def test_separate_ewan_admin_account_and_unlisted_challenge_app(client):
     """Verify:
     1. Ewan's user account (taylor.ewan@gmail.com, profile_id=1) is a regular challenger (role='challenger', is_admin=False)
        and does NOT see the Admin Page on the landing page (/) or /challenge, nor can it access /challenge/admin.
     2. Ewan's separate Admin account (taylor.ewan@googlemail.com, password='csfitness') has role='admin',
-       sees the Admin Page card on the landing page (/) and /challenge, and has full access to /challenge/admin.
+       sees the Admin Page on /challenge, and has full access to /challenge/admin.
+    3. The Hub has no challenge mentions or links, regardless of login or admin status.
     """
+    def assert_challenge_unlisted():
+        response = client.get("/")
+        assert response.status_code == 200
+        html = response.get_data(as_text=True).lower()
+        assert "challenge" not in html
+        assert "8-week" not in html
+        assert "8 week" not in html
+        for path in ("/cms", "/display", "/classes", "/classes/display", "/hyrox/admin"):
+            assert f'href="{path}"' in html
+
+    assert_challenge_unlisted()
+    assert client.get("/challenge/login").status_code == 200
+    assert client.get("/8-week-app").headers["Location"] == "/challenge"
+
     # 1. Log in as Ewan's regular user account (taylor.ewan@gmail.com)
     user_login = client.post("/api/challenge/auth/login", json={
         "email": "taylor.ewan@gmail.com",
@@ -1630,8 +1645,7 @@ def test_separate_ewan_admin_account_and_admin_only_landing_page(client):
     ov_user = client.get("/api/challenge/overview?date=2026-11-06").get_json()
     assert ov_user["is_admin"] is False
 
-    landing_user = client.get("/").get_data(as_text=True)
-    assert 'id="landing-admin-card"' not in landing_user
+    assert_challenge_unlisted()
 
     challenge_user = client.get("/challenge").get_data(as_text=True)
     assert 'id="op-admin-btn" class="btn btn-sm" style="display:none' in challenge_user
@@ -1659,9 +1673,7 @@ def test_separate_ewan_admin_account_and_admin_only_landing_page(client):
     ov_adm = client.get("/api/challenge/overview?date=2026-11-06").get_json()
     assert ov_adm["is_admin"] is True
 
-    landing_adm = client.get("/").get_data(as_text=True)
-    assert 'id="landing-admin-card"' in landing_adm
-    assert "8-Week Coach &amp; Admin Page" in landing_adm
+    assert_challenge_unlisted()
 
     challenge_adm = client.get("/challenge").get_data(as_text=True)
     assert 'id="op-admin-btn" class="btn btn-sm" style="display:inline-flex' in challenge_adm
