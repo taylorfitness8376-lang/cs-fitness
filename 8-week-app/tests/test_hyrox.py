@@ -932,7 +932,9 @@ def test_teamup_real_event_names_and_sync_filters_regular_classes(client):
     assert groups["male_mixed_doubles"]["count"] == 2
     dbl_by_name = {e["display_name"]: e for e in groups["male_mixed_doubles"]["entries"]}
     assert dbl_by_name["Eilidh Mcmanus"]["division"] == "mixed_doubles"
+    assert dbl_by_name["Eilidh Mcmanus"]["partner_name"] == "Jax Stevenson"
     assert dbl_by_name["Ewan Stewart"]["division"] == "men_doubles"
+    assert dbl_by_name["Ewan Stewart"]["partner_name"] == "Ewan Taylor"
 
     assert groups["female_solo"]["count"] == 2
     fsolo_names = {e["display_name"] for e in groups["female_solo"]["entries"]}
@@ -941,6 +943,64 @@ def test_teamup_real_event_names_and_sync_filters_regular_classes(client):
     assert groups["female_doubles"]["count"] == 1
     assert groups["female_doubles"]["entries"][0]["display_name"] == "Claire Robertson"
     assert groups["female_doubles"]["entries"][0]["division"] == "women_doubles"
+
+
+def test_confirmed_13_road_to_glasgow_signups_enrichment(client):
+    """
+    Verify all 13 confirmed Saturday 28th & Sunday 29th HYROX Sim sign-ups
+    cross-referenced with Road to Glasgow are enriched with the exact partners,
+    divisions, and 4-group assignments.
+    """
+    events_res = client.get("/api/hyrox/events").get_json()
+    event_id = events_res[0]["id"]
+
+    apply_res = client.post(f"/api/hyrox/events/{event_id}/apply-road-to-glasgow")
+    assert apply_res.status_code == 200
+    apply_json = apply_res.get_json()
+    assert apply_json["ok"] is True
+    assert apply_json["seeded_count"] == 13
+
+    entries = apply_json["entries"]
+    assert len(entries) == 13
+    by_name = {e["display_name"]: e for e in entries}
+
+    # 1-3: Group 1 — Male Solo Open (Saturday 28th)
+    for solo_male in ("Lucas Kane", "Ross Martin", "Scott Firth"):
+        assert by_name[solo_male]["division"] == "men_open"
+        assert by_name[solo_male]["partner_name"] == ""
+        assert by_name[solo_male]["signup_group"] == "male_solo"
+
+    # 4-9: Group 2 — Male Doubles / Mixed Doubles (Saturday 28th)
+    assert by_name["Eilidh Mcmanus"]["division"] == "mixed_doubles"
+    assert by_name["Eilidh Mcmanus"]["partner_name"] == "Jax Stevenson"
+    assert by_name["Eilidh Mcmanus"]["signup_group"] == "male_mixed_doubles"
+
+    assert by_name["Ewan Stewart"]["division"] == "men_doubles"
+    assert by_name["Ewan Stewart"]["partner_name"] == "Ewan Taylor"
+    assert by_name["Ewan Stewart"]["signup_group"] == "male_mixed_doubles"
+
+    assert by_name["Keiran Jackson"]["division"] == "men_doubles"
+    assert by_name["Keiran Jackson"]["partner_name"] == "Ricky Simpson"
+    assert by_name["Keiran Jackson"]["signup_group"] == "male_mixed_doubles"
+
+    assert by_name["Scott McDonald"]["division"] == "men_doubles"
+    assert by_name["Scott McDonald"]["partner_name"] == "Liam Blair"
+    assert by_name["Scott McDonald"]["signup_group"] == "male_mixed_doubles"
+
+    assert by_name["Steven Rosie"]["division"] == "mixed_doubles"
+    assert by_name["Steven Rosie"]["partner_name"] == "Fiona Sharp"
+    assert by_name["Steven Rosie"]["signup_group"] == "male_mixed_doubles"
+
+    assert by_name["Joe Wardle"]["division"] == "men_doubles"
+    assert "TBC" in by_name["Joe Wardle"]["partner_name"]
+    assert "Confirm if Mixed or Male Doubles Open" in by_name["Joe Wardle"]["notes"]
+    assert by_name["Joe Wardle"]["signup_group"] == "male_mixed_doubles"
+
+    # 10-13: Group 3 — Female Solo Open (Sunday 29th)
+    for solo_female in ("Eve Cunningham", "Joanne Campbell", "Lesley Anne Cooper", "Ava Stewart"):
+        assert by_name[solo_female]["division"] == "women_open"
+        assert by_name[solo_female]["partner_name"] == ""
+        assert by_name[solo_female]["signup_group"] == "female_solo"
 
 
 

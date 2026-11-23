@@ -803,6 +803,30 @@ def _purge_legacy_sample_data(db):
         seed_default_hyrox_data(db)
         changed = True
 
+    # 7. Enrich any existing synced entries with confirmed Road to Glasgow partners & divisions,
+    #    and ensure the 13 confirmed Saturday 28th & Sunday 29th sign-ups are present in production.
+    if _apply_road_to_glasgow_enrichment_to_db(db) > 0:
+        changed = True
+
+    is_testing = False
+    try:
+        from flask import has_app_context, current_app
+        is_testing = bool(has_app_context() and current_app.config.get("TESTING"))
+    except Exception:
+        is_testing = False
+
+    if not is_testing:
+        seeded_13_flag = db.execute(
+            "SELECT value FROM hyrox_settings WHERE key='confirmed_sat28_sun29_13_roster_v1'"
+        ).fetchone()
+        if not seeded_13_flag:
+            _seed_confirmed_sat28_sun29_signups(db)
+            db.execute(
+                "INSERT INTO hyrox_settings (key, value, updated_at) VALUES ('confirmed_sat28_sun29_13_roster_v1', '1', CURRENT_TIMESTAMP) "
+                "ON CONFLICT(key) DO UPDATE SET value='1', updated_at=CURRENT_TIMESTAMP"
+            )
+            changed = True
+
     if changed:
         db.commit()
 
@@ -3317,7 +3341,7 @@ def map_teamup_attendance_to_entry(att_obj):
     if att_obj.get("notes"):
         notes_parts.append(str(att_obj["notes"]).strip())
 
-    return {
+    result = {
         "display_name": full_name,
         "partner_name": partner_name,
         "email": email,
@@ -3338,6 +3362,366 @@ def map_teamup_attendance_to_entry(att_obj):
         "teamup_attendance_status": att_status,
         "notes": " · ".join(notes_parts),
     }
+    return enrich_entry_from_road_to_glasgow(result)
+
+
+# Confirmed 13 Saturday 28th & Sunday 29th HYROX Simulation sign-ups cross-referenced
+# with the CS Performance "Road to Glasgow" spreadsheet.
+CONFIRMED_SAT28_SUN29_SIGNUPS = [
+    # Group 1 — 1. Male Solo (Saturday 28th, 14:00–17:00)
+    {
+        "order": 1,
+        "display_name": "Lucas Kane",
+        "aliases": ["lucas kane", "lucas"],
+        "partner_name": "",
+        "division": "men_open",
+        "teamup_event_name": "Hyrox simulation solo",
+        "road_to_glasgow_note": "Confirmed Men's Solo Open (Road to Glasgow)",
+    },
+    {
+        "order": 2,
+        "display_name": "Ross Martin",
+        "aliases": ["ross martin", "riss martin", "riss marting"],
+        "partner_name": "",
+        "division": "men_open",
+        "teamup_event_name": "Hyrox simulation solo",
+        "road_to_glasgow_note": "Confirmed Men's Solo Open (Road to Glasgow)",
+    },
+    {
+        "order": 3,
+        "display_name": "Scott Firth",
+        "aliases": ["scott firth"],
+        "partner_name": "",
+        "division": "men_open",
+        "teamup_event_name": "Hyrox simulation solo",
+        "road_to_glasgow_note": "Confirmed Men's Solo Open (Road to Glasgow)",
+    },
+    # Group 2 — 2. Male Doubles / Mixed Doubles (Saturday 28th, 14:00–17:00)
+    {
+        "order": 4,
+        "display_name": "Eilidh Mcmanus",
+        "aliases": ["eilidh mcmanus", "eilidh"],
+        "partner_name": "Jax Stevenson",
+        "division": "mixed_doubles",
+        "teamup_event_name": "Hyrox simulation doubles male and mixed doubles",
+        "road_to_glasgow_note": "Confirmed Mixed Doubles Open w/ Jax Stevenson (Road to Glasgow)",
+    },
+    {
+        "order": 5,
+        "display_name": "Ewan Stewart",
+        "aliases": ["ewan stewart"],
+        "partner_name": "Ewan Taylor",
+        "division": "men_doubles",
+        "teamup_event_name": "Hyrox simulation doubles male and mixed doubles",
+        "road_to_glasgow_note": "Confirmed Male Doubles Open w/ Ewan Taylor (Road to Glasgow)",
+    },
+    {
+        "order": 6,
+        "display_name": "Keiran Jackson",
+        "aliases": ["keiran jackson", "kieran jackson"],
+        "partner_name": "Ricky Simpson",
+        "division": "men_doubles",
+        "teamup_event_name": "Hyrox simulation doubles male and mixed doubles",
+        "road_to_glasgow_note": "Confirmed Male Doubles Open w/ Ricky Simpson (Road to Glasgow)",
+    },
+    {
+        "order": 7,
+        "display_name": "Scott McDonald",
+        "aliases": ["scott mcdonald"],
+        "partner_name": "Liam Blair",
+        "division": "men_doubles",
+        "teamup_event_name": "Hyrox simulation doubles male and mixed doubles",
+        "road_to_glasgow_note": "Confirmed Male Doubles Open w/ Liam Blair (Road to Glasgow)",
+    },
+    {
+        "order": 8,
+        "display_name": "Steven Rosie",
+        "aliases": ["steven rosie"],
+        "partner_name": "Fiona Sharp",
+        "division": "mixed_doubles",
+        "teamup_event_name": "Hyrox simulation doubles male and mixed doubles",
+        "road_to_glasgow_note": "Confirmed Mixed Doubles Open w/ Fiona Sharp (Road to Glasgow)",
+    },
+    {
+        "order": 9,
+        "display_name": "Joe Wardle",
+        "aliases": ["joe wardle"],
+        "partner_name": "TBC (Confirm Partner)",
+        "division": "men_doubles",
+        "teamup_event_name": "Hyrox simulation doubles male and mixed doubles",
+        "road_to_glasgow_note": "TBC — Confirm if Mixed or Male Doubles Open and Partner name",
+    },
+    # Group 3 — 3. Female Solo (Sunday 29th, 10:00–14:00)
+    {
+        "order": 10,
+        "display_name": "Eve Cunningham",
+        "aliases": ["eve cunningham"],
+        "partner_name": "",
+        "division": "women_open",
+        "teamup_event_name": "Hyrox simulations female open solo",
+        "road_to_glasgow_note": "Confirmed Female Solo Open (Road to Glasgow)",
+    },
+    {
+        "order": 11,
+        "display_name": "Joanne Campbell",
+        "aliases": ["joanne campbell"],
+        "partner_name": "",
+        "division": "women_open",
+        "teamup_event_name": "Hyrox simulations female open solo",
+        "road_to_glasgow_note": "Confirmed Female Solo Open (Road to Glasgow)",
+    },
+    {
+        "order": 12,
+        "display_name": "Lesley Anne Cooper",
+        "aliases": ["lesley anne cooper", "lesley ann cooper"],
+        "partner_name": "",
+        "division": "women_open",
+        "teamup_event_name": "Hyrox simulations female open solo",
+        "road_to_glasgow_note": "Confirmed Female Solo Open (Road to Glasgow)",
+    },
+    {
+        "order": 13,
+        "display_name": "Ava Stewart",
+        "aliases": ["ava stewart"],
+        "partner_name": "",
+        "division": "women_open",
+        "teamup_event_name": "Hyrox simulations female open solo",
+        "road_to_glasgow_note": "Confirmed Female Solo Open (Road to Glasgow)",
+    },
+]
+
+# Additional Doubles pairs from Road to Glasgow.xlsx so any future TeamUp Doubles
+# booking automatically fills in their partner and division.
+ROAD_TO_GLASGOW_DOUBLES_DIRECTORY = {
+    "martin kerr": {"partner_name": "Danny Frame", "division": "men_doubles"},
+    "danny frame": {"partner_name": "Martin Kerr", "division": "men_doubles"},
+    "james brown": {"partner_name": "Lauren Brown", "division": "mixed_doubles"},
+    "lauren brown": {"partner_name": "James Brown", "division": "mixed_doubles"},
+    "gary morris": {"partner_name": "Kelly Morris", "division": "mixed_doubles"},
+    "kelly morris": {"partner_name": "Gary Morris", "division": "mixed_doubles"},
+    "craig burns": {"partner_name": "Victoria Burns", "division": "mixed_doubles"},
+    "victoria burns": {"partner_name": "Craig Burns", "division": "mixed_doubles"},
+    "callum hair": {"partner_name": "Nicoletta Contuzzi", "division": "mixed_doubles"},
+    "nicoletta contuzzi": {"partner_name": "Callum Hair", "division": "mixed_doubles"},
+    "lauren goldie": {"partner_name": "Kirsty Campbell", "division": "women_doubles"},
+    "kirsty campbell": {"partner_name": "Lauren Goldie", "division": "women_doubles"},
+    "heather whyte": {"partner_name": "Kirstin Leighton", "division": "women_doubles"},
+    "kirstin leighton": {"partner_name": "Heather Whyte", "division": "women_doubles"},
+    "kirsten borthwick": {"partner_name": "Karen McDonald", "division": "women_doubles"},
+    "karen mcdonald": {"partner_name": "Kirsten Borthwick", "division": "women_doubles"},
+    "stacey maxwell": {"partner_name": "Jennifer Scobie", "division": "women_doubles"},
+    "jennifer scobie": {"partner_name": "Stacey Maxwell", "division": "women_doubles"},
+    "stacey adamson": {"partner_name": "Amy Borthwick", "division": "women_doubles"},
+    "amy borthwick": {"partner_name": "Stacey Adamson", "division": "women_doubles"},
+    "charlene frame": {"partner_name": "Rebecca Wilson", "division": "women_doubles"},
+    "rebecca wilson": {"partner_name": "Charlene Frame", "division": "women_doubles"},
+    "carol anne wood": {"partner_name": "Lisa Marie", "division": "women_doubles"},
+    "lisa marie": {"partner_name": "Carol Anne Wood", "division": "women_doubles"},
+    "kellyanne mccrae": {"partner_name": "Ashleigh Muir", "division": "women_doubles"},
+    "ashleigh muir": {"partner_name": "Kellyanne McCrae", "division": "women_doubles"},
+    "rachel speedie": {"partner_name": "Megan McCreadie", "division": "women_doubles"},
+    "megan mccreadie": {"partner_name": "Rachel Speedie", "division": "women_doubles"},
+    "amy campbell": {"partner_name": "Leighann Campbell", "division": "women_doubles"},
+    "leighann campbell": {"partner_name": "Amy Campbell", "division": "women_doubles"},
+    "aimee mcdonald": {"partner_name": "Chloe Smith", "division": "women_doubles"},
+    "chloe smith": {"partner_name": "Aimee McDonald", "division": "women_doubles"},
+    "laura mcculloch": {"partner_name": "Nicola Smith", "division": "women_doubles"},
+    "nicola smith": {"partner_name": "Laura McCulloch", "division": "women_doubles"},
+}
+
+
+def _find_confirmed_road_to_glasgow_spec(display_name):
+    norm = re.sub(r"\s+", " ", (display_name or "").strip().lower())
+    if not norm:
+        return None
+    for item in CONFIRMED_SAT28_SUN29_SIGNUPS:
+        if norm == item["display_name"].lower() or norm in item.get("aliases", []):
+            return item
+    return None
+
+
+def enrich_entry_from_road_to_glasgow(entry_dict):
+    """
+    Enrich a mapped TeamUp/HYROX entry dictionary with confirmed partner names,
+    divisions, and notes from the CS Performance 'Road to Glasgow' sheet.
+    """
+    if not isinstance(entry_dict, dict):
+        return entry_dict
+    name_raw = (entry_dict.get("display_name") or "").strip()
+    norm = re.sub(r"\s+", " ", name_raw.lower())
+    if not norm:
+        return entry_dict
+
+    spec = _find_confirmed_road_to_glasgow_spec(name_raw)
+    if spec:
+        div = spec["division"]
+        signup_group = division_to_signup_group_key(div)
+        group_meta = HYROX_SIGNUP_GROUPS[signup_group]
+        if not entry_dict.get("partner_name"):
+            entry_dict["partner_name"] = spec["partner_name"]
+        entry_dict["division"] = div
+        entry_dict["division_label"] = HYROX_DIVISIONS.get(div, {}).get("label", div)
+        entry_dict["signup_group"] = signup_group
+        entry_dict["signup_group_label"] = group_meta["label"]
+        entry_dict["day_number"] = group_meta["day_number"]
+        entry_dict["has_explicit_division"] = True
+        note_tag = spec.get("road_to_glasgow_note") or ""
+        cur_notes = (entry_dict.get("notes") or "").strip()
+        if note_tag and note_tag.lower() not in cur_notes.lower():
+            entry_dict["notes"] = f"{cur_notes} · {note_tag}" if cur_notes else note_tag
+        entry_dict["replace_notes"] = True
+        return entry_dict
+
+    # Check additional Doubles pairs from Road to Glasgow if the entry was booked in a Doubles division
+    cur_div = entry_dict.get("division") or ""
+    if cur_div in ("men_doubles", "mixed_doubles", "women_doubles") and norm in ROAD_TO_GLASGOW_DOUBLES_DIRECTORY:
+        pair_info = ROAD_TO_GLASGOW_DOUBLES_DIRECTORY[norm]
+        div = pair_info["division"]
+        signup_group = division_to_signup_group_key(div)
+        group_meta = HYROX_SIGNUP_GROUPS[signup_group]
+        if not entry_dict.get("partner_name"):
+            entry_dict["partner_name"] = pair_info["partner_name"]
+        entry_dict["division"] = div
+        entry_dict["division_label"] = HYROX_DIVISIONS.get(div, {}).get("label", div)
+        entry_dict["signup_group"] = signup_group
+        entry_dict["signup_group_label"] = group_meta["label"]
+        entry_dict["day_number"] = group_meta["day_number"]
+        entry_dict["has_explicit_division"] = True
+    return entry_dict
+
+
+def _apply_road_to_glasgow_enrichment_to_db(db, event_id=None):
+    """
+    Update any existing entries in `hyrox_entries` that match the confirmed Road to Glasgow
+    roster so their partner_name, partner_athlete_id, division, notes, and 1:1 group heat slot
+    are accurate.
+    """
+    sql = "SELECT * FROM hyrox_entries"
+    params = []
+    if event_id is not None:
+        sql += " WHERE event_id=?"
+        params.append(event_id)
+    sql += " ORDER BY id ASC"
+    rows = db.execute(sql, params).fetchall()
+    updated = 0
+    for r in rows:
+        spec = _find_confirmed_road_to_glasgow_spec(r["display_name"])
+        if not spec:
+            continue
+        target_div = spec["division"]
+        target_partner = spec["partner_name"]
+        note_tag = spec.get("road_to_glasgow_note") or ""
+        cur_notes = (r["notes"] or "").strip()
+        if not cur_notes:
+            new_notes = f"{spec['teamup_event_name']} · {note_tag}" if spec.get("teamup_event_name") else note_tag
+        elif note_tag and note_tag.lower() not in cur_notes.lower():
+            new_notes = f"{cur_notes} · {note_tag}"
+        else:
+            new_notes = cur_notes
+
+        needs_update = (
+            (r["division"] or "") != target_div
+            or (r["partner_name"] or "") != target_partner
+            or new_notes != cur_notes
+        )
+        new_heat_id = r["heat_id"]
+        target_group = division_to_signup_group_key(target_div)
+        target_meta = HYROX_SIGNUP_GROUPS[target_group]
+        if new_heat_id:
+            h_row = db.execute(
+                "SELECT start_time, COALESCE(day_number, 1) as day_number FROM hyrox_heats WHERE id=?",
+                (new_heat_id,),
+            ).fetchone()
+            if not h_row or int(h_row["day_number"]) != target_meta["day_number"] or not (
+                target_meta["default_start_time"] <= (h_row["start_time"] or "") <= target_meta["default_end_time"]
+            ):
+                slot_helper = {
+                    "display_name": r["display_name"],
+                    "email": r["email"] or "",
+                    "division": target_div,
+                }
+                _assign_weekend_group_slot(db, r["event_id"], slot_helper)
+                if slot_helper.get("heat_id"):
+                    new_heat_id = int(slot_helper["heat_id"])
+                    needs_update = True
+        else:
+            slot_helper = {
+                "display_name": r["display_name"],
+                "email": r["email"] or "",
+                "division": target_div,
+            }
+            _assign_weekend_group_slot(db, r["event_id"], slot_helper)
+            if slot_helper.get("heat_id"):
+                new_heat_id = int(slot_helper["heat_id"])
+                needs_update = True
+
+        if needs_update:
+            partner_aid = (
+                find_or_create_athlete(db, full_name=target_partner, age_category=r["age_category"] or "30-34")
+                if target_partner and not target_partner.startswith("TBC")
+                else None
+            )
+            db.execute(
+                "UPDATE hyrox_entries SET division=?, partner_name=?, partner_athlete_id=?, heat_id=?, notes=?, "
+                "updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (target_div, target_partner, partner_aid, new_heat_id, new_notes, r["id"]),
+            )
+            updated += 1
+    return updated
+
+
+def _seed_confirmed_sat28_sun29_signups(db, event_id=None):
+    """
+    Ensure all 13 confirmed Saturday 28th & Sunday 29th HYROX Simulation sign-ups
+    (cross-referenced with Road to Glasgow) are present in the active weekend event.
+    """
+    if event_id is None:
+        ev = db.execute(
+            "SELECT id FROM hyrox_events ORDER BY event_date DESC, id DESC LIMIT 1"
+        ).fetchone()
+        if not ev:
+            return 0
+        event_id = ev["id"]
+
+    count = 0
+    for spec in CONFIRMED_SAT28_SUN29_SIGNUPS:
+        payload = {
+            "display_name": spec["display_name"],
+            "partner_name": spec["partner_name"],
+            "division": spec["division"],
+            "has_explicit_division": True,
+            "notes": f"{spec['teamup_event_name']} · {spec['road_to_glasgow_note']}",
+            "replace_notes": True,
+        }
+        _assign_weekend_group_slot(db, event_id, payload)
+        eid, _ = _create_entry_record(db, event_id, payload, upsert=True)
+        if eid:
+            count += 1
+    _apply_road_to_glasgow_enrichment_to_db(db, event_id=event_id)
+    return count
+
+
+@hyrox_bp.route("/api/hyrox/events/<int:event_id>/apply-road-to-glasgow", methods=["POST"])
+def api_apply_road_to_glasgow(event_id):
+    """
+    Seed/upsert and enrich the 13 confirmed Saturday 28th & Sunday 29th HYROX Sim
+    sign-ups from the CS Performance 'Road to Glasgow' sheet into the specified event.
+    """
+    db = get_db()
+    ensure_hyrox_tables(db)
+    ev = db.execute("SELECT * FROM hyrox_events WHERE id=?", (event_id,)).fetchone()
+    if not ev:
+        return jsonify({"error": "HYROX Event not found"}), 404
+    seeded_count = _seed_confirmed_sat28_sun29_signups(db, event_id=event_id)
+    db.commit()
+    entry_rows = db.execute("SELECT * FROM hyrox_entries WHERE event_id=? ORDER BY id ASC", (event_id,)).fetchall()
+    entries_final = [serialize_entry(db, r, include_splits=False, include_history=False) for r in entry_rows]
+    return jsonify({
+        "ok": True,
+        "seeded_count": seeded_count,
+        "entries": entries_final,
+        "signup_groups": build_signup_groups_summary(entries_final),
+    })
 
 
 @hyrox_bp.route("/api/hyrox/teamup/status", methods=["GET"])
@@ -4030,6 +4414,7 @@ def api_sync_teamup_to_event(event_id):
         else:
             skipped += 1
 
+    _apply_road_to_glasgow_enrichment_to_db(db, event_id=event_id)
     db.commit()
     entry_rows = db.execute("SELECT * FROM hyrox_entries WHERE event_id=? ORDER BY id ASC", (event_id,)).fetchall()
     entries_final = [serialize_entry(db, r, include_splits=False, include_history=False) for r in entry_rows]
