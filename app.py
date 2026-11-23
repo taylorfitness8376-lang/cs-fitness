@@ -18,6 +18,7 @@ from challenge_progress import challenge_progress_bp
 from challenge_blocks import challenge_blocks_bp
 from hyrox import hyrox_bp, ensure_hyrox_tables
 import config
+from class_board import classes_bp
 
 app = Flask(
     __name__,
@@ -46,6 +47,7 @@ app.register_blueprint(challenge_bp)
 app.register_blueprint(challenge_progress_bp)
 app.register_blueprint(challenge_blocks_bp)
 app.register_blueprint(hyrox_bp)
+app.register_blueprint(classes_bp)
 
 with app.app_context():
     try:
@@ -99,7 +101,7 @@ def login():
         pw = request.form.get("password", "").encode()
         if bcrypt.checkpw(pw, config.PASSWORD_HASH):
             session["authed"] = True
-            return redirect(url_for("cms"))
+            return redirect("/classes" if request.args.get("next") == "/classes" else url_for("cms"))
         error = "Incorrect password"
     return render_template("login.html", error=error)
 

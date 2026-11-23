@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a100c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>CS Fitness | Class Planner</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800&family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root { color-scheme:dark; --bg:#080d0a; --panel:#121c16; --line:#2c3d31; --green:#3dff4f; --muted:#a5b8ab; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:#f6faf7; font-family:Inter,Arial,sans-serif; }
+    button,input,select,textarea { font:inherit; }
+    button,.button { border:1px solid var(--line); border-radius:10px; padding:12px 16px; background:#1b2a20; color:#fff; cursor:pointer; text-decoration:none; display:inline-block; min-height:44px; text-align:center; }
+    button:hover,.button:hover { border-color:var(--green); }
+    .primary { background:var(--green); color:#08120b; font-weight:bold; }
+    .danger { color:#ffaaaa; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    a { color:var(--green); }
+    header { max-width:760px; margin:auto; padding:18px 16px 10px; }
+    .eyebrow { color:var(--green); text-transform:uppercase; letter-spacing:3px; font-size:12px; font-weight:bold; }
+    h1 { font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif; font-style:italic; font-size:32px; margin:5px 0; }
+    .brand { display:flex; align-items:center; gap:14px; }
+    .brand img { width:56px; height:56px; object-fit:contain; filter:drop-shadow(0 0 5px #3DFF4F88); }
+    h2 { margin:0 0 12px; }
+    p { line-height:1.5; color:var(--muted); }
+    nav { display:flex; gap:8px; margin-top:12px; }
+    nav button { flex:1; }
+    nav button[aria-selected="true"] { border-color:var(--green); color:var(--green); }
+    main { max-width:760px; margin:0 auto; padding:0 16px 32px; }
+    [hidden] { display:none !important; }
+    .toolbar,.actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .toolbar { justify-content:space-between; margin:16px 0; }
+    .card { padding:16px; background:var(--panel); border:1px solid var(--line); border-radius:14px; }
+    .actions { margin-top:14px; }
+    .actions button,.actions a { padding:10px 12px; font-size:14px; }
+    label { display:block; font-size:14px; color:#c6d8cb; margin:14px 0; }
+    input,select,textarea { display:block; width:100%; min-width:0; min-height:48px; font-size:16px; background:#080d0a; border:1px solid #43574a; color:white; border-radius:8px; padding:12px; margin-top:6px; }
+    input:focus,textarea:focus,select:focus { outline:2px solid var(--green); outline-offset:2px; }
+    textarea { min-height:140px; resize:vertical; line-height:1.5; }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .row > * { min-width:0; }
+    .status { padding:12px 14px; background:#16251b; border-left:3px solid var(--green); border-radius:8px; margin:12px 0; font-size:13px; overflow-wrap:anywhere; }
+    #message { position:sticky; top:8px; z-index:5; background:#263629; }
+    #message.error { background:#431c1c; border-color:#ff8585; }
+    dialog { width:min(520px,calc(100% - 16px)); max-height:92dvh; padding:18px; border:1px solid var(--line); border-radius:18px; background:var(--bg); color:white; }
+    dialog::backdrop { background:#000c; }
+    .section-editor { padding:14px; border:1px solid var(--line); border-radius:12px; margin:14px 0; background:var(--panel); }
+    .section-editor label:first-child { margin-top:0; }
+    .section-editor .actions { justify-content:flex-end; }
+    .section-editor textarea { min-height:170px; }
+    .section-editor .exercise-add { width:100%; border-color:#3DFF4F66; color:var(--green); }
+    .section-editor .actions button { font-size:13px; }
+    details { border:1px solid var(--line); padding:12px 14px; border-radius:12px; margin:14px 0; }
+    summary { cursor:pointer; padding:8px 0; min-height:44px; }
+    .editor-footer { position:sticky; bottom:0; z-index:4; margin:20px -4px 0; padding:10px 4px calc(10px + env(safe-area-inset-bottom)); background:var(--bg); border-top:1px solid var(--line); }
+    .editor-footer .buttons { display:grid; grid-template-columns:1fr 1.5fr; gap:8px; }
+    .editor-footer button { min-height:50px; padding:10px 8px; }
+    #save-state { font-size:12px; color:var(--muted); margin:0 0 8px; }
+    #exercise-error { color:#ffaaaa; line-height:1.4; margin:10px 0; }
+    #exercise-preview { white-space:pre-wrap; padding:12px; border:1px solid var(--line); border-radius:8px; color:var(--green); min-height:48px; line-height:1.5; }
+    #exercise-picker .primary { width:100%; }
+    .step { color:var(--green); font-size:12px; font-weight:bold; text-transform:uppercase; letter-spacing:1px; }
+    .class-chooser { position:relative; }
+    .class-chooser label { padding-top:10px; }
+    .class-chooser #new-workout { position:absolute; top:-8px; right:0; padding:8px; background:none; border:0; color:var(--green); font-size:13px; }
+    #editor-title { font-size:22px; margin-top:6px; overflow-wrap:anywhere; }
+    .tv-grid { display:grid; grid-template-columns:1fr 360px; gap:20px; align-items:start; }
+    iframe { width:324px; height:576px; border:1px solid var(--line); border-radius:12px; background:#080d0a; }
+    .help { font-size:13px; }
+    @media(max-width:700px) { .tv-grid { grid-template-columns:1fr; } iframe { width:100%; max-width:324px; } }
+    @media(max-width:420px) { .eyebrow { font-size:10px; letter-spacing:2px; } .brand img { width:44px; height:44px; } h1 { font-size:28px; } .template-fields { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+<header>
+  <div class="brand"><img src="/static/logo.jpg" alt="CS Fitness"><div>
+    <div class="eyebrow">CS Fitness / Class Studio</div>
+    <h1>THE CLASS BOARD</h1>
+  </div></div>
+  <nav aria-label="Class planner views">
+    <button type="button" data-tab="library" aria-selected="true">Program class</button>
+    <button type="button" data-tab="tv" aria-selected="false">TV Board</button>
+  </nav>
+</header>
+<main>
+  <div id="message" class="status" role="status" aria-live="polite" hidden></div>
+  <div id="now-playing" class="status">Connecting to the class TV...</div>
+  <section id="library">
+    <div class="class-chooser">
+      <label><span class="step">1 / Choose your class</span>
+        <select id="class-select" disabled><option value="">Loading class templates...</option></select>
+      </label>
+      <button type="button" id="new-workout">+ New template</button>
+    </div>
+    <p id="choose-hint">Select a class to update its workout and publish to the TV.</p>
+    <section id="editor" hidden>
+      <form id="workout-form">
+        <div style="margin-top:24px"><span class="step">2 / Update the workout</span><h2 id="editor-title"></h2></div>
+        <details id="template-details">
+          <summary>Template details &amp; options</summary>
+          <div class="row template-fields">
+            <label>Workout title<input name="title" required maxlength="120" placeholder="Sunday HYROX"></label>
+            <label>Class type<input name="class_type" maxlength="60" list="class-types" placeholder="HYROX, EMOM, Partner..."></label>
+          </div>
+          <datalist id="class-types"></datalist>
+          <div class="actions">
+            <button type="button" id="copy-template">Copy template</button>
+            <a class="button" id="preview-saved" target="_blank" rel="noopener">Preview saved</a>
+            <button type="button" id="delete-template" class="danger">Delete template</button>
+          </div>
+        </details>
+        <details>
+          <summary>Coach notes / team rules</summary>
+          <label>Notes shown on TV<textarea name="notes" maxlength="1000" style="min-height:80px" placeholder="Teams of 2. YGIG. Barbell 40/25 kg."></textarea></label>
+        </details>
+        <div id="sections"></div>
+        <button type="button" id="add-section">+ Add section</button>
+        <p class="help">Use Add exercise for quick targets. You can also type or edit any line directly, including rounds, intervals and partner rules.</p>
+        <div class="editor-footer">
+          <p id="save-state" role="status">Saved edits stay off the TV until you publish.</p>
+          <div class="buttons">
+            <button type="submit" id="save-workout">Save draft</button>
+            <button class="primary" type="submit" id="save-publish" value="publish">3 / Publish to TV</button>
+          </div>
+        </div>
+      </form>
+    </section>
+  </section>
+  <section id="tv" hidden>
+    <h2 style="margin-top:20px">Your portrait class TV</h2>
+    <div class="tv-grid">
+      <div class="card">
+        <p>The class board is separate from the existing gym TV. Update a class template, then tap <strong>Publish to TV</strong>. Saved edits stay private until you publish again.</p>
+        <label>Display duration
+          <select id="duration">
+            <option value="45">45 minutes</option>
+            <option value="60">60 minutes</option>
+            <option value="90" selected>90 minutes</option>
+            <option value="120">120 minutes</option>
+          </select>
+        </label>
+        <p class="help">The TV returns to standby when this duration ends. You can also clear it now.</p>
+        <button id="clear-tv">Clear class TV</button>
+        <label>Mounted TV orientation
+          <select id="rotation">
+            <option value="">Native portrait / normal browser</option>
+            <option value="cw">Rotate picture clockwise</option>
+            <option value="ccw">Rotate picture counterclockwise</option>
+          </select>
+        </label>
+        <label>TV browser address<input id="tv-url" readonly aria-label="TV browser address"></label>
+        <a class="button primary" id="open-tv" target="_blank" rel="noopener">Open TV board</a>
+        <p class="help">If the TV is physically turned sideways but its browser still renders landscape, try either rotation option. Bookmark the matching address on the TV. Use the TV browser's fullscreen controls where available.</p>
+        <p class="help">Long workouts rotate through numbered pages every 15 seconds rather than shrinking the text. Changes reach the TV within 10 seconds. If connection is lost, the last workout stays visible with a warning.</p>
+        <p class="help">On your phone, use your browser's Add to Home Screen option for quick access to this planner. Samsung compatibility and physical mounting suitability still need checking on the actual model.</p>
+        <div class="actions"><a href="/">Fitness Hub</a><a href="/cms">Main Gym CMS</a></div>
+      </div>
+      <div><p>Live portrait preview</p><iframe id="live-preview" title="Live class board preview" src="/classes/display"></iframe></div>
+    </div>
+  </section>
+</main>
+<dialog id="exercise-picker" aria-labelledby="exercise-picker-title">
+  <form id="exercise-form">
+    <div class="toolbar"><h2 id="exercise-picker-title">Add exercise</h2><button type="button" id="close-exercise">Close</button></div>
+    <label>Exercise<select id="exercise-name" required><option value="">Choose an exercise...</option></select></label>
+    <label id="custom-exercise-field" hidden>Custom exercise name<input id="custom-exercise-name" maxlength="80" placeholder="Type a movement"></label>
+    <label>Target type<select id="exercise-unit">
+      <option value="reps">Reps</option><option value="cal">Calories</option>
+      <option value="time">Time</option><option value="m">Metres</option><option value="km">Kilometres</option>
+    </select></label>
+    <div id="amount-field">
+      <label>Target<input id="exercise-amount" type="text" inputmode="decimal" maxlength="30" placeholder="20"></label>
+      <button type="button" id="toggle-scaled" aria-expanded="false">+ Scaled target</button>
+      <label id="scaled-field" hidden>Second target<input id="exercise-scaled" type="text" inputmode="decimal" maxlength="15" placeholder="16"><span class="help">Shown together, e.g. 12/16 cal Row.</span></label>
+    </div>
+    <div id="time-fields" class="row" hidden>
+      <label>Minutes<input id="exercise-minutes" type="number" inputmode="numeric" min="0" max="240" step="1" value="0"></label>
+      <label>Seconds<input id="exercise-seconds" type="number" inputmode="numeric" min="0" max="59" step="1" value="0"></label>
+    </div>
+    <label>Load / instructions (optional)<input id="exercise-notes" maxlength="160" placeholder="40/25 kg, synchro, ON / 40 sec OFF..."></label>
+    <div id="exercise-preview" aria-live="polite">Choose an exercise and set its target.</div>
+    <p id="exercise-error" role="alert" hidden></p>
+    <div class="actions"><button class="primary" type="submit">Add to workout</button></div>
+  </form>
+</dialog>
+<script src="{{ url_for('static', filename='class_exercises.js') }}"></script>
+<script>
+  'use strict';
+  var state = {workouts:[]}, csrf = '', editingId = null, dirty = false, busy = false;
+  var exerciseTarget = null;
+  var $ = function(id) { return document.getElementById(id); };
+  var editor = $('editor'), form = $('workout-form');
+  function element(tag, text, className) {
+    var node = document.createElement(tag);
+    if (text !== undefined) node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  }
+  function notify(text, error) {
+    $('message').textContent = text;
+    $('message').className = 'status' + (error ? ' error' : '');
+    $('message').hidden = false;
+  }
+  async function api(path, method, data) {
+    var response = await fetch('/classes/api/' + path, {
+      method:method || 'GET',
+      headers:{'Content-Type':'application/json', 'X-CSRF-Token':csrf},
+      body:data === undefined ? undefined : JSON.stringify(data)
+    });
+    var result;
+    try { result = await response.json(); }
+    catch (error) { throw new Error('The server returned an unreadable response. Reload and try again.'); }
+    if (!response.ok) throw new Error(result.error || 'Request failed (' + response.status + ').');
+    return result;
+  }
+  function run(action) {
+    if (busy) return;
+    busy = true;
+    $('class-select').disabled = true;
+    $('save-workout').disabled = true; $('save-publish').disabled = true;
+    Promise.resolve().then(action).catch(function(error) { notify(error.message, true); alert(error.message); })
+      .finally(function() {
+        busy = false; $('class-select').disabled = false;
+        $('save-workout').disabled = false; $('save-publish').disabled = false;
+      });
+  }
+  function button(text, action, className) {
+    var node = element('button', text, className); node.type = 'button';
+    node.addEventListener('click', function() { run(action); }); return node;
+  }
+  function showBoard(board) {
+    var name = board.workout ? board.workout.title : 'No class on the board';
+    var detail = board.mode === 'manual' ? 'Published until ' +
+      new Date(board.until).toLocaleTimeString('en-GB', {timeZone:'Europe/London', hour:'2-digit', minute:'2-digit'}) :
+      'Standby - choose a class template to publish';
+    $('now-playing').textContent = name + ' / ' + detail + ' / Class TV only';
+  }
+  async function refresh() {
+    state = await api('planner'); csrf = state.csrf_token;
+    showBoard(state.board); renderClassSelect();
+    $('class-types').replaceChildren();
+    Array.from(new Set(state.workouts.map(function(w) { return w.class_type; }))).sort().forEach(function(type) {
+      var option = element('option'); option.value = type; $('class-types').appendChild(option);
+    });
+  }
+  function renderClassSelect() {
+    var select = $('class-select'); select.replaceChildren();
+    var placeholder = element('option', 'Select your class...'); placeholder.value = ''; select.appendChild(placeholder);
+    state.workouts.slice().sort(function(a,b) { return a.class_type.localeCompare(b.class_type); }).forEach(function(w) {
+      var option = element('option', w.title); option.value = w.id; select.appendChild(option);
+    });
+    select.value = editingId || '';
+  }
+  function markDirty(value) {
+    dirty = value;
+    $('save-state').textContent = dirty ? 'Unsaved changes - save a draft or publish when ready.' :
+      'Saved edits stay off the TV until you publish.';
+  }
+  function canSwitch() {
+    return !dirty || confirm('Discard unsaved workout changes?');
+  }
+  function addSection(section) {
+    if ($('sections').children.length >= 20) { notify('Maximum 20 sections per workout.', true); return; }
+    var row = element('div', undefined, 'section-editor');
+    var headingLabel = element('label', 'Section heading'), heading = element('input');
+    heading.className = 'section-heading'; heading.required = true; heading.maxLength = 100;
+    heading.placeholder = 'Buy in / Main workout / Buy out'; heading.value = section ? section.title : '';
+    headingLabel.appendChild(heading);
+    var bodyLabel = element('label', 'Workout instructions'), body = element('textarea');
+    body.className = 'section-body'; body.maxLength = 6000;
+    body.placeholder = '80 cal Row / Ski\nPartner 1 - Row\nPartner 2 - 10 Burpees\nSwitch every 10 burpees.';
+    body.value = section ? section.body : ''; bodyLabel.appendChild(body);
+    row.appendChild(headingLabel);
+    row.appendChild(button('+ Add exercise', function() { openExercisePicker(body); }, 'exercise-add'));
+    row.appendChild(bodyLabel);
+    var actions = element('div', undefined, 'actions');
+    actions.appendChild(button('Move up', function() {
+      if (row.previousElementSibling) { row.parentNode.insertBefore(row, row.previousElementSibling); markDirty(true); }
+    }));
+    actions.appendChild(button('Remove section', function() {
+      if ((heading.value || body.value) && !confirm('Remove this section?')) return;
+      row.remove(); markDirty(true);
+    }, 'danger'));
+    row.appendChild(actions); $('sections').appendChild(row);
+  }
+  function openEditor(w, copy) {
+    editingId = w && !copy ? w.id : null; form.reset(); $('sections').replaceChildren();
+    $('editor-title').textContent = w ? w.title : 'New class template';
+    form.elements.title.value = w ? w.title.slice(0, copy ? 113 : 120) + (copy ? ' - copy' : '') : '';
+    form.elements.class_type.value = w ? w.class_type : '';
+    form.elements.notes.value = w ? w.notes : '';
+    (w ? w.sections : [{title:'Main workout', body:''}]).forEach(addSection);
+    $('class-select').value = editingId || '';
+    $('copy-template').disabled = !editingId;
+    $('delete-template').disabled = !editingId;
+    $('preview-saved').hidden = !editingId;
+    if (editingId) $('preview-saved').href = '/classes/display?preview=' + editingId;
+    $('template-details').open = !w;
+    $('choose-hint').hidden = true; editor.hidden = false;
+    markDirty(Boolean(copy));
+    if (!w) form.elements.title.focus();
+  }
+  form.addEventListener('input', function() { markDirty(true); });
+  form.addEventListener('invalid', function(event) {
+    if ($('template-details').contains(event.target)) $('template-details').open = true;
+  }, true);
+  $('class-select').onchange = function() {
+    if (!canSwitch()) { this.value = editingId || ''; return; }
+    var chosen = state.workouts.find(function(w) { return w.id === Number($('class-select').value); });
+    if (chosen) openEditor(chosen, false);
+    else { editor.hidden = true; $('choose-hint').hidden = false; editingId = null; markDirty(false); }
+  };
+  $('new-workout').onclick = function() { if (canSwitch()) openEditor(null, false); };
+  $('copy-template').onclick = function() {
+    if (canSwitch()) openEditor(state.workouts.find(function(w) { return w.id === editingId; }), true);
+  };
+  $('delete-template').onclick = function() { run(async function() {
+    if (!confirm('Delete this class template permanently, including any unsaved changes?')) return;
+    await api('workouts/' + editingId, 'DELETE');
+    editingId = null; markDirty(false); editor.hidden = true; $('choose-hint').hidden = false;
+    await refresh(); notify('Class template deleted.');
+  }); };
+  $('add-section').onclick = function() { addSection(); markDirty(true); };
+  async function publishWorkout(w) {
+    var minutes = Number($('duration').value);
+    if (!confirm('Publish "' + w.title + '" to the CLASS TV for ' + minutes + ' minutes?')) return false;
+    await api('publish', 'POST', {workout_id:w.id, minutes:minutes});
+    notify('Published to the class TV for ' + minutes + ' minutes. The main gym TV is unchanged.');
+    return true;
+  }
+  form.addEventListener('submit', function(event) {
+    event.preventDefault();
+    var shouldPublish = event.submitter && event.submitter.value === 'publish';
+    run(async function() {
+      var sections = Array.from($('sections').children).map(function(row) {
+        return {title:row.querySelector('.section-heading').value, body:row.querySelector('.section-body').value};
+      });
+      if (shouldPublish && sections.some(function(s) { return !s.body.trim(); })) {
+        throw new Error('Fill in every section before publishing, or use Save template to keep a draft.');
+      }
+      var saved = await api('workouts' + (editingId ? '/' + editingId : ''), editingId ? 'PUT' : 'POST', {
+        title:form.elements.title.value, class_type:form.elements.class_type.value,
+        notes:form.elements.notes.value, sections:sections
+      });
+      editingId = saved.id; markDirty(false);
+      $('editor-title').textContent = saved.title;
+      $('copy-template').disabled = false; $('delete-template').disabled = false;
+      $('preview-saved').hidden = false; $('preview-saved').href = '/classes/display?preview=' + saved.id;
+      notify('Template saved. The TV has not changed.');
+      if (shouldPublish && await publishWorkout(saved)) $('save-state').textContent = 'Published to the class TV.';
+      await refresh();
+    });
+  });
+  function exerciseData() {
+    var amount = $('exercise-amount').value.trim();
+    if (!$('scaled-field').hidden && $('exercise-scaled').value.trim()) amount += '/' + $('exercise-scaled').value.trim();
+    return {name:$('exercise-name').value === '__custom__' ? $('custom-exercise-name').value : $('exercise-name').value,
+      unit:$('exercise-unit').value, amount:amount,
+      minutes:$('exercise-minutes').value, seconds:$('exercise-seconds').value, notes:$('exercise-notes').value};
+  }
+  function updateExercisePreview() {
+    var custom = $('exercise-name').value === '__custom__';
+    $('custom-exercise-field').hidden = !custom; $('custom-exercise-name').disabled = !custom;
+    $('custom-exercise-name').required = custom;
+    var timed = $('exercise-unit').value === 'time';
+    $('amount-field').hidden = timed; $('exercise-amount').disabled = timed;
+    $('exercise-scaled').disabled = timed || $('scaled-field').hidden;
+    $('exercise-scaled').required = !timed && !$('scaled-field').hidden;
+    $('time-fields').hidden = !timed;
+    $('exercise-minutes').disabled = !timed; $('exercise-seconds').disabled = !timed;
+    $('exercise-error').hidden = true;
+    try { $('exercise-preview').textContent = ClassExercises.formatExercise(exerciseData()); }
+    catch (error) { $('exercise-preview').textContent = error.message; }
+  }
+  function openExercisePicker(target) {
+    exerciseTarget = target;
+    $('exercise-form').reset(); $('scaled-field').hidden = true;
+    $('toggle-scaled').setAttribute('aria-expanded', 'false'); $('toggle-scaled').textContent = '+ Scaled target';
+    updateExercisePreview();
+    $('exercise-picker').showModal();
+  }
+  ClassExercises.exercises.forEach(function(exercise) {
+    var option = element('option', exercise.name); option.value = exercise.name; $('exercise-name').appendChild(option);
+  });
+  var customOption = element('option', 'Custom exercise...'); customOption.value = '__custom__';
+  $('exercise-name').appendChild(customOption);
+  $('exercise-name').addEventListener('change', function() {
+    var chosen = ClassExercises.exercises.find(function(exercise) {
+      return exercise.name.toLowerCase() === $('exercise-name').value.trim().toLowerCase();
+    });
+    if (chosen) $('exercise-unit').value = chosen.unit;
+    updateExercisePreview();
+  });
+  $('exercise-form').addEventListener('input', updateExercisePreview);
+  $('exercise-unit').addEventListener('change', updateExercisePreview);
+  $('toggle-scaled').onclick = function() {
+    var show = $('scaled-field').hidden;
+    $('scaled-field').hidden = !show; $('toggle-scaled').setAttribute('aria-expanded', String(show));
+    $('toggle-scaled').textContent = show ? 'Remove scaled target' : '+ Scaled target';
+    if (!show) $('exercise-scaled').value = '';
+    updateExercisePreview();
+  };
+  $('close-exercise').onclick = function() { $('exercise-picker').close(); };
+  $('exercise-form').addEventListener('submit', function(event) {
+    event.preventDefault();
+    try {
+      var line = ClassExercises.formatExercise(exerciseData());
+      var content = exerciseTarget.value.replace(/\s+$/, '');
+      var updated = content + (content ? '\n' : '') + line;
+      if (updated.length > 6000) throw new Error('This section is full. Add another section before adding more exercises.');
+      exerciseTarget.value = updated; markDirty(true); $('exercise-picker').close();
+    } catch (error) {
+      $('exercise-error').textContent = error.message; $('exercise-error').hidden = false;
+    }
+  });
+  document.querySelectorAll('[data-tab]').forEach(function(tab) {
+    tab.onclick = function() {
+      document.querySelectorAll('[data-tab]').forEach(function(other) {
+        var selected = tab === other; other.setAttribute('aria-selected', String(selected));
+        $(other.dataset.tab).hidden = !selected;
+      });
+    };
+  });
+  $('clear-tv').onclick = function() { run(async function() {
+    if (!confirm('Clear the class TV and return it to standby?')) return;
+    await api('publish', 'POST', {workout_id:null}); await refresh(); notify('Class TV cleared.');
+  }); };
+  function setTVUrl() {
+    var url = location.origin + '/classes/display' + ($('rotation').value ? '?rotate=' + $('rotation').value : '');
+    $('tv-url').value = url; $('open-tv').href = url;
+  }
+  $('rotation').onchange = setTVUrl; setTVUrl();
+  window.addEventListener('beforeunload', function(event) {
+    if (dirty) { event.preventDefault(); event.returnValue = ''; }
+  });
+  run(refresh);
+  setInterval(function() {
+    api('board').then(showBoard).catch(function(error) {
+      $('now-playing').textContent = 'Class TV connection unavailable: ' + error.message;
+    });
+  }, 10000);
+</script>
+</body>
+</html>

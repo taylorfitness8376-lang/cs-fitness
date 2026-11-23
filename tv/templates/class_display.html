@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CS Fitness | Class TV</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800&family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing:border-box; margin:0; }
+    html,body { width:100%; height:100%; background:#000; overflow:hidden; }
+    body { font-family:Inter,Arial,sans-serif; color:#fff; }
+    #board { position:absolute; top:50%; left:50%; display:flex; flex-direction:column; background:#000; transform:translate(-50%,-50%); }
+    .header { display:flex; flex-shrink:0; border-bottom:2px solid #111; }
+    .logo { width:18%; display:flex; align-items:center; justify-content:center; padding:.6em; border-right:3px solid #3DFF4F; }
+    .logo img { width:100%; max-height:4em; object-fit:contain; filter:drop-shadow(0 0 .3em #3DFF4F88); }
+    .heading { flex:1; min-width:0; padding:.65em .8em; background:#3DFF4F; color:#000; }
+    .eyebrow { font-size:.48em; font-weight:900; letter-spacing:.12em; text-transform:uppercase; margin-bottom:.4em; }
+    h1 { font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif; font-style:italic; font-weight:800; text-transform:uppercase; font-size:1.9em; line-height:.95; overflow-wrap:anywhere; }
+    #notes { flex-shrink:0; padding:.65em 1em; border-bottom:1px solid #222; color:#bbb; font-size:.8em; line-height:1.45; overflow-wrap:anywhere; }
+    #notes strong { color:#3DFF4F; font-size:.8em; text-transform:uppercase; letter-spacing:.1em; margin-right:.7em; }
+    #pages { flex:1; min-height:0; padding:.7em .9em; overflow:hidden; position:relative; }
+    .page { height:100%; overflow:hidden; display:none; }
+    .page.active,.page.measuring { display:block; }
+    .workout-section { padding:.6em .7em .7em; background:#080808; border:1px solid #222; border-left:.12em solid #3DFF4F; margin-bottom:.55em; }
+    h2 { font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif; font-style:italic; font-size:1.2em; line-height:1.1; color:#3DFF4F; margin-bottom:.4em; text-transform:uppercase; overflow-wrap:anywhere; }
+    .instruction { font-size:1em; line-height:1.38; padding:.15em 0; border-bottom:1px solid #151515; white-space:pre-wrap; overflow-wrap:anywhere; font-weight:600; }
+    .instruction:last-child { border-bottom:0; }
+    footer { flex-shrink:0; padding:.55em 1em; display:flex; flex-wrap:wrap; align-items:center; gap:.5em; justify-content:space-between; border-top:1px solid #222; font-size:.55em; color:#9a9a9a; }
+    #connection { color:#3DFF4F; } #connection.offline { color:#ffb347; }
+    .idle { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:1em; padding:1em; }
+    .idle img { width:30%; filter:drop-shadow(0 0 1em #3DFF4F66); }
+    .idle h2 { color:white; font-size:1.8em; }
+    .idle p { color:#aaa; line-height:1.5; }
+  </style>
+</head>
+<body>
+<div id="board">
+  <header class="header">
+    <div class="logo"><img src="/static/logo.jpg" alt="CS Fitness"></div>
+    <div class="heading"><div class="eyebrow" id="class-type">CS Fitness / Class Studio</div><h1 id="workout-title">THE CLASS BOARD</h1></div>
+  </header>
+  <div id="notes" hidden></div>
+  <main id="pages" aria-live="polite"></main>
+  <footer><span id="clock"></span><span id="page-count"></span><span id="connection">CONNECTING</span></footer>
+</div>
+<script>
+  'use strict';
+  var params = new URLSearchParams(location.search);
+  var rotation = params.get('rotate'), preview = params.get('preview');
+  var board = document.getElementById('board'), pages = document.getElementById('pages');
+  var current = null, signature = '', pageIndex = 0, pageNodes = [], refreshing = false;
+  function node(tag, text, className) {
+    var el = document.createElement(tag);
+    if (text !== undefined) el.textContent = text;
+    if (className) el.className = className;
+    return el;
+  }
+  function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+  function resize() {
+    var rotated = rotation === 'cw' || rotation === 'ccw';
+    var portraitPreview = preview && !rotated;
+    var width = portraitPreview ? 1080 : (rotated ? window.innerHeight : window.innerWidth);
+    var height = portraitPreview ? 1920 : (rotated ? window.innerWidth : window.innerHeight);
+    board.style.width = width + 'px'; board.style.height = height + 'px';
+    board.style.fontSize = (width / 1080 * 34) + 'px';
+    board.style.transform = 'translate(-50%,-50%)' +
+      (rotated ? ' rotate(' + (rotation === 'cw' ? '90' : '-90') + 'deg)' : '') +
+      (portraitPreview ? ' scale(' + Math.min(window.innerWidth / width, window.innerHeight / height) + ')' : '');
+    render(current);
+  }
+  function sectionCard(title) {
+    var card = node('section', undefined, 'workout-section');
+    card.appendChild(node('h2', title));
+    return card;
+  }
+  function fits(page) { return page.scrollHeight <= page.clientHeight + 1; }
+  function newPage() {
+    if (pageNodes.length) pageNodes[pageNodes.length-1].classList.remove('measuring');
+    var page = node('div', undefined, 'page measuring'); pages.appendChild(page); pageNodes.push(page); return page;
+  }
+  function paginate(sections) {
+    var page = newPage();
+    sections.forEach(function(section) {
+      var card = sectionCard(section.title);
+      section.body.split('\n').filter(function(line) { return line.trim(); }).forEach(function(line) {
+        card.appendChild(node('p', line, 'instruction'));
+      });
+      page.appendChild(card);
+      if (fits(page)) return;
+      page.removeChild(card);
+      if (page.children.length) page = newPage();
+      page.appendChild(card);
+      if (fits(page)) return;
+      // Split oversized sections at instruction/word boundaries and repeat their heading.
+      page.removeChild(card); card = sectionCard(section.title); page.appendChild(card);
+      section.body.split('\n').filter(function(line) { return line.trim(); }).forEach(function(line) {
+        var paragraph = node('p', '', 'instruction'); card.appendChild(paragraph);
+        var words = line.match(/\S+\s*/g) || [''];
+        var chunks = [];
+        words.forEach(function(word) {
+          // A pasted unbroken string must not overflow a whole page.
+          for (var i=0; i<word.length; i+=40) chunks.push(word.slice(i,i+40));
+        });
+        chunks.forEach(function(word) {
+          var before = paragraph.textContent; paragraph.textContent += word;
+          if (fits(page)) return;
+          paragraph.textContent = before;
+          if (!before) card.removeChild(paragraph);
+          page = newPage();
+          card = sectionCard(section.title + ' (continued)'); page.appendChild(card);
+          paragraph = node('p', word, 'instruction'); card.appendChild(paragraph);
+        });
+        paragraph.textContent = paragraph.textContent.trimEnd();
+      });
+    });
+    page.classList.remove('measuring');
+  }
+  function showPage() {
+    pageNodes.forEach(function(page, index) { page.classList.toggle('active', index === pageIndex); });
+    document.getElementById('page-count').textContent = pageNodes.length > 1 ?
+      'PAGE ' + (pageIndex+1) + ' / ' + pageNodes.length + ' - changes every 15 sec' :
+      'CLASS STUDIO';
+  }
+  function render(data) {
+    clear(pages); pageNodes = []; pageIndex = 0;
+    var workout = data && data.workout;
+    document.getElementById('workout-title').textContent = workout ? workout.title : 'THE CLASS BOARD';
+    document.getElementById('class-type').textContent = workout ?
+      'CS Fitness / ' + (workout.class_type || 'Class Studio') : 'CS Fitness / Class Studio';
+    var notes = document.getElementById('notes'); clear(notes); notes.hidden = true;
+    if (!workout) {
+      var idle = node('div', undefined, 'idle'), logo = node('img');
+      logo.src = '/static/logo.jpg'; logo.alt = 'CS Fitness'; idle.appendChild(logo);
+      idle.appendChild(node('h2', 'Ready for the next class'));
+      idle.appendChild(node('p', 'Your coach can choose a class template and publish the workout from /classes.'));
+      pages.appendChild(idle); document.getElementById('page-count').textContent = 'CLASS STUDIO'; return;
+    }
+    var sections = workout.sections.slice();
+    if (workout.notes && workout.notes.length <= 180) {
+      notes.appendChild(node('strong', 'Coach'));
+      notes.appendChild(node('span', workout.notes)); notes.hidden = false;
+    } else if (workout.notes) {
+      sections.unshift({title:'Coach notes / team rules', body:workout.notes});
+    }
+    paginate(sections); showPage();
+  }
+  function status(online, error) {
+    var label = document.getElementById('connection');
+    label.className = online ? '' : 'offline';
+    label.textContent = online ? (preview ? 'PREVIEW - NOT PUBLISHED' : 'LIVE') :
+      (error || 'CONNECTION LOST - LAST BOARD SHOWN');
+  }
+  function poll() {
+    if (refreshing) return;
+    refreshing = true;
+    var endpoint = preview && /^\d+$/.test(preview) ? 'preview/' + preview : 'board';
+    fetch('/classes/api/' + endpoint, {cache:'no-store'}).then(function(response) {
+      if (!response.ok) throw new Error(preview ? 'PREVIEW UNAVAILABLE - COACH SIGN-IN REQUIRED' : 'CONNECTION LOST - LAST BOARD SHOWN');
+      return response.json();
+    }).then(function(data) {
+      var next = JSON.stringify(data);
+      if (next !== signature) { current = data; signature = next; render(current); }
+      status(true);
+    }).catch(function(error) { status(false, error.message || 'CONNECTION LOST - LAST BOARD SHOWN'); })
+      .then(function() { refreshing = false; });
+  }
+  function clock() {
+    var now = new Date();
+    document.getElementById('clock').textContent =
+      now.toLocaleDateString('en-GB', {timeZone:'Europe/London', weekday:'short', day:'numeric', month:'short'}) +
+      ' / ' + now.toLocaleTimeString('en-GB', {timeZone:'Europe/London', hour:'2-digit', minute:'2-digit'});
+  }
+  window.addEventListener('resize', resize);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function() { render(current); });
+  resize(); clock(); poll();
+  setInterval(clock, 1000); setInterval(poll, 10000);
+  setInterval(function() {
+    if (pageNodes.length > 1) { pageIndex = (pageIndex+1)%pageNodes.length; showPage(); }
+  }, 15000);
+</script>
+</body>
+</html>

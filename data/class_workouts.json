@@ -1,0 +1,94 @@
+[
+  {
+    "title": "Ergs & EMOM - sample",
+    "class_type": "EMOM",
+    "notes": "Sample draft. Review the supplied '2 EMOM' timing before publishing.",
+    "sections": [
+      {"title": "Erg intervals", "body": "Row / Ski / Assault\n2 min 20 sec ON / 40 sec OFF x 5"},
+      {"title": "2 EMOM - x 4", "body": "1 - 15/20 cal Bike Erg + 8/14 Devil Press\n2 - 12/16 cal Row + 18/24 Snatches + DB Squats\n3 - 12/16 cal Ski + 20 Burpees\n4 - 15/20 cal Assault + 20/30 Wall Balls"},
+      {"title": "Finish", "body": "Row / Ski / Assault\n3 min ON / 1 min OFF x 5"}
+    ]
+  },
+  {
+    "title": "Teams of 2 - sample",
+    "class_type": "Partner",
+    "notes": "Teams of 2. YGIG - share anyhow. Barbell 40/25 kg.",
+    "sections": [
+      {"title": "Buy in - 80 cal Row / Ski", "body": "Partner 1 - Row\nPartner 2 - 10 Burpees\nSwitch every 10 burpees until 80 cals completed."},
+      {"title": "YGIG - share anyhow - x 2", "body": "100 DB dual Squats\n80 Wall Balls\n60 DB OH Lunges\n40 Alt DB Snatch\n20 SA Devil Press - synchro\n10 Walk Outs - synchro"},
+      {"title": "After each exercise", "body": "4 rounds - YGIG\n5 Barbell Clean & Press\n9 HRPUs\n12 Burpees\nBarbell 40/25 kg"},
+      {"title": "Buy out - 80 cal Bike Erg / Assault", "body": "Partner 1 - Bike\nPartner 2 - 10 Burpees\nSwitch every 10 burpees until 80 cals completed."}
+    ]
+  },
+  {
+    "title": "HYROX Specific Training - Sunday sample",
+    "class_type": "HYROX",
+    "notes": "Sample draft. Review buy-in timings and the meaning of 'ROT' before publishing.",
+    "sections": [
+      {"title": "Buy in", "body": "1 minute ON / OFF - 12 min rounds\nSki / Row / Assault Bike"},
+      {"title": "Main workout", "body": "1200/1000 m Ski\n20 dual Squats\n20 Thrusters\n1.2 km Run\n100 m Sled Push\n200 m Farmers Carry\n1.2 km Run\n30 cal Assault Bike\n60 Wall Balls\n1.2 km Run\n1200/1000 m Row\n40 Burpees\n40 Hand Release Press Ups\n1.2 km Run\n60 m Sled Pull (new gym)\n60 m Walking Lunges"},
+      {"title": "Once all completed", "body": "2.4 km Run"},
+      {"title": "ROT - confirm with coach", "body": "1 km Ski\n1 km Row"}
+    ]
+  },
+  {
+    "title": "Strength & conditioning",
+    "class_type": "Strength & conditioning",
+    "notes": "",
+    "sections": [{"title": "Main workout", "body": ""}]
+  },
+  {
+    "title": "45 minute Strength & Conditioning",
+    "class_type": "45 minute Strength & Conditioning",
+    "notes": "",
+    "sections": [{"title": "Main workout", "body": ""}]
+  },
+  {
+    "title": "Metcon",
+    "class_type": "Metcon",
+    "notes": "",
+    "sections": [{"title": "Main workout", "body": ""}]
+  },
+  {
+    "title": "Hot Strength & Ergs",
+    "class_type": "Hot Strength & Ergs",
+    "notes": "",
+    "sections": [{"title": "Main workout", "body": ""}]
+  },
+  {
+    "title": "Strength & Ergs",
+    "class_type": "Strength & Ergs",
+    "notes": "",
+    "sections": [{"title": "Main workout", "body": ""}]
+  },
+  {
+    "title": "CS Strength",
+    "class_type": "CS Strength",
+    "notes": "",
+    "sections": [{"title": "Main workout", "body": ""}]
+  },
+  {
+    "title": "HYROX Engine Burn",
+    "class_type": "HYROX Engine Burn",
+    "notes": "",
+    "sections": [{"title": "Main workout", "body": ""}]
+  },
+  {
+    "title": "HYROX Youngstars",
+    "class_type": "HYROX Youngstars",
+    "notes": "",
+    "sections": [{"title": "Main workout", "body": ""}]
+  },
+  {
+    "title": "NXTGen little legends",
+    "class_type": "NXTGen little legends",
+    "notes": "",
+    "sections": [{"title": "Main workout", "body": ""}]
+  },
+  {
+    "title": "NXTGen Young Team",
+    "class_type": "NXTGen Young Team",
+    "notes": "",
+    "sections": [{"title": "Main workout", "body": ""}]
+  }
+]
