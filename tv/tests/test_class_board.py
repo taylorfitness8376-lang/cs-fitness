@@ -43,6 +43,22 @@ def test_class_login_returns_to_planner_without_open_redirect(client):
     assert response.headers["Location"] == "/cms"
 
 
+def test_planner_shows_notes_without_template_options_or_exercise_picker(coach):
+    response = coach.get("/classes")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert 'id="class-select"' in html
+    assert 'name="notes"' in html
+    assert "<details" not in html
+    assert "Workout instructions" in html
+    assert 'id="save-workout"' in html
+    assert 'id="save-publish"' in html
+    for removed in ("Template details", "New template", "Copy template",
+                    "Delete template", "Add exercise", "exercise-picker",
+                    "class_exercises.js"):
+        assert removed not in html
+
+
 def test_workout_roundtrip_and_validation(coach):
     created = workout(coach)
     assert created.status_code == 201

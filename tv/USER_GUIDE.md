@@ -71,18 +71,16 @@ changes the main gym's `/display` or its schedule.
   supplied timetable, plus a partner workout example. Unknown workouts start
   with an empty Main workout section, not invented programming. Add or remove
   sections for buy-ins, EMOMs, partner rules, stations and buy-outs.
-- **Add exercise:** inside a section, choose from the common movement list (or select
-  Custom exercise to type one), choose reps, calories, time, metres or kilometres and set
-  the target. Time has separate minute/second fields. Use **Scaled target** to
-  enter both targets on the numeric keypad (shown as `12/16`); add loads or instructions such as `40/25 kg`, `synchro`
-  or work/rest details in the optional notes. The formatted line is appended
-  to that section. All lines remain directly editable as text.
+- **Coach notes / team rules:** always visible when a class is selected. Enter
+  any shared instructions here; these notes appear on the class TV.
+- **Workout instructions:** type or paste exercises, reps, calories, timings,
+  loads and partner rules directly into each section's text box. There is no
+  exercise picker or template-management panel; the selected class keeps its
+  existing title and type.
 - **Save draft:** keeps a reusable draft without changing the TV. Incomplete
   drafts can be saved but cannot be published. The three supplied workout
   examples need coach review for timings, missing quantities and abbreviations.
   Switching classes with unsaved edits asks before discarding them.
-- **Template details & options:** rename, copy, delete or preview the saved
-  template. A preview only includes saved content, not unsaved editor changes.
 - **Publish to TV:** displays a snapshot of the saved workout for **90 minutes**
   by default. Change the duration in **TV Board** (45, 60, 90 or 120 minutes).
   Later template edits do not change the TV until you publish again. Previews
