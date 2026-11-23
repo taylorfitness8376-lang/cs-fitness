@@ -81,6 +81,8 @@ changes the main gym's `/display` or its schedule.
   drafts can be saved but cannot be published. The three supplied workout
   examples need coach review for timings, missing quantities and abbreviations.
   Switching classes with unsaved edits asks before discarding them.
+  If the session token changes, saving refreshes it and retries once without
+  reloading or clearing your edits. A real sign-out still requires coach login.
 - **Publish to TV:** displays a snapshot of the saved workout for **90 minutes**
   by default. Change the duration in **TV Board** (45, 60, 90 or 120 minutes).
   Later template edits do not change the TV until you publish again. Previews

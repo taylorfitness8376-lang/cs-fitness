@@ -1,4 +1,5 @@
 from datetime import datetime
+from http.cookies import SimpleCookie
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -34,6 +35,42 @@ def test_class_admin_auth_and_csrf(client):
     assert workout(client).status_code == 403
     assert client.get("/classes/display").status_code == 200
     assert client.get("/classes/api/board").status_code == 200
+
+
+@pytest.mark.parametrize("background_path", [
+    "/classes/display", "/classes/api/board", "/static/logo.jpg",
+])
+def test_initial_background_requests_cannot_invalidate_draft_token(authed_client, background_path):
+    client = authed_client
+    assert client.get("/classes").status_code == 200
+    initial_cookie = client.get_cookie("session").value
+    parallel_client = client.application.test_client(use_cookies=False)
+    headers = {"Cookie": f"session={initial_cookie}"}
+
+    planner = parallel_client.get("/classes/api/planner", headers=headers)
+    background = parallel_client.get(background_path, headers=headers)
+    assert planner.status_code == background.status_code == 200
+
+    # A slower TV preview or image response can arrive after the planner data.
+    for response in (planner, background):
+        for header in response.headers.getlist("Set-Cookie"):
+            cookies = SimpleCookie(header)
+            if "session" in cookies:
+                client.set_cookie("session", cookies["session"].value)
+    client.environ_base["HTTP_X_CSRF_TOKEN"] = planner.get_json()["csrf_token"]
+    assert workout(client).status_code == 201
+
+
+def test_invalid_draft_token_is_rejected_without_changing_saved_workout(coach):
+    saved = workout(coach).get_json()
+    coach.environ_base["HTTP_X_CSRF_TOKEN"] = "stale-token"
+    response = coach.put(f"/classes/api/workouts/{saved['id']}", json={
+        **saved, "notes": "Unsaved coach notes",
+    })
+    assert response.status_code == 403
+    assert response.get_json()["code"] == "csrf_expired"
+    planner = coach.get("/classes/api/planner").get_json()
+    assert next(w for w in planner["workouts"] if w["id"] == saved["id"]) == saved
 
 
 def test_class_login_returns_to_planner_without_open_redirect(client):

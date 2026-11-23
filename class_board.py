@@ -68,7 +68,13 @@ def protect_planner():
             expected = session.get("class_csrf", "")
             supplied = request.headers.get("X-CSRF-Token", "")
             if not expected or not hmac.compare_digest(expected.encode(), supplied.encode()):
-                return jsonify(error="Session expired. Reload the planner and try again."), 403
+                return jsonify(
+                    error="Your session changed. Your edits are still here; try saving again.",
+                    code="csrf_expired",
+                ), 403
+        if request.endpoint in ("classes.planner", "classes.planner_data"):
+            # Set the token before the page starts parallel preview/image requests.
+            session.setdefault("class_csrf", secrets.token_hex(32))
     ensure_tables(get_db())
 
 
@@ -123,7 +129,6 @@ def display():
 @classes_bp.route("/api/planner")
 def planner_data():
     db = get_db()
-    session.setdefault("class_csrf", secrets.token_hex(32))
     return jsonify(
         csrf_token=session["class_csrf"],
         workouts=[read_workout(db, row["id"]) for row in
