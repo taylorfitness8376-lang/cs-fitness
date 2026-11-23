@@ -559,18 +559,18 @@
     </details>
 
     <!-- ================================================================= -->
-    <!-- 3. MANAGE ATHLETES & VOLUNTEERS (GROUPED BY CATEGORY TABLE)       -->
+    <!-- 3. ATHLETES, VOLUNTEERS & RESULTS (SINGLE GROUPED TABLE)          -->
     <!-- ================================================================= -->
     <section class="card">
       <div class="card-header">
         <div>
-          <div class="card-title">3. MANAGE ATHLETES &amp; VOLUNTEERS</div>
+          <div class="card-title">3. ATHLETES, VOLUNTEERS &amp; RESULTS</div>
           <div style="font-size:0.76rem;color:var(--muted)">
-            Grouped by Saturday &amp; Sunday categories. Assign time slots, emails, and volunteers directly in the table.
+            Grouped by Saturday &amp; Sunday categories. Manage time slots, emails, volunteers, splits, and post-race results web links in one place.
           </div>
         </div>
         <div style="display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap">
-          <input type="text" id="filter-search" placeholder="🔍 Search athlete, email, volunteer..." oninput="renderEntriesTable()" style="width:210px;height:34px;font-size:0.76rem" />
+          <input type="text" id="filter-search" placeholder="🔍 Search athlete, email, volunteer..." oninput="renderEntriesTable()" style="width:205px;height:34px;font-size:0.76rem" />
           <button type="button" class="day-tab-btn active" data-day="all" onclick="setAdminDayFilter('all')">All Days</button>
           <button type="button" class="day-tab-btn" data-day="1" onclick="setAdminDayFilter('1')">Saturday (2–5 PM)</button>
           <button type="button" class="day-tab-btn" data-day="2" onclick="setAdminDayFilter('2')">Sunday (10 AM–2 PM)</button>
@@ -587,6 +587,12 @@
             <option value="{{ div_key }}">{{ div.label }}</option>
             {% endfor %}
           </select>
+          <select id="filter-status" onchange="renderEntriesTable()" style="width:auto;height:34px;font-size:0.76rem">
+            <option value="all">All Statuses</option>
+            <option value="finished">Finished Only</option>
+            <option value="active">Racing / Finished</option>
+          </select>
+          <button type="button" class="btn" style="height:34px;padding:0 0.65rem" onclick="copyAllResultsLinks(this)">📋 Copy All Links</button>
           <button type="button" class="btn" style="height:34px;padding:0 0.65rem" onclick="refreshEventState()">🔄 Refresh</button>
           <button type="button" class="btn btn-red" style="height:34px;padding:0 0.65rem" onclick="clearAllEntries()" title="Remove all entries from this event">🗑️ Clear All</button>
         </div>
@@ -601,51 +607,11 @@
               <th>Category</th>
               <th>Email (For Results)</th>
               <th>Volunteer</th>
-              <th>Status</th>
-              <th>Actions</th>
+              <th>Status &amp; Result</th>
+              <th>Actions &amp; Results Link</th>
             </tr>
           </thead>
           <tbody id="entries-tbody"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- ================================================================= -->
-    <!-- 4. RESULTS & POST-RACE WEB LINKS                                  -->
-    <!-- ================================================================= -->
-    <section class="card">
-      <div class="card-header">
-        <div>
-          <div class="card-title">4. RESULTS &amp; POST-RACE WEB LINKS</div>
-          <div style="font-size:0.76rem;color:var(--muted)">
-            View race times, open or copy each athlete&#39;s Results Web Link, or email their results card directly post-race.
-          </div>
-        </div>
-        <div style="display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap">
-          <select id="results-filter-status" onchange="renderResultsTable()" style="width:auto;height:34px;font-size:0.76rem">
-            <option value="all">All Entries</option>
-            <option value="finished">Finished Only</option>
-            <option value="active">Racing / Finished</option>
-          </select>
-          <button type="button" class="btn" style="height:34px;padding:0 0.75rem" onclick="copyAllResultsLinks(this)">📋 Copy All Results Web Links</button>
-        </div>
-      </div>
-      <div style="overflow-x:auto">
-        <table>
-          <thead>
-            <tr>
-              <th>Bib</th>
-              <th>Athlete / Pair</th>
-              <th>Category</th>
-              <th>Status</th>
-              <th>Run Total (Avg Pace)</th>
-              <th>Station Total</th>
-              <th>Total Time</th>
-              <th>Email</th>
-              <th>Post-Race Results Web Link</th>
-            </tr>
-          </thead>
-          <tbody id="results-tbody"></tbody>
         </table>
       </div>
     </section>
@@ -824,7 +790,6 @@
       currentState = await res.json();
       populateHeatDropdown();
       renderEntriesTable();
-      renderResultsTable();
     }
 
     function initWeekendSetupDates() {
@@ -968,6 +933,7 @@
       if (!currentState) return;
       const filterDiv = (document.getElementById('filter-division') || {}).value || 'all';
       const filterGroup = (document.getElementById('filter-signup-group') || {}).value || 'all';
+      const filterStatus = (document.getElementById('filter-status') || {}).value || 'all';
       const searchQ = ((document.getElementById('filter-search') || {}).value || '').trim().toLowerCase();
       const heats = currentState.heats || [];
 
@@ -976,6 +942,8 @@
         const gKey = inferGroupKeyForEntry(e);
         if (filterGroup !== 'all' && gKey !== filterGroup) return false;
         if (filterDiv !== 'all' && e.division !== filterDiv) return false;
+        if (filterStatus === 'finished' && e.status !== 'finished') return false;
+        if (filterStatus === 'active' && !(e.status === 'finished' || e.status === 'racing' || (e.completed_splits || 0) > 0)) return false;
         if (searchQ) {
           const hay = `${e.full_display_name || ''} ${e.display_name || ''} ${e.partner_name || ''} ${e.email || ''} ${e.volunteer_name || ''} ${e.bib_number || ''}`.toLowerCase();
           if (!hay.includes(searchQ)) return false;
@@ -1000,7 +968,7 @@
         if (filterGroup !== 'all' && filterGroup !== grp.key) return;
         if (adminDayFilter !== 'all' && adminDayFilter !== grp.day) return;
         const grpEntries = entries.filter(e => inferGroupKeyForEntry(e) === grp.key);
-        if (!grpEntries.length && (filterDiv !== 'all' || searchQ)) return;
+        if (!grpEntries.length && (filterDiv !== 'all' || filterStatus !== 'all' || searchQ)) return;
 
         rowsHtml.push(`
           <tr>
@@ -1037,8 +1005,23 @@
           ).join('');
 
           const statusClass = `status-${e.status}`;
-          const noteHtml = e.notes
-            ? `<div style="font-size:0.7rem;color:var(--yellow);margin-top:0.15rem">${escapeHtml(e.notes)}</div>`
+          const relUrl = `/hyrox/results/${e.id}`;
+          const fullUrl = `${window.location.origin}${relUrl}`;
+          const mailSubject = encodeURIComponent(`Your CS Performance HYROX Sim Results — ${e.full_display_name}`);
+          const mailBody = encodeURIComponent(
+            `Hi ${e.full_display_name},\n\nWell done at the CS Performance HYROX Simulation! Train Hard & Be Sound.\n\n` +
+            `Category: ${e.division_label}\n` +
+            `Official Time: ${e.total_formatted}\n\n` +
+            `View your full 16-split breakdown and download your Finisher Card here:\n${fullUrl}\n`
+          );
+          const emailActionBtn = e.email
+            ? `<a href="mailto:${encodeURIComponent(e.email)}?subject=${mailSubject}&body=${mailBody}" class="btn" style="padding:0.26rem 0.5rem;font-size:0.73rem" title="Email Results Link to ${escapeHtml(e.email)}">✉️</a>`
+            : '';
+
+          const hasTime = (e.completed_splits || 0) > 0 || e.status === 'finished' || e.status === 'racing';
+          const resultSummaryHtml = hasTime
+            ? `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.15rem;color:var(--green);line-height:1.1;margin-top:0.15rem">${e.total_formatted}</div>
+               <div style="font-size:0.68rem;color:var(--muted)">Run ${e.run_total_formatted} · Stn ${e.station_total_formatted}</div>`
             : '';
 
           rowsHtml.push(`
@@ -1051,7 +1034,6 @@
               </td>
               <td>
                 <div style="font-weight:800;font-size:0.9rem">${escapeHtml(e.full_display_name)}</div>
-                ${noteHtml}
               </td>
               <td>
                 <select onchange="updateEntryMeta(${e.id}, {division: this.value})"
@@ -1062,22 +1044,28 @@
               <td>
                 <input type="email" value="${escapeHtml(e.email || '')}" placeholder="athlete@email.com"
                   onchange="updateEntryMeta(${e.id}, {email: this.value})"
-                  style="width:175px;padding:0.28rem 0.5rem;height:32px;font-size:0.76rem" />
+                  style="width:170px;padding:0.28rem 0.5rem;height:32px;font-size:0.76rem" />
               </td>
               <td>
                 <input type="text" value="${escapeHtml(e.volunteer_name || '')}" placeholder="Assign Volunteer"
                   onchange="updateEntryMeta(${e.id}, {volunteer_name: this.value})"
-                  style="width:140px;padding:0.28rem 0.5rem;height:32px;font-size:0.76rem" />
+                  style="width:135px;padding:0.28rem 0.5rem;height:32px;font-size:0.76rem" />
               </td>
               <td>
-                <span class="pill ${statusClass}">${e.status}</span>
-                <span style="font-size:0.72rem;color:var(--muted);margin-left:0.25rem">${e.completed_splits}/16</span>
+                <div>
+                  <span class="pill ${statusClass}">${e.status}</span>
+                  <span style="font-size:0.71rem;color:var(--muted);margin-left:0.2rem">${e.completed_splits}/16</span>
+                </div>
+                ${resultSummaryHtml}
               </td>
               <td>
-                <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
-                  <button type="button" class="btn" style="padding:0.28rem 0.55rem;font-size:0.74rem" onclick="openSplitsModal(${e.id})">✏️ Edit</button>
-                  <a href="/hyrox/judge?entry=${e.id}" target="_blank" class="btn" style="padding:0.28rem 0.55rem;font-size:0.74rem">⏱️ Judge</a>
-                  <button type="button" class="btn btn-red" style="padding:0.28rem 0.5rem;font-size:0.74rem" title="Remove Entry" onclick="quickDeleteEntry(${e.id})">🗑️</button>
+                <div style="display:flex;gap:0.3rem;flex-wrap:wrap;align-items:center">
+                  <a href="/hyrox/judge?entry=${e.id}" target="_blank" class="btn" style="padding:0.26rem 0.5rem;font-size:0.73rem" title="Open Volunteer Judge Timer">⏱️ Judge</a>
+                  <button type="button" class="btn" style="padding:0.26rem 0.5rem;font-size:0.73rem" onclick="openSplitsModal(${e.id})" title="Edit Athlete / Splits">✏️ Edit</button>
+                  <a href="${relUrl}" target="_blank" class="btn btn-green" style="padding:0.26rem 0.5rem;font-size:0.73rem" title="Open Athlete Results Web Link">📲 Results</a>
+                  <button type="button" class="btn" style="padding:0.26rem 0.5rem;font-size:0.73rem" onclick="copyResultWebLink(${e.id}, this)" title="Copy Results Web Link">📋 Link</button>
+                  ${emailActionBtn}
+                  <button type="button" class="btn btn-red" style="padding:0.26rem 0.45rem;font-size:0.73rem" title="Remove Entry" onclick="quickDeleteEntry(${e.id})">🗑️</button>
                 </div>
               </td>
             </tr>
@@ -1086,65 +1074,6 @@
       });
 
       tbody.innerHTML = rowsHtml.join('');
-    }
-
-    function renderResultsTable() {
-      if (!currentState) return;
-      const tbody = document.getElementById('results-tbody');
-      if (!tbody) return;
-      const statusFilter = (document.getElementById('results-filter-status') || {}).value || 'all';
-      const entries = (currentState.entries || []).filter(e => {
-        if (statusFilter === 'finished') return e.status === 'finished';
-        if (statusFilter === 'active') return e.status === 'finished' || e.status === 'racing' || (e.completed_splits || 0) > 0;
-        return true;
-      });
-
-      if (!entries.length) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="9" style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.82rem">
-              No results matching this filter yet.
-            </td>
-          </tr>
-        `;
-        return;
-      }
-
-      tbody.innerHTML = entries.map(e => {
-        const statusClass = `status-${e.status}`;
-        const relUrl = `/hyrox/results/${e.id}`;
-        const fullUrl = `${window.location.origin}${relUrl}`;
-        const mailSubject = encodeURIComponent(`Your CS Performance HYROX Sim Results — ${e.full_display_name}`);
-        const mailBody = encodeURIComponent(
-          `Hi ${e.full_display_name},\n\nWell done at the CS Performance HYROX Simulation! Train Hard & Be Sound.\n\n` +
-          `Category: ${e.division_label}\n` +
-          `Official Time: ${e.total_formatted}\n\n` +
-          `View your full 16-split breakdown and download your Finisher Card here:\n${fullUrl}\n`
-        );
-        const emailBtn = e.email
-          ? `<a href="mailto:${encodeURIComponent(e.email)}?subject=${mailSubject}&body=${mailBody}" class="btn" style="padding:0.26rem 0.55rem;font-size:0.74rem" title="Send results link to ${escapeHtml(e.email)}">✉️ Email Link</a>`
-          : `<button type="button" class="btn" style="padding:0.26rem 0.55rem;font-size:0.74rem;opacity:0.65" onclick="openSplitsModal(${e.id})" title="Add email address to send link">✉️ Add Email</button>`;
-
-        return `
-          <tr>
-            <td><strong>#${escapeHtml(e.bib_number)}</strong></td>
-            <td><strong>${escapeHtml(e.full_display_name)}</strong></td>
-            <td><span style="color:${e.division_color};font-weight:800;font-size:0.78rem">${escapeHtml(e.division_label)}</span></td>
-            <td><span class="pill ${statusClass}">${e.status}</span></td>
-            <td>${e.run_total_formatted} <span style="font-size:0.72rem;color:var(--muted)">(${e.avg_run_kph_formatted || '—'})</span></td>
-            <td>${e.station_total_formatted}</td>
-            <td><strong style="font-family:'Barlow Condensed',sans-serif;font-size:1.22rem;color:var(--green)">${e.total_formatted}</strong></td>
-            <td style="font-size:0.76rem;color:var(--muted)">${escapeHtml(e.email || '—')}</td>
-            <td>
-              <div style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center">
-                <a href="${relUrl}" target="_blank" class="btn btn-green" style="padding:0.26rem 0.55rem;font-size:0.74rem">📲 Results Web Link</a>
-                <button type="button" class="btn" style="padding:0.26rem 0.55rem;font-size:0.74rem" onclick="copyResultWebLink(${e.id}, this)">📋 Copy Link</button>
-                ${emailBtn}
-              </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
     }
 
     function copyResultWebLink(entryId, btnEl) {

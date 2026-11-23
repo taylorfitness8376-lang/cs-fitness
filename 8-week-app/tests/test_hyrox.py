@@ -320,8 +320,7 @@ def test_historical_progression_and_web_surfaces(client):
     assert admin_resp.status_code == 200
     assert b"1. EVENT SETUP" in admin_resp.data
     assert b"2. ADD ATHLETE / PAIR" in admin_resp.data
-    assert b"3. MANAGE ATHLETES &amp; VOLUNTEERS" in admin_resp.data
-    assert b"4. RESULTS &amp; POST-RACE WEB LINKS" in admin_resp.data
+    assert b"3. ATHLETES, VOLUNTEERS &amp; RESULTS" in admin_resp.data
     assert b"ADVANCED: TEAMUP API v2 CONFIG, CSV IMPORT &amp; CUSTOM SLOT GENERATOR" in admin_resp.data
     assert b"FAST ADD ATHLETE / PAIR &amp; BULK PASTE LIST" not in admin_resp.data
     assert b"signup-groups-board" not in admin_resp.data
@@ -1012,13 +1011,14 @@ def test_confirmed_13_road_to_glasgow_signups_enrichment(client):
 
     assert by_name["Joe Wardle"]["division"] == "men_doubles"
     assert "TBC" in by_name["Joe Wardle"]["partner_name"]
-    assert "Confirm if Mixed or Male Doubles Open" in by_name["Joe Wardle"]["notes"]
+    assert by_name["Joe Wardle"]["notes"] == ""
     assert by_name["Joe Wardle"]["signup_group"] == "male_mixed_doubles"
 
     # 10-13: Group 3 — Female Solo Open (Sunday 29th)
     for solo_female in ("Eve Cunningham", "Joanne Campbell", "Lesley Anne Cooper", "Ava Stewart"):
         assert by_name[solo_female]["division"] == "women_open"
         assert by_name[solo_female]["partner_name"] == ""
+        assert by_name[solo_female]["notes"] == ""
         assert by_name[solo_female]["signup_group"] == "female_solo"
 
 

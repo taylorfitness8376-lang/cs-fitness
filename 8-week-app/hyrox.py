@@ -3565,10 +3565,6 @@ def enrich_entry_from_road_to_glasgow(entry_dict):
         entry_dict["signup_group_label"] = group_meta["label"]
         entry_dict["day_number"] = group_meta["day_number"]
         entry_dict["has_explicit_division"] = True
-        note_tag = spec.get("road_to_glasgow_note") or ""
-        cur_notes = (entry_dict.get("notes") or "").strip()
-        if note_tag and note_tag.lower() not in cur_notes.lower():
-            entry_dict["notes"] = f"{cur_notes} · {note_tag}" if cur_notes else note_tag
         entry_dict["replace_notes"] = True
         return entry_dict
 
@@ -3610,12 +3606,9 @@ def _apply_road_to_glasgow_enrichment_to_db(db, event_id=None):
             continue
         target_div = spec["division"]
         target_partner = spec["partner_name"]
-        note_tag = spec.get("road_to_glasgow_note") or ""
         cur_notes = (r["notes"] or "").strip()
-        if not cur_notes:
-            new_notes = f"{spec['teamup_event_name']} · {note_tag}" if spec.get("teamup_event_name") else note_tag
-        elif note_tag and note_tag.lower() not in cur_notes.lower():
-            new_notes = f"{cur_notes} · {note_tag}"
+        if "road to glasgow" in cur_notes.lower() or "tbc — confirm" in cur_notes.lower():
+            new_notes = cur_notes.split("·")[0].strip() if "teamup #" in cur_notes.lower() else ""
         else:
             new_notes = cur_notes
 
@@ -3690,7 +3683,7 @@ def _seed_confirmed_sat28_sun29_signups(db, event_id=None):
             "partner_name": spec["partner_name"],
             "division": spec["division"],
             "has_explicit_division": True,
-            "notes": f"{spec['teamup_event_name']} · {spec['road_to_glasgow_note']}",
+            "notes": "",
             "replace_notes": True,
         }
         _assign_weekend_group_slot(db, event_id, payload)
