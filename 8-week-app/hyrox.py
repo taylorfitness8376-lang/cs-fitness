@@ -827,6 +827,27 @@ def _purge_legacy_sample_data(db):
             )
             changed = True
 
+        five_min_flag = db.execute(
+            "SELECT value FROM hyrox_settings WHERE key='five_min_slots_sat28_sun29_v1'"
+        ).fetchone()
+        if not five_min_flag:
+            ev_latest = db.execute(
+                "SELECT id, event_date, end_date FROM hyrox_events ORDER BY event_date DESC, id DESC LIMIT 1"
+            ).fetchone()
+            if ev_latest:
+                _ensure_5min_weekend_heats(
+                    db,
+                    ev_latest["id"],
+                    sat_date=ev_latest["event_date"] or "2026-11-28",
+                    sun_date=ev_latest["end_date"] or "2026-11-29",
+                    repack_entries=True,
+                )
+            db.execute(
+                "INSERT INTO hyrox_settings (key, value, updated_at) VALUES ('five_min_slots_sat28_sun29_v1', '1', CURRENT_TIMESTAMP) "
+                "ON CONFLICT(key) DO UPDATE SET value='1', updated_at=CURRENT_TIMESTAMP"
+            )
+            changed = True
+
     if changed:
         db.commit()
 
@@ -950,10 +971,98 @@ def _generate_unique_pin(db, event_id, preferred_pin=None):
 
 # ── Clean Default Weekend Event (Zero Sample Athletes / Entries) ─────────────
 
+def _ensure_5min_weekend_heats(db, event_id, sat_date="2026-11-28", sun_date="2026-11-29", repack_entries=False):
+    """
+    Ensure 5-minute 1:1 heat slots exist across all 4 weekend blocks:
+      - Day 1 (Sat) 14:00–15:20: 1. Male Solo (5m slots)
+      - Day 1 (Sat) 15:30–16:55: 2. Male / Mixed Doubles (5m slots)
+      - Day 2 (Sun) 10:00–11:50: 3. Female Solo (5m slots)
+      - Day 2 (Sun) 12:00–13:55: 4. Female Doubles (5m slots)
+    Optionally repacks scheduled entries sequentially into 5-minute slots within each group.
+    """
+    db.execute("UPDATE hyrox_events SET wave_interval_mins=5 WHERE id=?", (event_id,))
+    blocks = [
+        (1, sat_date, "men_open",      "14:00", "15:20", "1. Male Solo"),
+        (1, sat_date, "men_doubles",   "15:30", "16:55", "2. Male / Mixed Doubles"),
+        (2, sun_date, "women_open",    "10:00", "11:50", "3. Female Solo"),
+        (2, sun_date, "women_doubles", "12:00", "13:55", "4. Female Doubles"),
+    ]
+    for day_num, s_date, div_blk, start_hm, end_hm, grp_label in blocks:
+        sh, sm = (int(x) for x in start_hm.split(":"))
+        eh, em = (int(x) for x in end_hm.split(":"))
+        cur_m = sh * 60 + sm
+        end_m = eh * 60 + em
+        while cur_m <= end_m:
+            t_str = f"{cur_m // 60:02d}:{cur_m % 60:02d}"
+            h_name = f"Day {day_num} · {t_str} — {grp_label}"
+            buf_m = 10 if cur_m == end_m else 0
+            existing = db.execute(
+                "SELECT id FROM hyrox_heats WHERE event_id=? AND COALESCE(day_number, 1)=? AND start_time=? LIMIT 1",
+                (event_id, day_num, t_str),
+            ).fetchone()
+            if existing:
+                db.execute(
+                    "UPDATE hyrox_heats SET slot_date=?, division_block=?, name=?, max_lanes=1 WHERE id=?",
+                    (s_date, div_blk, h_name, existing["id"]),
+                )
+            else:
+                max_h = db.execute(
+                    "SELECT COALESCE(MAX(heat_number), 0) as m FROM hyrox_heats WHERE event_id=?",
+                    (event_id,),
+                ).fetchone()["m"]
+                db.execute(
+                    "INSERT INTO hyrox_heats (event_id, heat_number, day_number, slot_date, division_block, transition_buffer_mins, name, start_time, max_lanes, status) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'scheduled')",
+                    (event_id, max_h + 1, day_num, s_date, div_blk, buf_m, h_name, t_str),
+                )
+            cur_m += 5
+
+    ordered_heats = db.execute(
+        "SELECT id FROM hyrox_heats WHERE event_id=? ORDER BY COALESCE(day_number, 1) ASC, start_time ASC, id ASC",
+        (event_id,),
+    ).fetchall()
+    for idx, hr in enumerate(ordered_heats, start=1):
+        db.execute("UPDATE hyrox_heats SET heat_number=? WHERE id=?", (idx, hr["id"]))
+
+    if repack_entries:
+        entries = db.execute(
+            "SELECT e.id, e.division, e.status, COALESCE(h.start_time, '99:99') as st "
+            "FROM hyrox_entries e LEFT JOIN hyrox_heats h ON e.heat_id=h.id "
+            "WHERE e.event_id=? ORDER BY st ASC, e.id ASC",
+            (event_id,),
+        ).fetchall()
+        group_buckets = {"male_solo": [], "male_mixed_doubles": [], "female_solo": [], "female_doubles": []}
+        for er in entries:
+            g_key = division_to_signup_group_key(er["division"])
+            group_buckets.setdefault(g_key, []).append(er)
+
+        group_windows = {
+            "male_solo":          (1, "14:00", "15:25"),
+            "male_mixed_doubles": (1, "15:30", "16:55"),
+            "female_solo":        (2, "10:00", "11:55"),
+            "female_doubles":     (2, "12:00", "13:55"),
+        }
+        for g_key, g_entries in group_buckets.items():
+            if not g_entries or g_key not in group_windows:
+                continue
+            day_num, w_start, w_end = group_windows[g_key]
+            avail_heats = db.execute(
+                "SELECT id FROM hyrox_heats WHERE event_id=? AND COALESCE(day_number, 1)=? "
+                "AND start_time >= ? AND start_time <= ? ORDER BY start_time ASC",
+                (event_id, day_num, w_start, w_end),
+            ).fetchall()
+            for idx, er in enumerate(g_entries):
+                if idx < len(avail_heats):
+                    db.execute(
+                        "UPDATE hyrox_entries SET heat_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                        (avail_heats[idx]["id"], er["id"]),
+                    )
+
+
 def seed_default_hyrox_data(db):
     """
     Create a clean, empty 2-Day HYROX Weekend Event for Saturday 28th (14:00–17:00)
-    & Sunday 29th (10:00–14:00) with 1:1 time slots across the 4 sign-up groups and
+    & Sunday 29th (10:00–14:00) with 5-minute 1:1 time slots across the 4 sign-up groups and
     NO sample athletes or entries.
     """
     cur_nov = db.execute(
@@ -965,7 +1074,7 @@ def seed_default_hyrox_data(db):
             "2026-11-29",
             2,
             "CS Performance Studio",
-            10,
+            5,
             1,
             10,
             "live",
@@ -973,33 +1082,7 @@ def seed_default_hyrox_data(db):
         ),
     )
     nov_event_id = cur_nov.lastrowid
-
-    heats_spec = [
-        # Day 1 (Saturday 28th 14:00–17:00): 1. Male Solo & 2. Male Doubles / Mixed Doubles
-        (1,  1, "2026-11-28", "men_open",       0,  "Day 1 · 14:00 — 1. Male Solo",            "14:00", 1, "scheduled"),
-        (2,  1, "2026-11-28", "men_open",       0,  "Day 1 · 14:15 — 1. Male Solo",            "14:15", 1, "scheduled"),
-        (3,  1, "2026-11-28", "men_open",       0,  "Day 1 · 14:30 — 1. Male Solo",            "14:30", 1, "scheduled"),
-        (4,  1, "2026-11-28", "men_open",       10, "Day 1 · 14:45 — 1. Male Solo",            "14:45", 1, "scheduled"),
-        (5,  1, "2026-11-28", "men_doubles",    0,  "Day 1 · 15:30 — 2. Male / Mixed Doubles", "15:30", 1, "scheduled"),
-        (6,  1, "2026-11-28", "mixed_doubles",  0,  "Day 1 · 15:45 — 2. Male / Mixed Doubles", "15:45", 1, "scheduled"),
-        (7,  1, "2026-11-28", "men_doubles",    0,  "Day 1 · 16:00 — 2. Male / Mixed Doubles", "16:00", 1, "scheduled"),
-        (8,  1, "2026-11-28", "mixed_doubles",  10, "Day 1 · 16:15 — 2. Male / Mixed Doubles", "16:15", 1, "scheduled"),
-        # Day 2 (Sunday 29th 10:00–14:00): 3. Female Solo & 4. Female Doubles
-        (9,  2, "2026-11-29", "women_open",     0,  "Day 2 · 10:00 — 3. Female Solo",          "10:00", 1, "scheduled"),
-        (10, 2, "2026-11-29", "women_open",     0,  "Day 2 · 10:15 — 3. Female Solo",          "10:15", 1, "scheduled"),
-        (11, 2, "2026-11-29", "women_open",     0,  "Day 2 · 10:30 — 3. Female Solo",          "10:30", 1, "scheduled"),
-        (12, 2, "2026-11-29", "women_open",     10, "Day 2 · 10:45 — 3. Female Solo",          "10:45", 1, "scheduled"),
-        (13, 2, "2026-11-29", "women_doubles",  0,  "Day 2 · 12:00 — 4. Female Doubles",       "12:00", 1, "scheduled"),
-        (14, 2, "2026-11-29", "women_doubles",  0,  "Day 2 · 12:15 — 4. Female Doubles",       "12:15", 1, "scheduled"),
-        (15, 2, "2026-11-29", "women_doubles",  0,  "Day 2 · 12:30 — 4. Female Doubles",       "12:30", 1, "scheduled"),
-        (16, 2, "2026-11-29", "women_doubles",  10, "Day 2 · 12:45 — 4. Female Doubles",       "12:45", 1, "scheduled"),
-    ]
-    for h_num, day_num, s_date, div_blk, buf_m, h_name, h_time, h_lanes, h_status in heats_spec:
-        db.execute(
-            "INSERT INTO hyrox_heats (event_id, heat_number, day_number, slot_date, division_block, transition_buffer_mins, name, start_time, max_lanes, status) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (nov_event_id, h_num, day_num, s_date, div_blk, buf_m, h_name, h_time, h_lanes, h_status),
-        )
+    _ensure_5min_weekend_heats(db, nov_event_id, sat_date="2026-11-28", sun_date="2026-11-29", repack_entries=False)
 
     db.execute(
         "INSERT INTO hyrox_settings (key, value, updated_at) VALUES ('clean_slate_sat28_sun29_v1', '1', CURRENT_TIMESTAMP) "
@@ -3989,7 +4072,7 @@ def _mins_to_hm(total_mins):
     return f"{(int(total_mins) // 60) % 24:02d}:{int(total_mins) % 60:02d}"
 
 
-def _assign_weekend_group_slot(db, event_id, mapped, interval_mins=10):
+def _assign_weekend_group_slot(db, event_id, mapped, interval_mins=5):
     """
     Assign a 1:1 heat slot within the entry's 4-group weekend window:
       - Group 1 (male_solo):           Day 1 (Sat) 14:00 - 15:20
@@ -4055,7 +4138,7 @@ def _assign_weekend_group_slot(db, event_id, mapped, interval_mins=10):
     # 2. Otherwise create the next staggered slot in this group's block
     if group_heats:
         last_mins = group_heats[-1][0]
-        next_mins = last_mins + max(int(interval_mins or 10), 5)
+        next_mins = last_mins + max(int(interval_mins or 5), 1)
     else:
         next_mins = start_floor_mins
     mapped["heat_time"] = _mins_to_hm(next_mins)
@@ -4162,7 +4245,7 @@ def api_setup_weekend_event():
     sat_default, sun_default = get_next_weekend_dates()
     sat_date = (data.get("saturday_date") or data.get("event_date") or sat_default).strip()
     sun_date = (data.get("sunday_date") or data.get("end_date") or sun_default).strip()
-    interval_mins = max(int(data.get("interval_mins") or 10), 5)
+    interval_mins = max(int(data.get("interval_mins") or 5), 1)
     transition_buffer_mins = int(data.get("transition_buffer_mins") if data.get("transition_buffer_mins") is not None else 10)
 
     try:
@@ -4343,7 +4426,7 @@ def api_sync_teamup_to_event(event_id):
     auto_stagger = bool(data.get("auto_stagger_slots"))
     assign_weekend_blocks = data.get("assign_weekend_blocks", True)
     stagger_start_time = (data.get("stagger_start_time") or "").strip()
-    interval_mins = int(data.get("interval_mins") or ev["wave_interval_mins"] or 10)
+    interval_mins = int(data.get("interval_mins") or ev["wave_interval_mins"] or 5)
 
     if attendances is None:
         inline_tok = (data.get("api_token") or "").strip()

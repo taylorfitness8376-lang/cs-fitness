@@ -777,11 +777,7 @@
           }
 
           let subHtml = '';
-          if (s.split_type === 'run') {
-            subHtml = (isDone && s.pace_kph_formatted && s.pace_kph_formatted !== '—')
-              ? s.pace_kph_formatted
-              : '1.2 km';
-          } else {
+          if (s.split_type === 'station') {
             subHtml = s.prescription ? s.prescription.split('·')[0].trim() : 'Station';
           }
 
@@ -792,13 +788,20 @@
                 ${badgeHtml}
               </div>
               <div class="split-cell-time">${timeHtml}</div>
-              <div class="split-cell-sub">${subHtml}</div>
+              ${subHtml ? `<div class="split-cell-sub">${subHtml}</div>` : ''}
             </div>
           `;
         };
 
         const runCellsHtml = runSplits.map((s, idx) => renderCell(s, idx)).join('');
         const stnCellsHtml = stnSplits.map((s, idx) => renderCell(s, idx)).join('');
+
+        const activeStageLabel = (() => {
+          const cleanLabel = String(cur.label || 'On Floor').replace(/\s*\(1[.,]2\s*km\)/gi, '');
+          if (cur.split_type === 'run') return cleanLabel;
+          const cleanPresc = String(cur.prescription || '').replace(/\s*1[.,]2\s*km[^·]*/gi, '').trim();
+          return cleanPresc ? `${cleanLabel} — ${cleanPresc}` : cleanLabel;
+        })();
 
         return `
           <div class="racer-card ${isSingleCard ? 'single-spotlight' : ''}">
@@ -830,14 +833,14 @@
                   ${e.wall_ball_reps > 0 ? ` · 🎯 WB ${e.wall_ball_reps}/${e.wall_ball_target_reps}` : ''}
                 </div>
                 <div class="station-callout-main">
-                  ${isFinished ? `Finished in ${e.total_formatted}` : `${cur.label || 'On Floor'} — ${cur.prescription || ''}`}
+                  ${isFinished ? `Finished in ${e.total_formatted}` : activeStageLabel}
                 </div>
               </div>
 
               <div class="stat-pill">
-                <div class="stat-pill-lbl">Avg Run (1.2km)</div>
+                <div class="stat-pill-lbl">Avg Run</div>
                 <div class="stat-pill-val">${e.avg_run_formatted || '--:--'}</div>
-                <div class="stat-pill-sub">${e.avg_run_kph_formatted || '1.2 km loop'}${e.avg_run_rank ? ` · Rank #${e.avg_run_rank}` : ''}</div>
+                <div class="stat-pill-sub">${e.avg_run_rank ? `Rank #${e.avg_run_rank}` : `${completedRuns} / 8 runs`}</div>
               </div>
 
               <div class="stat-pill">
@@ -861,11 +864,11 @@
 
             <div class="tv-roxfit-board">
               <div class="split-strip-row">
-                <div class="strip-row-tag runs">RUNS<br/><span style="font-size:0.52rem;opacity:0.8">8 × 1.2km</span></div>
+                <div class="strip-row-tag runs">RUN</div>
                 ${runCellsHtml}
               </div>
               <div class="split-strip-row">
-                <div class="strip-row-tag stations">WORKOUT<br/><span style="font-size:0.52rem;opacity:0.8">8 Stations</span></div>
+                <div class="strip-row-tag stations">WORKOUT</div>
                 ${stnCellsHtml}
               </div>
             </div>
