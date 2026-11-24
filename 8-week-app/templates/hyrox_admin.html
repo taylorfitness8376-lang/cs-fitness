@@ -319,23 +319,182 @@
       </div>
     </div>
     <div class="nav-actions">
-      <select id="event-selector" onchange="switchEvent(this.value)" style="width:auto;min-width:220px;height:40px;font-weight:700"></select>
-      <a href="/hyrox/judge" target="_blank" class="btn btn-yellow" style="height:40px">⏱️ Judge</a>
-      <a href="/hyrox/tv" target="_blank" class="btn btn-green" style="height:40px">📺 Live Timings</a>
-      <a href="/hyrox/tv/finisher" target="_blank" class="btn" style="height:40px;border-color:var(--green);color:var(--green)">📸 Finishers</a>
-      <a href="/" class="btn" style="height:40px">🏠 Home</a>
+      <a href="/hyrox/judge" class="btn" style="height:40px">⏱️ Judge</a>
+      <a href="/hyrox/tv" target="_blank" class="btn" style="height:40px">📺 Live Timings</a>
+      <a href="/hyrox/tv/finisher" target="_blank" class="btn" style="height:40px">📸 Finisher</a>
+      <a href="/" class="btn" style="height:40px;border-color:rgba(61,255,79,0.45);color:var(--green)">🏠 CS Hub</a>
     </div>
   </header>
 
   <main class="container">
     <!-- ================================================================= -->
-    <!-- ADD ATHLETE / PAIR                                                -->
+    <!-- 1. EXPANDABLE: EVENT SETUP                                        -->
     <!-- ================================================================= -->
-    <section class="card" style="padding:0.75rem 1rem">
-      <div style="display:grid;grid-template-columns:1.5fr 1.15fr 1.05fr 0.95fr 1.2fr auto;gap:0.5rem;align-items:end">
+    <details class="card" style="padding:0.7rem 1rem">
+      <summary style="cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.05rem;color:var(--green);letter-spacing:0.04em;text-transform:uppercase">
+        1. Event Setup
+      </summary>
+      <div style="margin-top:0.75rem">
+        <div class="form-row" style="margin-bottom:0.55rem">
+          <div>
+            <label>Event Name</label>
+            <input type="text" id="wk-ev-name" placeholder="CS Fitness HYROX Sim" />
+          </div>
+          <div>
+            <label>Saturday (14:00–17:00)</label>
+            <input type="date" id="wk-sat-date" value="2026-11-28" />
+          </div>
+          <div>
+            <label>Sunday (10:00–14:00)</label>
+            <input type="date" id="wk-sun-date" value="2026-11-29" />
+          </div>
+          <div>
+            <label>Slot Interval (mins)</label>
+            <input type="number" id="wk-interval" value="5" min="1" max="60" />
+          </div>
+        </div>
+        <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;margin-bottom:0.75rem">
+          <button type="button" class="btn btn-green" onclick="setupWeekendEvent(false)">⚡ Setup Event &amp; Sync TeamUp</button>
+          <button type="button" class="btn" onclick="setupWeekendEvent(true)">🧱 Apply Slots</button>
+          <button type="button" class="btn btn-yellow" onclick="checkLiveTeamUpSignups()">📡 Check TeamUp</button>
+          <button type="button" class="btn" onclick="setWeekendDatePreset('2026-11-28','2026-11-29')">Nov 2026</button>
+          <button type="button" class="btn" onclick="setWeekendDatePreset('2027-02-20','2027-02-21')">Feb 2027</button>
+          <button type="button" class="btn" onclick="setUpcomingWeekendPreset()">Next Weekend</button>
+          <button type="button" class="btn btn-red" style="margin-left:auto" onclick="clearAllEntries()">🗑️ Clear Entries</button>
+        </div>
+
+        <details style="background:var(--surface-2);border:1px solid rgba(255,255,255,0.08);border-radius:9px;padding:0.55rem 0.8rem">
+          <summary style="cursor:pointer;font-size:0.75rem;font-weight:800;color:var(--muted);text-transform:uppercase">
+            TeamUp API, CSV Import &amp; Custom Slots
+          </summary>
+          <div class="grid-2" style="margin-top:0.65rem;margin-bottom:0">
+            <div style="background:var(--surface);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:0.65rem">
+              <div class="form-row">
+                <div>
+                  <label>New Event Name</label>
+                  <input type="text" id="new-ev-name" placeholder="HYROX Sim" />
+                </div>
+                <div>
+                  <label>Start Date</label>
+                  <input type="date" id="new-ev-date" value="2026-11-28" />
+                </div>
+                <div>
+                  <label>Days</label>
+                  <select id="new-ev-days">
+                    <option value="2" selected>2 Days</option>
+                    <option value="1">1 Day</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <label>Start</label>
+                  <input type="time" id="new-ev-time" value="14:00" />
+                </div>
+                <div>
+                  <label>Slots</label>
+                  <input type="number" id="new-ev-waves" value="6" min="1" max="40" />
+                </div>
+                <div>
+                  <label>Gap (m)</label>
+                  <input type="number" id="new-ev-interval" value="5" min="1" max="90" />
+                </div>
+                <div>
+                  <label>Buffer (m)</label>
+                  <input type="number" id="new-ev-buffer" value="10" min="0" max="60" />
+                </div>
+              </div>
+              <button type="button" class="btn btn-green" style="margin-bottom:0.55rem" onclick="createNewSimEvent()">+ Create Event</button>
+              <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:0.5rem">
+                <div class="form-row" style="margin-bottom:0.4rem">
+                  <div>
+                    <label>Day</label>
+                    <select id="blk-day">
+                      <option value="1">Sat</option>
+                      <option value="2">Sun</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Category</label>
+                    <select id="blk-division">
+                      {% for div_key, div in divisions.items() %}
+                      <option value="{{ div_key }}">{{ div.label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Start</label>
+                    <input type="time" id="blk-start" value="14:00" />
+                  </div>
+                  <div>
+                    <label>Slots</label>
+                    <input type="number" id="blk-count" value="4" min="1" max="20" />
+                  </div>
+                  <div>
+                    <label>Gap (m)</label>
+                    <input type="number" id="blk-gap" value="5" min="1" max="90" />
+                  </div>
+                </div>
+                <button type="button" class="btn" onclick="addWavesToCurrentEvent()">+ Add Slots</button>
+              </div>
+            </div>
+
+            <div style="background:var(--surface);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:0.65rem">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem">
+                <span id="teamup-api-badge" class="pill" style="background:rgba(255,255,255,0.08);color:var(--muted)">Ready</span>
+                <a href="/api/hyrox/sample-csv" class="btn" style="padding:0.18rem 0.45rem;font-size:0.68rem" download>Sample CSV</a>
+              </div>
+              <div class="form-row" style="margin-bottom:0.4rem">
+                <div>
+                  <label>API Token</label>
+                  <input type="password" id="tu-api-token" placeholder="TeamUp Key" />
+                </div>
+                <div>
+                  <label>Provider ID</label>
+                  <input type="text" id="tu-provider-id" value="13050192" />
+                </div>
+              </div>
+              <div class="form-row" style="margin-bottom:0.4rem">
+                <div>
+                  <label>Class Filter</label>
+                  <select id="tu-event-select">
+                    <option value="">All Classes</option>
+                  </select>
+                </div>
+                <div style="display:flex;align-items:flex-end">
+                  <button type="button" class="btn" onclick="loadRemoteTeamUpEvents()" style="width:100%">Load Classes</button>
+                </div>
+              </div>
+              <input type="checkbox" id="tu-auto-stagger" style="display:none" checked />
+              <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;margin-bottom:0.5rem">
+                <button type="button" class="btn" onclick="saveAndTestTeamUpApi()">Save Token</button>
+                <button type="button" class="btn btn-green" onclick="syncFromTeamUpApi()">Sync TeamUp</button>
+                <span id="tu-status-msg" style="font-size:0.7rem;color:var(--muted)"></span>
+              </div>
+              <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:0.45rem">
+                <div style="display:flex;gap:0.4rem;margin-bottom:0.35rem">
+                  <input type="file" id="csv-file-input" accept=".csv,text/csv" onchange="loadCsvFile(this)" style="font-size:0.7rem" />
+                  <button type="button" class="btn btn-green" style="flex-shrink:0" onclick="importTeamUpCsv()">Import CSV</button>
+                </div>
+                <textarea id="csv-text-input" rows="2" style="font-size:0.72rem" placeholder="First Name,Last Name,Email,DOB,Division,Partner Name,Heat Time,Volunteer"></textarea>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+    </details>
+
+    <!-- ================================================================= -->
+    <!-- 2. EXPANDABLE: ADD ATHLETE(S)                                     -->
+    <!-- ================================================================= -->
+    <details class="card" style="padding:0.7rem 1rem">
+      <summary style="cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.05rem;color:var(--green);letter-spacing:0.04em;text-transform:uppercase">
+        2. Add Athlete(s)
+      </summary>
+      <div style="display:grid;grid-template-columns:1.6fr 1.25fr 1.1fr 1.1fr auto;gap:0.5rem;align-items:end;margin-top:0.75rem">
         <div>
-          <label>Athlete / Pair</label>
-          <input type="text" id="qa-name" placeholder="Name or Pair (use &amp;)" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
+          <label>Athlete(s)</label>
+          <input type="text" id="qa-name" placeholder="Name (use &amp; for 2 athletes)" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
         </div>
         <div>
           <label>Category</label>
@@ -360,23 +519,28 @@
           <input type="text" id="qa-volunteer" placeholder="Judge" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
         </div>
         <div>
-          <label>Email</label>
-          <input type="email" id="qa-email" placeholder="athlete@email.com" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
-        </div>
-        <div>
           <button type="button" class="btn btn-green" style="height:36px;padding:0 1rem;justify-content:center" onclick="quickAddEntry()">+ Add</button>
         </div>
       </div>
-    </section>
+    </details>
 
     <!-- ================================================================= -->
-    <!-- ATHLETES & RESULTS                                                -->
+    <!-- 3. EVENT DROPDOWN                                                 -->
+    <!-- ================================================================= -->
+    <div class="card" style="padding:0.7rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.05rem;color:var(--green);letter-spacing:0.04em;text-transform:uppercase">
+        3. Event
+      </div>
+      <select id="event-selector" onchange="switchEvent(this.value)" style="flex:1;min-width:240px;height:38px;font-weight:700"></select>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- ATHLETES & RESULTS TABLE BLOCK                                    -->
     <!-- ================================================================= -->
     <section class="card">
       <div class="card-header" style="margin-bottom:0.6rem">
         <div class="card-title">ATHLETES &amp; RESULTS</div>
         <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
-          <input type="text" id="filter-search" placeholder="Search..." oninput="renderEntriesTable()" style="width:170px;height:34px;font-size:0.76rem" />
           <button type="button" class="day-tab-btn active" data-day="all" onclick="setAdminDayFilter('all')">All</button>
           <button type="button" class="day-tab-btn" data-day="1" onclick="setAdminDayFilter('1')">Sat</button>
           <button type="button" class="day-tab-btn" data-day="2" onclick="setAdminDayFilter('2')">Sun</button>
@@ -398,192 +562,26 @@
             <option value="finished">Finished Only</option>
             <option value="active">Racing / Finished</option>
           </select>
-          <button type="button" class="btn btn-green" style="height:34px;padding:0 0.65rem" onclick="setupWeekendEvent(false)">⚡ Sync TeamUp</button>
-          <button type="button" class="btn" style="height:34px;padding:0 0.65rem" onclick="copyAllResultsLinks(this)">📋 Copy Links</button>
-          <button type="button" class="btn" style="height:34px;padding:0 0.65rem" onclick="refreshEventState()">🔄</button>
+          <button type="button" class="btn" style="height:34px;padding:0 0.7rem" onclick="refreshEventState()">🔄 Refresh</button>
         </div>
       </div>
       <div id="wk-setup-status" style="font-size:0.75rem;color:var(--muted);margin-bottom:0.55rem;display:none"></div>
-      <div style="overflow-x:auto">
-        <table>
+      <div>
+        <table style="table-layout:fixed;width:100%">
           <thead>
             <tr>
-              <th>Slot</th>
-              <th>Athlete / Pair</th>
-              <th>Category</th>
-              <th>Volunteer</th>
-              <th>Email</th>
-              <th>Status / Time</th>
-              <th>Actions</th>
+              <th style="width:110px">Slot</th>
+              <th>Athlete(s)</th>
+              <th style="width:160px">Category</th>
+              <th style="width:150px">Volunteer</th>
+              <th style="width:140px;text-align:center">Status / Time</th>
+              <th style="width:110px;text-align:right">Actions</th>
             </tr>
           </thead>
           <tbody id="entries-tbody"></tbody>
         </table>
       </div>
     </section>
-
-    <!-- ================================================================= -->
-    <!-- COLLAPSIBLE EVENT SETUP, TEAMUP & CSV IMPORT                      -->
-    <!-- ================================================================= -->
-    <details class="card" style="padding:0.75rem 1rem">
-      <summary style="cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:0.98rem;color:var(--muted);letter-spacing:0.04em;text-transform:uppercase">
-        ⚙️ Event Setup, TeamUp &amp; CSV Import
-      </summary>
-      <div style="margin-top:0.8rem">
-        <div class="form-row" style="margin-bottom:0.55rem">
-          <div>
-            <label>Event Name</label>
-            <input type="text" id="wk-ev-name" placeholder="CS Fitness HYROX Sim" />
-          </div>
-          <div>
-            <label>Saturday (14:00–17:00)</label>
-            <input type="date" id="wk-sat-date" value="2026-11-28" />
-          </div>
-          <div>
-            <label>Sunday (10:00–14:00)</label>
-            <input type="date" id="wk-sun-date" value="2026-11-29" />
-          </div>
-          <div>
-            <label>Slot Interval (mins)</label>
-            <input type="number" id="wk-interval" value="5" min="1" max="60" />
-          </div>
-        </div>
-        <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;margin-bottom:0.85rem">
-          <button type="button" class="btn btn-green" onclick="setupWeekendEvent(false)">⚡ Setup Event &amp; Sync TeamUp</button>
-          <button type="button" class="btn" onclick="setupWeekendEvent(true)">🧱 Apply Slots</button>
-          <button type="button" class="btn btn-yellow" onclick="checkLiveTeamUpSignups()">📡 Check TeamUp</button>
-          <button type="button" class="btn" onclick="setWeekendDatePreset('2026-11-28','2026-11-29')">Nov 2026</button>
-          <button type="button" class="btn" onclick="setWeekendDatePreset('2027-02-20','2027-02-21')">Feb 2027</button>
-          <button type="button" class="btn" onclick="setUpcomingWeekendPreset()">Next Weekend</button>
-          <button type="button" class="btn btn-red" style="margin-left:auto" onclick="clearAllEntries()">🗑️ Clear Entries</button>
-        </div>
-
-        <div class="grid-2" style="margin-bottom:0">
-          <!-- Custom Event & Block Generator -->
-          <div style="background:var(--surface-2);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.75rem">
-            <div style="font-size:0.76rem;font-weight:800;color:var(--muted);text-transform:uppercase;margin-bottom:0.45rem">
-              Custom Slots &amp; Events
-            </div>
-            <div class="form-row">
-              <div>
-                <label>New Event Name</label>
-                <input type="text" id="new-ev-name" placeholder="HYROX Sim" />
-              </div>
-              <div>
-                <label>Start Date</label>
-                <input type="date" id="new-ev-date" value="2026-11-28" />
-              </div>
-              <div>
-                <label>Days</label>
-                <select id="new-ev-days">
-                  <option value="2" selected>2 Days</option>
-                  <option value="1">1 Day</option>
-                </select>
-              </div>
-            </div>
-            <div class="form-row">
-              <div>
-                <label>Start</label>
-                <input type="time" id="new-ev-time" value="14:00" />
-              </div>
-              <div>
-                <label>Slots</label>
-                <input type="number" id="new-ev-waves" value="6" min="1" max="40" />
-              </div>
-              <div>
-                <label>Gap (m)</label>
-                <input type="number" id="new-ev-interval" value="5" min="1" max="90" />
-              </div>
-              <div>
-                <label>Buffer (m)</label>
-                <input type="number" id="new-ev-buffer" value="10" min="0" max="60" />
-              </div>
-            </div>
-            <button type="button" class="btn btn-green" style="margin-bottom:0.65rem" onclick="createNewSimEvent()">+ Create Event</button>
-
-            <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:0.55rem">
-              <div class="form-row" style="margin-bottom:0.45rem">
-                <div>
-                  <label>Day</label>
-                  <select id="blk-day">
-                    <option value="1">Sat</option>
-                    <option value="2">Sun</option>
-                  </select>
-                </div>
-                <div>
-                  <label>Category</label>
-                  <select id="blk-division">
-                    {% for div_key, div in divisions.items() %}
-                    <option value="{{ div_key }}">{{ div.label }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div>
-                  <label>Start</label>
-                  <input type="time" id="blk-start" value="14:00" />
-                </div>
-                <div>
-                  <label>Slots</label>
-                  <input type="number" id="blk-count" value="4" min="1" max="20" />
-                </div>
-                <div>
-                  <label>Gap (m)</label>
-                  <input type="number" id="blk-gap" value="5" min="1" max="90" />
-                </div>
-              </div>
-              <button type="button" class="btn" onclick="addWavesToCurrentEvent()">+ Add Slots</button>
-            </div>
-          </div>
-
-          <!-- TeamUp API & CSV Import -->
-          <div style="background:var(--surface-2);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.75rem">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.45rem">
-              <div style="font-size:0.76rem;font-weight:800;color:var(--muted);text-transform:uppercase">
-                TeamUp API &amp; CSV
-              </div>
-              <div style="display:flex;gap:0.35rem;align-items:center">
-                <span id="teamup-api-badge" class="pill" style="background:rgba(255,255,255,0.08);color:var(--muted)">Ready</span>
-                <a href="/api/hyrox/sample-csv" class="btn" style="padding:0.18rem 0.45rem;font-size:0.68rem" download>Sample CSV</a>
-              </div>
-            </div>
-            <div class="form-row" style="margin-bottom:0.45rem">
-              <div>
-                <label>API Token</label>
-                <input type="password" id="tu-api-token" placeholder="TeamUp Key" />
-              </div>
-              <div>
-                <label>Provider ID</label>
-                <input type="text" id="tu-provider-id" value="13050192" />
-              </div>
-            </div>
-            <div class="form-row" style="margin-bottom:0.45rem">
-              <div>
-                <label>Class Filter</label>
-                <select id="tu-event-select">
-                  <option value="">All Classes</option>
-                </select>
-              </div>
-              <div style="display:flex;align-items:flex-end">
-                <button type="button" class="btn" onclick="loadRemoteTeamUpEvents()" style="width:100%">Load Classes</button>
-              </div>
-            </div>
-            <input type="checkbox" id="tu-auto-stagger" style="display:none" checked />
-            <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;margin-bottom:0.55rem">
-              <button type="button" class="btn" onclick="saveAndTestTeamUpApi()">Save Token</button>
-              <button type="button" class="btn btn-green" onclick="syncFromTeamUpApi()">Sync TeamUp</button>
-              <span id="tu-status-msg" style="font-size:0.7rem;color:var(--muted)"></span>
-            </div>
-            <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:0.5rem">
-              <div style="display:flex;gap:0.4rem;margin-bottom:0.35rem">
-                <input type="file" id="csv-file-input" accept=".csv,text/csv" onchange="loadCsvFile(this)" style="font-size:0.7rem" />
-                <button type="button" class="btn btn-green" style="flex-shrink:0" onclick="importTeamUpCsv()">Import CSV</button>
-              </div>
-              <textarea id="csv-text-input" rows="2" style="font-size:0.72rem" placeholder="First Name,Last Name,Email,DOB,Division,Partner Name,Heat Time,Volunteer"></textarea>
-            </div>
-          </div>
-        </div>
-      </div>
-    </details>
   </main>
 
   <!-- MODAL: EDIT ATHLETE & SPLITS -->
@@ -640,11 +638,8 @@
           <div>
             <label>Volunteer</label>
             <input type="text" id="modal-volunteer" placeholder="Judge" />
-          </div>
-          <div>
-            <label>Email</label>
             <input type="hidden" id="modal-bib" />
-            <input type="email" id="modal-email" placeholder="athlete@email.com" />
+            <input type="hidden" id="modal-email" />
           </div>
         </div>
       </div>
@@ -920,8 +915,8 @@
       if (!entries.length) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="7" style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.84rem">
-              No athletes yet. Add an athlete above or click <strong>Sync TeamUp</strong>.
+            <td colspan="6" style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.84rem">
+              No athletes yet. Open <strong>Add Athlete(s)</strong> or <strong>Event Setup</strong> above.
             </td>
           </tr>
         `;
@@ -937,7 +932,7 @@
 
         rowsHtml.push(`
           <tr>
-            <td colspan="7" style="background:rgba(255,255,255,0.04);border-top:2px solid ${grp.color};border-bottom:1px solid rgba(255,255,255,0.1);padding:0.24rem 0.5rem">
+            <td colspan="6" style="background:rgba(255,255,255,0.04);border-top:2px solid ${grp.color};border-bottom:1px solid rgba(255,255,255,0.1);padding:0.24rem 0.5rem">
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:0.92rem;color:${grp.color};letter-spacing:0.03em">
                   ${grp.title}
@@ -952,7 +947,7 @@
         if (!grpEntries.length) {
           rowsHtml.push(`
             <tr>
-              <td colspan="7" style="padding:0.3rem 0.5rem;color:var(--muted);font-size:0.73rem">
+              <td colspan="6" style="padding:0.3rem 0.5rem;color:var(--muted);font-size:0.73rem">
                 No athletes in ${grp.title}.
               </td>
             </tr>
@@ -971,33 +966,6 @@
           ).join('');
 
           const statusClass = `status-${e.status}`;
-          const relUrl = `/hyrox/results/${e.id}`;
-          const fullUrl = `${window.location.origin}${relUrl}`;
-          const splitsLines = (e.splits || [])
-            .filter(s => s.duration_ms !== null && s.duration_ms !== undefined)
-            .map(s => `  • ${cleanSplitLabel(s.label)}: ${s.duration_formatted}`)
-            .join('\n');
-          const breakdownBlock = splitsLines
-            ? `\n--- 16-SPLIT BREAKDOWN ---\n` +
-              `Run: ${e.run_total_formatted || '--:--'}${e.avg_run_kph_formatted ? ' (' + e.avg_run_kph_formatted + ')' : ''}\n` +
-              `Workout: ${e.station_total_formatted || '--:--'}\n` +
-              `${splitsLines}\n`
-            : '';
-          const mailSubject = encodeURIComponent(`CS Fitness HYROX Sim Results — ${e.full_display_name}`);
-          const mailBody = encodeURIComponent(
-            `Hi ${e.full_display_name},\n\n` +
-            `Massive well done at the CS Fitness HYROX Sim! Train Hard & Be Sound.\n\n` +
-            `Athlete: ${e.full_display_name}\n` +
-            `Category: ${e.division_label}\n` +
-            `Time: ${e.total_formatted}\n` +
-            `${breakdownBlock}\n` +
-            `Results & Social Card:\n` +
-            `${fullUrl}\n`
-          );
-          const emailActionBtn = e.email
-            ? `<a href="mailto:${encodeURIComponent(e.email)}?subject=${mailSubject}&body=${mailBody}" class="btn-xs" title="Email Results">✉️</a>`
-            : '';
-
           const hasTime = (e.completed_splits || 0) > 0 || e.status === 'finished' || e.status === 'racing';
           const resultInlineHtml = hasTime
             ? `<strong style="font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;color:var(--green);margin-left:0.35rem">${e.total_formatted}</strong>`
@@ -1008,41 +976,32 @@
 
           rowsHtml.push(`
             <tr>
-              <td style="width:105px">
-                <select class="cell-select" onchange="updateEntryMeta(${e.id}, {heat_id: this.value})" style="width:100px">
+              <td>
+                <select class="cell-select" onchange="updateEntryMeta(${e.id}, {heat_id: this.value})" style="width:100%">
                   ${heatOpts}
                 </select>
               </td>
-              <td style="font-weight:700;font-size:0.82rem">${escapeHtml(e.full_display_name)}</td>
-              <td style="width:138px">
+              <td style="font-weight:700;font-size:0.84rem;overflow:hidden;text-overflow:ellipsis">${escapeHtml(e.full_display_name)}</td>
+              <td>
                 <select class="cell-select" onchange="updateEntryMeta(${e.id}, {division: this.value})"
-                  style="width:134px;font-weight:700;border-color:${e.division_color};color:${e.division_color}">
+                  style="width:100%;font-weight:700;border-color:${e.division_color};color:${e.division_color}">
                   ${divOpts}
                 </select>
               </td>
-              <td style="width:125px">
+              <td>
                 <input type="text" class="cell-input" value="${escapeHtml(e.volunteer_name || '')}" placeholder="Volunteer"
                   onchange="updateEntryMeta(${e.id}, {volunteer_name: this.value})"
-                  style="width:120px" />
-              </td>
-              <td style="width:170px">
-                <input type="email" class="cell-input" value="${escapeHtml(e.email || '')}" placeholder="athlete@email.com"
-                  onchange="updateEntryMeta(${e.id}, {email: this.value})"
-                  style="width:165px" />
+                  style="width:100%" />
               </td>
               <td style="text-align:center">
                 <span class="pill ${statusClass}">${e.status}</span>
                 ${progressInlineHtml}
                 ${resultInlineHtml}
               </td>
-              <td>
-                <div style="display:flex;gap:0.25rem;flex-wrap:nowrap;align-items:center">
-                  <a href="/hyrox/judge?entry=${e.id}" target="_blank" class="btn-xs" title="Judge Timer">Judge</a>
-                  <button type="button" class="btn-xs" onclick="openSplitsModal(${e.id})" title="Edit Athlete &amp; Splits">Edit</button>
-                  <a href="${relUrl}" target="_blank" class="btn-xs btn-green" title="Results &amp; Social Card">Results</a>
-                  <button type="button" class="btn-xs" onclick="copyResultWebLink(${e.id}, this)" title="Copy Results Link">Link</button>
-                  ${emailActionBtn}
-                  <button type="button" class="btn-xs btn-red" title="Remove" onclick="quickDeleteEntry(${e.id})">✕</button>
+              <td style="text-align:right">
+                <div style="display:inline-flex;gap:0.3rem;align-items:center;justify-content:flex-end">
+                  <button type="button" class="btn-xs" onclick="openSplitsModal(${e.id})">Edit</button>
+                  <button type="button" class="btn-xs btn-red" onclick="quickDeleteEntry(${e.id})">Delete</button>
                 </div>
               </td>
             </tr>
@@ -1051,34 +1010,6 @@
       });
 
       tbody.innerHTML = rowsHtml.join('');
-    }
-
-    function copyResultWebLink(entryId, btnEl) {
-      const fullUrl = `${window.location.origin}/hyrox/results/${entryId}`;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(fullUrl);
-      }
-      if (btnEl) {
-        const prev = btnEl.textContent;
-        btnEl.textContent = '✅ Copied!';
-        setTimeout(() => { btnEl.textContent = prev; }, 1600);
-      }
-    }
-
-    function copyAllResultsLinks(btnEl) {
-      const entries = currentState?.entries || [];
-      if (!entries.length) return;
-      const lines = entries.map(e =>
-        `${e.full_display_name} (${e.division_label})${e.email ? ' <' + e.email + '>' : ''}: ${window.location.origin}/hyrox/results/${e.id}`
-      ).join('\n');
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(lines);
-      }
-      if (btnEl) {
-        const prev = btnEl.textContent;
-        btnEl.textContent = `✅ Copied ${entries.length} Links!`;
-        setTimeout(() => { btnEl.textContent = prev; }, 1800);
-      }
     }
 
     async function updateEntryMeta(entryId, patch) {
