@@ -183,56 +183,74 @@
       padding: 1.05rem 1.2rem;
     }
     .racer-top {
+      display: grid;
+      grid-template-columns: 1.5fr repeat(4, minmax(0, 1fr));
+      gap: 0.45rem;
+      align-items: stretch;
+      margin-bottom: 0.45rem;
+    }
+    .racer-identity {
+      grid-column: 1 / span 3;
+      min-width: 0;
       display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 0.75rem;
-      margin-bottom: 0.4rem;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .racer-identity.finished-span {
+      grid-column: 1 / span 4;
+    }
+    .racer-day-cat {
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.12rem;
     }
     .racer-name {
       font-family: 'Barlow Condensed', sans-serif;
       font-style: italic;
       font-weight: 800;
-      font-size: 1.85rem;
+      font-size: 2.25rem;
       text-transform: uppercase;
-      line-height: 1.02;
+      line-height: 1;
       color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .racer-card.single-spotlight .racer-name {
-      font-size: 2.35rem;
-    }
-    .racer-clocks-wrap {
-      display: flex;
-      align-items: center;
-      gap: 0.65rem;
-      flex-shrink: 0;
+      font-size: clamp(2.5rem, 3.8vw, 3.25rem);
     }
     .stage-clock-box {
+      grid-column: 4;
       background: rgba(56, 189, 248, 0.12);
       border: 1.5px solid rgba(56, 189, 248, 0.45);
       border-radius: 10px;
-      padding: 0.25rem 0.75rem;
+      padding: 0.32rem 0.5rem;
       text-align: center;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-width: 155px;
+      min-width: 0;
     }
     .stage-clock-lbl {
-      font-size: 0.58rem;
+      width: 100%;
+      font-size: 0.6rem;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.07em;
       color: var(--blue);
       text-align: center;
+      white-space: nowrap;
     }
     .stage-clock-val {
+      width: 100%;
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
       font-size: 2.05rem;
       color: #e0f2fe;
-      line-height: 1;
+      line-height: 1.02;
       font-variant-numeric: tabular-nums;
       text-align: center;
     }
@@ -240,31 +258,35 @@
       font-size: 2.6rem;
     }
     .racer-clock-box {
+      grid-column: 5;
       background: rgba(61, 255, 79, 0.12);
       border: 1.5px solid rgba(61, 255, 79, 0.45);
       border-radius: 10px;
-      padding: 0.25rem 0.75rem;
+      padding: 0.32rem 0.5rem;
       text-align: center;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-width: 155px;
+      min-width: 0;
     }
     .racer-clock-lbl {
-      font-size: 0.58rem;
+      width: 100%;
+      font-size: 0.6rem;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.07em;
       color: var(--green);
       text-align: center;
+      white-space: nowrap;
     }
     .racer-clock {
+      width: 100%;
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
       font-size: 2.05rem;
       color: var(--green);
-      line-height: 1;
+      line-height: 1.02;
       font-variant-numeric: tabular-nums;
       text-align: center;
     }
@@ -275,20 +297,22 @@
     /* Middle Telemetry & Current Stage Bar */
     .racer-telemetry-bar {
       display: grid;
-      grid-template-columns: 1.55fr repeat(4, 1fr);
+      grid-template-columns: 1.5fr repeat(4, minmax(0, 1fr));
       gap: 0.45rem;
       align-items: stretch;
-      margin-bottom: 0.48rem;
+      margin-bottom: 0.45rem;
     }
     .station-callout {
       background: rgba(250, 204, 21, 0.14);
       border: 1px solid rgba(250, 204, 21, 0.48);
       color: var(--yellow);
-      padding: 0.32rem 0.65rem;
+      padding: 0.35rem 0.6rem;
       border-radius: 9px;
       display: flex;
       flex-direction: column;
+      align-items: center;
       justify-content: center;
+      text-align: center;
       min-width: 0;
     }
     .station-callout.finished {
@@ -297,45 +321,54 @@
       color: var(--green);
     }
     .station-callout-kicker {
+      width: 100%;
       font-size: 0.58rem;
       font-weight: 900;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       opacity: 0.88;
+      text-align: center;
+      white-space: nowrap;
     }
     .station-callout-main {
+      width: 100%;
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
-      font-size: 1.15rem;
+      font-size: 1.25rem;
       text-transform: uppercase;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       line-height: 1.1;
+      text-align: center;
     }
     .stat-pill {
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 9px;
-      padding: 0.28rem 0.5rem;
+      padding: 0.35rem 0.45rem;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       text-align: center;
+      min-width: 0;
     }
     .stat-pill-lbl {
+      width: 100%;
       font-size: 0.56rem;
       font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.05em;
       color: var(--muted);
       text-align: center;
+      white-space: nowrap;
     }
     .stat-pill-val {
+      width: 100%;
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
-      font-size: 1.35rem;
+      font-size: 1.4rem;
       color: #f8fafc;
       line-height: 1.1;
       font-variant-numeric: tabular-nums;
@@ -350,20 +383,16 @@
       text-overflow: ellipsis;
     }
 
-    /* Compact 2x8 Horizontal Split Matrix (Fits all 16 splits in ~82px height) */
+    /* Compact 2x8 Horizontal Split Matrix aligned flush with outer card edges */
     .tv-roxfit-board {
-      background: #060b08;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 11px;
-      padding: 0.45rem 0.55rem;
       display: flex;
       flex-direction: column;
-      gap: 0.35rem;
+      gap: 0.42rem;
     }
     .split-strip-row {
       display: grid;
-      grid-template-columns: 62px repeat(8, 1fr);
-      gap: 0.32rem;
+      grid-template-columns: repeat(9, minmax(0, 1fr));
+      gap: 0.42rem;
       align-items: stretch;
     }
     .strip-row-tag {
@@ -372,13 +401,14 @@
       align-items: center;
       justify-content: center;
       text-align: center;
-      padding: 0.2rem 0.35rem;
-      border-radius: 6px;
-      font-size: 0.62rem;
+      padding: 0.3rem 0.25rem;
+      border-radius: 8px;
+      font-size: 0.64rem;
       font-weight: 900;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       line-height: 1.1;
+      min-width: 0;
     }
     .strip-row-tag.runs {
       background: rgba(99, 102, 241, 0.18);
@@ -393,8 +423,8 @@
     .split-cell {
       background: rgba(255, 255, 255, 0.035);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 7px;
-      padding: 0.28rem 0.32rem;
+      border-radius: 8px;
+      padding: 0.32rem 0.25rem;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -405,7 +435,7 @@
       overflow: hidden;
     }
     .racer-card.single-spotlight .split-cell {
-      padding: 0.45rem 0.5rem;
+      padding: 0.48rem 0.3rem;
     }
     .split-cell.done-run {
       background: linear-gradient(180deg, rgba(79, 70, 229, 0.38) 0%, rgba(49, 46, 129, 0.52) 100%);
@@ -818,23 +848,21 @@
         return `
           <div class="racer-card ${isSingleCard ? 'single-spotlight' : ''}">
             <div class="racer-top">
-              <div style="min-width:0">
-                <div style="font-size:0.74rem;font-weight:800;color:${e.division_color};text-transform:uppercase;letter-spacing:0.04em">
+              <div class="racer-identity ${isFinished ? 'finished-span' : ''}">
+                <div class="racer-day-cat" style="color:${e.division_color}">
                   DAY ${e.heat_day_number || 1} - ${e.division_label}
                 </div>
                 <div class="racer-name">${e.full_display_name}</div>
               </div>
-              <div class="racer-clocks-wrap">
-                ${!isFinished ? `
-                  <div class="stage-clock-box">
-                    <div class="stage-clock-lbl">Stage ${e.completed_splits + 1}/16</div>
-                    <div class="stage-clock-val live-split-clock" data-started-ms="${e.started_at_ms || 0}" data-completed-sum-ms="${completedSumMs}">00:00</div>
-                  </div>
-                ` : ''}
-                <div class="racer-clock-box">
-                  <div class="racer-clock-lbl">${isFinished ? 'Official Finish' : 'Total Elapsed'}</div>
-                  <div class="racer-clock" data-started-ms="${isFinished ? 0 : (e.started_at_ms || 0)}">${isFinished ? e.total_formatted : '00:00'}</div>
+              ${!isFinished ? `
+                <div class="stage-clock-box">
+                  <div class="stage-clock-lbl">Stage ${e.completed_splits + 1}/16</div>
+                  <div class="stage-clock-val live-split-clock" data-started-ms="${e.started_at_ms || 0}" data-completed-sum-ms="${completedSumMs}">00:00</div>
                 </div>
+              ` : ''}
+              <div class="racer-clock-box">
+                <div class="racer-clock-lbl">${isFinished ? 'Official Finish' : 'Total Elapsed'}</div>
+                <div class="racer-clock" data-started-ms="${isFinished ? 0 : (e.started_at_ms || 0)}">${isFinished ? e.total_formatted : '00:00'}</div>
               </div>
             </div>
 
