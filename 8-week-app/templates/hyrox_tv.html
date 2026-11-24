@@ -184,20 +184,20 @@
     }
     .racer-top {
       display: grid;
-      grid-template-columns: 1.5fr repeat(4, minmax(0, 1fr));
+      grid-template-columns: 2.25fr repeat(3, minmax(0, 1fr));
       gap: 0.45rem;
       align-items: stretch;
       margin-bottom: 0.45rem;
     }
     .racer-identity {
-      grid-column: 1 / span 3;
+      grid-column: 1 / span 2;
       min-width: 0;
       display: flex;
       flex-direction: column;
       justify-content: center;
     }
     .racer-identity.finished-span {
-      grid-column: 1 / span 4;
+      grid-column: 1 / span 3;
     }
     .racer-day-cat {
       font-size: 0.78rem;
@@ -222,17 +222,18 @@
       font-size: clamp(2.5rem, 3.8vw, 3.25rem);
     }
     .stage-clock-box {
-      grid-column: 4;
+      grid-column: 3;
       background: rgba(56, 189, 248, 0.12);
       border: 1.5px solid rgba(56, 189, 248, 0.45);
       border-radius: 10px;
-      padding: 0.32rem 0.5rem;
+      padding: 0.32rem 0;
       text-align: center;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       min-width: 0;
+      overflow: hidden;
     }
     .stage-clock-lbl {
       width: 100%;
@@ -243,32 +244,39 @@
       color: var(--blue);
       text-align: center;
       white-space: nowrap;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .stage-clock-val {
       width: 100%;
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
-      font-size: 2.05rem;
+      font-size: 1.8rem;
       color: #e0f2fe;
-      line-height: 1.02;
+      line-height: 1.04;
       font-variant-numeric: tabular-nums;
       text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .racer-card.single-spotlight .stage-clock-val {
-      font-size: 2.6rem;
+      font-size: 2.05rem;
     }
     .racer-clock-box {
-      grid-column: 5;
+      grid-column: 4;
       background: rgba(61, 255, 79, 0.12);
       border: 1.5px solid rgba(61, 255, 79, 0.45);
       border-radius: 10px;
-      padding: 0.32rem 0.5rem;
+      padding: 0.32rem 0;
       text-align: center;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       min-width: 0;
+      overflow: hidden;
     }
     .racer-clock-lbl {
       width: 100%;
@@ -279,25 +287,31 @@
       color: var(--green);
       text-align: center;
       white-space: nowrap;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .racer-clock {
       width: 100%;
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
-      font-size: 2.05rem;
+      font-size: 1.8rem;
       color: var(--green);
-      line-height: 1.02;
+      line-height: 1.04;
       font-variant-numeric: tabular-nums;
       text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .racer-card.single-spotlight .racer-clock {
-      font-size: 2.6rem;
+      font-size: 2.05rem;
     }
 
     /* Middle Telemetry & Current Stage Bar */
     .racer-telemetry-bar {
       display: grid;
-      grid-template-columns: 1.5fr repeat(4, minmax(0, 1fr));
+      grid-template-columns: 2.25fr repeat(3, minmax(0, 1fr));
       gap: 0.45rem;
       align-items: stretch;
       margin-bottom: 0.45rem;
@@ -306,7 +320,7 @@
       background: rgba(250, 204, 21, 0.14);
       border: 1px solid rgba(250, 204, 21, 0.48);
       color: var(--yellow);
-      padding: 0.35rem 0.6rem;
+      padding: 0.35rem 0.5rem;
       border-radius: 9px;
       display: flex;
       flex-direction: column;
@@ -334,7 +348,7 @@
       width: 100%;
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
-      font-size: 1.25rem;
+      font-size: 1.22rem;
       text-transform: uppercase;
       white-space: nowrap;
       overflow: hidden;
@@ -346,7 +360,7 @@
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 9px;
-      padding: 0.35rem 0.45rem;
+      padding: 0.35rem 0;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -363,6 +377,9 @@
       color: var(--muted);
       text-align: center;
       white-space: nowrap;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .stat-pill-val {
       width: 100%;
@@ -373,6 +390,9 @@
       line-height: 1.1;
       font-variant-numeric: tabular-nums;
       text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .stat-pill-sub {
       font-size: 0.62rem;
@@ -424,7 +444,7 @@
       background: rgba(255, 255, 255, 0.035);
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 8px;
-      padding: 0.32rem 0.25rem;
+      padding: 0.32rem 0;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -435,7 +455,7 @@
       overflow: hidden;
     }
     .racer-card.single-spotlight .split-cell {
-      padding: 0.48rem 0.3rem;
+      padding: 0.48rem 0;
     }
     .split-cell.done-run {
       background: linear-gradient(180deg, rgba(79, 70, 229, 0.38) 0%, rgba(49, 46, 129, 0.52) 100%);
@@ -468,16 +488,19 @@
     .split-cell-time {
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
-      font-size: 1.15rem;
+      font-size: 1.12rem;
       color: #fff;
       line-height: 1.05;
       font-variant-numeric: tabular-nums;
       margin-top: 0.1rem;
       text-align: center;
       width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .racer-card.single-spotlight .split-cell-time {
-      font-size: 1.35rem;
+      font-size: 1.25rem;
     }
     .split-cell.upcoming .split-cell-time {
       color: rgba(148, 163, 184, 0.45);
@@ -838,12 +861,7 @@
         const runCellsHtml = runSplits.map((s, idx) => renderCell(s, idx)).join('');
         const stnCellsHtml = stnSplits.map((s, idx) => renderCell(s, idx)).join('');
 
-        const activeStageLabel = (() => {
-          const cleanLabel = String(cur.label || 'On Floor').replace(/\s*\(1[.,]2\s*km\)/gi, '');
-          if (cur.split_type === 'run') return cleanLabel;
-          const cleanPresc = String(cur.prescription || '').replace(/\s*1[.,]2\s*km[^·]*/gi, '').trim();
-          return cleanPresc ? `${cleanLabel} — ${cleanPresc}` : cleanLabel;
-        })();
+        const activeStageLabel = String(cur.label || 'On Floor').replace(/\s*\(1[.,]2\s*km\)/gi, '');
 
         return `
           <div class="racer-card ${isSingleCard ? 'single-spotlight' : ''}">
@@ -890,11 +908,6 @@
               <div class="stat-pill">
                 <div class="stat-pill-lbl">Station Total</div>
                 <div class="stat-pill-val">${e.station_total_formatted || '00:00'}</div>
-              </div>
-
-              <div class="stat-pill">
-                <div class="stat-pill-lbl">Last Completed</div>
-                <div class="stat-pill-val">${lastDone ? lastDone.duration_formatted : '--:--'}</div>
               </div>
             </div>
 

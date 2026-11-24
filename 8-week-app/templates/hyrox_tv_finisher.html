@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CS Fitness HYROX Sim — Performance Gym Finisher Social Shot TV</title>
+  <title>CS Fitness HYROX Sim — Finishers</title>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;1,800;1,900&family=Inter:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
   <style>
     :root {
@@ -84,7 +84,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 1.4rem 2.2rem;
+      padding: clamp(0.6rem, 1.5vh, 1.2rem) clamp(1rem, 2vw, 2rem);
       position: relative;
       min-height: 0;
     }
@@ -92,7 +92,7 @@
       width: 100%;
       max-width: 1460px;
       height: 100%;
-      max-height: 900px;
+      max-height: 860px;
       background:
         radial-gradient(circle at 50% 0%, rgba(61, 255, 79, 0.14) 0%, rgba(10, 20, 13, 0.96) 65%),
         #071009;
@@ -101,11 +101,12 @@
       box-shadow:
         0 0 60px rgba(61, 255, 79, 0.18),
         inset 0 0 40px rgba(61, 255, 79, 0.08);
-      padding: 2rem 3rem;
+      padding: clamp(1rem, 2.4vh, 2rem) clamp(1.5rem, 3vw, 3rem);
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: space-between;
+      justify-content: center;
+      gap: clamp(0.85rem, 2.4vh, 1.75rem);
       text-align: center;
       position: relative;
       overflow: hidden;
@@ -131,17 +132,17 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.45rem;
+      gap: clamp(0.35rem, 1vh, 0.6rem);
     }
     .brand-top-row {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 1.25rem;
+      gap: 1.15rem;
     }
     .finisher-logo {
-      width: 96px;
-      height: 96px;
+      width: clamp(64px, 9.5vh, 92px);
+      height: clamp(64px, 9.5vh, 92px);
       border-radius: 18px;
       border: 3px solid var(--green);
       object-fit: cover;
@@ -155,7 +156,7 @@
       font-family: 'Barlow Condensed', sans-serif;
       font-style: italic;
       font-weight: 900;
-      font-size: clamp(2.4rem, 4.2vw, 3.8rem);
+      font-size: clamp(2rem, min(4.2vw, 5.8vh), 3.6rem);
       letter-spacing: 0.04em;
       text-transform: uppercase;
       line-height: 0.95;
@@ -167,25 +168,25 @@
     .gym-motto {
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
-      font-size: clamp(1.15rem, 2vw, 1.65rem);
+      font-size: clamp(0.95rem, min(1.9vw, 2.5vh), 1.55rem);
       letter-spacing: 0.18em;
       text-transform: uppercase;
       color: var(--green);
-      margin-top: 0.2rem;
+      margin-top: 0.18rem;
     }
     .hyrox-sim-banner {
-      margin-top: 0.45rem;
+      margin-top: 0.25rem;
       display: inline-flex;
       align-items: center;
       gap: 0.75rem;
       background: rgba(61, 255, 79, 0.14);
       border: 2px solid var(--green);
-      padding: 0.35rem 1.5rem;
+      padding: 0.28rem 1.35rem;
       border-radius: 999px;
       font-family: 'Barlow Condensed', sans-serif;
       font-style: italic;
       font-weight: 900;
-      font-size: clamp(1.4rem, 2.5vw, 2.1rem);
+      font-size: clamp(1.15rem, min(2.3vw, 3.2vh), 1.9rem);
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: #ffffff;
@@ -196,23 +197,14 @@
 
     /* Center Athlete / Pair Name */
     .athlete-block {
-      my: auto;
       width: 100%;
-      padding: 0.5rem 1rem;
-    }
-    .finisher-kicker {
-      font-size: clamp(0.85rem, 1.3vw, 1.1rem);
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.22em;
-      color: var(--muted);
-      margin-bottom: 0.35rem;
+      padding: 0.2rem 1rem;
     }
     .finisher-athlete-name {
       font-family: 'Barlow Condensed', sans-serif;
       font-style: italic;
       font-weight: 900;
-      font-size: clamp(3.4rem, 7.2vw, 6.4rem);
+      font-size: clamp(2.5rem, min(6.4vw, 8.8vh), 5.6rem);
       text-transform: uppercase;
       letter-spacing: 0.02em;
       line-height: 0.98;
@@ -226,28 +218,34 @@
       background: linear-gradient(180deg, rgba(61, 255, 79, 0.16) 0%, rgba(12, 28, 16, 0.92) 100%);
       border: 3px solid var(--green);
       border-radius: 24px;
-      padding: 0.9rem 3.2rem 1.1rem;
-      min-width: min(82%, 780px);
+      padding: clamp(0.65rem, 1.8vh, 1rem) clamp(2.2rem, 4.5vw, 3.2rem);
+      min-width: min(82%, 740px);
       box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6), 0 0 36px rgba(61, 255, 79, 0.2);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
     }
     .time-hero-label {
-      font-size: clamp(0.85rem, 1.3vw, 1.1rem);
+      font-size: clamp(0.78rem, min(1.2vw, 1.8vh), 1.05rem);
       font-weight: 900;
       text-transform: uppercase;
       letter-spacing: 0.24em;
       color: #cbd5e1;
       margin-bottom: 0.1rem;
+      text-align: center;
     }
     .time-hero-value {
       font-family: 'Barlow Condensed', sans-serif;
       font-style: italic;
       font-weight: 900;
-      font-size: clamp(4.8rem, 10.5vw, 9.2rem);
-      line-height: 0.92;
+      font-size: clamp(3.6rem, min(9.2vw, 12.5vh), 8rem);
+      line-height: 0.94;
       color: var(--green);
       letter-spacing: 0.03em;
       font-variant-numeric: tabular-nums;
       text-shadow: 0 0 34px rgba(61, 255, 79, 0.38);
+      text-align: center;
     }
 
     /* Footer bar inside frame */
@@ -300,7 +298,7 @@
   <header class="tv-control-bar">
     <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
       <span style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-style:italic;font-size:1.2rem;color:var(--green);letter-spacing:0.04em">
-        📸 PERFORMANCE GYM · FINISHER SOCIAL SHOT TV
+        📸 FINISHERS
       </span>
       <select id="finisher-select" class="tv-select" onchange="selectAthlete(this.value)" style="min-width:270px">
         <option value="latest">⚡ Auto: Latest Finisher</option>
@@ -333,20 +331,19 @@
         <div class="brand-top-row">
           <img src="/static/logo.jpg" alt="CS Fitness Logo" class="finisher-logo" />
           <div class="brand-text-block">
-            <div class="gym-name">CS <span>FITNESS</span> · PERFORMANCE GYM</div>
+            <div class="gym-name">CS <span>FITNESS</span> · FINISHERS</div>
             <div class="gym-motto">🤝 TRAIN HARD &amp; BE SOUND</div>
           </div>
         </div>
         <div class="hyrox-sim-banner">
           <span>🏁 HYROX SIM</span>
           <span>·</span>
-          <span class="div-tag" id="shot-division">OFFICIAL FINISHER</span>
+          <span class="div-tag" id="shot-division">FINISHERS</span>
         </div>
       </div>
 
       <!-- 2. ATHLETE / PAIR NAME -->
       <div class="athlete-block">
-        <div class="finisher-kicker" id="shot-kicker">OFFICIAL HYROX SIMULATION FINISHER</div>
         <div class="finisher-athlete-name" id="shot-athlete-name">CS PERFORMANCE ATHLETE</div>
       </div>
 
@@ -354,13 +351,6 @@
       <div class="time-hero-box">
         <div class="time-hero-label">OFFICIAL FINISHER TIME</div>
         <div class="time-hero-value" id="shot-finisher-time">00:00</div>
-      </div>
-
-      <!-- 4. EVENT FOOTER -->
-      <div class="frame-footer">
-        <span id="shot-event-name">CS PERFORMANCE HYROX SIM</span>
-        <span class="accent">TRAIN HARD &amp; BE SOUND</span>
-        <span id="shot-bib-badge">CS FITNESS</span>
       </div>
     </div>
   </main>
@@ -459,15 +449,10 @@
         entry = autoCycle ? pool[cycleIndex % pool.length] : pool[0];
       }
 
-      const evName = tvState.event ? tvState.event.name : 'CS PERFORMANCE HYROX SIM';
-      document.getElementById('shot-event-name').textContent = evName;
-
       if (!entry) {
-        document.getElementById('shot-division').textContent = 'HYROX SIMULATION';
-        document.getElementById('shot-kicker').textContent = 'READY FOR NEXT FINISHER';
+        document.getElementById('shot-division').textContent = 'FINISHERS';
         document.getElementById('shot-athlete-name').textContent = 'TRAIN HARD & BE SOUND';
         document.getElementById('shot-finisher-time').textContent = '--:--';
-        document.getElementById('shot-bib-badge').textContent = 'CS FITNESS';
         return;
       }
 
@@ -475,18 +460,12 @@
       divEl.textContent = (entry.division_label || 'OPEN').toUpperCase();
       divEl.style.color = entry.division_color || '#3DFF4F';
 
-      const isPair = Boolean(entry.partner_name && String(entry.partner_name).trim());
-      document.getElementById('shot-kicker').textContent = isPair
-        ? 'OFFICIAL HYROX SIM FINISHER TEAM'
-        : 'OFFICIAL HYROX SIM FINISHER';
-
       document.getElementById('shot-athlete-name').textContent = (entry.full_display_name || entry.display_name || '').toUpperCase();
 
       const timeStr = (entry.total_formatted && entry.total_formatted !== '—')
         ? entry.total_formatted
         : 'FINISHER';
       document.getElementById('shot-finisher-time').textContent = timeStr;
-      document.getElementById('shot-bib-badge').textContent = `BIB #${entry.bib_number || '—'} · ${entry.division_short_label || entry.division_label || ''}`;
     }
 
     async function fetchFinisherTvState() {
