@@ -183,20 +183,20 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 14px;
-      padding: 0.85rem 1rem;
+      padding: 0.75rem 1rem;
       margin-bottom: 0.65rem;
     }
     .athlete-top {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: center;
       gap: 0.5rem;
     }
     .athlete-name {
       font-family: 'Barlow Condensed', sans-serif;
       font-style: italic;
       font-weight: 800;
-      font-size: 1.75rem;
+      font-size: 1.85rem;
       line-height: 1.05;
       text-transform: uppercase;
     }
@@ -208,15 +208,6 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
       white-space: nowrap;
-    }
-    .athlete-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.55rem;
-      margin-top: 0.4rem;
-      font-size: 0.75rem;
-      color: var(--muted);
-      font-weight: 600;
     }
 
     /* Clocks + Top Run Pace & Split Strip */
@@ -230,34 +221,41 @@
       background: var(--surface);
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 14px;
-      padding: 0.7rem 0.65rem;
+      padding: 0.7rem 0.5rem;
       text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
     }
     .clock-box.active-split {
       border-color: var(--green);
       background: rgba(61, 255, 79, 0.07);
     }
     .clock-lbl {
-      font-size: 0.66rem;
+      width: 100%;
+      font-size: 0.68rem;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.07em;
       color: var(--muted);
+      text-align: center;
+    }
+    .clock-box.active-split .clock-lbl {
+      color: var(--green);
     }
     .clock-val {
+      width: 100%;
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
-      font-size: 2.5rem;
+      font-size: 2.55rem;
       line-height: 1.02;
       margin-top: 0.12rem;
       font-variant-numeric: tabular-nums;
-    }
-    .clock-sub {
-      font-size: 0.68rem;
-      font-weight: 700;
-      color: var(--muted);
-      margin-top: 0.18rem;
-      font-variant-numeric: tabular-nums;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .run-telemetry-strip {
@@ -267,39 +265,39 @@
       padding: 0.65rem 0.8rem;
       margin-bottom: 0.68rem;
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 0.45rem;
       text-align: center;
     }
     .rt-cell {
       border-right: 1px solid rgba(255, 255, 255, 0.08);
       padding-right: 0.35rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
     }
     .rt-cell:last-child {
       border-right: none;
       padding-right: 0;
     }
     .rt-lbl {
-      font-size: 0.62rem;
+      font-size: 0.64rem;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: #93c5fd;
+      text-align: center;
     }
     .rt-val {
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
-      font-size: 1.35rem;
+      font-size: 1.45rem;
       color: #fff;
       line-height: 1.1;
       margin-top: 0.1rem;
       font-variant-numeric: tabular-nums;
-    }
-    .rt-sub {
-      font-size: 0.65rem;
-      color: var(--muted);
-      font-weight: 700;
-      margin-top: 0.05rem;
+      text-align: center;
     }
 
     /* Live Prescribed Standard Card */
@@ -307,20 +305,21 @@
       background: linear-gradient(135deg, rgba(61, 255, 79, 0.14), rgba(11, 19, 13, 0.96));
       border: 2px solid var(--green);
       border-radius: 16px;
-      padding: 0.95rem 1.05rem;
-      margin-bottom: 0.8rem;
+      padding: 0.85rem 1.05rem;
+      margin-bottom: 0.75rem;
+      text-align: center;
     }
     .prescription-card.run-mode {
       background: linear-gradient(135deg, rgba(56, 189, 248, 0.14), rgba(11, 19, 13, 0.96));
       border-color: var(--blue);
     }
     .presc-eyebrow {
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--green);
-      margin-bottom: 0.2rem;
+      margin-bottom: 0.15rem;
     }
     .prescription-card.run-mode .presc-eyebrow { color: var(--blue); }
     .presc-title {
@@ -331,15 +330,10 @@
       line-height: 1.05;
       text-transform: uppercase;
     }
-    .presc-standard {
-      margin-top: 0.35rem;
-      font-size: 0.92rem;
-      font-weight: 800;
-      color: var(--yellow);
-    }
     .presc-next {
-      margin-top: 0.4rem;
-      font-size: 0.74rem;
+      margin-top: 0.3rem;
+      font-size: 0.8rem;
+      font-weight: 700;
       color: #cbd5e1;
     }
 
@@ -396,29 +390,48 @@
       display: none !important;
     }
 
-    /* Slide-to-Start Track & 3-Second Countdown */
+    /* Slide-to-Start & Slide-to-Split Track (Scroll-Safe) */
     .start-slider-card {
+      --slider-accent: var(--green);
+      --slider-glow: rgba(61, 255, 79, 0.45);
+      --slider-fill-grad: linear-gradient(90deg, rgba(61, 255, 79, 0.2), rgba(61, 255, 79, 0.58));
+      --slider-thumb-grad: linear-gradient(180deg, #9effa7 0%, #3DFF4F 38%, #1ed632 82%, #139e22 100%);
+      --slider-thumb-edge: #0a6914;
       background: linear-gradient(180deg, #0c160e 0%, #050a06 100%);
-      border: 1.5px solid rgba(61, 255, 79, 0.45);
+      border: 1.5px solid var(--slider-glow);
       border-radius: 26px;
-      padding: 0.75rem 0.85rem;
+      padding: 0.65rem 0.75rem;
       margin-bottom: 0.7rem;
       user-select: none;
       touch-action: pan-y;
       box-shadow: 0 10px 26px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.1);
     }
+    .start-slider-card.slider-theme-blue {
+      --slider-accent: var(--blue);
+      --slider-glow: rgba(56, 189, 248, 0.48);
+      --slider-fill-grad: linear-gradient(90deg, rgba(56, 189, 248, 0.22), rgba(56, 189, 248, 0.58));
+      --slider-thumb-grad: linear-gradient(180deg, #bae6fd 0%, #38bdf8 36%, #0284c7 80%, #0369a1 100%);
+      --slider-thumb-edge: #075985;
+    }
+    .start-slider-card.slider-theme-yellow {
+      --slider-accent: var(--yellow);
+      --slider-glow: rgba(250, 204, 21, 0.52);
+      --slider-fill-grad: linear-gradient(90deg, rgba(250, 204, 21, 0.22), rgba(250, 204, 21, 0.58));
+      --slider-thumb-grad: linear-gradient(180deg, #fef08a 0%, #facc15 36%, #eab308 80%, #ca8a04 100%);
+      --slider-thumb-edge: #854d0e;
+    }
     .slider-track {
       position: relative;
       width: 100%;
-      height: 74px;
+      height: 76px;
       background: linear-gradient(180deg, #020503 0%, #0a140c 100%);
-      border: 2px solid rgba(61, 255, 79, 0.38);
+      border: 2px solid var(--slider-glow);
       border-radius: 999px;
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: inset 0 5px 12px rgba(0, 0, 0, 0.92), inset 0 -2px 4px rgba(61, 255, 79, 0.12), 0 2px 6px rgba(0, 0, 0, 0.6);
+      box-shadow: inset 0 5px 12px rgba(0, 0, 0, 0.92), 0 2px 6px rgba(0, 0, 0, 0.6);
     }
     .slider-fill {
       position: absolute;
@@ -426,7 +439,7 @@
       top: 0;
       bottom: 0;
       width: 0%;
-      background: linear-gradient(90deg, rgba(61, 255, 79, 0.2), rgba(61, 255, 79, 0.58));
+      background: var(--slider-fill-grad);
       pointer-events: none;
     }
     .slider-label {
@@ -435,22 +448,24 @@
       font-family: 'Barlow Condensed', sans-serif;
       font-style: italic;
       font-weight: 800;
-      font-size: 1.38rem;
-      letter-spacing: 0.05em;
+      font-size: 1.42rem;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
-      color: var(--green);
-      text-shadow: 0 2px 8px rgba(61, 255, 79, 0.35);
+      color: var(--slider-accent);
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.65);
       pointer-events: none;
-      padding-left: 52px;
+      padding-left: 56px;
+      padding-right: 12px;
+      text-align: center;
     }
     .slider-thumb {
       position: absolute;
       left: 6px;
-      top: 5px;
+      top: 6px;
       width: 60px;
       height: 56px;
       border-radius: 999px;
-      background: linear-gradient(180deg, #9effa7 0%, #3DFF4F 38%, #1ed632 82%, #139e22 100%);
+      background: var(--slider-thumb-grad);
       color: #031205;
       font-weight: 900;
       font-size: 1.5rem;
@@ -459,8 +474,8 @@
       justify-content: center;
       border: 1.5px solid rgba(255, 255, 255, 0.65);
       box-shadow:
-        0 5px 0 #0a6914,
-        0 8px 18px rgba(61, 255, 79, 0.55),
+        0 5px 0 var(--slider-thumb-edge),
+        0 8px 18px var(--slider-glow),
         inset 0 2px 3px rgba(255, 255, 255, 0.8),
         inset 0 -3px 5px rgba(0, 0, 0, 0.28);
       z-index: 2;
@@ -475,6 +490,7 @@
       cursor: pointer;
       z-index: 3;
       margin: 0;
+      touch-action: pan-y;
     }
     .slider-sub {
       text-align: center;
@@ -687,8 +703,8 @@
     <div class="brand-wrap">
       <img src="/static/logo.jpg" alt="CS Performance Gym" class="brand-logo" />
       <div>
-        <div class="brand">CS <span>HYROX</span> JUDGE TIMER</div>
-        <div class="brand-sub">Train Hard &amp; Be Sound · 1 Volunteer Timer</div>
+        <div class="brand">CS <span>HYROX</span> TIMER</div>
+        <!-- Train Hard &amp; Be Sound -->
       </div>
     </div>
     <div style="display:flex;gap:0.4rem;align-items:center">
@@ -724,20 +740,8 @@
   <div id="timer-view" style="display:none">
     <div class="athlete-header">
       <div class="athlete-top">
-        <div>
-          <div style="font-size:0.72rem;font-weight:800;color:var(--green)" id="jt-bib-wave">BIB #105 · SLOT 08:20</div>
-          <div class="athlete-name" id="jt-name">Athlete Name</div>
-        </div>
+        <div class="athlete-name" id="jt-name">Athlete Name</div>
         <span class="div-badge" id="jt-division">MEN'S PRO</span>
-      </div>
-      <div class="athlete-meta">
-        <span id="jt-volunteer">Volunteer: —</span>
-        <span>·</span>
-        <span style="color:var(--green)">🤝 Train Hard &amp; Be Sound</span>
-        <span>·</span>
-        <span id="jt-wakelock-status" style="color:var(--green)">🔆 Screen Awake</span>
-        <span>·</span>
-        <span id="jt-sync-status" style="color:var(--green)">● Instant Sync</span>
       </div>
     </div>
 
@@ -745,21 +749,19 @@
       <div class="clock-box">
         <div class="clock-lbl">Total Race Elapsed</div>
         <div class="clock-val" id="clock-total">00:00</div>
-        <div class="clock-sub" id="clock-totals-breakdown">Runs: 00:00 · Stn: 00:00</div>
       </div>
       <div class="clock-box active-split">
         <div class="clock-lbl" id="clock-split-lbl">Current Split</div>
         <div class="clock-val" id="clock-split" style="color:var(--green)">00:00</div>
-        <div class="clock-sub" id="clock-split-live-pace" style="color:var(--blue)">Ready to Start</div>
       </div>
     </div>
 
-    <!-- Pre-Race Slide-to-Start Guard (Prevents Accidental Start Tap) -->
+    <!-- Scroll-Safe Slide-to-Start & Slide-to-Split Control -->
     <div class="start-slider-card" id="start-slider-wrap" style="display:none">
       <div class="slider-track" id="start-slider-track">
         <div class="slider-fill" id="start-slider-fill"></div>
         <div class="slider-thumb" id="start-slider-thumb">»»</div>
-        <span class="slider-label" id="start-slider-label">SLIDE FOR 3s COUNTDOWN &amp; START</span>
+        <span class="slider-label" id="start-slider-label">SLIDE TO START RACE</span>
         <input
           type="range"
           min="0"
@@ -767,22 +769,19 @@
           value="0"
           class="slider-range-input"
           id="start-slider-input"
-          aria-label="Slide to start 3 second race countdown"
+          aria-label="Slide right to start or record split"
           oninput="handleStartSliderInput(this.value)"
           onchange="handleStartSliderRelease(this.value)"
           onpointerup="handleStartSliderRelease(this.value)"
           ontouchend="handleStartSliderRelease(this.value)"
         />
       </div>
-      <div class="slider-sub" id="start-slider-sub">Slide all the way right to trigger 3-2-1 countdown, or press button after sliding</div>
     </div>
 
-    <!-- Giant 3D Contoured Stopwatch Button inside Recessed Bezel Socket -->
-    <div class="tap-btn-well" id="primary-btn-well">
-      <button type="button" class="giant-tap-btn btn-theme-green" id="primary-action-btn" onpointerdown="handleFastTap(event, handlePrimaryTap)" onclick="handleFallbackClick(event, handlePrimaryTap)">
-        <span class="btn-kicker" id="primary-btn-kicker">● PRESS TO RECORD SPLIT</span>
+    <!-- Countdown / Completed Status Button -->
+    <div class="tap-btn-well" id="primary-btn-well" style="display:none">
+      <button type="button" class="giant-tap-btn btn-theme-green" id="primary-action-btn" onclick="handlePrimaryTap(true)">
         <span id="primary-btn-main">START RACE</span>
-        <span class="sub" id="primary-btn-sub">Tap when athlete crosses start line</span>
       </button>
     </div>
     <button type="button" class="countdown-cancel-btn" id="countdown-cancel-btn" onclick="cancelStartCountdown()">✕ Cancel Countdown / Re-Lock Start</button>
@@ -792,20 +791,19 @@
       <div style="font-size:0.75rem;font-weight:800;text-transform:uppercase;color:var(--yellow)">🎯 Station 8 Wall Ball Rep Counter</div>
       <div class="wb-count" id="wb-display">0 / 100</div>
       <div class="wb-btns">
-        <button type="button" class="wb-btn primary" onpointerdown="handleFastTap(event, () => adjustWallBalls(1))" onclick="handleFallbackClick(event, () => adjustWallBalls(1))">+1</button>
-        <button type="button" class="wb-btn primary" onpointerdown="handleFastTap(event, () => adjustWallBalls(5))" onclick="handleFallbackClick(event, () => adjustWallBalls(5))">+5</button>
-        <button type="button" class="wb-btn primary" onpointerdown="handleFastTap(event, () => adjustWallBalls(10))" onclick="handleFallbackClick(event, () => adjustWallBalls(10))">+10</button>
-        <button type="button" class="wb-btn" onpointerdown="handleFastTap(event, () => adjustWallBalls(-1))" onclick="handleFallbackClick(event, () => adjustWallBalls(-1))">-1</button>
-        <button type="button" class="wb-btn" onpointerdown="handleFastTap(event, () => setWallBalls(0))" onclick="handleFallbackClick(event, () => setWallBalls(0))">Reset</button>
+        <button type="button" class="wb-btn primary" onclick="adjustWallBalls(1)">+1</button>
+        <button type="button" class="wb-btn primary" onclick="adjustWallBalls(5)">+5</button>
+        <button type="button" class="wb-btn primary" onclick="adjustWallBalls(10)">+10</button>
+        <button type="button" class="wb-btn" onclick="adjustWallBalls(-1)">-1</button>
+        <button type="button" class="wb-btn" onclick="setWallBalls(0)">Reset</button>
       </div>
     </div>
 
-    <!-- Live Prescribed Standard & Up Next Card (above Average Run Pace) -->
+    <!-- Current Station & Up Next Card -->
     <div class="prescription-card" id="presc-card">
-      <div class="presc-eyebrow" id="presc-stage">STAGE 1 OF 16 · CURRENT REQUIREMENT</div>
+      <div class="presc-eyebrow" id="presc-stage">CURRENT STATION</div>
       <div class="presc-title" id="presc-title">Run 1</div>
-      <div class="presc-standard" id="presc-standard">Standard Gym Run Loop (1.2 km)</div>
-      <div class="presc-next" id="presc-next">Up Next: 1. SkiErg (1,000m)</div>
+      <div class="presc-next" id="presc-next">Up Next: 1. SkiErg</div>
     </div>
 
     <!-- Run Split & Average Run Pace Bar -->
@@ -813,17 +811,10 @@
       <div class="rt-cell">
         <div class="rt-lbl">Avg Run Pace</div>
         <div class="rt-val" id="rt-avg-pace">— kph</div>
-        <div class="rt-sub" id="rt-avg-per-km">1.2 km loop</div>
       </div>
       <div class="rt-cell">
         <div class="rt-lbl">Avg Run Split</div>
         <div class="rt-val" id="rt-avg-split">--:--</div>
-        <div class="rt-sub" id="rt-runs-completed">0 / 8 runs</div>
-      </div>
-      <div class="rt-cell">
-        <div class="rt-lbl" id="rt-last-lbl">Last Run Split</div>
-        <div class="rt-val" id="rt-last-split">--:--</div>
-        <div class="rt-sub" id="rt-last-pace">No run yet</div>
       </div>
     </div>
 
@@ -862,14 +853,17 @@
     let startCountdownSec = 0;
     let startCountdownTimer = null;
 
+    let sliderTriggeredLatch = false;
+
     function resetStartSliderVisual() {
+      sliderTriggeredLatch = false;
       const input = document.getElementById('start-slider-input');
       const fill = document.getElementById('start-slider-fill');
       const thumb = document.getElementById('start-slider-thumb');
       const lbl = document.getElementById('start-slider-label');
       if (input) input.value = 0;
       if (fill) fill.style.width = '0%';
-      if (thumb) thumb.style.left = '5px';
+      if (thumb) thumb.style.left = '6px';
       if (lbl) lbl.style.opacity = '1';
     }
 
@@ -883,6 +877,19 @@
       renderJudgeScreen();
     }
 
+    function triggerSliderAction() {
+      if (!currentEntry || sliderTriggeredLatch) return;
+      sliderTriggeredLatch = true;
+      if (!currentEntry.started_at_ms && currentEntry.status === 'scheduled') {
+        triggerStartCountdown();
+      } else if (currentEntry.status === 'racing') {
+        handlePrimaryTap(true);
+        setTimeout(() => {
+          resetStartSliderVisual();
+        }, 180);
+      }
+    }
+
     function handleStartSliderInput(val) {
       const num = Math.max(0, Math.min(100, parseInt(val || '0', 10)));
       const track = document.getElementById('start-slider-track');
@@ -891,23 +898,23 @@
       const lbl = document.getElementById('start-slider-label');
       if (fill) fill.style.width = `${num}%`;
       if (track && thumb) {
-        const maxLeft = Math.max(5, track.clientWidth - 61);
-        const leftPx = 5 + Math.round((num / 100) * (maxLeft - 5));
+        const maxLeft = Math.max(6, track.clientWidth - 62);
+        const leftPx = 6 + Math.round((num / 100) * (maxLeft - 6));
         thumb.style.left = `${leftPx}px`;
       }
       if (lbl) {
         lbl.style.opacity = String(Math.max(0.15, 1 - num / 95));
       }
-      if (num >= 92 && !startCountdownTimer && currentEntry && !currentEntry.started_at_ms && currentEntry.status === 'scheduled') {
-        triggerStartCountdown();
+      if (num >= 90 && !sliderTriggeredLatch && !startCountdownTimer) {
+        triggerSliderAction();
       }
     }
 
     function handleStartSliderRelease(val) {
       const num = parseInt(val || '0', 10);
       if (startCountdownTimer) return;
-      if (num >= 80 && currentEntry && !currentEntry.started_at_ms && currentEntry.status === 'scheduled') {
-        triggerStartCountdown();
+      if (num >= 80 && !sliderTriggeredLatch) {
+        triggerSliderAction();
       } else {
         resetStartSliderVisual();
       }
@@ -1234,40 +1241,28 @@
       }
     }
 
+    function cleanStageName(label) {
+      return String(label || '')
+        .replace(/\s*\([^)]*\)/g, '')
+        .trim();
+    }
+
     function updateRunTelemetryBar() {
       if (!currentEntry) return;
       const splits = currentEntry.splits || [];
       const completedRuns = splits.filter(s => s.split_type === 'run' && s.duration_ms);
       const avgPaceEl = document.getElementById('rt-avg-pace');
-      const avgPerKmEl = document.getElementById('rt-avg-per-km');
       const avgSplitEl = document.getElementById('rt-avg-split');
-      const runsCompletedEl = document.getElementById('rt-runs-completed');
-      const lastLblEl = document.getElementById('rt-last-lbl');
-      const lastSplitEl = document.getElementById('rt-last-split');
-      const lastPaceEl = document.getElementById('rt-last-pace');
 
       if (completedRuns.length > 0) {
         const sumRunMs = completedRuns.reduce((acc, r) => acc + (r.duration_ms || 0), 0);
         const avgRunMs = Math.round(sumRunMs / completedRuns.length);
         const avgMetrics = computeRunPaceMetrics(avgRunMs);
-        avgPaceEl.textContent = avgMetrics ? avgMetrics.kphFormatted : (currentEntry.avg_run_kph_formatted || '— kph');
-        avgPerKmEl.textContent = avgMetrics ? avgMetrics.perKmFormatted : (currentEntry.avg_run_pace_per_km_formatted || '1.2 km loop');
-        avgSplitEl.textContent = formatClockMs(avgRunMs);
-        runsCompletedEl.textContent = `${completedRuns.length} / 8 runs done`;
-
-        const lastRun = completedRuns[completedRuns.length - 1];
-        const lastMetrics = computeRunPaceMetrics(lastRun.duration_ms);
-        lastLblEl.textContent = `${lastRun.label} Split`;
-        lastSplitEl.textContent = lastRun.duration_formatted || formatClockMs(lastRun.duration_ms);
-        lastPaceEl.textContent = lastMetrics ? `${lastMetrics.kphFormatted} · ${lastMetrics.perKmFormatted}` : '1.2 km';
+        if (avgPaceEl) avgPaceEl.textContent = avgMetrics ? avgMetrics.kphFormatted : (currentEntry.avg_run_kph_formatted || '— kph');
+        if (avgSplitEl) avgSplitEl.textContent = formatClockMs(avgRunMs);
       } else {
-        avgPaceEl.textContent = '— kph';
-        avgPerKmEl.textContent = '1.2 km loop';
-        avgSplitEl.textContent = '--:--';
-        runsCompletedEl.textContent = '0 / 8 runs done';
-        lastLblEl.textContent = 'Last Run Split';
-        lastSplitEl.textContent = '--:--';
-        lastPaceEl.textContent = currentEntry.started_at_ms ? 'Run 1 in progress' : 'Waiting for start';
+        if (avgPaceEl) avgPaceEl.textContent = '— kph';
+        if (avgSplitEl) avgSplitEl.textContent = '--:--';
       }
     }
 
@@ -1276,7 +1271,6 @@
       document.getElementById('selector-view').style.display = 'none';
       document.getElementById('timer-view').style.display = 'block';
 
-      document.getElementById('jt-bib-wave').textContent = `DAY ${currentEntry.heat_day_number || 1} · BIB #${currentEntry.bib_number || '—'} · ${currentEntry.heat_name}`;
       document.getElementById('jt-name').textContent = currentEntry.full_display_name;
       const divEl = document.getElementById('jt-division');
       divEl.textContent = currentEntry.division_label;
@@ -1284,9 +1278,6 @@
       divEl.style.color = currentEntry.division_color;
       divEl.style.border = `1px solid ${currentEntry.division_color}66`;
 
-      const ageEl = document.getElementById('jt-age');
-      if (ageEl) ageEl.textContent = `AG ${currentEntry.age_category}`;
-      document.getElementById('jt-volunteer').textContent = `Volunteer: ${currentEntry.volunteer_name || 'Assigned'}`;
       document.getElementById('results-link').href = `/hyrox/results/${currentEntry.id}`;
 
       const curInfo = currentEntry.current_split_info;
@@ -1295,18 +1286,16 @@
 
       if (currentEntry.status === 'finished') {
         prescCard.className = 'prescription-card';
-        document.getElementById('presc-stage').textContent = '🏁 RACE COMPLETE (16 / 16 SPLITS)';
-        document.getElementById('presc-title').textContent = `Official Time: ${currentEntry.total_formatted}`;
-        document.getElementById('presc-standard').textContent = `Run Total: ${currentEntry.run_total_formatted} (${currentEntry.avg_run_kph_formatted || '—'}) · Station Total: ${currentEntry.station_total_formatted}`;
-        document.getElementById('presc-next').textContent = 'Tap any split below to make an inline time correction.';
+        document.getElementById('presc-stage').textContent = 'CURRENT STATION';
+        document.getElementById('presc-title').textContent = `Finished: ${currentEntry.total_formatted}`;
+        document.getElementById('presc-next').textContent = '';
       } else if (curInfo) {
         prescCard.className = 'prescription-card' + (curInfo.split_type === 'run' ? ' run-mode' : '');
-        document.getElementById('presc-stage').textContent = `STAGE ${curInfo.split_index} OF 16 · ${curInfo.split_type.toUpperCase()} STANDARD`;
-        document.getElementById('presc-title').textContent = curInfo.label;
-        document.getElementById('presc-standard').textContent = curInfo.prescription;
+        document.getElementById('presc-stage').textContent = 'CURRENT STATION';
+        document.getElementById('presc-title').textContent = cleanStageName(curInfo.label);
         document.getElementById('presc-next').textContent = nextInfo
-          ? `Up Next (#${nextInfo.split_index} ${nextInfo.label}): ${nextInfo.prescription}`
-          : 'Final Station — Finish Line after Wall Balls!';
+          ? `Up Next: ${cleanStageName(nextInfo.label)}`
+          : 'Up Next: Finish Line';
       }
 
       // Show Wall Ball Counter when on Split 15 or 16
@@ -1318,14 +1307,13 @@
         wbCard.classList.remove('visible');
       }
 
-      // Configure Pre-Race Slide-to-Start vs Giant 3D Contoured Stopwatch Button
+      // Configure Scroll-Safe Slide-to-Start & Slide-to-Split Control
       const sliderWrap = document.getElementById('start-slider-wrap');
+      const sliderLbl = document.getElementById('start-slider-label');
       const cancelBtn = document.getElementById('countdown-cancel-btn');
       const btnWell = document.getElementById('primary-btn-well');
       const btn = document.getElementById('primary-action-btn');
-      const kickerTxt = document.getElementById('primary-btn-kicker');
       const mainTxt = document.getElementById('primary-btn-main');
-      const subTxt = document.getElementById('primary-btn-sub');
 
       if (!currentEntry.started_at_ms && currentEntry.status === 'scheduled') {
         if (startCountdownSec > 0) {
@@ -1335,11 +1323,13 @@
           btn.style.display = 'flex';
           btn.disabled = false;
           btn.className = 'giant-tap-btn btn-theme-yellow';
-          if (kickerTxt) kickerTxt.textContent = '⏱️ COUNTDOWN ACTIVE · PRESS FOR INSTANT START';
           mainTxt.textContent = `STARTING IN ${startCountdownSec}...`;
-          subTxt.textContent = '3-2-1 Auto-Start — or press button now to launch Run 1';
         } else {
-          if (sliderWrap) sliderWrap.style.display = 'block';
+          if (sliderWrap) {
+            sliderWrap.style.display = 'block';
+            sliderWrap.className = 'start-slider-card';
+          }
+          if (sliderLbl) sliderLbl.textContent = 'SLIDE TO START RACE';
           if (cancelBtn) cancelBtn.style.display = 'none';
           if (btnWell) btnWell.style.display = 'none';
           btn.style.display = 'none';
@@ -1352,31 +1342,25 @@
         btn.style.display = 'flex';
         btn.disabled = true;
         btn.className = 'giant-tap-btn btn-theme-done';
-        if (kickerTxt) kickerTxt.textContent = '🏁 16 / 16 SPLITS RECORDED';
         mainTxt.textContent = '✅ SIM COMPLETED';
-        subTxt.textContent = `Official Time: ${currentEntry.total_formatted}`;
       } else if (curInfo) {
-        if (sliderWrap) sliderWrap.style.display = 'none';
         if (cancelBtn) cancelBtn.style.display = 'none';
-        if (btnWell) btnWell.style.display = 'block';
-        btn.style.display = 'flex';
-        const inCooldown = Date.now() < tapCooldownUntil;
-        btn.disabled = false;
-        if (curInfo.split_index === 16) {
-          btn.className = 'giant-tap-btn btn-theme-yellow';
-          if (kickerTxt) kickerTxt.textContent = '🎯 FINAL STATION · PRESS ON LAST REP';
-          mainTxt.textContent = '🏁 FINISH WALL BALLS & COMPLETE RACE';
-          subTxt.textContent = inCooldown
-            ? '✓ Split recorded! Ready for final tap...'
-            : `Tap on final Wall Ball rep (${currentEntry.wall_ball_target_reps} reps)`;
-        } else {
-          btn.className = 'giant-tap-btn ' + (curInfo.split_type === 'run' ? 'btn-theme-blue' : 'btn-theme-green');
-          if (kickerTxt) kickerTxt.textContent = `● STAGE ${curInfo.split_index} OF 16 · PRESS BUTTON TO SPLIT`;
-          mainTxt.textContent = `COMPLETE ${curInfo.label.toUpperCase()}`;
-          subTxt.textContent = inCooldown
-            ? `✓ Recorded! Next: ${nextInfo ? nextInfo.label : ''}`
-            : (nextInfo ? `→ Immediately starts ${nextInfo.label}` : '');
+        if (btnWell) btnWell.style.display = 'none';
+        btn.style.display = 'none';
+        if (sliderWrap) {
+          sliderWrap.style.display = 'block';
+          if (curInfo.split_index === 16) {
+            sliderWrap.className = 'start-slider-card slider-theme-yellow';
+            if (sliderLbl) sliderLbl.textContent = 'SLIDE TO FINISH WALL BALLS';
+          } else if (curInfo.split_type === 'run') {
+            sliderWrap.className = 'start-slider-card slider-theme-blue';
+            if (sliderLbl) sliderLbl.textContent = `SLIDE TO COMPLETE ${cleanStageName(curInfo.label).toUpperCase()}`;
+          } else {
+            sliderWrap.className = 'start-slider-card';
+            if (sliderLbl) sliderLbl.textContent = `SLIDE TO COMPLETE ${cleanStageName(curInfo.label).toUpperCase()}`;
+          }
         }
+        resetStartSliderVisual();
       }
 
       updateRunTelemetryBar();
@@ -1387,19 +1371,18 @@
       splitsContainer.innerHTML = (currentEntry.splits || []).map(s => {
         const isDone = s.duration_ms !== null && s.duration_ms !== undefined;
         const isCurrent = currentEntry.status === 'racing' && s.split_index === currentEntry.current_split_index;
+        const shortLabel = cleanStageName(s.label);
         return `
           <div class="split-row ${isCurrent ? 'current' : ''}">
             <div>
               <span style="color:${s.split_type === 'run' ? 'var(--blue)' : 'var(--green)'};font-weight:800">#${s.split_index}</span>
-              <span style="margin-left:0.35rem">${s.label}</span>
-              ${s.is_pb ? `<span style="background:var(--yellow);color:#09090b;font-size:0.62rem;font-weight:900;padding:0.08rem 0.35rem;border-radius:4px;margin-left:0.35rem">PB</span>` : ''}
-              <div style="font-size:0.68rem;color:var(--muted)">${s.prescription}${isDone && s.pace_kph_formatted ? ` · <strong style="color:var(--blue)">${s.pace_kph_formatted} (${s.pace_per_km_formatted || ''})</strong>` : ''}</div>
+              <span style="margin-left:0.35rem">${shortLabel}</span>
             </div>
             <div style="display:flex;align-items:center">
               <span style="font-family:monospace;font-weight:800;font-size:0.9rem;color:${isDone ? '#fff' : 'var(--muted)'}">
                 ${isDone ? s.duration_formatted : (isCurrent ? '⏱️ Active' : '—')}
               </span>
-              <button type="button" class="inline-edit-btn hide-when-locked" onclick="promptInlineSplitEdit(${s.split_index}, '${s.label}', '${isDone ? s.duration_formatted : ''}')">✏️ Edit</button>
+              <button type="button" class="inline-edit-btn hide-when-locked" onclick="promptInlineSplitEdit(${s.split_index}, '${shortLabel}', '${isDone ? s.duration_formatted : ''}')">✏️ Edit</button>
             </div>
           </div>
         `;
@@ -1413,17 +1396,12 @@
       const totalEl = document.getElementById('clock-total');
       const splitEl = document.getElementById('clock-split');
       const splitLblEl = document.getElementById('clock-split-lbl');
-      const breakdownEl = document.getElementById('clock-totals-breakdown');
-      const livePaceEl = document.getElementById('clock-split-live-pace');
-
-      breakdownEl.textContent = `Runs: ${currentEntry.run_total_formatted || '00:00'} · Stn: ${currentEntry.station_total_formatted || '00:00'}`;
 
       if (currentEntry.status === 'finished') {
         totalEl.textContent = currentEntry.total_formatted;
         const lastS = currentEntry.last_completed_split;
-        splitLblEl.textContent = 'Final Split';
+        splitLblEl.textContent = lastS ? cleanStageName(lastS.label) : 'Final Split';
         splitEl.textContent = lastS ? lastS.duration_formatted : '00:00';
-        livePaceEl.textContent = `Avg Run: ${currentEntry.avg_run_kph_formatted || '—'}`;
         return;
       }
       if (!currentEntry.started_at_ms) {
@@ -1431,11 +1409,10 @@
         if (startCountdownSec > 0) {
           splitLblEl.textContent = 'Starting Countdown';
           splitEl.textContent = `00:0${startCountdownSec}`;
-          livePaceEl.textContent = `Get Ready — Starting in ${startCountdownSec}s`;
         } else {
           splitEl.textContent = '00:00';
-          splitLblEl.textContent = 'Current Split';
-          livePaceEl.textContent = 'Slide bar below for 3s start countdown';
+          const curInfo = currentEntry.current_split_info;
+          splitLblEl.textContent = curInfo ? cleanStageName(curInfo.label) : 'Current Split';
         }
         return;
       }
@@ -1453,19 +1430,7 @@
 
       const curInfo = currentEntry.current_split_info;
       if (curInfo) {
-        splitLblEl.textContent = `${curInfo.label} (${curInfo.split_index}/16)`;
-        if (curInfo.split_type === 'run') {
-          if (currentSplitElapsed >= 5000) {
-            const liveMetrics = computeRunPaceMetrics(currentSplitElapsed);
-            livePaceEl.textContent = liveMetrics
-              ? `1.2km Run · Est ${liveMetrics.kphFormatted}`
-              : '1.2 km Run Active';
-          } else {
-            livePaceEl.textContent = `1.2 km Run · Target ${currentEntry.avg_run_formatted !== '--:--' ? currentEntry.avg_run_formatted : 'Pace'}`;
-          }
-        } else {
-          livePaceEl.textContent = curInfo.prescription;
-        }
+        splitLblEl.textContent = cleanStageName(curInfo.label);
       }
     }
 
@@ -1706,8 +1671,11 @@
       const payload = applyOptimisticAdvance(now);
       if (!payload) return;
       saveLocalBackup(currentEntry);
-      document.getElementById('jt-sync-status').textContent = '⚡ Saving...';
-      document.getElementById('jt-sync-status').style.color = 'var(--blue)';
+      const syncEl = document.getElementById('jt-sync-status');
+      if (syncEl) {
+        syncEl.textContent = '⚡ Saving...';
+        syncEl.style.color = 'var(--blue)';
+      }
       renderJudgeScreen();
 
       enqueueSyncTask(async () => {
@@ -1724,12 +1692,16 @@
               saveLocalBackup(currentEntry);
               renderJudgeScreen();
             }
-            document.getElementById('jt-sync-status').textContent = '● Instant Sync';
-            document.getElementById('jt-sync-status').style.color = 'var(--green)';
+            if (syncEl) {
+              syncEl.textContent = '● Instant Sync';
+              syncEl.style.color = 'var(--green)';
+            }
           }
         } catch (err) {
-          document.getElementById('jt-sync-status').textContent = '⚠️ Offline (Saved Locally)';
-          document.getElementById('jt-sync-status').style.color = 'var(--yellow)';
+          if (syncEl) {
+            syncEl.textContent = '⚠️ Offline (Saved Locally)';
+            syncEl.style.color = 'var(--yellow)';
+          }
         }
       });
     }
@@ -1747,8 +1719,11 @@
       saveLocalBackup(currentEntry);
       tapCooldownUntil = 0;
       resetStartSliderVisual();
-      document.getElementById('jt-sync-status').textContent = '⚡ Undoing Split...';
-      document.getElementById('jt-sync-status').style.color = 'var(--blue)';
+      const syncEl = document.getElementById('jt-sync-status');
+      if (syncEl) {
+        syncEl.textContent = '⚡ Undoing Split...';
+        syncEl.style.color = 'var(--blue)';
+      }
       renderJudgeScreen();
 
       enqueueSyncTask(async () => {
@@ -1765,12 +1740,16 @@
               saveLocalBackup(currentEntry);
               renderJudgeScreen();
             }
-            document.getElementById('jt-sync-status').textContent = '● Instant Sync';
-            document.getElementById('jt-sync-status').style.color = 'var(--green)';
+            if (syncEl) {
+              syncEl.textContent = '● Instant Sync';
+              syncEl.style.color = 'var(--green)';
+            }
           }
         } catch (err) {
-          document.getElementById('jt-sync-status').textContent = '⚠️ Offline (Saved Locally)';
-          document.getElementById('jt-sync-status').style.color = 'var(--yellow)';
+          if (syncEl) {
+            syncEl.textContent = '⚠️ Offline (Saved Locally)';
+            syncEl.style.color = 'var(--yellow)';
+          }
         }
       });
     }
