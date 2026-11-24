@@ -209,10 +209,11 @@
     }
     .stage-clock-box {
       background: rgba(56, 189, 248, 0.12);
-      border: 1px solid rgba(56, 189, 248, 0.4);
+      border: 1.5px solid rgba(56, 189, 248, 0.45);
       border-radius: 10px;
-      padding: 0.22rem 0.6rem;
+      padding: 0.22rem 0.7rem;
       text-align: right;
+      min-width: 145px;
     }
     .stage-clock-lbl {
       font-size: 0.58rem;
@@ -224,10 +225,13 @@
     .stage-clock-val {
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
-      font-size: 1.45rem;
+      font-size: 2.05rem;
       color: #e0f2fe;
       line-height: 1;
       font-variant-numeric: tabular-nums;
+    }
+    .racer-card.single-spotlight .stage-clock-val {
+      font-size: 2.6rem;
     }
     .racer-clock-box {
       background: rgba(61, 255, 79, 0.12);
@@ -235,6 +239,7 @@
       border-radius: 10px;
       padding: 0.22rem 0.7rem;
       text-align: right;
+      min-width: 145px;
     }
     .racer-clock-lbl {
       font-size: 0.58rem;
@@ -763,22 +768,13 @@
             : (isDone ? (s.split_type === 'run' ? 'done-run' : 'done-station') : 'upcoming');
 
           let badgeHtml = '';
-          if (s.is_pb) {
-            badgeHtml = `<span class="tv-pb-pill">PB</span>`;
-          } else if (isDone && s.split_rank) {
-            badgeHtml = `<span style="font-size:0.55rem;color:#e2e8f0;font-weight:800">#${s.split_rank}</span>`;
-          } else if (isCurrent) {
-            badgeHtml = `<span style="font-size:0.55rem;color:var(--green);font-weight:900">● NOW</span>`;
+          if (isCurrent) {
+            badgeHtml = `<span style="font-size:0.55rem;color:var(--green);font-weight:900">●</span>`;
           }
 
           let timeHtml = isDone ? s.duration_formatted : '—';
           if (isCurrent) {
             timeHtml = `<span class="live-split-clock" data-started-ms="${e.started_at_ms || 0}" data-completed-sum-ms="${completedSumMs}" style="color:var(--green)">00:00</span>`;
-          }
-
-          let subHtml = '';
-          if (s.split_type === 'station') {
-            subHtml = s.prescription ? s.prescription.split('·')[0].trim() : 'Station';
           }
 
           return `
@@ -788,7 +784,6 @@
                 ${badgeHtml}
               </div>
               <div class="split-cell-time">${timeHtml}</div>
-              ${subHtml ? `<div class="split-cell-sub">${subHtml}</div>` : ''}
             </div>
           `;
         };
@@ -808,14 +803,14 @@
             <div class="racer-top">
               <div style="min-width:0">
                 <div style="font-size:0.74rem;font-weight:800;color:${e.division_color};text-transform:uppercase;letter-spacing:0.04em">
-                  DAY ${e.heat_day_number || 1} · BIB #${e.bib_number} · ${e.division_label} · VOL: ${e.volunteer_name || 'Assigned'}
+                  DAY ${e.heat_day_number || 1} - ${e.division_label}
                 </div>
                 <div class="racer-name">${e.full_display_name}</div>
               </div>
               <div class="racer-clocks-wrap">
                 ${!isFinished ? `
                   <div class="stage-clock-box">
-                    <div class="stage-clock-lbl">Stage ${e.completed_splits + 1}/16 Split</div>
+                    <div class="stage-clock-lbl">Stage Split</div>
                     <div class="stage-clock-val live-split-clock" data-started-ms="${e.started_at_ms || 0}" data-completed-sum-ms="${completedSumMs}">00:00</div>
                   </div>
                 ` : ''}
@@ -829,7 +824,7 @@
             <div class="racer-telemetry-bar">
               <div class="station-callout ${isFinished ? 'finished' : ''}">
                 <div class="station-callout-kicker">
-                  ${isFinished ? '🏁 RACE COMPLETE (16/16 SPLITS)' : `⚡ ACTIVE STAGE ${e.completed_splits + 1} OF 16`}
+                  ${isFinished ? '🏁 RACE COMPLETE' : '⚡ ACTIVE STAGE'}
                   ${e.wall_ball_reps > 0 ? ` · 🎯 WB ${e.wall_ball_reps}/${e.wall_ball_target_reps}` : ''}
                 </div>
                 <div class="station-callout-main">
@@ -840,25 +835,21 @@
               <div class="stat-pill">
                 <div class="stat-pill-lbl">Avg Run</div>
                 <div class="stat-pill-val">${e.avg_run_formatted || '--:--'}</div>
-                <div class="stat-pill-sub">${e.avg_run_rank ? `Rank #${e.avg_run_rank}` : `${completedRuns} / 8 runs`}</div>
               </div>
 
               <div class="stat-pill">
                 <div class="stat-pill-lbl">Run Total</div>
                 <div class="stat-pill-val">${e.run_total_formatted || '00:00'}</div>
-                <div class="stat-pill-sub">${completedRuns} / 8 runs done</div>
               </div>
 
               <div class="stat-pill">
                 <div class="stat-pill-lbl">Station Total</div>
                 <div class="stat-pill-val">${e.station_total_formatted || '00:00'}</div>
-                <div class="stat-pill-sub">${completedStns} / 8 stations done</div>
               </div>
 
               <div class="stat-pill">
                 <div class="stat-pill-lbl">Last Completed</div>
                 <div class="stat-pill-val">${lastDone ? lastDone.duration_formatted : '--:--'}</div>
-                <div class="stat-pill-sub">${lastDone ? `${lastDone.roxfit_label || lastDone.label}${lastDone.split_rank ? ' (#' + lastDone.split_rank + ')' : ''}` : 'Awaiting Split 1'}</div>
               </div>
             </div>
 
