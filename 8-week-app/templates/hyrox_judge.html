@@ -337,36 +337,67 @@
       color: #cbd5e1;
     }
 
-    /* Wall Ball Rep Counter (Station 8) */
+    /* Wall Ball Rep Counter (Station 8 Only) */
     .wallball-card {
       background: rgba(250, 204, 21, 0.1);
       border: 2px solid var(--yellow);
       border-radius: 16px;
-      padding: 0.9rem;
-      margin-bottom: 0.8rem;
+      padding: 0.85rem;
+      margin-bottom: 0.7rem;
       text-align: center;
       display: none;
+      transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     }
     .wallball-card.visible { display: block; }
+    .wallball-card.unbroken-active {
+      background: linear-gradient(135deg, rgba(61, 255, 79, 0.18), rgba(250, 204, 21, 0.16));
+      border-color: var(--green);
+      box-shadow: 0 0 24px rgba(61, 255, 79, 0.25);
+    }
+    .wb-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .wb-unbroken-pill {
+      display: none;
+      background: var(--green);
+      color: #031406;
+      font-size: 0.68rem;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.16rem 0.55rem;
+      border-radius: 999px;
+    }
+    .wallball-card.unbroken-active .wb-unbroken-pill {
+      display: inline-block;
+    }
     .wb-count {
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
-      font-size: 3rem;
+      font-size: 2.85rem;
       color: var(--yellow);
       line-height: 1;
-      margin: 0.25rem 0 0.6rem;
+      margin: 0.2rem 0 0.55rem;
+    }
+    .wallball-card.unbroken-active .wb-count {
+      color: var(--green);
     }
     .wb-btns {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
       gap: 0.4rem;
+      margin-bottom: 0.45rem;
     }
     .wb-btn {
       background: var(--surface-2);
       border: 1px solid rgba(250, 204, 21, 0.45);
       color: var(--text);
       font-weight: 800;
-      font-size: 0.92rem;
+      font-size: 0.95rem;
       padding: 0.65rem 0.2rem;
       border-radius: 10px;
       cursor: pointer;
@@ -381,194 +412,143 @@
       background: var(--yellow);
       color: #111;
     }
+    .wb-unbroken-btn {
+      width: 100%;
+      background: linear-gradient(180deg, rgba(61, 255, 79, 0.22) 0%, rgba(18, 153, 33, 0.28) 100%);
+      border: 2px solid var(--green);
+      color: var(--green);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 1.3rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 0.6rem 0.85rem;
+      border-radius: 12px;
+      cursor: pointer;
+      touch-action: manipulation;
+      user-select: none;
+      transition: transform 0.05s ease, background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+    }
+    .wb-unbroken-btn:active {
+      transform: scale(0.97);
+    }
+    .wb-unbroken-btn.active {
+      background: linear-gradient(180deg, #98ffa2 0%, #3DFF4F 42%, #1ed432 100%);
+      color: #031406;
+      border-color: #ffffff;
+      box-shadow: 0 4px 16px rgba(61, 255, 79, 0.45);
+    }
+
     .btn-small.locked-active {
       background: rgba(250, 204, 21, 0.2);
       border-color: var(--yellow);
       color: var(--yellow);
     }
-    body.focus-locked .hide-when-locked {
+    html.focus-locked,
+    body.focus-locked {
+      height: 100dvh;
+      max-height: 100dvh;
+      overflow: hidden !important;
+      overscroll-behavior: none;
+    }
+    body.focus-locked .hide-when-locked,
+    body.focus-locked .splits-list {
       display: none !important;
     }
-
-    /* Slide-to-Start & Slide-to-Split Track (Scroll-Safe) */
-    .start-slider-card {
-      --slider-accent: var(--green);
-      --slider-glow: rgba(61, 255, 79, 0.45);
-      --slider-fill-grad: linear-gradient(90deg, rgba(61, 255, 79, 0.2), rgba(61, 255, 79, 0.58));
-      --slider-thumb-grad: linear-gradient(180deg, #9effa7 0%, #3DFF4F 38%, #1ed632 82%, #139e22 100%);
-      --slider-thumb-edge: #0a6914;
-      background: linear-gradient(180deg, #0c160e 0%, #050a06 100%);
-      border: 1.5px solid var(--slider-glow);
-      border-radius: 26px;
-      padding: 0.65rem 0.75rem;
-      margin-bottom: 0.7rem;
-      user-select: none;
-      touch-action: pan-y;
-      box-shadow: 0 10px 26px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    }
-    .start-slider-card.slider-theme-blue {
-      --slider-accent: var(--blue);
-      --slider-glow: rgba(56, 189, 248, 0.48);
-      --slider-fill-grad: linear-gradient(90deg, rgba(56, 189, 248, 0.22), rgba(56, 189, 248, 0.58));
-      --slider-thumb-grad: linear-gradient(180deg, #bae6fd 0%, #38bdf8 36%, #0284c7 80%, #0369a1 100%);
-      --slider-thumb-edge: #075985;
-    }
-    .start-slider-card.slider-theme-yellow {
-      --slider-accent: var(--yellow);
-      --slider-glow: rgba(250, 204, 21, 0.52);
-      --slider-fill-grad: linear-gradient(90deg, rgba(250, 204, 21, 0.22), rgba(250, 204, 21, 0.58));
-      --slider-thumb-grad: linear-gradient(180deg, #fef08a 0%, #facc15 36%, #eab308 80%, #ca8a04 100%);
-      --slider-thumb-edge: #854d0e;
-    }
-    .slider-track {
-      position: relative;
-      width: 100%;
-      height: 76px;
-      background: linear-gradient(180deg, #020503 0%, #0a140c 100%);
-      border: 2px solid var(--slider-glow);
-      border-radius: 999px;
+    body.focus-locked #timer-view {
+      flex: 1;
+      display: flex !important;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 0;
       overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: inset 0 5px 12px rgba(0, 0, 0, 0.92), 0 2px 6px rgba(0, 0, 0, 0.6);
     }
-    .slider-fill {
-      position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 0%;
-      background: var(--slider-fill-grad);
-      pointer-events: none;
+    body.focus-locked .controls-row {
+      margin-bottom: 0;
     }
-    .slider-label {
-      position: relative;
-      z-index: 1;
-      font-family: 'Barlow Condensed', sans-serif;
-      font-style: italic;
-      font-weight: 800;
-      font-size: 1.42rem;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--slider-accent);
-      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.65);
-      pointer-events: none;
-      padding-left: 56px;
-      padding-right: 12px;
-      text-align: center;
-    }
-    .slider-thumb {
-      position: absolute;
-      left: 6px;
-      top: 6px;
-      width: 60px;
-      height: 56px;
-      border-radius: 999px;
-      background: var(--slider-thumb-grad);
-      color: #031205;
-      font-weight: 900;
-      font-size: 1.5rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 1.5px solid rgba(255, 255, 255, 0.65);
-      box-shadow:
-        0 5px 0 var(--slider-thumb-edge),
-        0 8px 18px var(--slider-glow),
-        inset 0 2px 3px rgba(255, 255, 255, 0.8),
-        inset 0 -3px 5px rgba(0, 0, 0, 0.28);
-      z-index: 2;
-      pointer-events: none;
-    }
-    .slider-range-input {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      opacity: 0;
-      cursor: pointer;
-      z-index: 3;
-      margin: 0;
-      touch-action: pan-y;
-    }
-    .slider-sub {
-      text-align: center;
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: var(--muted);
-      margin-top: 0.45rem;
-    }
-    .countdown-cancel-btn {
-      width: 100%;
-      background: linear-gradient(180deg, rgba(244, 63, 94, 0.24), rgba(159, 18, 57, 0.28));
-      border: 1px solid rgba(244, 63, 94, 0.55);
-      color: #fecdd3;
-      padding: 0.55rem;
-      border-radius: 999px;
-      font-weight: 800;
-      font-size: 0.78rem;
-      cursor: pointer;
-      margin-bottom: 0.65rem;
-      display: none;
-      box-shadow: 0 3px 0 rgba(136, 19, 55, 0.8);
+    body.focus-locked .undo-btn {
+      padding: 0.85rem;
+      font-size: 0.92rem;
     }
 
-    /* Recessed Bezel Socket + 3D Contoured Physical Stopwatch Button */
+    /* Recessed Bezel Socket + Giant 3D Contoured Physical Stopwatch Button */
     .tap-btn-well {
       background: linear-gradient(180deg, #020503 0%, #0c170f 100%);
-      border: 1.5px solid rgba(255, 255, 255, 0.14);
-      border-radius: 999px;
-      padding: 7px 7px 13px;
+      border: 2px solid rgba(255, 255, 255, 0.16);
+      border-radius: 36px;
+      padding: 8px 8px 15px;
       margin-bottom: 0.7rem;
       box-shadow:
-        inset 0 5px 12px rgba(0, 0, 0, 0.92),
+        inset 0 6px 14px rgba(0, 0, 0, 0.92),
         inset 0 -1px 2px rgba(255, 255, 255, 0.08),
-        0 8px 22px rgba(0, 0, 0, 0.65);
+        0 10px 26px rgba(0, 0, 0, 0.7);
+    }
+    body.focus-locked .tap-btn-well {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 158px;
+      max-height: 240px;
+    }
+    body.focus-locked.wb-open .tap-btn-well {
+      min-height: 116px;
+      max-height: 145px;
     }
     .giant-tap-btn {
       --btn-grad: linear-gradient(180deg, #98ffa2 0%, #3DFF4F 34%, #1ed432 78%, #129921 100%);
       --btn-edge: #0a6314;
       --btn-glow: rgba(61, 255, 79, 0.45);
-      --btn-border: rgba(255, 255, 255, 0.62);
+      --btn-border: rgba(255, 255, 255, 0.65);
       --btn-text: #031406;
       position: relative;
       width: 100%;
-      min-height: 112px;
-      border-radius: 999px;
-      border: 2px solid var(--btn-border);
+      flex: 1;
+      min-height: 158px;
+      border-radius: 28px;
+      border: 2.5px solid var(--btn-border);
       background: var(--btn-grad);
       color: var(--btn-text);
       font-family: 'Barlow Condensed', sans-serif;
       font-style: italic;
       font-weight: 800;
-      font-size: 1.95rem;
+      font-size: 2.4rem;
       text-transform: uppercase;
       letter-spacing: 0.03em;
-      padding: 0.95rem 1.35rem;
+      padding: 1.15rem 1.35rem;
       cursor: pointer;
       box-shadow:
-        0 7px 0 var(--btn-edge),
-        0 12px 26px var(--btn-glow),
-        inset 0 3px 5px rgba(255, 255, 255, 0.78),
+        0 8px 0 var(--btn-edge),
+        0 14px 30px var(--btn-glow),
+        inset 0 3px 6px rgba(255, 255, 255, 0.8),
         inset 0 -5px 10px rgba(0, 0, 0, 0.28);
       transition: transform 0.04s ease, box-shadow 0.05s ease, filter 0.08s ease;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      line-height: 1.08;
+      line-height: 1.05;
       touch-action: manipulation;
       user-select: none;
       text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
       overflow: hidden;
+      text-align: center;
+    }
+    body.focus-locked .giant-tap-btn {
+      min-height: 176px;
+      font-size: 2.65rem;
+    }
+    body.focus-locked.wb-open .giant-tap-btn {
+      min-height: 110px;
+      font-size: 2.15rem;
+      padding: 0.75rem 1.1rem;
     }
     /* Contoured inner bevel ring & top specular dome gloss */
     .giant-tap-btn::before {
       content: '';
       position: absolute;
-      inset: 5px;
-      border-radius: 999px;
+      inset: 6px;
+      border-radius: 22px;
       border: 1.5px solid rgba(255, 255, 255, 0.38);
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.04) 46%, rgba(0, 0, 0, 0.12) 100%);
       pointer-events: none;
@@ -756,39 +736,25 @@
       </div>
     </div>
 
-    <!-- Scroll-Safe Slide-to-Start & Slide-to-Split Control -->
-    <div class="start-slider-card" id="start-slider-wrap" style="display:none">
-      <div class="slider-track" id="start-slider-track">
-        <div class="slider-fill" id="start-slider-fill"></div>
-        <div class="slider-thumb" id="start-slider-thumb">»»</div>
-        <span class="slider-label" id="start-slider-label">SLIDE TO START RACE</span>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value="0"
-          class="slider-range-input"
-          id="start-slider-input"
-          aria-label="Slide right to start or record split"
-          oninput="handleStartSliderInput(this.value)"
-          onchange="handleStartSliderRelease(this.value)"
-          onpointerup="handleStartSliderRelease(this.value)"
-          ontouchend="handleStartSliderRelease(this.value)"
-        />
-      </div>
-    </div>
-
-    <!-- Countdown / Completed Status Button -->
-    <div class="tap-btn-well" id="primary-btn-well" style="display:none">
-      <button type="button" class="giant-tap-btn btn-theme-green" id="primary-action-btn" onclick="handlePrimaryTap(true)">
+    <!-- Big Primary Timing Button -->
+    <div class="tap-btn-well" id="primary-btn-well">
+      <button
+        type="button"
+        class="giant-tap-btn btn-theme-green"
+        id="primary-action-btn"
+        onpointerdown="recordBtnPointerDown(event)"
+        onclick="handleGuardedTap(event)"
+      >
         <span id="primary-btn-main">START RACE</span>
       </button>
     </div>
-    <button type="button" class="countdown-cancel-btn" id="countdown-cancel-btn" onclick="cancelStartCountdown()">✕ Cancel Countdown / Re-Lock Start</button>
 
-    <!-- Station 8 Wall Ball Counter (only visible on Station 8) -->
+    <!-- Station 8 Wall Ball Counter (ONLY visible while actively doing Station 8 Wall Balls) -->
     <div class="wallball-card" id="wallball-card">
-      <div style="font-size:0.75rem;font-weight:800;text-transform:uppercase;color:var(--yellow)">🎯 Station 8 Wall Ball Rep Counter</div>
+      <div class="wb-header-row">
+        <div style="font-size:0.75rem;font-weight:800;text-transform:uppercase;color:var(--yellow)">🎯 Station 8 Wall Ball Counter</div>
+        <span class="wb-unbroken-pill" id="wb-unbroken-pill">🔥 UNBROKEN</span>
+      </div>
       <div class="wb-count" id="wb-display">0 / 100</div>
       <div class="wb-btns">
         <button type="button" class="wb-btn primary" onclick="adjustWallBalls(1)">+1</button>
@@ -797,6 +763,9 @@
         <button type="button" class="wb-btn" onclick="adjustWallBalls(-1)">-1</button>
         <button type="button" class="wb-btn" onclick="setWallBalls(0)">Reset</button>
       </div>
+      <button type="button" class="wb-unbroken-btn" id="wb-unbroken-btn" onclick="markWallBallsUnbroken()">
+        🔥 UNBROKEN
+      </button>
     </div>
 
     <!-- Current Station & Up Next Card -->
@@ -1014,13 +983,54 @@
       }
     });
 
+    let btnDownPoint = null;
+
+    function recordBtnPointerDown(ev) {
+      if (!ev) return;
+      btnDownPoint = { x: ev.clientX || 0, y: ev.clientY || 0 };
+    }
+
+    function handleGuardedTap(ev) {
+      if (ev && btnDownPoint) {
+        const dx = Math.abs((ev.clientX || 0) - btnDownPoint.x);
+        const dy = Math.abs((ev.clientY || 0) - btnDownPoint.y);
+        btnDownPoint = null;
+        if (dx > 18 || dy > 18) {
+          return;
+        }
+      }
+      handlePrimaryTap(true);
+    }
+
     function toggleFocusLock() {
       focusLocked = !focusLocked;
+      document.documentElement.classList.toggle('focus-locked', focusLocked);
       document.body.classList.toggle('focus-locked', focusLocked);
       const btn = document.getElementById('lock-screen-btn');
       if (btn) {
         btn.classList.toggle('locked-active', focusLocked);
         btn.textContent = focusLocked ? '🔓 Locked (Tap to Unlock)' : '🔒 Lock View';
+      }
+      if (focusLocked) {
+        window.scrollTo(0, 0);
+        try {
+          const el = document.documentElement;
+          if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            if (el.requestFullscreen) {
+              el.requestFullscreen().catch(() => {});
+            } else if (el.webkitRequestFullscreen) {
+              el.webkitRequestFullscreen();
+            }
+          }
+        } catch (e) {}
+      } else {
+        try {
+          if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+          } else if (document.webkitFullscreenElement && document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+          }
+        } catch (e) {}
       }
       requestWakeLock();
     }
@@ -1298,69 +1308,47 @@
           : 'Up Next: Finish Line';
       }
 
-      // Show Wall Ball Counter when on Split 15 or 16
+      // Show Wall Ball Counter ONLY when actively doing the Wall Ball station (Split 16)
       const wbCard = document.getElementById('wallball-card');
-      if (currentEntry.current_split_index >= 15 || currentEntry.wall_ball_reps > 0) {
+      const isDoingWallBalls = (
+        currentEntry.status === 'racing' &&
+        Number(currentEntry.current_split_index) === 16
+      );
+      document.body.classList.toggle('wb-open', isDoingWallBalls);
+      if (isDoingWallBalls) {
         wbCard.classList.add('visible');
-        document.getElementById('wb-display').textContent = `${currentEntry.wall_ball_reps || 0} / ${currentEntry.wall_ball_target_reps || 100}`;
+        renderWallBallState();
       } else {
         wbCard.classList.remove('visible');
       }
 
-      // Configure Scroll-Safe Slide-to-Start & Slide-to-Split Control
-      const sliderWrap = document.getElementById('start-slider-wrap');
-      const sliderLbl = document.getElementById('start-slider-label');
-      const cancelBtn = document.getElementById('countdown-cancel-btn');
+      // Configure Big Primary Timing Button
       const btnWell = document.getElementById('primary-btn-well');
       const btn = document.getElementById('primary-action-btn');
       const mainTxt = document.getElementById('primary-btn-main');
+      if (btnWell) btnWell.style.display = 'flex';
+      if (btn) btn.style.display = 'flex';
 
       if (!currentEntry.started_at_ms && currentEntry.status === 'scheduled') {
-        if (startCountdownSec > 0) {
-          if (sliderWrap) sliderWrap.style.display = 'none';
-          if (cancelBtn) cancelBtn.style.display = 'block';
-          if (btnWell) btnWell.style.display = 'block';
-          btn.style.display = 'flex';
-          btn.disabled = false;
-          btn.className = 'giant-tap-btn btn-theme-yellow';
-          mainTxt.textContent = `STARTING IN ${startCountdownSec}...`;
-        } else {
-          if (sliderWrap) {
-            sliderWrap.style.display = 'block';
-            sliderWrap.className = 'start-slider-card';
-          }
-          if (sliderLbl) sliderLbl.textContent = 'SLIDE TO START RACE';
-          if (cancelBtn) cancelBtn.style.display = 'none';
-          if (btnWell) btnWell.style.display = 'none';
-          btn.style.display = 'none';
-          resetStartSliderVisual();
-        }
+        btn.disabled = false;
+        btn.className = 'giant-tap-btn btn-theme-green';
+        mainTxt.textContent = 'START RACE';
       } else if (currentEntry.status === 'finished') {
-        if (sliderWrap) sliderWrap.style.display = 'none';
-        if (cancelBtn) cancelBtn.style.display = 'none';
-        if (btnWell) btnWell.style.display = 'block';
-        btn.style.display = 'flex';
         btn.disabled = true;
         btn.className = 'giant-tap-btn btn-theme-done';
         mainTxt.textContent = '✅ SIM COMPLETED';
       } else if (curInfo) {
-        if (cancelBtn) cancelBtn.style.display = 'none';
-        if (btnWell) btnWell.style.display = 'none';
-        btn.style.display = 'none';
-        if (sliderWrap) {
-          sliderWrap.style.display = 'block';
-          if (curInfo.split_index === 16) {
-            sliderWrap.className = 'start-slider-card slider-theme-yellow';
-            if (sliderLbl) sliderLbl.textContent = 'SLIDE TO FINISH WALL BALLS';
-          } else if (curInfo.split_type === 'run') {
-            sliderWrap.className = 'start-slider-card slider-theme-blue';
-            if (sliderLbl) sliderLbl.textContent = `SLIDE TO COMPLETE ${cleanStageName(curInfo.label).toUpperCase()}`;
-          } else {
-            sliderWrap.className = 'start-slider-card';
-            if (sliderLbl) sliderLbl.textContent = `SLIDE TO COMPLETE ${cleanStageName(curInfo.label).toUpperCase()}`;
-          }
+        btn.disabled = false;
+        if (curInfo.split_index === 16) {
+          btn.className = 'giant-tap-btn btn-theme-yellow';
+          mainTxt.textContent = 'FINISH WALL BALLS';
+        } else if (curInfo.split_type === 'run') {
+          btn.className = 'giant-tap-btn btn-theme-blue';
+          mainTxt.textContent = cleanStageName(curInfo.label).toUpperCase();
+        } else {
+          btn.className = 'giant-tap-btn btn-theme-green';
+          mainTxt.textContent = cleanStageName(curInfo.label).toUpperCase();
         }
-        resetStartSliderVisual();
       }
 
       updateRunTelemetryBar();
@@ -1775,33 +1763,80 @@
       }
     }
 
+    function renderWallBallState() {
+      if (!currentEntry) return;
+      const target = currentEntry.wall_ball_target_reps || 100;
+      const reps = currentEntry.wall_ball_reps || 0;
+      const unbroken = Boolean(currentEntry.wall_ball_unbroken);
+      const wbCard = document.getElementById('wallball-card');
+      const dispEl = document.getElementById('wb-display');
+      const unbBtn = document.getElementById('wb-unbroken-btn');
+
+      if (dispEl) {
+        dispEl.textContent = `${reps} / ${target}`;
+      }
+      if (wbCard) {
+        wbCard.classList.toggle('unbroken-active', unbroken);
+      }
+      if (unbBtn) {
+        unbBtn.classList.toggle('active', unbroken);
+        unbBtn.textContent = unbroken
+          ? `✓ 🔥 UNBROKEN (${target} / ${target})`
+          : `🔥 UNBROKEN (${target} REPS)`;
+      }
+    }
+
     async function adjustWallBalls(delta) {
       if (!currentEntry) return;
       playTapFeedback(720, 20);
-      const target = currentEntry.wall_ball_target_reps || 100;
       const nextVal = Math.max(0, (currentEntry.wall_ball_reps || 0) + delta);
       currentEntry.wall_ball_reps = nextVal;
-      document.getElementById('wb-display').textContent = `${nextVal} / ${target}`;
+      renderWallBallState();
       saveLocalBackup(currentEntry);
       fetch(`/api/hyrox/entries/${currentEntry.id}/wall-balls`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ reps: nextVal })
+        body: JSON.stringify({ reps: nextVal, unbroken: Boolean(currentEntry.wall_ball_unbroken) })
       }).catch(() => {});
     }
 
     async function setWallBalls(reps) {
       if (!currentEntry) return;
       playTapFeedback(600, 24);
-      const target = currentEntry.wall_ball_target_reps || 100;
       const nextVal = Math.max(0, reps);
       currentEntry.wall_ball_reps = nextVal;
-      document.getElementById('wb-display').textContent = `${nextVal} / ${target}`;
+      if (nextVal === 0) {
+        currentEntry.wall_ball_unbroken = false;
+      }
+      renderWallBallState();
       saveLocalBackup(currentEntry);
       fetch(`/api/hyrox/entries/${currentEntry.id}/wall-balls`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ reps: nextVal })
+        body: JSON.stringify({ reps: nextVal, unbroken: Boolean(currentEntry.wall_ball_unbroken) })
+      }).catch(() => {});
+    }
+
+    async function markWallBallsUnbroken() {
+      if (!currentEntry) return;
+      const target = currentEntry.wall_ball_target_reps || 100;
+      const nextUnbroken = !Boolean(currentEntry.wall_ball_unbroken);
+      currentEntry.wall_ball_unbroken = nextUnbroken;
+      if (nextUnbroken) {
+        currentEntry.wall_ball_reps = target;
+        playTapFeedback(1046, 90);
+      } else {
+        playTapFeedback(600, 24);
+      }
+      renderWallBallState();
+      saveLocalBackup(currentEntry);
+      fetch(`/api/hyrox/entries/${currentEntry.id}/wall-balls`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          reps: currentEntry.wall_ball_reps,
+          unbroken: nextUnbroken
+        })
       }).catch(() => {});
     }
 

@@ -607,6 +607,7 @@ def ensure_hyrox_tables(db):
             station_total_ms    INTEGER,
             penalty_ms          INTEGER NOT NULL DEFAULT 0,
             wall_ball_reps      INTEGER NOT NULL DEFAULT 0,
+            wall_ball_unbroken  INTEGER NOT NULL DEFAULT 0,
             notes               TEXT NOT NULL DEFAULT '',
             updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -662,6 +663,13 @@ def ensure_hyrox_tables(db):
     ]:
         if col_name not in heat_cols:
             db.execute(f"ALTER TABLE hyrox_heats ADD COLUMN {col_name} {col_def}")
+
+    entry_cols = {r["name"] for r in db.execute("PRAGMA table_info(hyrox_entries)").fetchall()}
+    for col_name, col_def in [
+        ("wall_ball_unbroken", "INTEGER NOT NULL DEFAULT 0"),
+    ]:
+        if col_name not in entry_cols:
+            db.execute(f"ALTER TABLE hyrox_entries ADD COLUMN {col_name} {col_def}")
 
     count = db.execute("SELECT COUNT(*) as c FROM hyrox_events").fetchone()["c"]
     if count == 0:
@@ -1123,6 +1131,7 @@ def serialize_entry(db, entry_row, include_splits=True, include_history=False):
     e["weight_profile"] = div_info.get("weight_profile", "men_open")
     e["weight_summary"] = div_info.get("weight_summary", "")
     e["wall_ball_target_reps"] = div_info["wall_ball_target_reps"]
+    e["wall_ball_unbroken"] = bool(e.get("wall_ball_unbroken"))
     grp_key = division_to_signup_group_key(div_key)
     grp_meta = HYROX_SIGNUP_GROUPS[grp_key]
     e["signup_group"] = grp_key
@@ -2833,8 +2842,12 @@ def api_update_wall_balls(entry_id):
     if not row:
         return jsonify({"error": "Entry not found"}), 404
 
+    div_info = HYROX_DIVISIONS.get(row["division"], HYROX_DIVISIONS["men_open"])
+    target_reps = int(div_info["wall_ball_target_reps"])
     data = request.get_json(force=True) or {}
     current_reps = int(row["wall_ball_reps"] or 0)
+    current_unbroken = bool(row["wall_ball_unbroken"]) if "wall_ball_unbroken" in row.keys() else False
+
     if "reps" in data:
         new_reps = max(0, int(data["reps"]))
     elif "delta" in data:
@@ -2842,16 +2855,25 @@ def api_update_wall_balls(entry_id):
     else:
         new_reps = current_reps
 
+    if "unbroken" in data:
+        new_unbroken = bool(data["unbroken"])
+        if new_unbroken and "reps" not in data and "delta" not in data:
+            new_reps = max(new_reps, target_reps)
+    elif "reps" in data and int(data["reps"]) == 0:
+        new_unbroken = False
+    else:
+        new_unbroken = current_unbroken
+
     db.execute(
-        "UPDATE hyrox_entries SET wall_ball_reps=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-        (new_reps, entry_id)
+        "UPDATE hyrox_entries SET wall_ball_reps=?, wall_ball_unbroken=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+        (new_reps, 1 if new_unbroken else 0, entry_id)
     )
     db.commit()
-    div_info = HYROX_DIVISIONS.get(row["division"], HYROX_DIVISIONS["men_open"])
     return jsonify({
         "ok": True,
         "wall_ball_reps": new_reps,
-        "wall_ball_target_reps": div_info["wall_ball_target_reps"],
+        "wall_ball_unbroken": new_unbroken,
+        "wall_ball_target_reps": target_reps,
     })
 
 
@@ -2879,7 +2901,7 @@ def api_reset_entry_timer(entry_id):
         db.execute(
             "UPDATE hyrox_entries SET status='scheduled', started_at_ms=NULL, finished_at_ms=NULL, "
             "total_ms=NULL, run_total_ms=NULL, station_total_ms=NULL, penalty_ms=0, wall_ball_reps=0, "
-            "updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            "wall_ball_unbroken=0, updated_at=CURRENT_TIMESTAMP WHERE id=?",
             (entry_id,)
         )
     db.commit()
