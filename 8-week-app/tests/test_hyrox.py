@@ -313,15 +313,13 @@ def test_historical_progression_and_web_surfaces(client):
     # Surface 1: Sim Management & Race Director Console
     root_hyrox_resp = client.get("/hyrox")
     assert root_hyrox_resp.status_code == 200
-    assert b"RACE DIRECTOR CONSOLE" in root_hyrox_resp.data
+    assert b"HYROX SIM \xc2\xb7 RACE DIRECTOR" in root_hyrox_resp.data
     assert b"/static/logo.jpg" in root_hyrox_resp.data
 
     admin_resp = client.get("/hyrox/admin")
     assert admin_resp.status_code == 200
-    assert b"1. EVENT SETUP" in admin_resp.data
-    assert b"2. ADD ATHLETE / PAIR" in admin_resp.data
-    assert b"3. ATHLETES, VOLUNTEERS &amp; RESULTS" in admin_resp.data
-    assert b"ADVANCED: TEAMUP API v2 CONFIG, CSV IMPORT &amp; CUSTOM SLOT GENERATOR" in admin_resp.data
+    assert b"ATHLETES &amp; RESULTS" in admin_resp.data
+    assert b"Event Setup, TeamUp &amp; CSV Import" in admin_resp.data
     assert b"FAST ADD ATHLETE / PAIR &amp; BULK PASTE LIST" not in admin_resp.data
     assert b"signup-groups-board" not in admin_resp.data
     assert b"DIVISION &amp; EQUIPMENT CHANGEOVER" not in admin_resp.data
@@ -329,19 +327,18 @@ def test_historical_progression_and_web_surfaces(client):
     assert b'<option value="men_doubles">Men&#39;s Open Doubles (M Open Dbl)</option>' in admin_resp.data
     assert b'<option value="mixed_doubles">Mixed Doubles (Mixed Dbl)</option>' in admin_resp.data
     assert b'<option value="women_pro_doubles">Female Pro Doubles (F Pro Dbl)</option>' in admin_resp.data
-    assert b"TRAIN HARD &amp; BE SOUND" in admin_resp.data
     assert b'href="/"' in admin_resp.data
-    assert b'href="/cms"' in admin_resp.data
-    assert b'href="/challenge"' in admin_resp.data
+    assert b'href="/cms"' not in admin_resp.data
+    assert b'href="/challenge"' not in admin_resp.data
     assert b"Age Category" not in admin_resp.data
 
     # Surface 2: Volunteer Judge App (Direct Athlete Selector + Top Run Pace Strip)
     judge_resp = client.get(f"/hyrox/judge?entry={ewan['id']}")
     assert judge_resp.status_code == 200
     assert b"Wall Ball Rep Counter" in judge_resp.data
+    assert b"UNBROKEN" in judge_resp.data
     assert b"Avg Run Pace" in judge_resp.data
     assert b"/static/logo.jpg" in judge_resp.data
-    assert b"Train Hard &amp; Be Sound" in judge_resp.data
     assert b'href="/"' in judge_resp.data
 
     # Surface 3A: TV 1 — Live Timings TV (/hyrox/tv)
@@ -358,7 +355,7 @@ def test_historical_progression_and_web_surfaces(client):
     assert b"/static/logo.jpg" in tv_resp.data
     assert b"DIVISION LEADERBOARD" not in tv_resp.data
 
-    # Surface 3B: TV 2 — Performance Gym Finisher Social Shot TV (/hyrox/tv/finisher)
+    # Surface 3B: TV 2 — Finisher Social Shot TV (/hyrox/tv/finisher)
     tv_fin_resp = client.get(f"/hyrox/tv/finisher?entry={ewan['id']}")
     assert tv_fin_resp.status_code == 200
     assert b"/static/logo.jpg" in tv_fin_resp.data
@@ -370,11 +367,14 @@ def test_historical_progression_and_web_surfaces(client):
     # Surface 4: Athlete Results & Social Finisher Card
     res_resp = client.get(f"/hyrox/results/{ewan['id']}")
     assert res_resp.status_code == 200
+    assert b"CS FITNESS <span>HYROX SIM</span> FINISHER ANALYTICS" in res_resp.data
     assert b"SOCIAL MEDIA FINISHER SHOT" in res_resp.data
     assert b"Clean Finisher Social Shot" in res_resp.data
     assert b"Detailed 16-Split Breakdown" in res_resp.data
     assert b"/static/logo.jpg" in res_resp.data
     assert b"Train Hard &amp; Be Sound" in res_resp.data
+    assert b'href="/cms"' not in res_resp.data
+    assert b'href="/hyrox/admin"' not in res_resp.data
     assert b"Age Cat" not in res_resp.data
 
     ath_resp = client.get(f"/hyrox/athlete/{ewan['athlete_id']}")

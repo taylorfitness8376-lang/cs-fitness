@@ -310,371 +310,305 @@
   </style>
 </head>
 <body>
-  <!-- GLOBAL 3-APP & HUB NAVIGATION BAR -->
-  <nav style="background:#050a06;border-bottom:1px solid rgba(61,255,79,0.22);padding:0.35rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;font-size:0.75rem">
-    <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap">
-      <a href="/" class="btn" style="padding:0.24rem 0.65rem;font-size:0.73rem;border-color:rgba(61,255,79,0.45);color:var(--green)">🏠 CS Hub</a>
-      <a href="/cms" class="btn" style="padding:0.24rem 0.65rem;font-size:0.73rem">📺 TV Workouts</a>
-      <a href="/challenge" class="btn" style="padding:0.24rem 0.65rem;font-size:0.73rem">🔥 8-Week Challenge</a>
-      <a href="/hyrox/admin" class="btn btn-green" style="padding:0.24rem 0.65rem;font-size:0.73rem">🏁 HYROX Sim</a>
-    </div>
-    <div style="font-weight:800;letter-spacing:0.06em;color:var(--green);text-transform:uppercase;font-size:0.72rem">
-      🤝 CS PERFORMANCE · TRAIN HARD &amp; BE SOUND
-    </div>
-  </nav>
   <header class="topbar">
     <div class="brand">
-      <img src="/static/logo.jpg" alt="CS Performance Gym" class="brand-logo" />
-      <div>
-        <div class="brand-title">CS PERFORMANCE <span>HYROX</span> · RACE DIRECTOR CONSOLE</div>
-        <div style="font-size:0.74rem;color:var(--muted);font-weight:600">Train Hard &amp; Be Sound · 2-Day Weekend Schedule · 1 Racer + 1 Volunteer per Slot</div>
+      <img src="/static/logo.jpg" alt="CS Fitness" class="brand-logo" style="width:44px;height:44px" />
+      <div style="display:flex;flex-direction:column;justify-content:center">
+        <div class="brand-title" style="line-height:1">CS <span>FITNESS</span></div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);line-height:1.05;margin-top:0.1rem">HYROX SIM · RACE DIRECTOR</div>
       </div>
     </div>
     <div class="nav-actions">
-      <select id="event-selector" onchange="switchEvent(this.value)" style="width:auto;min-width:250px;font-weight:700"></select>
-      <a href="/hyrox/judge" target="_blank" class="btn btn-yellow">⏱️ Judge App</a>
-      <a href="/hyrox/tv" target="_blank" class="btn btn-green">📺 TV 1: Live Timings</a>
-      <a href="/hyrox/tv/finisher" target="_blank" class="btn" style="border-color:var(--green);color:var(--green)">📸 TV 2: Finisher Shot</a>
-      <a href="/" class="btn">🏠 CS Hub</a>
+      <select id="event-selector" onchange="switchEvent(this.value)" style="width:auto;min-width:220px;height:40px;font-weight:700"></select>
+      <a href="/hyrox/judge" target="_blank" class="btn btn-yellow" style="height:40px">⏱️ Judge</a>
+      <a href="/hyrox/tv" target="_blank" class="btn btn-green" style="height:40px">📺 Live Timings</a>
+      <a href="/hyrox/tv/finisher" target="_blank" class="btn" style="height:40px;border-color:var(--green);color:var(--green)">📸 Finishers</a>
+      <a href="/" class="btn" style="height:40px">🏠 Home</a>
     </div>
   </header>
 
   <main class="container">
     <!-- ================================================================= -->
-    <!-- 1. EVENT SETUP                                                    -->
+    <!-- ADD ATHLETE / PAIR                                                -->
     <!-- ================================================================= -->
-    <section class="card" style="border-color:rgba(61,255,79,0.35)">
-      <div class="card-header">
+    <section class="card" style="padding:0.75rem 1rem">
+      <div style="display:grid;grid-template-columns:1.5fr 1.15fr 1.05fr 0.95fr 1.2fr auto;gap:0.5rem;align-items:end">
         <div>
-          <div class="card-title" style="color:var(--green)">1. EVENT SETUP</div>
-          <div style="font-size:0.75rem;color:var(--muted)">
-            <strong>Saturday (14:00–17:00)</strong>: Male Solo &amp; Male / Mixed Doubles &nbsp;|&nbsp;
-            <strong>Sunday (10:00–14:00)</strong>: Female Solo &amp; Female Doubles
-          </div>
-        </div>
-        <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center">
-          <button type="button" class="btn btn-green" onclick="setupWeekendEvent(false)">⚡ Setup Event &amp; Sync TeamUp</button>
-          <button type="button" class="btn" onclick="setupWeekendEvent(true)" title="Apply Sat 14:00–17:00 &amp; Sun 10:00–14:00 slots to active event">🧱 Apply Slots to Active Event</button>
-          <button type="button" class="btn btn-yellow" onclick="checkLiveTeamUpSignups()">📡 Check TeamUp Sign-Ups</button>
-        </div>
-      </div>
-
-      <div class="form-row" style="margin-bottom:0.55rem">
-        <div>
-          <label>Event Name (Auto-Filled if Blank)</label>
-          <input type="text" id="wk-ev-name" placeholder="CS Performance HYROX Weekend — Sat 28th &amp; Sun 29th" />
+          <label>Athlete / Pair</label>
+          <input type="text" id="qa-name" placeholder="Name or Pair (use &amp;)" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
         </div>
         <div>
-          <label>Saturday Date (14:00–17:00)</label>
-          <input type="date" id="wk-sat-date" value="2026-11-28" />
-        </div>
-        <div>
-          <label>Sunday Date (10:00–14:00)</label>
-          <input type="date" id="wk-sun-date" value="2026-11-29" />
-        </div>
-        <div>
-          <label>Slot Interval (mins)</label>
-          <input type="number" id="wk-interval" value="5" min="1" max="60" />
-        </div>
-      </div>
-      <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;font-size:0.72rem;color:var(--muted)">
-        <span style="font-weight:700">Quick Date Presets:</span>
-        <button type="button" class="btn" style="padding:0.2rem 0.55rem;font-size:0.7rem" onclick="setWeekendDatePreset('2026-11-28','2026-11-29')">Sat 28th &amp; Sun 29th Nov 2026</button>
-        <button type="button" class="btn" style="padding:0.2rem 0.55rem;font-size:0.7rem" onclick="setWeekendDatePreset('2027-02-20','2027-02-21')">Feb 2027 Glasgow Sim</button>
-        <button type="button" class="btn" style="padding:0.2rem 0.55rem;font-size:0.7rem" onclick="setUpcomingWeekendPreset()">Upcoming Sat &amp; Sun</button>
-      </div>
-      <div id="wk-setup-status" style="font-size:0.76rem;color:var(--muted);margin-top:0.65rem;display:none"></div>
-    </section>
-
-    <!-- ================================================================= -->
-    <!-- 2. ADD ATHLETE / PAIR (WITH EMAIL FOR POST-RACE RESULTS LINK)     -->
-    <!-- ================================================================= -->
-    <section class="card">
-      <div class="card-header">
-        <div>
-          <div class="card-title">2. ADD ATHLETE / PAIR</div>
-          <div style="font-size:0.75rem;color:var(--muted)">
-            Add an athlete or doubles pair (use <code>&amp;</code> for pairs, e.g. <code>Ewan Stewart &amp; Ewan Taylor</code>) and include their email to send their post-race results web link.
-          </div>
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1.6fr 1.2fr 1.3fr 1.1fr 0.9fr auto;gap:0.55rem;align-items:end">
-        <div>
-          <label>Athlete or Pair Name *</label>
-          <input type="text" id="qa-name" placeholder="e.g. Lucas Kane or Ewan &amp; Ewan" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
-        </div>
-        <div>
-          <label>Category / Division</label>
+          <label>Category</label>
           <select id="qa-division">
-            <optgroup label="Weekend 4 Core Groups">
-              <option value="men_open">1. Male Solo (Men Open)</option>
-              <option value="men_doubles">2. Male Doubles (Open)</option>
-              <option value="mixed_doubles">2. Mixed Doubles (Open)</option>
-              <option value="women_open">3. Female Solo (Women Open)</option>
-              <option value="women_doubles">4. Female Doubles (Open)</option>
-            </optgroup>
-            <optgroup label="Pro Divisions">
-              <option value="men_pro">1. Male Solo (Men Pro)</option>
-              <option value="men_pro_doubles">2. Men Pro Doubles</option>
-              <option value="women_pro">3. Female Solo (Women Pro)</option>
-              <option value="women_pro_doubles">4. Women Pro Doubles</option>
-            </optgroup>
+            <option value="men_open">Male Solo (Open)</option>
+            <option value="men_doubles">Male Doubles</option>
+            <option value="mixed_doubles">Mixed Doubles</option>
+            <option value="women_open">Female Solo (Open)</option>
+            <option value="women_doubles">Female Doubles</option>
+            <option value="men_pro">Male Solo (Pro)</option>
+            <option value="men_pro_doubles">Male Pro Doubles</option>
+            <option value="women_pro">Female Solo (Pro)</option>
+            <option value="women_pro_doubles">Female Pro Doubles</option>
           </select>
-        </div>
-        <div>
-          <label>Email (For Post-Race Results Link)</label>
-          <input type="email" id="qa-email" placeholder="athlete@email.com" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
         </div>
         <div>
           <label>Time Slot</label>
           <select id="qa-heat"></select>
         </div>
         <div>
-          <label>Volunteer (Opt)</label>
-          <input type="text" id="qa-volunteer" placeholder="e.g. Coach Chris" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
+          <label>Volunteer</label>
+          <input type="text" id="qa-volunteer" placeholder="Judge" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
         </div>
         <div>
-          <button type="button" class="btn btn-green" style="height:38px;padding:0 1.1rem;justify-content:center" onclick="quickAddEntry()">+ Add</button>
+          <label>Email</label>
+          <input type="email" id="qa-email" placeholder="athlete@email.com" onkeydown="if(event.key==='Enter'){event.preventDefault();quickAddEntry();}" />
+        </div>
+        <div>
+          <button type="button" class="btn btn-green" style="height:36px;padding:0 1rem;justify-content:center" onclick="quickAddEntry()">+ Add</button>
         </div>
       </div>
     </section>
 
-    <!-- COLLAPSIBLE ADVANCED TOOLS: TEAMUP API v2 / CSV IMPORT & CUSTOM EVENT GENERATOR -->
-    <details class="card" style="padding:0.85rem 1.15rem">
-      <summary style="cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.02rem;color:var(--muted);letter-spacing:0.03em">
-        🔌 ADVANCED: TEAMUP API v2 CONFIG, CSV IMPORT &amp; CUSTOM SLOT GENERATOR (CLICK TO EXPAND)
-      </summary>
-      <div class="grid-2" style="margin-top:0.85rem;margin-bottom:0">
-        <!-- Create Sim Event & Division Block Slots -->
-        <div style="background:var(--surface-2);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.8rem">
-          <div style="font-size:0.8rem;font-weight:800;color:var(--text);margin-bottom:0.5rem">
-            🗓️ Custom Event &amp; Division Block Slot Generator
-          </div>
-          <div class="form-row">
-            <div>
-              <label>New Sim Event Name</label>
-              <input type="text" id="new-ev-name" placeholder="e.g. CS Performance HYROX Sim — Feb 2027" />
-            </div>
-            <div>
-              <label>Day 1 Date</label>
-              <input type="date" id="new-ev-date" value="2026-11-28" />
-            </div>
-            <div>
-              <label>Event Duration</label>
-              <select id="new-ev-days">
-                <option value="2" selected>2 Days (Sat &amp; Sun)</option>
-                <option value="1">1 Day Event</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div>
-              <label>First Slot Start</label>
-              <input type="time" id="new-ev-time" value="14:00" />
-            </div>
-            <div>
-              <label>Initial Slots</label>
-              <input type="number" id="new-ev-waves" value="6" min="1" max="40" />
-            </div>
-            <div>
-              <label>Gap (m)</label>
-              <input type="number" id="new-ev-interval" value="5" min="1" max="90" />
-            </div>
-            <div>
-              <label>Weight Buffer (m)</label>
-              <input type="number" id="new-ev-buffer" value="10" min="0" max="60" />
-            </div>
-          </div>
-          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem">
-            <button type="button" class="btn btn-green" onclick="createNewSimEvent()">➕ Create Custom Sim Event</button>
-          </div>
-
-          <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:0.65rem">
-            <div style="font-size:0.73rem;font-weight:800;color:var(--green);margin-bottom:0.4rem;text-transform:uppercase">
-              🧱 + Add Division Block of 1:1 Slots to Current Event
-            </div>
-            <div class="form-row" style="margin-bottom:0.5rem">
-              <div>
-                <label>Day</label>
-                <select id="blk-day">
-                  <option value="1">Day 1 (Sat)</option>
-                  <option value="2">Day 2 (Sun)</option>
-                </select>
-              </div>
-              <div>
-                <label>Division Block</label>
-                <select id="blk-division">
-                  {% for div_key, div in divisions.items() %}
-                  <option value="{{ div_key }}">{{ div.label }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div>
-                <label>Block Start</label>
-                <input type="time" id="blk-start" value="14:00" />
-              </div>
-              <div>
-                <label># Slots</label>
-                <input type="number" id="blk-count" value="4" min="1" max="20" />
-              </div>
-              <div>
-                <label>Gap (m)</label>
-                <input type="number" id="blk-gap" value="5" min="1" max="90" />
-              </div>
-            </div>
-            <button type="button" class="btn" onclick="addWavesToCurrentEvent()">🧱 + Add Division Block Slots</button>
-          </div>
-        </div>
-
-        <!-- Direct TeamUp API v2 Sync & CSV Import -->
-        <div style="background:var(--surface-2);border:1px solid rgba(56,189,248,0.28);border-radius:10px;padding:0.8rem">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem">
-            <div style="font-size:0.8rem;font-weight:800;color:var(--blue)">
-              🔌 Direct TeamUp REST API v2 &amp; CSV Import
-            </div>
-            <div style="display:flex;gap:0.4rem;align-items:center">
-              <span id="teamup-api-badge" class="pill" style="background:rgba(255,255,255,0.08);color:var(--muted)">API v2: Ready</span>
-              <a href="/api/hyrox/sample-csv" class="btn" style="padding:0.2rem 0.5rem;font-size:0.7rem" download>⬇️ Sample CSV</a>
-            </div>
-          </div>
-          <div class="form-row" style="margin-bottom:0.5rem">
-            <div>
-              <label>TeamUp API Key / Token</label>
-              <input type="password" id="tu-api-token" placeholder="Paste TeamUp API Key" />
-            </div>
-            <div>
-              <label>TeamUp Provider ID</label>
-              <input type="text" id="tu-provider-id" value="13050192" placeholder="13050192 (CS Fitness)" />
-            </div>
-          </div>
-          <div class="form-row" style="margin-bottom:0.5rem">
-            <div>
-              <label>Filter by Specific TeamUp Class (Optional)</label>
-              <select id="tu-event-select">
-                <option value="">All TeamUp Classes on Sim Dates</option>
-              </select>
-            </div>
-            <div style="display:flex;align-items:flex-end">
-              <button type="button" class="btn" onclick="loadRemoteTeamUpEvents()" style="width:100%">📅 Load TeamUp Classes</button>
-            </div>
-          </div>
-          <div style="margin-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;font-size:0.73rem;color:var(--muted)">
-            <input type="checkbox" id="tu-auto-stagger" style="width:auto" checked />
-            <label for="tu-auto-stagger" style="margin:0;text-transform:none;font-weight:600;color:var(--text);cursor:pointer">
-              Auto-stagger sign-ups into sequential 1:1 slots
-            </label>
-          </div>
-          <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;margin-bottom:0.65rem">
-            <button type="button" class="btn" onclick="saveAndTestTeamUpApi()">🔑 Save &amp; Verify Token</button>
-            <button type="button" class="btn btn-green" onclick="syncFromTeamUpApi()">🔄 Sync Registrations via TeamUp API v2</button>
-            <span id="tu-status-msg" style="font-size:0.71rem;color:var(--muted)"></span>
-          </div>
-
-          <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:0.55rem">
-            <label>Or Upload / Paste CSV Rows (.csv)</label>
-            <div style="display:flex;gap:0.45rem;margin-bottom:0.4rem">
-              <input type="file" id="csv-file-input" accept=".csv,text/csv" onchange="loadCsvFile(this)" style="font-size:0.72rem" />
-              <button type="button" class="btn btn-green" style="flex-shrink:0" onclick="importTeamUpCsv()">🚀 Import CSV</button>
-            </div>
-            <textarea id="csv-text-input" rows="2" style="font-size:0.74rem" placeholder="First Name,Last Name,Email,DOB,Division,Partner Name,Heat Time,Volunteer"></textarea>
-          </div>
-        </div>
-      </div>
-    </details>
-
     <!-- ================================================================= -->
-    <!-- 3. ATHLETES, VOLUNTEERS & RESULTS (SINGLE GROUPED TABLE)          -->
+    <!-- ATHLETES & RESULTS                                                -->
     <!-- ================================================================= -->
     <section class="card">
-      <div class="card-header">
-        <div>
-          <div class="card-title">3. ATHLETES, VOLUNTEERS &amp; RESULTS</div>
-          <div style="font-size:0.76rem;color:var(--muted)">
-            Grouped by Saturday &amp; Sunday categories. Manage time slots, emails, volunteers, splits, and post-race results web links in one place.
-          </div>
-        </div>
-        <div style="display:flex;gap:0.45rem;align-items:center;flex-wrap:wrap">
-          <input type="text" id="filter-search" placeholder="🔍 Search athlete, email, volunteer..." oninput="renderEntriesTable()" style="width:205px;height:34px;font-size:0.76rem" />
-          <button type="button" class="day-tab-btn active" data-day="all" onclick="setAdminDayFilter('all')">All Days</button>
-          <button type="button" class="day-tab-btn" data-day="1" onclick="setAdminDayFilter('1')">Saturday (2–5 PM)</button>
-          <button type="button" class="day-tab-btn" data-day="2" onclick="setAdminDayFilter('2')">Sunday (10 AM–2 PM)</button>
+      <div class="card-header" style="margin-bottom:0.6rem">
+        <div class="card-title">ATHLETES &amp; RESULTS</div>
+        <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
+          <input type="text" id="filter-search" placeholder="Search..." oninput="renderEntriesTable()" style="width:170px;height:34px;font-size:0.76rem" />
+          <button type="button" class="day-tab-btn active" data-day="all" onclick="setAdminDayFilter('all')">All</button>
+          <button type="button" class="day-tab-btn" data-day="1" onclick="setAdminDayFilter('1')">Sat</button>
+          <button type="button" class="day-tab-btn" data-day="2" onclick="setAdminDayFilter('2')">Sun</button>
           <select id="filter-signup-group" onchange="renderEntriesTable()" style="width:auto;height:34px;font-size:0.76rem;font-weight:700;border-color:rgba(61,255,79,0.35)">
-            <option value="all">All 4 Groups</option>
-            <option value="male_solo">1. Male Solo (Sat)</option>
-            <option value="male_mixed_doubles">2. Male / Mixed Doubles (Sat)</option>
-            <option value="female_solo">3. Female Solo (Sun)</option>
-            <option value="female_doubles">4. Female Doubles (Sun)</option>
+            <option value="all">All Groups</option>
+            <option value="male_solo">Male Solo</option>
+            <option value="male_mixed_doubles">Male / Mixed Doubles</option>
+            <option value="female_solo">Female Solo</option>
+            <option value="female_doubles">Female Doubles</option>
           </select>
-          <select id="filter-division" onchange="renderEntriesTable()" style="width:auto;height:34px;font-size:0.76rem">
+          <select id="filter-division" onchange="renderEntriesTable()" style="display:none">
             <option value="all">All Categories</option>
             {% for div_key, div in divisions.items() %}
             <option value="{{ div_key }}">{{ div.label }}</option>
             {% endfor %}
           </select>
-          <select id="filter-status" onchange="renderEntriesTable()" style="width:auto;height:34px;font-size:0.76rem">
+          <select id="filter-status" onchange="renderEntriesTable()" style="display:none">
             <option value="all">All Statuses</option>
             <option value="finished">Finished Only</option>
             <option value="active">Racing / Finished</option>
           </select>
-          <button type="button" class="btn" style="height:34px;padding:0 0.65rem" onclick="copyAllResultsLinks(this)">📋 Copy All Links</button>
-          <button type="button" class="btn" style="height:34px;padding:0 0.65rem" onclick="refreshEventState()">🔄 Refresh</button>
-          <button type="button" class="btn btn-red" style="height:34px;padding:0 0.65rem" onclick="clearAllEntries()" title="Remove all entries from this event">🗑️ Clear All</button>
+          <button type="button" class="btn btn-green" style="height:34px;padding:0 0.65rem" onclick="setupWeekendEvent(false)">⚡ Sync TeamUp</button>
+          <button type="button" class="btn" style="height:34px;padding:0 0.65rem" onclick="copyAllResultsLinks(this)">📋 Copy Links</button>
+          <button type="button" class="btn" style="height:34px;padding:0 0.65rem" onclick="refreshEventState()">🔄</button>
         </div>
       </div>
+      <div id="wk-setup-status" style="font-size:0.75rem;color:var(--muted);margin-bottom:0.55rem;display:none"></div>
       <div style="overflow-x:auto">
         <table>
           <thead>
             <tr>
-              <th>Bib</th>
-              <th>Time Slot</th>
+              <th>Slot</th>
               <th>Athlete / Pair</th>
               <th>Category</th>
-              <th>Email (For Results)</th>
               <th>Volunteer</th>
-              <th>Status &amp; Result</th>
-              <th>Actions &amp; Results Link</th>
+              <th>Email</th>
+              <th>Status / Time</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody id="entries-tbody"></tbody>
         </table>
       </div>
     </section>
+
+    <!-- ================================================================= -->
+    <!-- COLLAPSIBLE EVENT SETUP, TEAMUP & CSV IMPORT                      -->
+    <!-- ================================================================= -->
+    <details class="card" style="padding:0.75rem 1rem">
+      <summary style="cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:0.98rem;color:var(--muted);letter-spacing:0.04em;text-transform:uppercase">
+        ⚙️ Event Setup, TeamUp &amp; CSV Import
+      </summary>
+      <div style="margin-top:0.8rem">
+        <div class="form-row" style="margin-bottom:0.55rem">
+          <div>
+            <label>Event Name</label>
+            <input type="text" id="wk-ev-name" placeholder="CS Fitness HYROX Sim" />
+          </div>
+          <div>
+            <label>Saturday (14:00–17:00)</label>
+            <input type="date" id="wk-sat-date" value="2026-11-28" />
+          </div>
+          <div>
+            <label>Sunday (10:00–14:00)</label>
+            <input type="date" id="wk-sun-date" value="2026-11-29" />
+          </div>
+          <div>
+            <label>Slot Interval (mins)</label>
+            <input type="number" id="wk-interval" value="5" min="1" max="60" />
+          </div>
+        </div>
+        <div style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;margin-bottom:0.85rem">
+          <button type="button" class="btn btn-green" onclick="setupWeekendEvent(false)">⚡ Setup Event &amp; Sync TeamUp</button>
+          <button type="button" class="btn" onclick="setupWeekendEvent(true)">🧱 Apply Slots</button>
+          <button type="button" class="btn btn-yellow" onclick="checkLiveTeamUpSignups()">📡 Check TeamUp</button>
+          <button type="button" class="btn" onclick="setWeekendDatePreset('2026-11-28','2026-11-29')">Nov 2026</button>
+          <button type="button" class="btn" onclick="setWeekendDatePreset('2027-02-20','2027-02-21')">Feb 2027</button>
+          <button type="button" class="btn" onclick="setUpcomingWeekendPreset()">Next Weekend</button>
+          <button type="button" class="btn btn-red" style="margin-left:auto" onclick="clearAllEntries()">🗑️ Clear Entries</button>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:0">
+          <!-- Custom Event & Block Generator -->
+          <div style="background:var(--surface-2);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.75rem">
+            <div style="font-size:0.76rem;font-weight:800;color:var(--muted);text-transform:uppercase;margin-bottom:0.45rem">
+              Custom Slots &amp; Events
+            </div>
+            <div class="form-row">
+              <div>
+                <label>New Event Name</label>
+                <input type="text" id="new-ev-name" placeholder="HYROX Sim" />
+              </div>
+              <div>
+                <label>Start Date</label>
+                <input type="date" id="new-ev-date" value="2026-11-28" />
+              </div>
+              <div>
+                <label>Days</label>
+                <select id="new-ev-days">
+                  <option value="2" selected>2 Days</option>
+                  <option value="1">1 Day</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div>
+                <label>Start</label>
+                <input type="time" id="new-ev-time" value="14:00" />
+              </div>
+              <div>
+                <label>Slots</label>
+                <input type="number" id="new-ev-waves" value="6" min="1" max="40" />
+              </div>
+              <div>
+                <label>Gap (m)</label>
+                <input type="number" id="new-ev-interval" value="5" min="1" max="90" />
+              </div>
+              <div>
+                <label>Buffer (m)</label>
+                <input type="number" id="new-ev-buffer" value="10" min="0" max="60" />
+              </div>
+            </div>
+            <button type="button" class="btn btn-green" style="margin-bottom:0.65rem" onclick="createNewSimEvent()">+ Create Event</button>
+
+            <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:0.55rem">
+              <div class="form-row" style="margin-bottom:0.45rem">
+                <div>
+                  <label>Day</label>
+                  <select id="blk-day">
+                    <option value="1">Sat</option>
+                    <option value="2">Sun</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Category</label>
+                  <select id="blk-division">
+                    {% for div_key, div in divisions.items() %}
+                    <option value="{{ div_key }}">{{ div.label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label>Start</label>
+                  <input type="time" id="blk-start" value="14:00" />
+                </div>
+                <div>
+                  <label>Slots</label>
+                  <input type="number" id="blk-count" value="4" min="1" max="20" />
+                </div>
+                <div>
+                  <label>Gap (m)</label>
+                  <input type="number" id="blk-gap" value="5" min="1" max="90" />
+                </div>
+              </div>
+              <button type="button" class="btn" onclick="addWavesToCurrentEvent()">+ Add Slots</button>
+            </div>
+          </div>
+
+          <!-- TeamUp API & CSV Import -->
+          <div style="background:var(--surface-2);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.75rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.45rem">
+              <div style="font-size:0.76rem;font-weight:800;color:var(--muted);text-transform:uppercase">
+                TeamUp API &amp; CSV
+              </div>
+              <div style="display:flex;gap:0.35rem;align-items:center">
+                <span id="teamup-api-badge" class="pill" style="background:rgba(255,255,255,0.08);color:var(--muted)">Ready</span>
+                <a href="/api/hyrox/sample-csv" class="btn" style="padding:0.18rem 0.45rem;font-size:0.68rem" download>Sample CSV</a>
+              </div>
+            </div>
+            <div class="form-row" style="margin-bottom:0.45rem">
+              <div>
+                <label>API Token</label>
+                <input type="password" id="tu-api-token" placeholder="TeamUp Key" />
+              </div>
+              <div>
+                <label>Provider ID</label>
+                <input type="text" id="tu-provider-id" value="13050192" />
+              </div>
+            </div>
+            <div class="form-row" style="margin-bottom:0.45rem">
+              <div>
+                <label>Class Filter</label>
+                <select id="tu-event-select">
+                  <option value="">All Classes</option>
+                </select>
+              </div>
+              <div style="display:flex;align-items:flex-end">
+                <button type="button" class="btn" onclick="loadRemoteTeamUpEvents()" style="width:100%">Load Classes</button>
+              </div>
+            </div>
+            <input type="checkbox" id="tu-auto-stagger" style="display:none" checked />
+            <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;margin-bottom:0.55rem">
+              <button type="button" class="btn" onclick="saveAndTestTeamUpApi()">Save Token</button>
+              <button type="button" class="btn btn-green" onclick="syncFromTeamUpApi()">Sync TeamUp</button>
+              <span id="tu-status-msg" style="font-size:0.7rem;color:var(--muted)"></span>
+            </div>
+            <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:0.5rem">
+              <div style="display:flex;gap:0.4rem;margin-bottom:0.35rem">
+                <input type="file" id="csv-file-input" accept=".csv,text/csv" onchange="loadCsvFile(this)" style="font-size:0.7rem" />
+                <button type="button" class="btn btn-green" style="flex-shrink:0" onclick="importTeamUpCsv()">Import CSV</button>
+              </div>
+              <textarea id="csv-text-input" rows="2" style="font-size:0.72rem" placeholder="First Name,Last Name,Email,DOB,Division,Partner Name,Heat Time,Volunteer"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
   </main>
 
-  <!-- MODAL: FULL ATHLETE / PAIR DETAILS, 1:1 SLOT & 16-SPLIT CORRECTIONS EDITOR -->
+  <!-- MODAL: EDIT ATHLETE & SPLITS -->
   <div class="modal-backdrop" id="splits-modal">
     <div class="modal-box">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
         <div>
-          <div class="card-title" id="modal-entry-title">Edit Athlete / Pair Details, Slot &amp; 16 Splits</div>
+          <div class="card-title" id="modal-entry-title">Edit Athlete</div>
           <div style="font-size:0.76rem;color:var(--muted)" id="modal-entry-subtitle"></div>
         </div>
-        <button type="button" class="btn" onclick="closeSplitsModal()">✕ Close</button>
+        <button type="button" class="btn" onclick="closeSplitsModal()">✕</button>
       </div>
 
-      <!-- Athlete / Pair, Division, Slot & Volunteer Editor -->
-      <div style="background:rgba(61,255,79,0.06);border:1px solid rgba(61,255,79,0.28);border-radius:10px;padding:0.85rem;margin-bottom:0.9rem">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.55rem">
-          <div style="font-size:0.8rem;font-weight:800;color:var(--green);letter-spacing:0.04em">
-            👤 ATHLETE / DOUBLES PAIR, DIVISION, 1:1 SLOT &amp; VOLUNTEER
-          </div>
-          <div style="display:flex;gap:0.4rem">
-            <button type="button" class="btn btn-red" style="padding:0.28rem 0.6rem;font-size:0.74rem" onclick="deleteCurrentEntry()">🗑️ Delete Entry</button>
-            <button type="button" class="btn btn-green" style="padding:0.28rem 0.75rem;font-size:0.76rem" onclick="saveEntryDetailsOnly()">💾 Save Athlete &amp; Slot Details</button>
-          </div>
-        </div>
+      <div style="background:var(--surface-2);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:0.75rem;margin-bottom:0.75rem">
         <div class="form-row">
           <div>
-            <label>Athlete 1 Full Name</label>
-            <input type="text" id="modal-display-name" placeholder="e.g. Sarah Jenkins" />
+            <label>Athlete</label>
+            <input type="text" id="modal-display-name" placeholder="Full Name" />
           </div>
           <div>
-            <label>Doubles Partner Name (if 1 signed up for Doubles)</label>
-            <input type="text" id="modal-partner-name" placeholder="Add 2nd athlete for Doubles..." oninput="onModalPartnerInput(this.value)" />
+            <label>Partner (Doubles)</label>
+            <input type="text" id="modal-partner-name" placeholder="Optional" oninput="onModalPartnerInput(this.value)" />
           </div>
           <div>
-            <label>Division (All 9 Official HYROX Divisions)</label>
+            <label>Category</label>
             <select id="modal-division">
               <option value="women_open">Female Open (F Open)</option>
               <option value="women_doubles">Female Doubles (F Doubles)</option>
@@ -690,60 +624,34 @@
         </div>
         <div class="form-row" style="margin-bottom:0">
           <div>
-            <label>Assigned 1:1 Slot</label>
+            <label>Slot</label>
             <select id="modal-heat-id"></select>
           </div>
           <div>
-            <label>Or Set Custom 1:1 Slot Time (Day + HH:MM)</label>
+            <label>Custom Time</label>
             <div style="display:flex;gap:0.35rem">
-              <select id="modal-custom-day" style="width:92px">
-                <option value="1">Day 1</option>
-                <option value="2">Day 2</option>
+              <select id="modal-custom-day" style="width:76px">
+                <option value="1">Sat</option>
+                <option value="2">Sun</option>
               </select>
-              <input type="text" id="modal-custom-time" placeholder="e.g. 09:40" style="flex:1" />
+              <input type="text" id="modal-custom-time" placeholder="HH:MM" style="flex:1" />
             </div>
           </div>
           <div>
-            <label>1:1 Volunteer Judge</label>
-            <input type="text" id="modal-volunteer" placeholder="e.g. Coach Dan" />
+            <label>Volunteer</label>
+            <input type="text" id="modal-volunteer" placeholder="Judge" />
           </div>
           <div>
-            <label>Bib # &amp; Email</label>
-            <div style="display:flex;gap:0.35rem">
-              <input type="text" id="modal-bib" placeholder="Bib #" style="width:72px" />
-              <input type="email" id="modal-email" placeholder="athlete@email.com" style="flex:1" />
-            </div>
+            <label>Email</label>
+            <input type="hidden" id="modal-bib" />
+            <input type="email" id="modal-email" placeholder="athlete@email.com" />
           </div>
         </div>
       </div>
 
-      <!-- Combined Segment Splitter Helper -->
-      <div style="background:rgba(250,204,21,0.08);border:1px solid rgba(250,204,21,0.35);border-radius:10px;padding:0.75rem;margin-bottom:0.85rem">
-        <div style="font-size:0.78rem;font-weight:800;color:var(--yellow);margin-bottom:0.4rem">
-          ✂️ MISSED A TRANSITION TAP? SPLIT A COMBINED SEGMENT ACROSS TWO ADJACENT SPLITS
-        </div>
-        <div class="form-row" style="margin-bottom:0">
-          <div>
-            <label>First Split (#1..#15)</label>
-            <select id="comb-first-idx"></select>
-          </div>
-          <div>
-            <label>Combined Total Time (MM:SS)</label>
-            <input type="text" id="comb-total-str" placeholder="e.g. 07:45" />
-          </div>
-          <div>
-            <label>First Split Time (MM:SS)</label>
-            <input type="text" id="comb-first-str" placeholder="e.g. 04:10" />
-          </div>
-          <div style="display:flex;align-items:flex-end">
-            <button type="button" class="btn btn-yellow" onclick="applyCombinedSplit()">✂️ Split Segment</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="form-row">
+      <div class="form-row" style="margin-bottom:0.65rem">
         <div>
-          <label>Entry Status</label>
+          <label>Status</label>
           <select id="modal-status">
             <option value="scheduled">scheduled</option>
             <option value="racing">racing</option>
@@ -753,26 +661,53 @@
           </select>
         </div>
         <div>
-          <label>Time Penalty / Adjustment (MM:SS)</label>
+          <label>Penalty (MM:SS)</label>
           <input type="text" id="modal-penalty" placeholder="00:00" />
         </div>
         <div>
-          <label>Wall Ball Reps Logged</label>
+          <label>Wall Ball Reps</label>
           <input type="number" id="modal-wb-reps" min="0" max="200" />
         </div>
         <div>
           <label>Notes</label>
-          <input type="text" id="modal-notes" placeholder="Optional race/booking notes" />
+          <input type="text" id="modal-notes" placeholder="Notes" />
         </div>
       </div>
 
+      <!-- Collapsible Split Segment Helper -->
+      <details style="background:rgba(250,204,21,0.06);border:1px solid rgba(250,204,21,0.28);border-radius:9px;padding:0.5rem 0.7rem;margin-bottom:0.65rem">
+        <summary style="cursor:pointer;font-size:0.74rem;font-weight:800;color:var(--yellow);text-transform:uppercase">
+          ✂️ Split a Combined Segment
+        </summary>
+        <div class="form-row" style="margin-top:0.5rem;margin-bottom:0">
+          <div>
+            <label>First Split</label>
+            <select id="comb-first-idx"></select>
+          </div>
+          <div>
+            <label>Combined (MM:SS)</label>
+            <input type="text" id="comb-total-str" placeholder="07:45" />
+          </div>
+          <div>
+            <label>First Split (MM:SS)</label>
+            <input type="text" id="comb-first-str" placeholder="04:10" />
+          </div>
+          <div style="display:flex;align-items:flex-end">
+            <button type="button" class="btn btn-yellow" onclick="applyCombinedSplit()">Split</button>
+          </div>
+        </div>
+      </details>
+
       <div class="splits-edit-grid" id="modal-splits-grid"></div>
 
-      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-top:0.9rem">
-        <button type="button" class="btn btn-red" onclick="resetEntryTimer()">🔄 Reset Timer to Scheduled</button>
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-top:0.75rem">
+        <div style="display:flex;gap:0.4rem">
+          <button type="button" class="btn btn-red" onclick="deleteCurrentEntry()">Delete</button>
+          <button type="button" class="btn" onclick="resetEntryTimer()">Reset Timer</button>
+        </div>
         <div style="display:flex;gap:0.5rem">
           <button type="button" class="btn" onclick="closeSplitsModal()">Cancel</button>
-          <button type="button" class="btn btn-green" onclick="saveSplitCorrections()">💾 Save Details + All 16 Splits</button>
+          <button type="button" class="btn btn-green" onclick="saveSplitCorrections()">Save</button>
         </div>
       </div>
     </div>
@@ -912,9 +847,14 @@
       const sel = document.getElementById('qa-heat');
       if (!sel) return;
       const heats = currentState?.heats || [];
-      sel.innerHTML = `<option value="">Auto-Assign Next Open Slot</option>` + heats.map(h =>
-        `<option value="${h.id}">Day ${h.day_number || 1} · ${h.start_time} (${h.name}) — ${h.assigned_lanes ? 'Assigned' : 'Open'}</option>`
-      ).join('');
+      sel.innerHTML = `<option value="">Auto Slot</option>` + heats.map(h => {
+        const dayShort = (h.day_number || 1) === 2 ? 'Sun' : 'Sat';
+        return `<option value="${h.id}">${dayShort} ${h.start_time}${h.assigned_lanes ? ' · Assigned' : ''}</option>`;
+      }).join('');
+    }
+
+    function cleanSplitLabel(str) {
+      return String(str || '').replace(/\s*\([^)]*\)/g, '').trim();
     }
 
     const ADMIN_DIVISIONS = [
@@ -930,10 +870,10 @@
     ];
 
     const SIGNUP_GROUP_META = [
-      { key: 'male_solo', title: '1. MALE SOLO', day: '1', window: 'Saturday · 14:00–17:00', color: '#38bdf8' },
-      { key: 'male_mixed_doubles', title: '2. MALE DOUBLES / MIXED DOUBLES', day: '1', window: 'Saturday · 14:00–17:00', color: '#3dff4f' },
-      { key: 'female_solo', title: '3. FEMALE SOLO', day: '2', window: 'Sunday · 10:00–14:00', color: '#f472b6' },
-      { key: 'female_doubles', title: '4. FEMALE DOUBLES', day: '2', window: 'Sunday · 10:00–14:00', color: '#c084fc' },
+      { key: 'male_solo', title: 'MALE SOLO', day: '1', window: 'Sat 14:00–17:00', color: '#38bdf8' },
+      { key: 'male_mixed_doubles', title: 'MALE / MIXED DOUBLES', day: '1', window: 'Sat 14:00–17:00', color: '#3dff4f' },
+      { key: 'female_solo', title: 'FEMALE SOLO', day: '2', window: 'Sun 10:00–14:00', color: '#f472b6' },
+      { key: 'female_doubles', title: 'FEMALE DOUBLES', day: '2', window: 'Sun 10:00–14:00', color: '#c084fc' },
     ];
 
     function escapeHtml(str) {
@@ -970,7 +910,7 @@
         if (filterStatus === 'finished' && e.status !== 'finished') return false;
         if (filterStatus === 'active' && !(e.status === 'finished' || e.status === 'racing' || (e.completed_splits || 0) > 0)) return false;
         if (searchQ) {
-          const hay = `${e.full_display_name || ''} ${e.display_name || ''} ${e.partner_name || ''} ${e.email || ''} ${e.volunteer_name || ''} ${e.bib_number || ''}`.toLowerCase();
+          const hay = `${e.full_display_name || ''} ${e.display_name || ''} ${e.partner_name || ''} ${e.email || ''} ${e.volunteer_name || ''}`.toLowerCase();
           if (!hay.includes(searchQ)) return false;
         }
         return true;
@@ -980,8 +920,8 @@
       if (!entries.length) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="8" style="text-align:center;padding:1.75rem 1rem;color:var(--muted);font-size:0.84rem">
-              No athletes match this view yet. Add athletes in <strong>Section 2</strong> above or click <strong>Setup Event &amp; Sync TeamUp</strong> in <strong>Section 1</strong>.
+            <td colspan="7" style="text-align:center;padding:1.5rem 1rem;color:var(--muted);font-size:0.84rem">
+              No athletes yet. Add an athlete above or click <strong>Sync TeamUp</strong>.
             </td>
           </tr>
         `;
@@ -997,7 +937,7 @@
 
         rowsHtml.push(`
           <tr>
-            <td colspan="8" style="background:rgba(255,255,255,0.04);border-top:2px solid ${grp.color};border-bottom:1px solid rgba(255,255,255,0.1);padding:0.24rem 0.5rem">
+            <td colspan="7" style="background:rgba(255,255,255,0.04);border-top:2px solid ${grp.color};border-bottom:1px solid rgba(255,255,255,0.1);padding:0.24rem 0.5rem">
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:0.92rem;color:${grp.color};letter-spacing:0.03em">
                   ${grp.title}
@@ -1012,8 +952,8 @@
         if (!grpEntries.length) {
           rowsHtml.push(`
             <tr>
-              <td colspan="8" style="padding:0.3rem 0.5rem;color:var(--muted);font-size:0.73rem">
-                No athletes in ${grp.title} yet.
+              <td colspan="7" style="padding:0.3rem 0.5rem;color:var(--muted);font-size:0.73rem">
+                No athletes in ${grp.title}.
               </td>
             </tr>
           `);
@@ -1033,81 +973,76 @@
           const statusClass = `status-${e.status}`;
           const relUrl = `/hyrox/results/${e.id}`;
           const fullUrl = `${window.location.origin}${relUrl}`;
-          const tvShotUrl = `${window.location.origin}/hyrox/tv/finisher?entry=${e.id}`;
           const splitsLines = (e.splits || [])
             .filter(s => s.duration_ms !== null && s.duration_ms !== undefined)
-            .map(s => `  • ${s.label}: ${s.duration_formatted}`)
+            .map(s => `  • ${cleanSplitLabel(s.label)}: ${s.duration_formatted}`)
             .join('\n');
           const breakdownBlock = splitsLines
-            ? `\n--- DETAILED 16-SPLIT BREAKDOWN ---\n` +
-              `Run Total (8 × 1.2 km): ${e.run_total_formatted || '--:--'}${e.avg_run_kph_formatted ? ' (' + e.avg_run_kph_formatted + ')' : ''}\n` +
-              `Station Total (8 Stations): ${e.station_total_formatted || '--:--'}\n` +
+            ? `\n--- 16-SPLIT BREAKDOWN ---\n` +
+              `Run: ${e.run_total_formatted || '--:--'}${e.avg_run_kph_formatted ? ' (' + e.avg_run_kph_formatted + ')' : ''}\n` +
+              `Workout: ${e.station_total_formatted || '--:--'}\n` +
               `${splitsLines}\n`
             : '';
-          const mailSubject = encodeURIComponent(`Your CS Fitness HYROX Sim Results & Social Finisher Card — ${e.full_display_name}`);
+          const mailSubject = encodeURIComponent(`CS Fitness HYROX Sim Results — ${e.full_display_name}`);
           const mailBody = encodeURIComponent(
             `Hi ${e.full_display_name},\n\n` +
-            `Massive well done at the CS Fitness HYROX Simulation! Train Hard & Be Sound.\n\n` +
-            `🏁 CS FITNESS · HYROX SIM\n` +
-            `Athlete / Team: ${e.full_display_name}\n` +
+            `Massive well done at the CS Fitness HYROX Sim! Train Hard & Be Sound.\n\n` +
+            `Athlete: ${e.full_display_name}\n` +
             `Category: ${e.division_label}\n` +
-            `Official Finisher Time: ${e.total_formatted}\n` +
+            `Time: ${e.total_formatted}\n` +
             `${breakdownBlock}\n` +
-            `📲 DOWNLOAD YOUR SOCIAL MEDIA FINISHER SHOT & FULL BREAKDOWN:\n` +
-            `${fullUrl}\n\n` +
-            `📸 FULL-SCREEN FINISHER BACKDROP:\n` +
-            `${tvShotUrl}\n\n` +
-            `CS Performance Gym · Train Hard & Be Sound\n`
+            `Results & Social Card:\n` +
+            `${fullUrl}\n`
           );
           const emailActionBtn = e.email
-            ? `<a href="mailto:${encodeURIComponent(e.email)}?subject=${mailSubject}&body=${mailBody}" class="btn-xs" title="Email Detailed Breakdown & Social Finisher Card to ${escapeHtml(e.email)}">✉️</a>`
+            ? `<a href="mailto:${encodeURIComponent(e.email)}?subject=${mailSubject}&body=${mailBody}" class="btn-xs" title="Email Results">✉️</a>`
             : '';
 
           const hasTime = (e.completed_splits || 0) > 0 || e.status === 'finished' || e.status === 'racing';
           const resultInlineHtml = hasTime
-            ? `<strong style="font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;color:var(--green);margin-left:0.3rem">${e.total_formatted}</strong>
-               <span style="font-size:0.66rem;color:var(--muted);margin-left:0.2rem">(R:${e.run_total_formatted} · S:${e.station_total_formatted})</span>`
+            ? `<strong style="font-family:'Barlow Condensed',sans-serif;font-size:0.95rem;color:var(--green);margin-left:0.35rem">${e.total_formatted}</strong>`
+            : '';
+          const progressInlineHtml = e.status === 'racing'
+            ? `<span style="font-size:0.68rem;color:var(--muted);margin-left:0.2rem">${e.completed_splits}/16</span>`
             : '';
 
           rowsHtml.push(`
             <tr>
-              <td style="width:46px;font-weight:800;color:var(--muted)">#${escapeHtml(e.bib_number)}</td>
               <td style="width:105px">
                 <select class="cell-select" onchange="updateEntryMeta(${e.id}, {heat_id: this.value})" style="width:100px">
                   ${heatOpts}
                 </select>
               </td>
-              <td style="font-weight:700;font-size:0.8rem">${escapeHtml(e.full_display_name)}</td>
+              <td style="font-weight:700;font-size:0.82rem">${escapeHtml(e.full_display_name)}</td>
               <td style="width:138px">
                 <select class="cell-select" onchange="updateEntryMeta(${e.id}, {division: this.value})"
                   style="width:134px;font-weight:700;border-color:${e.division_color};color:${e.division_color}">
                   ${divOpts}
                 </select>
               </td>
-              <td style="width:170px">
-                <input type="email" class="cell-input" value="${escapeHtml(e.email || '')}" placeholder="athlete@email.com"
-                  onchange="updateEntryMeta(${e.id}, {email: this.value})"
-                  style="width:165px" />
-              </td>
               <td style="width:125px">
                 <input type="text" class="cell-input" value="${escapeHtml(e.volunteer_name || '')}" placeholder="Volunteer"
                   onchange="updateEntryMeta(${e.id}, {volunteer_name: this.value})"
                   style="width:120px" />
               </td>
-              <td>
+              <td style="width:170px">
+                <input type="email" class="cell-input" value="${escapeHtml(e.email || '')}" placeholder="athlete@email.com"
+                  onchange="updateEntryMeta(${e.id}, {email: this.value})"
+                  style="width:165px" />
+              </td>
+              <td style="text-align:center">
                 <span class="pill ${statusClass}">${e.status}</span>
-                <span style="font-size:0.68rem;color:var(--muted);margin-left:0.15rem">${e.completed_splits}/16</span>
+                ${progressInlineHtml}
                 ${resultInlineHtml}
               </td>
               <td>
-                <div style="display:flex;gap:0.22rem;flex-wrap:nowrap;align-items:center">
-                  <a href="/hyrox/judge?entry=${e.id}" target="_blank" class="btn-xs" title="Open Volunteer Judge Timer">⏱️ Judge</a>
-                  <button type="button" class="btn-xs" onclick="openSplitsModal(${e.id})" title="Edit Athlete / Splits">✏️ Edit</button>
-                  <a href="/hyrox/tv/finisher?entry=${e.id}" target="_blank" class="btn-xs" style="border-color:var(--green);color:var(--green)" title="Open on Performance Gym Finisher TV">📸 TV</a>
-                  <a href="${relUrl}" target="_blank" class="btn-xs btn-green" title="Open Athlete Results & Social Card Web Link">📲 Results</a>
-                  <button type="button" class="btn-xs" onclick="copyResultWebLink(${e.id}, this)" title="Copy Results Web Link">📋 Link</button>
+                <div style="display:flex;gap:0.25rem;flex-wrap:nowrap;align-items:center">
+                  <a href="/hyrox/judge?entry=${e.id}" target="_blank" class="btn-xs" title="Judge Timer">Judge</a>
+                  <button type="button" class="btn-xs" onclick="openSplitsModal(${e.id})" title="Edit Athlete &amp; Splits">Edit</button>
+                  <a href="${relUrl}" target="_blank" class="btn-xs btn-green" title="Results &amp; Social Card">Results</a>
+                  <button type="button" class="btn-xs" onclick="copyResultWebLink(${e.id}, this)" title="Copy Results Link">Link</button>
                   ${emailActionBtn}
-                  <button type="button" class="btn-xs btn-red" title="Remove Entry" onclick="quickDeleteEntry(${e.id})">🗑️</button>
+                  <button type="button" class="btn-xs btn-red" title="Remove" onclick="quickDeleteEntry(${e.id})">✕</button>
                 </div>
               </td>
             </tr>
@@ -1305,10 +1240,10 @@
       const entry = (currentState?.entries || []).find(x => x.id === entryId);
       if (!entry) return;
       editingEntry = entry;
-      document.getElementById('modal-entry-title').textContent =
-        `#${entry.bib_number} ${entry.full_display_name} — Athlete, Slot & 16-Split Editor`;
+      document.getElementById('modal-entry-title').textContent = entry.full_display_name;
+      const dayShort = (entry.heat_day_number || 1) === 2 ? 'Sun' : 'Sat';
       document.getElementById('modal-entry-subtitle').textContent =
-        `${entry.division_label} · Day ${entry.heat_day_number || 1} Slot: ${entry.heat_name} (${entry.heat_start_time}) · Volunteer: ${entry.volunteer_name || 'Unassigned'}`;
+        `${entry.division_label} · ${entry.heat_start_time ? dayShort + ' ' + entry.heat_start_time : 'Unassigned'}`;
 
       const divSel = document.getElementById('modal-division');
       if (divSel) {
@@ -1330,9 +1265,10 @@
 
       const heats = currentState?.heats || [];
       const heatSel = document.getElementById('modal-heat-id');
-      heatSel.innerHTML = `<option value="">Unassigned</option>` + heats.map(h =>
-        `<option value="${h.id}" ${entry.heat_id === h.id ? 'selected' : ''}>Day ${h.day_number || 1} · ${h.start_time} (${escapeHtml(h.name)})</option>`
-      ).join('');
+      heatSel.innerHTML = `<option value="">Unassigned</option>` + heats.map(h => {
+        const dShort = (h.day_number || 1) === 2 ? 'Sun' : 'Sat';
+        return `<option value="${h.id}" ${entry.heat_id === h.id ? 'selected' : ''}>${dShort} ${h.start_time}</option>`;
+      }).join('');
 
       document.getElementById('modal-status').value = entry.status;
       document.getElementById('modal-penalty').value = entry.penalty_formatted || '00:00';
@@ -1340,16 +1276,13 @@
 
       const combSel = document.getElementById('comb-first-idx');
       combSel.innerHTML = entry.splits.slice(0, 15).map((s, idx) =>
-        `<option value="${s.split_index}">#${s.split_index} ${s.short_label} + #${s.split_index + 1} ${entry.splits[idx + 1].short_label}</option>`
+        `<option value="${s.split_index}">#${s.split_index} ${cleanSplitLabel(s.short_label || s.label)} + #${s.split_index + 1} ${cleanSplitLabel(entry.splits[idx + 1].short_label || entry.splits[idx + 1].label)}</option>`
       ).join('');
 
       const grid = document.getElementById('modal-splits-grid');
       grid.innerHTML = entry.splits.map(s => `
         <div class="split-edit-item">
-          <div>
-            <div style="font-weight:800;font-size:0.8rem">#${s.split_index} · ${s.label}</div>
-            <div style="font-size:0.7rem;color:var(--muted)">${s.prescription}${s.pace_kph ? ` · <strong style="color:var(--blue)">${s.pace_kph_formatted}</strong>` : ''}</div>
-          </div>
+          <div style="font-weight:800;font-size:0.82rem">${cleanSplitLabel(s.label)}</div>
           <input type="text" class="split-dur-input" data-split-index="${s.split_index}"
             value="${s.duration_ms !== null ? s.duration_formatted : ''}"
             placeholder="MM:SS" style="width:92px;text-align:center;font-weight:800" />
