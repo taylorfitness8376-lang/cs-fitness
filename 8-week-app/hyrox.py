@@ -1063,7 +1063,8 @@ def serialize_entry(db, entry_row, include_splits=True, include_history=False):
     e["heat_name"] = heat_dict.get("name") or "Unassigned"
     e["heat_start_time"] = heat_dict.get("start_time") or "—"
     e["heat_number"] = heat_dict.get("heat_number") or 0
-    e["heat_day_number"] = int(heat_dict.get("day_number") or 1)
+    default_day_num = 1 if grp_meta["number"] in (1, 2) else 2
+    e["heat_day_number"] = int(heat_dict.get("day_number") or default_day_num)
     e["heat_slot_date"] = heat_dict.get("slot_date") or ""
     e["heat_division_block"] = heat_dict.get("division_block") or ""
 

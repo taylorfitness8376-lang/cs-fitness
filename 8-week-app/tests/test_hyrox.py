@@ -347,8 +347,10 @@ def test_historical_progression_and_web_surfaces(client):
     # Surface 3A: TV 1 — Live Timings TV (/hyrox/tv)
     tv_resp = client.get("/hyrox/tv")
     assert tv_resp.status_code == 200
-    assert b"LIVE TIMINGS TV" in tv_resp.data
-    assert b"LIVE ON-FLOOR TIMINGS" in tv_resp.data
+    assert b"LIVE TIMINGS" in tv_resp.data
+    assert b"WHO IS NEXT" in tv_resp.data
+    assert b"LIVE ON-FLOOR TIMINGS" not in tv_resp.data
+    assert b"Single-Screen Rolling Broadcast" not in tv_resp.data
     assert b"/static/logo.jpg" in tv_resp.data
     assert b"/hyrox/tv/finisher" in tv_resp.data
     assert b"DIVISION LEADERBOARD" not in tv_resp.data

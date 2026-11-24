@@ -525,42 +525,41 @@
   <header class="tv-header">
     <div class="tv-brand">
       <img src="/static/logo.jpg" alt="CS Performance Gym" class="tv-logo" />
-      <div>
-        <div class="tv-title">CS PERFORMANCE <span>HYROX</span> · LIVE TIMINGS TV</div>
-        <div class="tv-event-name" id="tv-event-subtitle">Loading Active HYROX Sim...</div>
-      </div>
+      <div class="tv-title">CS PERFORMANCE <span>HYROX</span> · LIVE TIMINGS</div>
     </div>
     <div style="display:flex;align-items:center;gap:0.65rem">
+      <select id="tv-day-select" class="tv-select" onchange="setDayFilter(this.value)" title="Filter by Event Day">
+        <option value="auto">📅 Today (Auto)</option>
+        <option value="1">📅 Saturday (Day 1)</option>
+        <option value="2">📅 Sunday (Day 2)</option>
+      </select>
+      <select id="tv-spotlight-select" class="tv-select" onchange="setSpotlightEntry(this.value)" title="Show Live on Course or Pin Athlete">
+        <option value="auto">⚡ Live On Course</option>
+      </select>
       <a href="/hyrox/tv/finisher" target="_blank" class="tv-btn" style="text-decoration:none;border-color:var(--green);color:var(--green)" title="Open Performance Gym Finisher Social Shot TV">📸 TV 2: Finisher Shot</a>
       <a href="/hyrox/admin" class="tv-btn" style="text-decoration:none" title="Open Race Director Console">⚙️ Console</a>
       <a href="/" class="tv-btn" style="text-decoration:none" title="Back to CS Performance Hub">🏠 Hub</a>
-      <button type="button" id="tv-pause-btn" class="tv-btn" onclick="toggleRollPause()">⏸ Pause Roll</button>
-      <select id="tv-spotlight-select" class="tv-select" onchange="setSpotlightEntry(this.value)">
-        <option value="auto">📺 Auto-Roll Floor Grid (2 per screen)</option>
-        <option value="auto-single">🎯 Auto-Roll 1-by-1 Spotlight</option>
-      </select>
       <div class="tv-clock" id="wall-clock">--:--:--</div>
     </div>
-    <div class="tv-roll-progress" id="tv-roll-progress"></div>
   </header>
 
   <main class="tv-grid">
-    <!-- LEFT: MULTI-RACER LIVE TIMINGS (2 PER SCREEN, AUTO-ROLLING) -->
+    <!-- LEFT: LIVE TIMINGS -->
     <section class="panel">
       <div class="panel-header">
-        <div class="panel-title">🔥 LIVE ON-FLOOR TIMINGS &amp; 16-STAGE MATRIX</div>
+        <div class="panel-title">LIVE TIMINGS</div>
         <div style="display:flex;align-items:center;gap:0.5rem">
-          <span class="page-pill" id="racer-page-badge">PAGE 1 / 1</span>
-          <span style="font-size:0.78rem;font-weight:800;color:var(--green)" id="active-count-badge">1 ON FLOOR</span>
+          <span class="page-pill" id="racer-page-badge">SATURDAY</span>
+          <span style="font-size:0.78rem;font-weight:800;color:var(--green)" id="active-count-badge">0 LIVE</span>
         </div>
       </div>
       <div id="live-racers-container"></div>
     </section>
 
-    <!-- RIGHT: NEXT SLOTS ON DECK -->
+    <!-- RIGHT: WHO IS NEXT -->
     <section class="panel">
       <div class="panel-header">
-        <div class="panel-title" style="color:var(--blue);font-size:1.35rem">⏳ NEXT SLOTS ON DECK</div>
+        <div class="panel-title" style="color:var(--blue);font-size:1.35rem">WHO IS NEXT</div>
         <span class="page-pill" id="ondeck-page-badge" style="color:var(--blue);border-color:rgba(56,189,248,0.35);background:rgba(56,189,248,0.12)">NEXT UP</span>
       </div>
       <div id="ondeck-rows"></div>
@@ -575,10 +574,12 @@
     let rotationIndex = 0;
     let racerPageIndex = 0;
     let onDeckPageIndex = 0;
-    let rollPaused = false;
-    let rollTickSec = 0;
-    const ROLL_INTERVAL_SEC = 7;
-    let spotlightEntryId = 'auto';
+    let currentRacerTotalPages = 1;
+    let currentOnDeckTotalPages = 1;
+    const ROLL_INTERVAL_SEC = 8;
+    const urlParams = new URLSearchParams(window.location.search);
+    let selectedDayFilter = urlParams.get('day') || 'auto';
+    let spotlightEntryId = urlParams.get('entry') || 'auto';
     const divisionOrder = [
       'women_open',
       'women_doubles',
@@ -601,19 +602,45 @@
       16: '8. WB'
     };
 
-    function toggleRollPause() {
-      rollPaused = !rollPaused;
-      const btn = document.getElementById('tv-pause-btn');
-      if (btn) {
-        btn.textContent = rollPaused ? '▶ Resume Roll' : '⏸ Pause Roll';
-        btn.classList.toggle('paused', rollPaused);
+    function getEffectiveDayNumber() {
+      if (selectedDayFilter === '1' || selectedDayFilter === '2') {
+        return parseInt(selectedDayFilter, 10);
       }
+      if (tvState) {
+        const racing = tvState.racing_entries || [];
+        if (racing.length > 0 && racing[0].heat_day_number) {
+          return parseInt(racing[0].heat_day_number, 10);
+        }
+        const now = new Date();
+        const todayIso = now.toISOString().slice(0, 10);
+        if (tvState.event && tvState.event.end_date && todayIso === tvState.event.end_date) {
+          return 2;
+        }
+        if (now.getDay() === 0) {
+          return 2; // Sunday -> Day 2
+        }
+      }
+      return 1; // Default Saturday -> Day 1
+    }
+
+    function getDayLabel(dayNum) {
+      return dayNum === 2 ? 'SUNDAY (DAY 2)' : 'SATURDAY (DAY 1)';
+    }
+
+    function setDayFilter(val) {
+      selectedDayFilter = val;
+      spotlightEntryId = 'auto';
+      racerPageIndex = 0;
+      onDeckPageIndex = 0;
+      populateSpotlightSelect();
+      renderLiveRacers(false);
+      renderOnDeck(false);
     }
 
     function setSpotlightEntry(val) {
       spotlightEntryId = val;
       racerPageIndex = 0;
-      renderLiveRacers(true);
+      renderLiveRacers(false);
     }
 
     function formatElapsed(ms) {
@@ -637,62 +664,79 @@
       const res = await fetch(`/api/hyrox/events/${evId}/state`);
       if (!res.ok) return;
       tvState = await res.json();
-      document.getElementById('tv-event-subtitle').textContent =
-        `${tvState.event.name} · ${tvState.event.venue} · Single-Screen Rolling Broadcast · 1.2 km Run Loop`;
       populateSpotlightSelect();
       renderLiveRacers(false);
-      renderRotatingLeaderboard(false);
       renderOnDeck(false);
     }
 
     function populateSpotlightSelect() {
       if (!tvState) return;
+      const activeDay = getEffectiveDayNumber();
+      const daySel = document.getElementById('tv-day-select');
+      if (daySel) {
+        const autoLbl = activeDay === 2 ? '📅 Today: Sunday (Day 2)' : '📅 Today: Saturday (Day 1)';
+        daySel.options[0].textContent = autoLbl;
+        daySel.value = selectedDayFilter;
+      }
       const sel = document.getElementById('tv-spotlight-select');
       const prev = spotlightEntryId;
-      const allEntries = tvState.entries || [];
+      const dayEntries = (tvState.entries || []).filter(e => (e.heat_day_number || 1) === activeDay);
       sel.innerHTML =
-        `<option value="auto" ${prev === 'auto' ? 'selected' : ''}>📺 Auto-Roll Floor Grid (2 per screen)</option>` +
-        `<option value="auto-single" ${prev === 'auto-single' ? 'selected' : ''}>🎯 Auto-Roll 1-by-1 Spotlight</option>` +
-        allEntries.map(e => `<option value="${e.id}" ${String(prev) === String(e.id) ? 'selected' : ''}>📌 Pin #${e.bib_number} ${e.full_display_name} (${e.division_short_label} · ${e.status.toUpperCase()})</option>`).join('');
+        `<option value="auto" ${prev === 'auto' ? 'selected' : ''}>⚡ Live On Course (${dayEntries.filter(e => e.status === 'racing').length} Live)</option>` +
+        dayEntries.map(e => `<option value="${e.id}" ${String(prev) === String(e.id) ? 'selected' : ''}>📌 Pin #${e.bib_number} ${e.full_display_name} (${e.division_short_label} · ${e.status.toUpperCase()})</option>`).join('');
     }
 
     function renderLiveRacers(animateTransition) {
       if (!tvState) return;
-      const racers = tvState.racing_entries || [];
-      const finished = tvState.finished_entries || [];
-      const allEntries = tvState.entries || [];
-      document.getElementById('active-count-badge').textContent =
-        racers.length > 0 ? `${racers.length} RACING NOW` : `${finished.length} FINISHED`;
+      const activeDay = getEffectiveDayNumber();
+      const dayLabel = getDayLabel(activeDay);
+      const allDayEntries = (tvState.entries || []).filter(e => (e.heat_day_number || 1) === activeDay);
+      const racers = (tvState.racing_entries || []).filter(e => (e.heat_day_number || 1) === activeDay);
+      const sched = (tvState.scheduled_entries || []).filter(e => (e.heat_day_number || 1) === activeDay);
+
+      document.getElementById('active-count-badge').textContent = `${racers.length} LIVE NOW`;
       const container = document.getElementById('live-racers-container');
       const pageBadge = document.getElementById('racer-page-badge');
 
       let pool = [];
       let pageSize = 2;
 
-      if (spotlightEntryId !== 'auto' && spotlightEntryId !== 'auto-single') {
-        const picked = allEntries.find(x => String(x.id) === String(spotlightEntryId));
+      if (spotlightEntryId !== 'auto') {
+        const picked = (tvState.entries || []).find(x => String(x.id) === String(spotlightEntryId));
         if (picked) pool = [picked];
         pageSize = 1;
       } else {
-        pool = racers.length > 0 ? racers : finished;
-        pageSize = (spotlightEntryId === 'auto-single' || pool.length === 1) ? 1 : 2;
+        pool = racers;
+        pageSize = pool.length === 1 ? 1 : 2;
       }
 
       if (!pool.length) {
-        if (pageBadge) pageBadge.textContent = 'STANDBY';
-        container.innerHTML = `<div style="padding:2rem;text-align:center;color:var(--muted);margin:auto">No athletes currently on the floor. Waiting for next 1:1 slot start...</div>`;
+        currentRacerTotalPages = 1;
+        if (pageBadge) pageBadge.textContent = dayLabel;
+        const nextUp = sched[0];
+        const nextHtml = nextUp
+          ? `<div style="margin-top:0.75rem;font-family:'Barlow Condensed',sans-serif;font-size:1.75rem;font-weight:800;color:#fff;text-transform:uppercase">Up Next: <span style="color:var(--green)">#${nextUp.bib_number} ${nextUp.full_display_name}</span> <span style="color:${nextUp.division_color};font-size:1.25rem">(${nextUp.division_short_label}${nextUp.heat_start_time && nextUp.heat_start_time !== '—' ? ' · ' + nextUp.heat_start_time : ''})</span></div>`
+          : '';
+        container.innerHTML = `
+          <div style="padding:2.5rem;text-align:center;color:var(--muted);margin:auto;background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.12);border-radius:14px;width:100%">
+            <div style="font-size:0.85rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--green)">${dayLabel} · COURSE STANDBY</div>
+            <div style="margin-top:0.35rem;font-size:1rem">No athletes currently live on course. Timings appear automatically as soon as the judge starts the clock.</div>
+            ${nextHtml}
+          </div>`;
         return;
       }
 
       const totalPages = Math.max(1, Math.ceil(pool.length / pageSize));
+      currentRacerTotalPages = totalPages;
       const safePage = racerPageIndex % totalPages;
       const targetEntries = pool.slice(safePage * pageSize, safePage * pageSize + pageSize);
       const isSingleCard = targetEntries.length === 1;
 
       if (pageBadge) {
-        const modePrefix = racers.length > 0 ? 'LIVE FLOOR' : 'RECENT FINISHERS';
         pageBadge.textContent = totalPages > 1
-          ? `${modePrefix} · PAGE ${safePage + 1} / ${totalPages}`
+          ? `${dayLabel} · PAGE ${safePage + 1} / ${totalPages}`
+          : dayLabel;
+      }
           : `${modePrefix} (${pool.length})`;
       }
 
@@ -920,49 +964,46 @@
 
     function renderOnDeck(animateTransition) {
       if (!tvState) return;
-      const sched = tvState.scheduled_entries || [];
-      const heats = tvState.heats || [];
-      const heatMap = {};
-      heats.forEach(h => { heatMap[h.id] = h; });
+      const activeDay = getEffectiveDayNumber();
+      const dayShort = activeDay === 2 ? 'Sun' : 'Sat';
+      const sched = (tvState.scheduled_entries || []).filter(e => (e.heat_day_number || 1) === activeDay);
       const el = document.getElementById('ondeck-rows');
       const badgeEl = document.getElementById('ondeck-page-badge');
 
       if (!sched.length) {
-        if (badgeEl) badgeEl.textContent = 'ALL UNDERWAY';
-        el.innerHTML = `<div style="color:var(--muted);font-size:0.82rem;margin:auto;text-align:center">All scheduled slots are underway or finished.</div>`;
+        currentOnDeckTotalPages = 1;
+        if (badgeEl) badgeEl.textContent = `${dayShort.toUpperCase()} · ALL DONE`;
+        el.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;margin:auto;text-align:center">No more athletes waiting to start for ${dayShort}.</div>`;
         return;
       }
 
-      const ONDECK_PAGE_SIZE = 7;
+      const ONDECK_PAGE_SIZE = 12;
       const totalPages = Math.max(1, Math.ceil(sched.length / ONDECK_PAGE_SIZE));
+      currentOnDeckTotalPages = totalPages;
       const safePage = onDeckPageIndex % totalPages;
       const pageItems = sched.slice(safePage * ONDECK_PAGE_SIZE, (safePage + 1) * ONDECK_PAGE_SIZE);
 
       if (badgeEl) {
         badgeEl.textContent = totalPages > 1
-          ? `SLOTS ${safePage * ONDECK_PAGE_SIZE + 1}–${Math.min(sched.length, (safePage + 1) * ONDECK_PAGE_SIZE)} OF ${sched.length}`
-          : `${sched.length} UPCOMING`;
+          ? `${dayShort.toUpperCase()} · ${safePage * ONDECK_PAGE_SIZE + 1}–${Math.min(sched.length, (safePage + 1) * ONDECK_PAGE_SIZE)} OF ${sched.length}`
+          : `${dayShort.toUpperCase()} · ${sched.length} NEXT`;
       }
 
-      if (animateTransition) {
+      if (animateTransition && totalPages > 1) {
         el.classList.remove('roll-stage');
         void el.offsetWidth;
         el.classList.add('roll-stage');
       }
 
       el.innerHTML = pageItems.map(e => {
-        const hObj = heatMap[e.heat_id];
-        const chg = hObj && hObj.weight_changeover_before;
-        const chgHtml = chg
-          ? `<div style="font-size:0.68rem;color:var(--yellow);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">⚖️ Setup (+${chg.buffer_mins}m): ${chg.to_weights}</div>`
-          : '';
+        const timeStr = (e.heat_start_time && e.heat_start_time !== '—') ? `<strong>${e.heat_start_time}</strong> · ` : '';
+        const volStr = e.volunteer_name ? ` · Vol: ${e.volunteer_name}` : '';
         return `
           <div class="ondeck-item">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;width:100%">
-              <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><strong>Day ${e.heat_day_number || 1} · ${e.heat_start_time}</strong> · #${e.bib_number} ${e.full_display_name}</span>
-              <span style="color:${e.division_color};font-weight:800;font-size:0.75rem;flex-shrink:0">${e.division_short_label} · Vol: ${e.volunteer_name || 'TBA'}</span>
+              <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${timeStr}#${e.bib_number} <strong>${e.full_display_name}</strong></span>
+              <span style="color:${e.division_color};font-weight:800;font-size:0.75rem;flex-shrink:0">${e.division_short_label}${volStr}</span>
             </div>
-            ${chgHtml}
           </div>
         `;
       }).join('');
@@ -991,23 +1032,17 @@
     fetchTvState();
     setInterval(tickLiveClocks, 500);
     setInterval(fetchTvState, 4000);
+    // Only auto-roll pages if there are more athletes on course or on deck than fit on one screen
     setInterval(() => {
-      if (rollPaused) return;
-      rollTickSec++;
-      const progEl = document.getElementById('tv-roll-progress');
-      if (progEl) {
-        const pct = Math.min(100, Math.round(((rollTickSec % ROLL_INTERVAL_SEC) / (ROLL_INTERVAL_SEC - 1)) * 100));
-        progEl.style.width = `${pct}%`;
-      }
-      if (rollTickSec % ROLL_INTERVAL_SEC === 0) {
+      if (currentRacerTotalPages > 1) {
         racerPageIndex++;
-        rotationIndex++;
-        onDeckPageIndex++;
         renderLiveRacers(true);
-        renderRotatingLeaderboard(true);
+      }
+      if (currentOnDeckTotalPages > 1) {
+        onDeckPageIndex++;
         renderOnDeck(true);
       }
-    }, 1000);
+    }, ROLL_INTERVAL_SEC * 1000);
   </script>
 </body>
 </html>
