@@ -211,9 +211,13 @@
       background: rgba(56, 189, 248, 0.12);
       border: 1.5px solid rgba(56, 189, 248, 0.45);
       border-radius: 10px;
-      padding: 0.22rem 0.7rem;
-      text-align: right;
-      min-width: 145px;
+      padding: 0.25rem 0.75rem;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: 155px;
     }
     .stage-clock-lbl {
       font-size: 0.58rem;
@@ -221,6 +225,7 @@
       text-transform: uppercase;
       letter-spacing: 0.07em;
       color: var(--blue);
+      text-align: center;
     }
     .stage-clock-val {
       font-family: 'Barlow Condensed', sans-serif;
@@ -229,6 +234,7 @@
       color: #e0f2fe;
       line-height: 1;
       font-variant-numeric: tabular-nums;
+      text-align: center;
     }
     .racer-card.single-spotlight .stage-clock-val {
       font-size: 2.6rem;
@@ -237,9 +243,13 @@
       background: rgba(61, 255, 79, 0.12);
       border: 1.5px solid rgba(61, 255, 79, 0.45);
       border-radius: 10px;
-      padding: 0.22rem 0.7rem;
-      text-align: right;
-      min-width: 145px;
+      padding: 0.25rem 0.75rem;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: 155px;
     }
     .racer-clock-lbl {
       font-size: 0.58rem;
@@ -247,6 +257,7 @@
       text-transform: uppercase;
       letter-spacing: 0.07em;
       color: var(--green);
+      text-align: center;
     }
     .racer-clock {
       font-family: 'Barlow Condensed', sans-serif;
@@ -255,6 +266,7 @@
       color: var(--green);
       line-height: 1;
       font-variant-numeric: tabular-nums;
+      text-align: center;
     }
     .racer-card.single-spotlight .racer-clock {
       font-size: 2.6rem;
@@ -308,7 +320,9 @@
       padding: 0.28rem 0.5rem;
       display: flex;
       flex-direction: column;
+      align-items: center;
       justify-content: center;
+      text-align: center;
     }
     .stat-pill-lbl {
       font-size: 0.56rem;
@@ -316,14 +330,16 @@
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--muted);
+      text-align: center;
     }
     .stat-pill-val {
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
-      font-size: 1.15rem;
+      font-size: 1.35rem;
       color: #f8fafc;
-      line-height: 1.05;
+      line-height: 1.1;
       font-variant-numeric: tabular-nums;
+      text-align: center;
     }
     .stat-pill-sub {
       font-size: 0.62rem;
@@ -353,7 +369,9 @@
     .strip-row-tag {
       display: flex;
       flex-direction: column;
+      align-items: center;
       justify-content: center;
+      text-align: center;
       padding: 0.2rem 0.35rem;
       border-radius: 6px;
       font-size: 0.62rem;
@@ -376,10 +394,12 @@
       background: rgba(255, 255, 255, 0.035);
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 7px;
-      padding: 0.22rem 0.32rem;
+      padding: 0.28rem 0.32rem;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
       min-width: 0;
       position: relative;
       overflow: hidden;
@@ -402,14 +422,15 @@
     }
     .split-cell-top {
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       align-items: center;
-      gap: 0.15rem;
+      width: 100%;
       font-size: 0.62rem;
       font-weight: 800;
       color: #cbd5e1;
       text-transform: uppercase;
       white-space: nowrap;
+      text-align: center;
     }
     .split-cell.active-stage .split-cell-top {
       color: var(--green);
@@ -417,11 +438,13 @@
     .split-cell-time {
       font-family: 'Barlow Condensed', sans-serif;
       font-weight: 800;
-      font-size: 1.05rem;
+      font-size: 1.15rem;
       color: #fff;
       line-height: 1.05;
       font-variant-numeric: tabular-nums;
-      margin-top: 0.08rem;
+      margin-top: 0.1rem;
+      text-align: center;
+      width: 100%;
     }
     .racer-card.single-spotlight .split-cell-time {
       font-size: 1.35rem;
@@ -767,11 +790,6 @@
             ? 'active-stage'
             : (isDone ? (s.split_type === 'run' ? 'done-run' : 'done-station') : 'upcoming');
 
-          let badgeHtml = '';
-          if (isCurrent) {
-            badgeHtml = `<span style="font-size:0.55rem;color:var(--green);font-weight:900">●</span>`;
-          }
-
           let timeHtml = isDone ? s.duration_formatted : '—';
           if (isCurrent) {
             timeHtml = `<span class="live-split-clock" data-started-ms="${e.started_at_ms || 0}" data-completed-sum-ms="${completedSumMs}" style="color:var(--green)">00:00</span>`;
@@ -781,7 +799,6 @@
             <div class="split-cell ${cellCls}">
               <div class="split-cell-top">
                 <span>${shortTitle}</span>
-                ${badgeHtml}
               </div>
               <div class="split-cell-time">${timeHtml}</div>
             </div>
@@ -810,7 +827,7 @@
               <div class="racer-clocks-wrap">
                 ${!isFinished ? `
                   <div class="stage-clock-box">
-                    <div class="stage-clock-lbl">Stage Split</div>
+                    <div class="stage-clock-lbl">Stage ${e.completed_splits + 1}/16</div>
                     <div class="stage-clock-val live-split-clock" data-started-ms="${e.started_at_ms || 0}" data-completed-sum-ms="${completedSumMs}">00:00</div>
                   </div>
                 ` : ''}
