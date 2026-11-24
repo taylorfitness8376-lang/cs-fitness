@@ -1487,6 +1487,25 @@ def hyrox_tv_page():
     )
 
 
+@hyrox_bp.route("/hyrox/tv/finisher")
+def hyrox_tv_finisher_page():
+    db = get_db()
+    ensure_hyrox_tables(db)
+    entry_id = request.args.get("entry", type=int) or request.args.get("entry_id", type=int)
+    event_id = request.args.get("event_id", type=int)
+    if entry_id and not event_id:
+        erow = db.execute("SELECT event_id FROM hyrox_entries WHERE id=?", (entry_id,)).fetchone()
+        if erow:
+            event_id = erow["event_id"]
+    event_id = get_active_event_id(db, event_id)
+    return render_template(
+        "hyrox_tv_finisher.html",
+        active_event_id=event_id,
+        initial_entry_id=entry_id,
+        divisions=HYROX_DIVISIONS,
+    )
+
+
 @hyrox_bp.route("/hyrox/results/<int:entry_id>")
 def hyrox_results_page(entry_id):
     db = get_db()

@@ -344,19 +344,30 @@ def test_historical_progression_and_web_surfaces(client):
     assert b"Train Hard &amp; Be Sound" in judge_resp.data
     assert b'href="/"' in judge_resp.data
 
-    # Surface 3: Live Gym TV Broadcast (HYROX App / Roxfit 16-split view)
+    # Surface 3A: TV 1 — Live Timings TV (/hyrox/tv)
     tv_resp = client.get("/hyrox/tv")
     assert tv_resp.status_code == 200
-    assert b"HYROX APP VIEW" in tv_resp.data
+    assert b"LIVE TIMINGS TV" in tv_resp.data
+    assert b"LIVE ON-FLOOR TIMINGS" in tv_resp.data
     assert b"/static/logo.jpg" in tv_resp.data
-    assert b"FINISHER BOARD" in tv_resp.data
-    assert b"TRAIN HARD &amp; BE SOUND" in tv_resp.data
+    assert b"/hyrox/tv/finisher" in tv_resp.data
     assert b"DIVISION LEADERBOARD" not in tv_resp.data
+
+    # Surface 3B: TV 2 — Performance Gym Finisher Social Shot TV (/hyrox/tv/finisher)
+    tv_fin_resp = client.get(f"/hyrox/tv/finisher?entry={ewan['id']}")
+    assert tv_fin_resp.status_code == 200
+    assert b"/static/logo.jpg" in tv_fin_resp.data
+    assert b"CS <span>FITNESS</span>" in tv_fin_resp.data
+    assert b"TRAIN HARD &amp; BE SOUND" in tv_fin_resp.data
+    assert b"HYROX SIM" in tv_fin_resp.data
+    assert b"OFFICIAL FINISHER TIME" in tv_fin_resp.data
 
     # Surface 4: Athlete Results & Social Finisher Card
     res_resp = client.get(f"/hyrox/results/{ewan['id']}")
     assert res_resp.status_code == 200
-    assert b"FINISHER CARD GENERATOR" in res_resp.data
+    assert b"SOCIAL MEDIA FINISHER SHOT" in res_resp.data
+    assert b"Clean Finisher Social Shot" in res_resp.data
+    assert b"Detailed 16-Split Breakdown" in res_resp.data
     assert b"/static/logo.jpg" in res_resp.data
     assert b"Train Hard &amp; Be Sound" in res_resp.data
     assert b"Age Cat" not in res_resp.data

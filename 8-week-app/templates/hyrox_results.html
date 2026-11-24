@@ -333,7 +333,8 @@
     <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
       <a href="/hyrox/admin" class="btn">🏁 Race Console</a>
       <a href="/hyrox/judge?entry={{ entry.id }}" class="btn">⏱️ Judge View</a>
-      <a href="/hyrox/tv" class="btn">📺 Live TV</a>
+      <a href="/hyrox/tv" class="btn">📺 TV 1: Live Timings</a>
+      <a href="/hyrox/tv/finisher?entry={{ entry.id }}" target="_blank" class="btn btn-green">📸 TV 2: Finisher Shot</a>
       <a href="/" class="btn">🏠 CS Hub</a>
     </div>
   </header>
@@ -430,20 +431,27 @@
 
     <!-- SOCIAL FINISHER PNG GENERATOR (STORY 9:16 & POST 4:5) -->
     <section class="card">
-      <div class="card-title">📲 1-TAP INSTAGRAM STORY (9:16) &amp; POST (4:5) FINISHER CARD GENERATOR</div>
+      <div class="card-title">📲 1-TAP SOCIAL MEDIA FINISHER SHOT &amp; DETAILED BREAKDOWN CARDS</div>
       <div class="social-preview-wrap">
         <canvas id="finisher-canvas" width="1080" height="1920"></canvas>
         <div style="flex:1;min-width:260px">
-          <p style="color:var(--muted);font-size:0.88rem;line-height:1.5;margin-bottom:1rem">
-            Generate a high-resolution CS Performance HYROX Finisher PNG with your Official Time, Division badge, Run vs. Station summary, and all 8 Run + 8 Station splits ready to save or share directly to Instagram Stories or Feed.
+          <p style="color:var(--muted);font-size:0.88rem;line-height:1.5;margin-bottom:0.85rem">
+            Download or share your official <strong>CS Fitness HYROX Sim</strong> graphics for Instagram Stories or Feed — choose the clean <strong>Finisher Social Shot</strong> (matching the Performance Gym TV) or the <strong>Detailed 16-Split Breakdown Card</strong>.
           </p>
+          <div style="font-size:0.72rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.35rem">1. Card Style</div>
           <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.85rem">
-            <button type="button" class="btn btn-green" onclick="renderFinisherCanvas('story')">📱 Story 9:16 (1080×1920)</button>
-            <button type="button" class="btn" onclick="renderFinisherCanvas('post')">🖼️ Feed Post 4:5 (1080×1350)</button>
+            <button type="button" id="style-hero-btn" class="btn btn-green" onclick="setCardStyle('hero')">📸 Clean Finisher Social Shot</button>
+            <button type="button" id="style-detailed-btn" class="btn" onclick="setCardStyle('detailed')">📊 Detailed 16-Split Breakdown</button>
+          </div>
+          <div style="font-size:0.72rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.35rem">2. Aspect Ratio</div>
+          <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.95rem">
+            <button type="button" id="fmt-story-btn" class="btn btn-green" onclick="renderFinisherCanvas('story')">📱 Story 9:16 (1080×1920)</button>
+            <button type="button" id="fmt-post-btn" class="btn" onclick="renderFinisherCanvas('post')">🖼️ Feed Post 4:5 (1080×1350)</button>
           </div>
           <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
             <button type="button" class="btn btn-green" onclick="downloadFinisherPng()">⬇️ Download Finisher PNG</button>
             <button type="button" class="btn" onclick="shareFinisherPng()">📤 Share to Socials</button>
+            <a href="/hyrox/tv/finisher?entry={{ entry.id }}" target="_blank" class="btn">📺 Open Full-Screen Finisher TV Shot</a>
           </div>
         </div>
       </div>
@@ -453,10 +461,18 @@
   <script>
     const entryData = {{ entry | tojson }};
     let currentFormat = 'story';
+    let currentCardStyle = 'hero';
     const csLogoImg = new Image();
     csLogoImg.crossOrigin = 'anonymous';
     csLogoImg.onload = () => renderFinisherCanvas(currentFormat);
     csLogoImg.src = '/static/logo.jpg';
+
+    function setCardStyle(style) {
+      currentCardStyle = style;
+      document.getElementById('style-hero-btn').classList.toggle('btn-green', style === 'hero');
+      document.getElementById('style-detailed-btn').classList.toggle('btn-green', style === 'detailed');
+      renderFinisherCanvas(currentFormat);
+    }
 
     function renderSplitTable() {
       const splits = entryData.splits || [];
@@ -529,6 +545,11 @@
 
     function renderFinisherCanvas(mode) {
       currentFormat = mode || currentFormat;
+      const fmtStoryBtn = document.getElementById('fmt-story-btn');
+      const fmtPostBtn = document.getElementById('fmt-post-btn');
+      if (fmtStoryBtn) fmtStoryBtn.classList.toggle('btn-green', currentFormat === 'story');
+      if (fmtPostBtn) fmtPostBtn.classList.toggle('btn-green', currentFormat === 'post');
+
       const canvas = document.getElementById('finisher-canvas');
       const isStory = currentFormat === 'story';
       canvas.width = 1080;
@@ -547,6 +568,82 @@
       ctx.strokeStyle = '#3DFF4F';
       ctx.lineWidth = 6;
       ctx.strokeRect(36, 36, 1008, canvas.height - 72);
+
+      if (currentCardStyle === 'hero') {
+        ctx.save();
+        ctx.textAlign = 'center';
+
+        // 1. Large Centered CS Fitness Logo
+        const logoSize = isStory ? 220 : 165;
+        const logoX = (1080 - logoSize) / 2;
+        const logoY = isStory ? 130 : 88;
+        if (csLogoImg && csLogoImg.complete && csLogoImg.naturalWidth > 0) {
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(logoX - 6, logoY - 6, logoSize + 12, logoSize + 12);
+          ctx.strokeStyle = '#3DFF4F';
+          ctx.lineWidth = 4;
+          ctx.strokeRect(logoX - 6, logoY - 6, logoSize + 12, logoSize + 12);
+          ctx.drawImage(csLogoImg, logoX, logoY, logoSize, logoSize);
+        }
+
+        // 2. Gym Name & Motto
+        const brandY = logoY + logoSize + (isStory ? 95 : 74);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `italic 900 ${isStory ? 74 : 62}px "Barlow Condensed", sans-serif`;
+        ctx.fillText('CS FITNESS · PERFORMANCE GYM', 540, brandY);
+
+        ctx.fillStyle = '#3DFF4F';
+        ctx.font = `800 ${isStory ? 42 : 34}px "Barlow Condensed", sans-serif`;
+        ctx.fillText('TRAIN HARD & BE SOUND', 540, brandY + (isStory ? 56 : 46));
+
+        // 3. HYROX SIM Pill
+        const pillY = brandY + (isStory ? 105 : 80);
+        const pillH = isStory ? 78 : 64;
+        ctx.fillStyle = 'rgba(61, 255, 79, 0.14)';
+        ctx.fillRect(140, pillY, 800, pillH);
+        ctx.strokeStyle = '#3DFF4F';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(140, pillY, 800, pillH);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `italic 800 ${isStory ? 46 : 38}px "Barlow Condensed", sans-serif`;
+        ctx.fillText(`HYROX SIM · ${(entryData.division_label || 'OPEN').toUpperCase()}`, 540, pillY + (isStory ? 53 : 44));
+
+        // 4. Athlete / Athletes Name
+        const nameLabelY = pillY + pillH + (isStory ? 145 : 95);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '800 28px "Inter", sans-serif';
+        ctx.fillText(entryData.partner_name ? 'OFFICIAL FINISHER TEAM' : 'OFFICIAL FINISHER', 540, nameLabelY);
+
+        const fullName = (entryData.full_display_name || '').toUpperCase();
+        const nameFontPx = fullName.length > 22 ? (isStory ? 82 : 68) : (isStory ? 108 : 88);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `italic 900 ${nameFontPx}px "Barlow Condensed", sans-serif`;
+        ctx.fillText(fullName, 540, nameLabelY + (isStory ? 110 : 88));
+
+        // 5. Huge Finisher Time Box
+        const boxY = nameLabelY + (isStory ? 195 : 140);
+        const boxH = isStory ? 340 : 260;
+        ctx.fillStyle = 'rgba(61, 255, 79, 0.14)';
+        ctx.fillRect(96, boxY, 888, boxH);
+        ctx.strokeStyle = '#3DFF4F';
+        ctx.lineWidth = 5;
+        ctx.strokeRect(96, boxY, 888, boxH);
+
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '800 30px "Inter", sans-serif';
+        ctx.fillText('OFFICIAL FINISHER TIME', 540, boxY + (isStory ? 66 : 54));
+
+        ctx.fillStyle = '#3DFF4F';
+        ctx.font = `italic 900 ${isStory ? 190 : 152}px "Barlow Condensed", sans-serif`;
+        ctx.fillText(entryData.total_formatted || '--:--', 540, boxY + (isStory ? 265 : 210));
+
+        // 6. Event Footer
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '700 26px "Inter", sans-serif';
+        ctx.fillText(`${entryData.event_name || 'CS PERFORMANCE HYROX SIM'} · TRAIN HARD & BE SOUND`, 540, canvas.height - 76);
+        ctx.restore();
+        return;
+      }
 
       // Draw CS Performance Gym Logo in Top-Right Header
       const logoSize = isStory ? 136 : 112;

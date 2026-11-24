@@ -89,7 +89,7 @@
 
     .tv-grid {
       display: grid;
-      grid-template-columns: 1.48fr 1fr;
+      grid-template-columns: 2.15fr 0.85fr;
       gap: 1rem;
       padding: 0.85rem 1.4rem;
       flex: 1;
@@ -526,11 +526,12 @@
     <div class="tv-brand">
       <img src="/static/logo.jpg" alt="CS Performance Gym" class="tv-logo" />
       <div>
-        <div class="tv-title">CS PERFORMANCE <span>HYROX</span> · TRAIN HARD &amp; BE SOUND</div>
+        <div class="tv-title">CS PERFORMANCE <span>HYROX</span> · LIVE TIMINGS TV</div>
         <div class="tv-event-name" id="tv-event-subtitle">Loading Active HYROX Sim...</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:0.65rem">
+      <a href="/hyrox/tv/finisher" target="_blank" class="tv-btn" style="text-decoration:none;border-color:var(--green);color:var(--green)" title="Open Performance Gym Finisher Social Shot TV">📸 TV 2: Finisher Shot</a>
       <a href="/hyrox/admin" class="tv-btn" style="text-decoration:none" title="Open Race Director Console">⚙️ Console</a>
       <a href="/" class="tv-btn" style="text-decoration:none" title="Back to CS Performance Hub">🏠 Hub</a>
       <button type="button" id="tv-pause-btn" class="tv-btn" onclick="toggleRollPause()">⏸ Pause Roll</button>
@@ -544,10 +545,10 @@
   </header>
 
   <main class="tv-grid">
-    <!-- LEFT: MULTI-RACER TV BROADCAST CARDS (2 PER SCREEN, AUTO-ROLLING) -->
+    <!-- LEFT: MULTI-RACER LIVE TIMINGS (2 PER SCREEN, AUTO-ROLLING) -->
     <section class="panel">
       <div class="panel-header">
-        <div class="panel-title">🔥 LIVE ON-FLOOR TELEMETRY &amp; 16-STAGE MATRIX (HYROX APP VIEW)</div>
+        <div class="panel-title">🔥 LIVE ON-FLOOR TIMINGS &amp; 16-STAGE MATRIX</div>
         <div style="display:flex;align-items:center;gap:0.5rem">
           <span class="page-pill" id="racer-page-badge">PAGE 1 / 1</span>
           <span style="font-size:0.78rem;font-weight:800;color:var(--green)" id="active-count-badge">1 ON FLOOR</span>
@@ -556,27 +557,16 @@
       <div id="live-racers-container"></div>
     </section>
 
-    <!-- RIGHT: AUTO-ROLLING 9-DIVISION FINISHER BOARD + ROLLING NEXT SLOTS ON DECK -->
-    <div class="right-col-stack">
-      <section class="panel">
-        <div class="panel-header">
-          <div class="panel-title" id="lb-division-title">🤝 FINISHER BOARD · TRAIN HARD &amp; BE SOUND</div>
-          <div style="display:flex;align-items:center;gap:0.45rem">
-            <span class="page-pill" id="lb-page-badge">1 / 1</span>
-            <div id="lb-dots" style="display:flex;gap:0.3rem"></div>
-          </div>
-        </div>
-        <div id="leaderboard-rows"></div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-header">
-          <div class="panel-title" style="color:var(--blue);font-size:1.35rem">⏳ NEXT 1:1 SLOTS ON DECK &amp; WEIGHT SETUP</div>
-          <span class="page-pill" id="ondeck-page-badge" style="color:var(--blue);border-color:rgba(56,189,248,0.35);background:rgba(56,189,248,0.12)">NEXT UP</span>
-        </div>
-        <div id="ondeck-rows"></div>
-      </section>
-    </div>
+    <!-- RIGHT: NEXT SLOTS ON DECK -->
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title" style="color:var(--blue);font-size:1.35rem">⏳ NEXT SLOTS ON DECK</div>
+        <span class="page-pill" id="ondeck-page-badge" style="color:var(--blue);border-color:rgba(56,189,248,0.35);background:rgba(56,189,248,0.12)">NEXT UP</span>
+      </div>
+      <div id="ondeck-rows"></div>
+      <div style="display:none" id="leaderboard-rows"></div>
+      <div style="display:none" id="lb-division-title"></div>
+    </section>
   </main>
 
   <script>
@@ -943,7 +933,7 @@
         return;
       }
 
-      const ONDECK_PAGE_SIZE = 3;
+      const ONDECK_PAGE_SIZE = 7;
       const totalPages = Math.max(1, Math.ceil(sched.length / ONDECK_PAGE_SIZE));
       const safePage = onDeckPageIndex % totalPages;
       const pageItems = sched.slice(safePage * ONDECK_PAGE_SIZE, (safePage + 1) * ONDECK_PAGE_SIZE);

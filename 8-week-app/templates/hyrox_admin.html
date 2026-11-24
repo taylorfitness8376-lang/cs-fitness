@@ -332,8 +332,9 @@
     </div>
     <div class="nav-actions">
       <select id="event-selector" onchange="switchEvent(this.value)" style="width:auto;min-width:250px;font-weight:700"></select>
-      <a href="/hyrox/judge" target="_blank" class="btn btn-yellow">⏱️ Open Volunteer Judge App</a>
-      <a href="/hyrox/tv" target="_blank" class="btn btn-green">📺 Launch Live Gym TV</a>
+      <a href="/hyrox/judge" target="_blank" class="btn btn-yellow">⏱️ Judge App</a>
+      <a href="/hyrox/tv" target="_blank" class="btn btn-green">📺 TV 1: Live Timings</a>
+      <a href="/hyrox/tv/finisher" target="_blank" class="btn" style="border-color:var(--green);color:var(--green)">📸 TV 2: Finisher Shot</a>
       <a href="/" class="btn">🏠 CS Hub</a>
     </div>
   </header>
@@ -1032,15 +1033,34 @@
           const statusClass = `status-${e.status}`;
           const relUrl = `/hyrox/results/${e.id}`;
           const fullUrl = `${window.location.origin}${relUrl}`;
-          const mailSubject = encodeURIComponent(`Your CS Performance HYROX Sim Results — ${e.full_display_name}`);
+          const tvShotUrl = `${window.location.origin}/hyrox/tv/finisher?entry=${e.id}`;
+          const splitsLines = (e.splits || [])
+            .filter(s => s.duration_ms !== null && s.duration_ms !== undefined)
+            .map(s => `  • ${s.label}: ${s.duration_formatted}`)
+            .join('\n');
+          const breakdownBlock = splitsLines
+            ? `\n--- DETAILED 16-SPLIT BREAKDOWN ---\n` +
+              `Run Total (8 × 1.2 km): ${e.run_total_formatted || '--:--'}${e.avg_run_kph_formatted ? ' (' + e.avg_run_kph_formatted + ')' : ''}\n` +
+              `Station Total (8 Stations): ${e.station_total_formatted || '--:--'}\n` +
+              `${splitsLines}\n`
+            : '';
+          const mailSubject = encodeURIComponent(`Your CS Fitness HYROX Sim Results & Social Finisher Card — ${e.full_display_name}`);
           const mailBody = encodeURIComponent(
-            `Hi ${e.full_display_name},\n\nWell done at the CS Performance HYROX Simulation! Train Hard & Be Sound.\n\n` +
+            `Hi ${e.full_display_name},\n\n` +
+            `Massive well done at the CS Fitness HYROX Simulation! Train Hard & Be Sound.\n\n` +
+            `🏁 CS FITNESS · HYROX SIM\n` +
+            `Athlete / Team: ${e.full_display_name}\n` +
             `Category: ${e.division_label}\n` +
-            `Official Time: ${e.total_formatted}\n\n` +
-            `View your full 16-split breakdown and download your Finisher Card here:\n${fullUrl}\n`
+            `Official Finisher Time: ${e.total_formatted}\n` +
+            `${breakdownBlock}\n` +
+            `📲 DOWNLOAD YOUR SOCIAL MEDIA FINISHER SHOT & FULL BREAKDOWN:\n` +
+            `${fullUrl}\n\n` +
+            `📸 FULL-SCREEN FINISHER BACKDROP:\n` +
+            `${tvShotUrl}\n\n` +
+            `CS Performance Gym · Train Hard & Be Sound\n`
           );
           const emailActionBtn = e.email
-            ? `<a href="mailto:${encodeURIComponent(e.email)}?subject=${mailSubject}&body=${mailBody}" class="btn-xs" title="Email Results Link to ${escapeHtml(e.email)}">✉️</a>`
+            ? `<a href="mailto:${encodeURIComponent(e.email)}?subject=${mailSubject}&body=${mailBody}" class="btn-xs" title="Email Detailed Breakdown & Social Finisher Card to ${escapeHtml(e.email)}">✉️</a>`
             : '';
 
           const hasTime = (e.completed_splits || 0) > 0 || e.status === 'finished' || e.status === 'racing';
@@ -1083,7 +1103,8 @@
                 <div style="display:flex;gap:0.22rem;flex-wrap:nowrap;align-items:center">
                   <a href="/hyrox/judge?entry=${e.id}" target="_blank" class="btn-xs" title="Open Volunteer Judge Timer">⏱️ Judge</a>
                   <button type="button" class="btn-xs" onclick="openSplitsModal(${e.id})" title="Edit Athlete / Splits">✏️ Edit</button>
-                  <a href="${relUrl}" target="_blank" class="btn-xs btn-green" title="Open Athlete Results Web Link">📲 Results</a>
+                  <a href="/hyrox/tv/finisher?entry=${e.id}" target="_blank" class="btn-xs" style="border-color:var(--green);color:var(--green)" title="Open on Performance Gym Finisher TV">📸 TV</a>
+                  <a href="${relUrl}" target="_blank" class="btn-xs btn-green" title="Open Athlete Results & Social Card Web Link">📲 Results</a>
                   <button type="button" class="btn-xs" onclick="copyResultWebLink(${e.id}, this)" title="Copy Results Web Link">📋 Link</button>
                   ${emailActionBtn}
                   <button type="button" class="btn-xs btn-red" title="Remove Entry" onclick="quickDeleteEntry(${e.id})">🗑️</button>

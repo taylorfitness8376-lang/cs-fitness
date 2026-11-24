@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CS Fitness HYROX Sim — Performance Gym Finisher Social Shot TV</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;1,800;1,900&family=Inter:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #030604;
+      --surface: #0a140d;
+      --surface-2: #112116;
+      --border: rgba(61, 255, 79, 0.42);
+      --green: #3DFF4F;
+      --yellow: #facc15;
+      --blue: #38bdf8;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background:
+        radial-gradient(circle at 50% 15%, rgba(61, 255, 79, 0.18) 0%, transparent 55%),
+        radial-gradient(circle at 50% 85%, rgba(56, 189, 248, 0.1) 0%, transparent 50%),
+        linear-gradient(180deg, #07120a 0%, #030604 50%, #07120a 100%);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      height: 100vh;
+      max-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Discreet top control bar that can be hidden for a 100% clean social photo */
+    .tv-control-bar {
+      background: rgba(5, 10, 7, 0.92);
+      border-bottom: 1px solid rgba(61, 255, 79, 0.25);
+      padding: 0.45rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      z-index: 30;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+    body.photo-clean-mode .tv-control-bar {
+      display: none;
+    }
+    .tv-btn, .tv-select {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 7px;
+      padding: 0.32rem 0.65rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .tv-btn:hover, .tv-select:hover {
+      border-color: var(--green);
+    }
+    .tv-btn.btn-green {
+      background: var(--green);
+      color: #041206;
+      border-color: var(--green);
+      font-weight: 800;
+    }
+    .tv-btn.active-toggle {
+      background: rgba(61, 255, 79, 0.18);
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    /* Main Full-Screen Social Photo Backdrop */
+    .finisher-stage {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.4rem 2.2rem;
+      position: relative;
+      min-height: 0;
+    }
+    .finisher-frame {
+      width: 100%;
+      max-width: 1460px;
+      height: 100%;
+      max-height: 900px;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(61, 255, 79, 0.14) 0%, rgba(10, 20, 13, 0.96) 65%),
+        #071009;
+      border: 3px solid var(--green);
+      border-radius: 28px;
+      box-shadow:
+        0 0 60px rgba(61, 255, 79, 0.18),
+        inset 0 0 40px rgba(61, 255, 79, 0.08);
+      padding: 2rem 3rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Corner accents for photo framing */
+    .corner-accent {
+      position: absolute;
+      width: 42px;
+      height: 42px;
+      border-color: var(--green);
+      border-style: solid;
+      opacity: 0.75;
+      pointer-events: none;
+    }
+    .corner-tl { top: 16px; left: 16px; border-width: 4px 0 0 4px; border-top-left-radius: 12px; }
+    .corner-tr { top: 16px; right: 16px; border-width: 4px 4px 0 0; border-top-right-radius: 12px; }
+    .corner-bl { bottom: 16px; left: 16px; border-width: 0 0 4px 4px; border-bottom-left-radius: 12px; }
+    .corner-br { bottom: 16px; right: 16px; border-width: 0 4px 4px 0; border-bottom-right-radius: 12px; }
+
+    /* Top Brand Block: CS Fitness Logo + Name + Motto + HYROX Sim */
+    .brand-hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.45rem;
+    }
+    .brand-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.25rem;
+    }
+    .finisher-logo {
+      width: 96px;
+      height: 96px;
+      border-radius: 18px;
+      border: 3px solid var(--green);
+      object-fit: cover;
+      background: #000;
+      box-shadow: 0 0 28px rgba(61, 255, 79, 0.32);
+    }
+    .brand-text-block {
+      text-align: left;
+    }
+    .gym-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 900;
+      font-size: clamp(2.4rem, 4.2vw, 3.8rem);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      line-height: 0.95;
+      color: #ffffff;
+    }
+    .gym-name span {
+      color: var(--green);
+    }
+    .gym-motto {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: clamp(1.15rem, 2vw, 1.65rem);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-top: 0.2rem;
+    }
+    .hyrox-sim-banner {
+      margin-top: 0.45rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: rgba(61, 255, 79, 0.14);
+      border: 2px solid var(--green);
+      padding: 0.35rem 1.5rem;
+      border-radius: 999px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 900;
+      font-size: clamp(1.4rem, 2.5vw, 2.1rem);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #ffffff;
+    }
+    .hyrox-sim-banner .div-tag {
+      color: var(--green);
+    }
+
+    /* Center Athlete / Pair Name */
+    .athlete-block {
+      my: auto;
+      width: 100%;
+      padding: 0.5rem 1rem;
+    }
+    .finisher-kicker {
+      font-size: clamp(0.85rem, 1.3vw, 1.1rem);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.22em;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .finisher-athlete-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 900;
+      font-size: clamp(3.4rem, 7.2vw, 6.4rem);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      line-height: 0.98;
+      color: #ffffff;
+      text-shadow: 0 6px 30px rgba(0, 0, 0, 0.75);
+      word-break: break-word;
+    }
+
+    /* Huge Finisher Time Box */
+    .time-hero-box {
+      background: linear-gradient(180deg, rgba(61, 255, 79, 0.16) 0%, rgba(12, 28, 16, 0.92) 100%);
+      border: 3px solid var(--green);
+      border-radius: 24px;
+      padding: 0.9rem 3.2rem 1.1rem;
+      min-width: min(82%, 780px);
+      box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6), 0 0 36px rgba(61, 255, 79, 0.2);
+    }
+    .time-hero-label {
+      font-size: clamp(0.85rem, 1.3vw, 1.1rem);
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.24em;
+      color: #cbd5e1;
+      margin-bottom: 0.1rem;
+    }
+    .time-hero-value {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 900;
+      font-size: clamp(4.8rem, 10.5vw, 9.2rem);
+      line-height: 0.92;
+      color: var(--green);
+      letter-spacing: 0.03em;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 0 34px rgba(61, 255, 79, 0.38);
+    }
+
+    /* Footer bar inside frame */
+    .frame-footer {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 0.6rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: clamp(0.8rem, 1.2vw, 1.05rem);
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .frame-footer span.accent {
+      color: var(--green);
+    }
+
+    /* Floating restore button when in Clean Photo Mode */
+    .restore-bar-btn {
+      position: fixed;
+      bottom: 14px;
+      right: 16px;
+      background: rgba(8, 16, 10, 0.75);
+      border: 1px solid rgba(61, 255, 79, 0.35);
+      color: var(--muted);
+      padding: 0.3rem 0.65rem;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: none;
+      z-index: 50;
+      opacity: 0.45;
+      transition: opacity 0.2s;
+    }
+    .restore-bar-btn:hover {
+      opacity: 1;
+      color: var(--green);
+    }
+    body.photo-clean-mode .restore-bar-btn {
+      display: inline-flex;
+    }
+  </style>
+</head>
+<body>
+  <!-- TOP CONTROL BAR (Hidden in Clean Photo Mode) -->
+  <header class="tv-control-bar">
+    <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
+      <span style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-style:italic;font-size:1.2rem;color:var(--green);letter-spacing:0.04em">
+        📸 PERFORMANCE GYM · FINISHER SOCIAL SHOT TV
+      </span>
+      <select id="finisher-select" class="tv-select" onchange="selectAthlete(this.value)" style="min-width:270px">
+        <option value="latest">⚡ Auto: Latest Finisher</option>
+      </select>
+      <button type="button" class="tv-btn" onclick="stepAthlete(-1)" title="Previous Athlete">◀ Prev</button>
+      <button type="button" class="tv-btn" onclick="stepAthlete(1)" title="Next Athlete">Next ▶</button>
+      <button type="button" id="cycle-btn" class="tv-btn" onclick="toggleAutoCycle()">🔄 Auto-Cycle Off</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+      <button type="button" class="tv-btn btn-green" onclick="togglePhotoCleanMode()" title="Hide top controls for a clean photo shot (or press F)">
+        📸 Clean Photo Mode (Hide Bar)
+      </button>
+      <a href="/hyrox/tv" class="tv-btn" title="Open TV 1: Live Timings">📺 TV 1: Live Timings</a>
+      <a href="/hyrox/admin" class="tv-btn" title="Back to Race Director Console">⚙️ Console</a>
+    </div>
+  </header>
+
+  <button type="button" class="restore-bar-btn" onclick="togglePhotoCleanMode()">⚙️ Show TV Controls</button>
+
+  <!-- FULL-SCREEN SOCIAL MEDIA PHOTO BACKDROP -->
+  <main class="finisher-stage" ondblclick="togglePhotoCleanMode()">
+    <div class="finisher-frame">
+      <div class="corner-accent corner-tl"></div>
+      <div class="corner-accent corner-tr"></div>
+      <div class="corner-accent corner-bl"></div>
+      <div class="corner-accent corner-br"></div>
+
+      <!-- 1. CS FITNESS LOGO + GYM NAME + TRAIN HARD & BE SOUND + HYROX SIM -->
+      <div class="brand-hero">
+        <div class="brand-top-row">
+          <img src="/static/logo.jpg" alt="CS Fitness Logo" class="finisher-logo" />
+          <div class="brand-text-block">
+            <div class="gym-name">CS <span>FITNESS</span> · PERFORMANCE GYM</div>
+            <div class="gym-motto">🤝 TRAIN HARD &amp; BE SOUND</div>
+          </div>
+        </div>
+        <div class="hyrox-sim-banner">
+          <span>🏁 HYROX SIM</span>
+          <span>·</span>
+          <span class="div-tag" id="shot-division">OFFICIAL FINISHER</span>
+        </div>
+      </div>
+
+      <!-- 2. ATHLETE / PAIR NAME -->
+      <div class="athlete-block">
+        <div class="finisher-kicker" id="shot-kicker">OFFICIAL HYROX SIMULATION FINISHER</div>
+        <div class="finisher-athlete-name" id="shot-athlete-name">CS PERFORMANCE ATHLETE</div>
+      </div>
+
+      <!-- 3. OFFICIAL FINISHER TIME -->
+      <div class="time-hero-box">
+        <div class="time-hero-label">OFFICIAL FINISHER TIME</div>
+        <div class="time-hero-value" id="shot-finisher-time">00:00</div>
+      </div>
+
+      <!-- 4. EVENT FOOTER -->
+      <div class="frame-footer">
+        <span id="shot-event-name">CS PERFORMANCE HYROX SIM</span>
+        <span class="accent">TRAIN HARD &amp; BE SOUND</span>
+        <span id="shot-bib-badge">CS FITNESS</span>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const activeEventId = {{ active_event_id or 'null' }};
+    const initialEntryId = {{ initial_entry_id or 'null' }};
+    let tvState = null;
+    let selectedMode = initialEntryId ? String(initialEntryId) : 'latest';
+    let autoCycle = false;
+    let cycleIndex = 0;
+
+    function getDisplayPool() {
+      if (!tvState) return [];
+      const all = tvState.entries || [];
+      const finished = all.filter(e => e.status === 'finished' || (e.total_ms && e.total_ms > 0));
+      // Sort finished by most recently finished first, then fastest
+      finished.sort((a, b) => (b.finished_at_ms || 0) - (a.finished_at_ms || 0));
+      return finished.length ? finished : all;
+    }
+
+    function populateSelector() {
+      if (!tvState) return;
+      const sel = document.getElementById('finisher-select');
+      const all = tvState.entries || [];
+      const finished = all.filter(e => e.status === 'finished' || (e.total_ms && e.total_ms > 0));
+      const others = all.filter(e => !(e.status === 'finished' || (e.total_ms && e.total_ms > 0)));
+
+      let html = `<option value="latest" ${selectedMode === 'latest' ? 'selected' : ''}>⚡ Auto: Latest Finisher (${finished.length} finished)</option>`;
+      if (finished.length) {
+        html += `<optgroup label="🏁 Finished Athletes">`;
+        finished.forEach(e => {
+          html += `<option value="${e.id}" ${String(selectedMode) === String(e.id) ? 'selected' : ''}>🏁 #${e.bib_number} ${e.full_display_name} — ${e.total_formatted} (${e.division_label})</option>`;
+        });
+        html += `</optgroup>`;
+      }
+      if (others.length) {
+        html += `<optgroup label="📋 All Other Athletes / Pairs">`;
+        others.forEach(e => {
+          const t = (e.total_formatted && e.total_formatted !== '—') ? ` — ${e.total_formatted}` : '';
+          html += `<option value="${e.id}" ${String(selectedMode) === String(e.id) ? 'selected' : ''}>#${e.bib_number} ${e.full_display_name}${t} (${e.division_label})</option>`;
+        });
+        html += `</optgroup>`;
+      }
+      sel.innerHTML = html;
+    }
+
+    function selectAthlete(val) {
+      selectedMode = val;
+      renderFinisherShot();
+    }
+
+    function stepAthlete(dir) {
+      if (!tvState) return;
+      const pool = tvState.entries || [];
+      if (!pool.length) return;
+      let curIdx = pool.findIndex(e => String(e.id) === String(selectedMode));
+      if (curIdx === -1) curIdx = 0;
+      const nextIdx = (curIdx + dir + pool.length) % pool.length;
+      selectedMode = String(pool[nextIdx].id);
+      populateSelector();
+      renderFinisherShot();
+    }
+
+    function toggleAutoCycle() {
+      autoCycle = !autoCycle;
+      const btn = document.getElementById('cycle-btn');
+      btn.textContent = autoCycle ? '🔄 Auto-Cycle On (8s)' : '🔄 Auto-Cycle Off';
+      btn.classList.toggle('active-toggle', autoCycle);
+    }
+
+    function togglePhotoCleanMode() {
+      document.body.classList.toggle('photo-clean-mode');
+    }
+
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'f' || ev.key === 'F') {
+        togglePhotoCleanMode();
+      } else if (ev.key === 'ArrowRight') {
+        stepAthlete(1);
+      } else if (ev.key === 'ArrowLeft') {
+        stepAthlete(-1);
+      }
+    });
+
+    function renderFinisherShot() {
+      if (!tvState) return;
+      const all = tvState.entries || [];
+      const pool = getDisplayPool();
+      let entry = null;
+
+      if (selectedMode !== 'latest') {
+        entry = all.find(e => String(e.id) === String(selectedMode));
+      }
+      if (!entry && pool.length) {
+        entry = autoCycle ? pool[cycleIndex % pool.length] : pool[0];
+      }
+
+      const evName = tvState.event ? tvState.event.name : 'CS PERFORMANCE HYROX SIM';
+      document.getElementById('shot-event-name').textContent = evName;
+
+      if (!entry) {
+        document.getElementById('shot-division').textContent = 'HYROX SIMULATION';
+        document.getElementById('shot-kicker').textContent = 'READY FOR NEXT FINISHER';
+        document.getElementById('shot-athlete-name').textContent = 'TRAIN HARD & BE SOUND';
+        document.getElementById('shot-finisher-time').textContent = '--:--';
+        document.getElementById('shot-bib-badge').textContent = 'CS FITNESS';
+        return;
+      }
+
+      const divEl = document.getElementById('shot-division');
+      divEl.textContent = (entry.division_label || 'OPEN').toUpperCase();
+      divEl.style.color = entry.division_color || '#3DFF4F';
+
+      const isPair = Boolean(entry.partner_name && String(entry.partner_name).trim());
+      document.getElementById('shot-kicker').textContent = isPair
+        ? 'OFFICIAL HYROX SIM FINISHER TEAM'
+        : 'OFFICIAL HYROX SIM FINISHER';
+
+      document.getElementById('shot-athlete-name').textContent = (entry.full_display_name || entry.display_name || '').toUpperCase();
+
+      const timeStr = (entry.total_formatted && entry.total_formatted !== '—')
+        ? entry.total_formatted
+        : 'FINISHER';
+      document.getElementById('shot-finisher-time').textContent = timeStr;
+      document.getElementById('shot-bib-badge').textContent = `BIB #${entry.bib_number || '—'} · ${entry.division_short_label || entry.division_label || ''}`;
+    }
+
+    async function fetchFinisherTvState() {
+      let evId = activeEventId;
+      if (!evId) {
+        const r = await fetch('/api/hyrox/events');
+        const list = await r.json();
+        if (list.length) evId = list[0].id;
+      }
+      if (!evId) return;
+      const res = await fetch(`/api/hyrox/events/${evId}/state`);
+      if (!res.ok) return;
+      tvState = await res.json();
+      populateSelector();
+      renderFinisherShot();
+    }
+
+    fetchFinisherTvState();
+    setInterval(fetchFinisherTvState, 4000);
+    setInterval(() => {
+      if (!autoCycle) return;
+      cycleIndex++;
+      renderFinisherShot();
+    }, 8000);
+  </script>
+</body>
+</html>
