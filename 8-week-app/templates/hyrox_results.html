@@ -310,32 +310,13 @@
   </style>
 </head>
 <body>
-  <!-- GLOBAL 3-APP & HUB NAVIGATION BAR -->
-  <nav style="background:#050a06;border-bottom:1px solid rgba(61,255,79,0.22);padding:0.35rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;font-size:0.75rem">
-    <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap">
-      <a href="/" class="btn" style="padding:0.24rem 0.65rem;font-size:0.73rem;border-color:rgba(61,255,79,0.45);color:var(--green)">🏠 CS Hub</a>
-      <a href="/cms" class="btn" style="padding:0.24rem 0.65rem;font-size:0.73rem">📺 TV Workouts</a>
-      <a href="/challenge" class="btn" style="padding:0.24rem 0.65rem;font-size:0.73rem">🔥 8-Week Challenge</a>
-      <a href="/hyrox/admin" class="btn btn-green" style="padding:0.24rem 0.65rem;font-size:0.73rem">🏁 HYROX Sim</a>
-    </div>
-    <div style="font-weight:800;letter-spacing:0.06em;color:var(--green);text-transform:uppercase;font-size:0.72rem">
-      🤝 CS PERFORMANCE · TRAIN HARD &amp; BE SOUND
-    </div>
-  </nav>
   <header class="topbar">
     <div class="brand-wrap">
-      <img src="/static/logo.jpg" alt="CS Performance Gym" class="brand-logo" />
+      <img src="/static/logo.jpg" alt="CS Fitness" class="brand-logo" />
       <div>
-        <div class="brand">CS PERFORMANCE <span>HYROX</span> · FINISHER &amp; ROXFIT ANALYTICS</div>
-        <div style="font-size:0.7rem;color:var(--muted);font-weight:700">Train Hard &amp; Be Sound · Official 16-Split Breakdown · Social Finisher Card</div>
+        <div class="brand">CS FITNESS <span>HYROX SIM</span> FINISHER ANALYTICS</div>
+        <div style="font-size:0.74rem;color:var(--muted);font-weight:700">Train Hard &amp; Be Sound</div>
       </div>
-    </div>
-    <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
-      <a href="/hyrox/admin" class="btn">🏁 Race Console</a>
-      <a href="/hyrox/judge?entry={{ entry.id }}" class="btn">⏱️ Judge View</a>
-      <a href="/hyrox/tv" class="btn">📺 TV 1: Live Timings</a>
-      <a href="/hyrox/tv/finisher?entry={{ entry.id }}" target="_blank" class="btn btn-green">📸 TV 2: Finisher Shot</a>
-      <a href="/" class="btn">🏠 CS Hub</a>
     </div>
   </header>
 
@@ -384,8 +365,10 @@
       </div>
       <div class="kpi-box">
         <div class="kpi-label">🎯 Wall Ball Counter</div>
-        <div class="kpi-val" style="color:var(--yellow)">{{ entry.wall_ball_reps }} / {{ entry.wall_ball_target_reps }}</div>
-        <div style="font-size:0.75rem;color:var(--muted)">Station 8 Prescribed Target</div>
+        <div class="kpi-val" style="color:{{ 'var(--green)' if entry.wall_ball_unbroken else 'var(--yellow)' }}">{{ entry.wall_ball_reps }} / {{ entry.wall_ball_target_reps }}</div>
+        <div style="font-size:0.75rem;color:{{ 'var(--green)' if entry.wall_ball_unbroken else 'var(--muted)' }};font-weight:{{ '800' if entry.wall_ball_unbroken else '400' }}">
+          {{ '🔥 UNBROKEN!' if entry.wall_ball_unbroken else 'Station 8 Prescribed Target' }}
+        </div>
       </div>
       <div class="kpi-box">
         <div class="kpi-label">📊 Completed Sims</div>
@@ -451,7 +434,6 @@
           <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
             <button type="button" class="btn btn-green" onclick="downloadFinisherPng()">⬇️ Download Finisher PNG</button>
             <button type="button" class="btn" onclick="shareFinisherPng()">📤 Share to Socials</button>
-            <a href="/hyrox/tv/finisher?entry={{ entry.id }}" target="_blank" class="btn">📺 Open Full-Screen Finisher TV Shot</a>
           </div>
         </div>
       </div>
