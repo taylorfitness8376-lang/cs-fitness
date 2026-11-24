@@ -348,11 +348,14 @@ def test_historical_progression_and_web_surfaces(client):
     tv_resp = client.get("/hyrox/tv")
     assert tv_resp.status_code == 200
     assert b"LIVE TIMINGS" in tv_resp.data
-    assert b"WHO IS NEXT" in tv_resp.data
+    assert b"START LIST" in tv_resp.data
+    assert b'href="/"' in tv_resp.data
     assert b"LIVE ON-FLOOR TIMINGS" not in tv_resp.data
     assert b"Single-Screen Rolling Broadcast" not in tv_resp.data
+    assert b"tv-spotlight-select" not in tv_resp.data
+    assert b"TV 2: Finisher Shot" not in tv_resp.data
+    assert b"/hyrox/admin" not in tv_resp.data
     assert b"/static/logo.jpg" in tv_resp.data
-    assert b"/hyrox/tv/finisher" in tv_resp.data
     assert b"DIVISION LEADERBOARD" not in tv_resp.data
 
     # Surface 3B: TV 2 — Performance Gym Finisher Social Shot TV (/hyrox/tv/finisher)

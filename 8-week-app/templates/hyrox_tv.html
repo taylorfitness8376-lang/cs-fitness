@@ -528,17 +528,12 @@
       <div class="tv-title">CS PERFORMANCE <span>HYROX</span> · LIVE TIMINGS</div>
     </div>
     <div style="display:flex;align-items:center;gap:0.65rem">
-      <select id="tv-day-select" class="tv-select" onchange="setDayFilter(this.value)" title="Filter by Event Day">
-        <option value="auto">📅 Today (Auto)</option>
+      <select id="tv-day-select" class="tv-select" onchange="setDayFilter(this.value)" title="Select Event Day">
+        <option value="auto">📅 Auto (Today)</option>
         <option value="1">📅 Saturday (Day 1)</option>
         <option value="2">📅 Sunday (Day 2)</option>
       </select>
-      <select id="tv-spotlight-select" class="tv-select" onchange="setSpotlightEntry(this.value)" title="Show Live on Course or Pin Athlete">
-        <option value="auto">⚡ Live On Course</option>
-      </select>
-      <a href="/hyrox/tv/finisher" target="_blank" class="tv-btn" style="text-decoration:none;border-color:var(--green);color:var(--green)" title="Open Performance Gym Finisher Social Shot TV">📸 TV 2: Finisher Shot</a>
-      <a href="/hyrox/admin" class="tv-btn" style="text-decoration:none" title="Open Race Director Console">⚙️ Console</a>
-      <a href="/" class="tv-btn" style="text-decoration:none" title="Back to CS Performance Hub">🏠 Hub</a>
+      <a href="/" class="tv-btn" style="text-decoration:none" title="Back to Home">🏠 Home</a>
       <div class="tv-clock" id="wall-clock">--:--:--</div>
     </div>
   </header>
@@ -549,18 +544,18 @@
       <div class="panel-header">
         <div class="panel-title">LIVE TIMINGS</div>
         <div style="display:flex;align-items:center;gap:0.5rem">
-          <span class="page-pill" id="racer-page-badge">SATURDAY</span>
+          <span class="page-pill" id="racer-page-badge">SATURDAY (DAY 1)</span>
           <span style="font-size:0.78rem;font-weight:800;color:var(--green)" id="active-count-badge">0 LIVE</span>
         </div>
       </div>
       <div id="live-racers-container"></div>
     </section>
 
-    <!-- RIGHT: WHO IS NEXT -->
+    <!-- RIGHT: START LIST -->
     <section class="panel">
       <div class="panel-header">
-        <div class="panel-title" style="color:var(--blue);font-size:1.35rem">WHO IS NEXT</div>
-        <span class="page-pill" id="ondeck-page-badge" style="color:var(--blue);border-color:rgba(56,189,248,0.35);background:rgba(56,189,248,0.12)">NEXT UP</span>
+        <div class="panel-title" style="color:var(--blue);font-size:1.35rem">START LIST</div>
+        <span class="page-pill" id="ondeck-page-badge" style="color:var(--blue);border-color:rgba(56,189,248,0.35);background:rgba(56,189,248,0.12)">START LIST</span>
       </div>
       <div id="ondeck-rows"></div>
       <div style="display:none" id="leaderboard-rows"></div>
@@ -580,17 +575,6 @@
     const urlParams = new URLSearchParams(window.location.search);
     let selectedDayFilter = urlParams.get('day') || 'auto';
     let spotlightEntryId = urlParams.get('entry') || 'auto';
-    const divisionOrder = [
-      'women_open',
-      'women_doubles',
-      'women_pro',
-      'women_pro_doubles',
-      'men_open',
-      'men_doubles',
-      'mixed_doubles',
-      'men_pro',
-      'men_pro_doubles'
-    ];
     const SHORT_STATION_NAMES = {
       2: '1. SKI',
       4: '2. PUSH',
@@ -602,14 +586,24 @@
       16: '8. WB'
     };
 
+    function getEntryDayNumber(e) {
+      const hName = String(e.heat_name || '').toLowerCase();
+      if (hName.includes('day 2') || hName.includes('sun')) return 2;
+      if (hName.includes('day 1') || hName.includes('sat')) return 1;
+      if (Number(e.heat_day_number) === 2) return 2;
+      const div = String(e.division || '').toLowerCase();
+      if (div.startsWith('women_')) return 2;
+      return 1;
+    }
+
     function getEffectiveDayNumber() {
       if (selectedDayFilter === '1' || selectedDayFilter === '2') {
         return parseInt(selectedDayFilter, 10);
       }
       if (tvState) {
         const racing = tvState.racing_entries || [];
-        if (racing.length > 0 && racing[0].heat_day_number) {
-          return parseInt(racing[0].heat_day_number, 10);
+        if (racing.length > 0) {
+          return getEntryDayNumber(racing[0]);
         }
         const now = new Date();
         const todayIso = now.toISOString().slice(0, 10);
@@ -632,15 +626,20 @@
       spotlightEntryId = 'auto';
       racerPageIndex = 0;
       onDeckPageIndex = 0;
-      populateSpotlightSelect();
+      syncDaySelectLabel();
       renderLiveRacers(false);
       renderOnDeck(false);
     }
 
-    function setSpotlightEntry(val) {
-      spotlightEntryId = val;
-      racerPageIndex = 0;
-      renderLiveRacers(false);
+    function syncDaySelectLabel() {
+      const activeDay = getEffectiveDayNumber();
+      const daySel = document.getElementById('tv-day-select');
+      if (daySel) {
+        daySel.options[0].textContent = activeDay === 2
+          ? '📅 Auto (Sunday · Day 2)'
+          : '📅 Auto (Saturday · Day 1)';
+        daySel.value = selectedDayFilter;
+      }
     }
 
     function formatElapsed(ms) {
@@ -664,35 +663,17 @@
       const res = await fetch(`/api/hyrox/events/${evId}/state`);
       if (!res.ok) return;
       tvState = await res.json();
-      populateSpotlightSelect();
+      syncDaySelectLabel();
       renderLiveRacers(false);
       renderOnDeck(false);
-    }
-
-    function populateSpotlightSelect() {
-      if (!tvState) return;
-      const activeDay = getEffectiveDayNumber();
-      const daySel = document.getElementById('tv-day-select');
-      if (daySel) {
-        const autoLbl = activeDay === 2 ? '📅 Today: Sunday (Day 2)' : '📅 Today: Saturday (Day 1)';
-        daySel.options[0].textContent = autoLbl;
-        daySel.value = selectedDayFilter;
-      }
-      const sel = document.getElementById('tv-spotlight-select');
-      const prev = spotlightEntryId;
-      const dayEntries = (tvState.entries || []).filter(e => (e.heat_day_number || 1) === activeDay);
-      sel.innerHTML =
-        `<option value="auto" ${prev === 'auto' ? 'selected' : ''}>⚡ Live On Course (${dayEntries.filter(e => e.status === 'racing').length} Live)</option>` +
-        dayEntries.map(e => `<option value="${e.id}" ${String(prev) === String(e.id) ? 'selected' : ''}>📌 Pin #${e.bib_number} ${e.full_display_name} (${e.division_short_label} · ${e.status.toUpperCase()})</option>`).join('');
     }
 
     function renderLiveRacers(animateTransition) {
       if (!tvState) return;
       const activeDay = getEffectiveDayNumber();
       const dayLabel = getDayLabel(activeDay);
-      const allDayEntries = (tvState.entries || []).filter(e => (e.heat_day_number || 1) === activeDay);
-      const racers = (tvState.racing_entries || []).filter(e => (e.heat_day_number || 1) === activeDay);
-      const sched = (tvState.scheduled_entries || []).filter(e => (e.heat_day_number || 1) === activeDay);
+      const racers = (tvState.racing_entries || []).filter(e => getEntryDayNumber(e) === activeDay);
+      const sched = (tvState.scheduled_entries || []).filter(e => getEntryDayNumber(e) === activeDay);
 
       document.getElementById('active-count-badge').textContent = `${racers.length} LIVE NOW`;
       const container = document.getElementById('live-racers-container');
@@ -712,16 +693,30 @@
 
       if (!pool.length) {
         currentRacerTotalPages = 1;
-        if (pageBadge) pageBadge.textContent = dayLabel;
-        const nextUp = sched[0];
-        const nextHtml = nextUp
-          ? `<div style="margin-top:0.75rem;font-family:'Barlow Condensed',sans-serif;font-size:1.75rem;font-weight:800;color:#fff;text-transform:uppercase">Up Next: <span style="color:var(--green)">#${nextUp.bib_number} ${nextUp.full_display_name}</span> <span style="color:${nextUp.division_color};font-size:1.25rem">(${nextUp.division_short_label}${nextUp.heat_start_time && nextUp.heat_start_time !== '—' ? ' · ' + nextUp.heat_start_time : ''})</span></div>`
-          : '';
+        if (pageBadge) pageBadge.textContent = `${dayLabel} · START LIST`;
+        const dayAll = (tvState.entries || []).filter(e => getEntryDayNumber(e) === activeDay);
+        const startList = sched.length > 0 ? sched : dayAll;
+        const rowsHtml = startList.map((e, idx) => {
+          const timeLbl = (e.heat_start_time && e.heat_start_time !== '—') ? e.heat_start_time : `Slot ${idx + 1}`;
+          return `
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:0.75rem;padding:0.65rem 0.9rem;border-radius:10px;background:var(--surface-2);border:1px solid ${idx === 0 ? 'rgba(61,255,79,0.5)' : 'rgba(255,255,255,0.08)'}">
+              <div style="display:flex;align-items:center;gap:0.75rem;min-width:0">
+                <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.35rem;color:var(--green);min-width:52px">${timeLbl}</span>
+                <span style="font-weight:800;font-size:1rem;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#${e.bib_number} ${e.full_display_name}</span>
+              </div>
+              <span style="color:${e.division_color};font-weight:800;font-size:0.8rem;flex-shrink:0">${e.division_label}</span>
+            </div>
+          `;
+        }).join('');
         container.innerHTML = `
-          <div style="padding:2.5rem;text-align:center;color:var(--muted);margin:auto;background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.12);border-radius:14px;width:100%">
-            <div style="font-size:0.85rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--green)">${dayLabel} · COURSE STANDBY</div>
-            <div style="margin-top:0.35rem;font-size:1rem">No athletes currently live on course. Timings appear automatically as soon as the judge starts the clock.</div>
-            ${nextHtml}
+          <div style="display:flex;flex-direction:column;gap:0.75rem;height:100%;overflow:hidden">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:0.55rem 0.85rem;border-radius:10px;background:rgba(61,255,79,0.08);border:1px solid rgba(61,255,79,0.28)">
+              <span style="font-size:0.82rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--green)">📋 ${dayLabel} — START LIST (${startList.length} ATHLETES)</span>
+              <span style="font-size:0.78rem;color:var(--muted)">Live split timings appear automatically when a race starts</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:0.55rem;overflow-y:auto;padding-right:0.2rem">
+              ${rowsHtml || '<div style="color:var(--muted);padding:1rem">No athletes scheduled for this day yet.</div>'}
+            </div>
           </div>`;
         return;
       }
@@ -736,8 +731,6 @@
         pageBadge.textContent = totalPages > 1
           ? `${dayLabel} · PAGE ${safePage + 1} / ${totalPages}`
           : dayLabel;
-      }
-          : `${modePrefix} (${pool.length})`;
       }
 
       if (animateTransition) {
@@ -966,14 +959,16 @@
       if (!tvState) return;
       const activeDay = getEffectiveDayNumber();
       const dayShort = activeDay === 2 ? 'Sun' : 'Sat';
-      const sched = (tvState.scheduled_entries || []).filter(e => (e.heat_day_number || 1) === activeDay);
+      const schedOnly = (tvState.scheduled_entries || []).filter(e => getEntryDayNumber(e) === activeDay);
+      const allDay = (tvState.entries || []).filter(e => getEntryDayNumber(e) === activeDay);
+      const sched = schedOnly.length > 0 ? schedOnly : allDay;
       const el = document.getElementById('ondeck-rows');
       const badgeEl = document.getElementById('ondeck-page-badge');
 
       if (!sched.length) {
         currentOnDeckTotalPages = 1;
-        if (badgeEl) badgeEl.textContent = `${dayShort.toUpperCase()} · ALL DONE`;
-        el.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;margin:auto;text-align:center">No more athletes waiting to start for ${dayShort}.</div>`;
+        if (badgeEl) badgeEl.textContent = `${dayShort.toUpperCase()} · 0 ATHLETES`;
+        el.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;margin:auto;text-align:center">No athletes on the start list for ${dayShort}.</div>`;
         return;
       }
 
@@ -986,7 +981,7 @@
       if (badgeEl) {
         badgeEl.textContent = totalPages > 1
           ? `${dayShort.toUpperCase()} · ${safePage * ONDECK_PAGE_SIZE + 1}–${Math.min(sched.length, (safePage + 1) * ONDECK_PAGE_SIZE)} OF ${sched.length}`
-          : `${dayShort.toUpperCase()} · ${sched.length} NEXT`;
+          : `${dayShort.toUpperCase()} · ${sched.length} ATHLETES`;
       }
 
       if (animateTransition && totalPages > 1) {
