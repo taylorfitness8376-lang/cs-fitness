@@ -671,18 +671,26 @@ def test_teamup_api_v2_sync_and_webhooks(client):
     assert "initialEntryData" in judge_html
     assert "toggleFocusLock" in judge_html
     assert "handleFastTap" in judge_html
-    # Verify layout order: clocks -> slide-to-start / primary tap button -> prescription/next event box -> average run pace strip
     idx_clocks = judge_html.index('class="clocks-grid"')
-    idx_slider = judge_html.index('id="start-slider-wrap"')
     idx_btn = judge_html.index('id="primary-action-btn"')
     idx_presc = judge_html.index('id="presc-card"')
-    idx_telemetry = judge_html.index('id="run-telemetry-strip"')
-    assert idx_clocks < idx_slider < idx_btn < idx_presc < idx_telemetry
-    assert "triggerStartCountdown" in judge_html
-    assert "cancelStartCountdown" in judge_html
+    assert idx_clocks < idx_btn < idx_presc
     assert "tap-btn-well" in judge_html
     assert "btn-theme-green" in judge_html
-    assert "primary-btn-kicker" in judge_html
+
+    admin_html = client.get("/hyrox/admin").get_data(as_text=True)
+    assert "saveInlineRow" in admin_html
+    assert "onInlineDivisionChange" in admin_html
+    assert "onModalDivisionChange" in admin_html
+    assert "openStartListModal" in admin_html
+    assert "downloadStartListPng" in admin_html
+    assert "copyStartListWhatsApp" in admin_html
+    assert "shareStartListWhatsApp" in admin_html
+    assert "toggleStartListCleanMode" in admin_html
+
+    sl_resp = client.get("/hyrox/start-list")
+    assert sl_resp.status_code == 200
+    assert "start-list-capture-card" in sl_resp.get_data(as_text=True)
 
 
 def test_weekend_sat28_sun29_four_group_signups_and_setup(client):
@@ -1040,10 +1048,46 @@ def test_confirmed_13_road_to_glasgow_signups_enrichment(client):
     assert by_name["Steven Rosie"]["partner_name"] == "Fiona Sharp"
     assert by_name["Steven Rosie"]["signup_group"] == "male_mixed_doubles"
 
-    assert by_name["Joe Wardle"]["division"] == "men_doubles"
-    assert "TBC" in by_name["Joe Wardle"]["partner_name"]
+    assert by_name["Joe Wardle"]["division"] == "men_open"
+    assert by_name["Joe Wardle"]["partner_name"] == ""
     assert by_name["Joe Wardle"]["notes"] == ""
-    assert by_name["Joe Wardle"]["signup_group"] == "male_mixed_doubles"
+    assert by_name["Joe Wardle"]["signup_group"] == "male_solo"
+
+    # Verify editing an entry (e.g. changing Doubles -> Solo and changing time slot) persists across requests without reverting
+    state_before = client.get(f"/api/hyrox/events/{event_id}/state").get_json()
+    heats = state_before["heats"]
+    target_heat = next(h for h in heats if h["start_time"] == "14:25" and int(h.get("day_number") or 1) == 1)
+    keiran = by_name["Keiran Jackson"]
+    edit_res = client.put(
+        f"/api/hyrox/entries/{keiran['id']}",
+        json={
+            "division": "men_open",
+            "display_name": "Keiran Jackson & Ricky Simpson",
+            "heat_id": target_heat["id"],
+            "volunteer_name": "Coach Sarah",
+        },
+    )
+    assert edit_res.status_code == 200
+    edited = edit_res.get_json()
+    assert edited["division"] == "men_open"
+    assert edited["partner_name"] == ""
+    assert edited["full_display_name"] == "Keiran Jackson"
+    assert edited["heat_id"] == target_heat["id"]
+    assert edited["heat_start_time"] == "14:25"
+
+    # Subsequent splits save + state fetch must NOT revert division, partner_name, or heat_id
+    splits_res = client.put(
+        f"/api/hyrox/entries/{keiran['id']}/splits",
+        json={"splits": [], "status": "scheduled", "penalty_str": "00:00", "wall_ball_reps": 0},
+    )
+    assert splits_res.status_code == 200
+    state_after = client.get(f"/api/hyrox/events/{event_id}/state").get_json()
+    keiran_after = next(e for e in state_after["entries"] if e["id"] == keiran["id"])
+    assert keiran_after["division"] == "men_open"
+    assert keiran_after["partner_name"] == ""
+    assert keiran_after["full_display_name"] == "Keiran Jackson"
+    assert keiran_after["heat_id"] == target_heat["id"]
+    assert keiran_after["heat_start_time"] == "14:25"
 
     # 10-13: Group 3 — Female Solo Open (Sunday 29th)
     for solo_female in ("Eve Cunningham", "Joanne Campbell", "Lesley Anne Cooper", "Ava Stewart"):

@@ -811,11 +811,6 @@ def _purge_legacy_sample_data(db):
         seed_default_hyrox_data(db)
         changed = True
 
-    # 7. Enrich any existing synced entries with confirmed Road to Glasgow partners & divisions,
-    #    and ensure the 13 confirmed Saturday 28th & Sunday 29th sign-ups are present in production.
-    if _apply_road_to_glasgow_enrichment_to_db(db) > 0:
-        changed = True
-
     is_testing = False
     try:
         from flask import has_app_context, current_app
@@ -852,6 +847,42 @@ def _purge_legacy_sample_data(db):
                 )
             db.execute(
                 "INSERT INTO hyrox_settings (key, value, updated_at) VALUES ('five_min_slots_sat28_sun29_v1', '1', CURRENT_TIMESTAMP) "
+                "ON CONFLICT(key) DO UPDATE SET value='1', updated_at=CURRENT_TIMESTAMP"
+            )
+            changed = True
+
+        joe_wardle_flag = db.execute(
+            "SELECT value FROM hyrox_settings WHERE key='joe_wardle_solo_fix_v1'"
+        ).fetchone()
+        if not joe_wardle_flag:
+            jw_rows = db.execute(
+                "SELECT id, event_id, heat_id, division, partner_name FROM hyrox_entries "
+                "WHERE LOWER(TRIM(display_name))='joe wardle'"
+            ).fetchall()
+            for jw in jw_rows:
+                if (jw["partner_name"] or "").strip().upper().startswith("TBC") or jw["division"] == "men_doubles":
+                    new_jw_heat_id = jw["heat_id"]
+                    if new_jw_heat_id:
+                        h_row = db.execute(
+                            "SELECT start_time FROM hyrox_heats WHERE id=?",
+                            (new_jw_heat_id,),
+                        ).fetchone()
+                        if h_row and (h_row["start_time"] or "") >= "15:30":
+                            slot_helper = {
+                                "display_name": "Joe Wardle",
+                                "email": "",
+                                "division": "men_open",
+                            }
+                            _assign_weekend_group_slot(db, jw["event_id"], slot_helper)
+                            if slot_helper.get("heat_id"):
+                                new_jw_heat_id = int(slot_helper["heat_id"])
+                    db.execute(
+                        "UPDATE hyrox_entries SET division='men_open', partner_name='', partner_athlete_id=NULL, "
+                        "heat_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                        (new_jw_heat_id, jw["id"]),
+                    )
+            db.execute(
+                "INSERT INTO hyrox_settings (key, value, updated_at) VALUES ('joe_wardle_solo_fix_v1', '1', CURRENT_TIMESTAMP) "
                 "ON CONFLICT(key) DO UPDATE SET value='1', updated_at=CURRENT_TIMESTAMP"
             )
             changed = True
@@ -1479,6 +1510,7 @@ def get_active_event_id(db, requested_event_id=None):
 
 @hyrox_bp.route("/hyrox")
 @hyrox_bp.route("/hyrox/admin")
+@hyrox_bp.route("/hyrox/start-list")
 def hyrox_admin_page():
     db = get_db()
     ensure_hyrox_tables(db)
@@ -2461,9 +2493,24 @@ def api_entry_detail(entry_id):
 
     data = request.get_json(force=True) or {}
     new_division = normalize_division(data.get("division", row["division"]))
+    is_doubles_div = bool(HYROX_DIVISIONS.get(new_division, {}).get("is_doubles"))
     new_age_cat = normalize_age_category(data.get("age_category", row["age_category"]))
     new_display_name = (data.get("display_name", row["display_name"]) or "").strip() or row["display_name"]
-    new_partner_name = (data.get("partner_name", row["partner_name"]) or "").strip()
+    if "partner_name" in data:
+        new_partner_name = (data.get("partner_name") or "").strip()
+    else:
+        new_partner_name = (row["partner_name"] or "").strip()
+
+    # If the Race Director edited combined 'Athlete 1 & Athlete 2' inline or switched between Doubles and Solo:
+    if not is_doubles_div:
+        if " & " in new_display_name:
+            new_display_name = new_display_name.split(" & ", 1)[0].strip() or new_display_name
+        new_partner_name = ""
+    elif " & " in new_display_name and "partner_name" not in data:
+        parts = [p.strip() for p in new_display_name.split(" & ", 1)]
+        if parts[0]:
+            new_display_name = parts[0]
+            new_partner_name = parts[1] if len(parts) > 1 else ""
     new_email = (data.get("email", row["email"]) or "").strip().lower()
     new_bib = str(data.get("bib_number", row["bib_number"]) or "").strip() or row["bib_number"]
     new_volunteer = (data.get("volunteer_name", row["volunteer_name"]) or "").strip()
@@ -3571,10 +3618,10 @@ CONFIRMED_SAT28_SUN29_SIGNUPS = [
         "order": 9,
         "display_name": "Joe Wardle",
         "aliases": ["joe wardle"],
-        "partner_name": "TBC (Confirm Partner)",
-        "division": "men_doubles",
-        "teamup_event_name": "Hyrox simulation doubles male and mixed doubles",
-        "road_to_glasgow_note": "TBC — Confirm if Mixed or Male Doubles Open and Partner name",
+        "partner_name": "",
+        "division": "men_open",
+        "teamup_event_name": "Hyrox simulation solo",
+        "road_to_glasgow_note": "Confirmed Men's Solo Open (Road to Glasgow)",
     },
     # Group 3 — 3. Female Solo (Sunday 29th, 10:00–14:00)
     {

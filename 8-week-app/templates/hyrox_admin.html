@@ -562,6 +562,7 @@
             <option value="finished">Finished Only</option>
             <option value="active">Racing / Finished</option>
           </select>
+          <button type="button" class="btn btn-green" style="height:34px;padding:0 0.75rem" onclick="openStartListModal()">📋 Start List</button>
           <button type="button" class="btn" style="height:34px;padding:0 0.7rem" onclick="refreshEventState()">🔄 Refresh</button>
         </div>
       </div>
@@ -575,7 +576,7 @@
               <th style="width:160px">Category</th>
               <th style="width:150px">Volunteer</th>
               <th style="width:140px;text-align:center">Status / Time</th>
-              <th style="width:110px;text-align:right">Actions</th>
+              <th style="width:165px;text-align:right">Actions</th>
             </tr>
           </thead>
           <tbody id="entries-tbody"></tbody>
@@ -607,7 +608,7 @@
           </div>
           <div>
             <label>Category</label>
-            <select id="modal-division">
+            <select id="modal-division" onchange="onModalDivisionChange(this.value)">
               <option value="women_open">Female Open (F Open)</option>
               <option value="women_doubles">Female Doubles (F Doubles)</option>
               <option value="women_pro">Female Pro (F Pro)</option>
@@ -623,7 +624,7 @@
         <div class="form-row" style="margin-bottom:0">
           <div>
             <label>Slot</label>
-            <select id="modal-heat-id"></select>
+            <select id="modal-heat-id" onchange="const ct=document.getElementById('modal-custom-time');if(ct)ct.value='';"></select>
           </div>
           <div>
             <label>Custom Time</label>
@@ -708,6 +709,54 @@
     </div>
   </div>
 
+  <!-- MODAL: SHAREABLE / SCREENSHOT START LIST -->
+  <div class="modal-backdrop" id="start-list-modal">
+    <div class="modal-box" style="max-width:960px;padding:1rem;background:#090b0f;border:1px solid rgba(61,255,79,0.28)">
+      <div id="start-list-toolbar" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.85rem;padding-bottom:0.65rem;border-bottom:1px solid rgba(255,255,255,0.08)">
+        <div style="display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1rem;letter-spacing:0.04em;color:var(--green);margin-right:0.3rem">📋 START LIST VIEW</span>
+          <button type="button" class="day-tab-btn active" data-sl-day="all" onclick="setStartListDay('all')">All Days</button>
+          <button type="button" class="day-tab-btn" data-sl-day="1" onclick="setStartListDay('1')">Saturday</button>
+          <button type="button" class="day-tab-btn" data-sl-day="2" onclick="setStartListDay('2')">Sunday</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap">
+          <button type="button" class="btn btn-green" id="sl-download-btn" onclick="downloadStartListPng()">🖼️ Save PNG</button>
+          <button type="button" class="btn" id="sl-copy-btn" onclick="copyStartListWhatsApp()">💬 Copy for WhatsApp</button>
+          <button type="button" class="btn btn-blue" onclick="shareStartListWhatsApp()">📲 Open WhatsApp</button>
+          <button type="button" class="btn" onclick="toggleStartListCleanMode(true)" title="Hide buttons for a clean screenshot">📸 Screenshot Mode</button>
+          <button type="button" class="btn" onclick="closeStartListModal()">✕</button>
+        </div>
+      </div>
+
+      <div id="start-list-clean-banner" style="display:none;text-align:right;margin-bottom:0.35rem">
+        <button type="button" class="btn-xs" onclick="toggleStartListCleanMode(false)" style="opacity:0.65">Exit Screenshot Mode</button>
+      </div>
+
+      <!-- Screenshot-ready Start List Card -->
+      <div id="start-list-capture-card" style="background:linear-gradient(180deg,#0d1117 0%,#090b0f 100%);border:2px solid rgba(61,255,79,0.4);border-radius:14px;padding:1.15rem 1.25rem;box-shadow:0 16px 40px rgba(0,0,0,0.65)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:0.6rem;padding-bottom:0.75rem;margin-bottom:0.9rem;border-bottom:2px solid rgba(61,255,79,0.28)">
+          <div>
+            <div style="display:inline-flex;align-items:center;gap:0.4rem;margin-bottom:0.2rem">
+              <span style="background:var(--green);color:#051b07;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:0.76rem;padding:0.1rem 0.45rem;border-radius:4px;letter-spacing:0.06em">CS FITNESS</span>
+              <span style="font-size:0.75rem;font-weight:800;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase" id="sl-event-dates">HYROX SIMULATION</span>
+            </div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.75rem;line-height:1;letter-spacing:0.03em;color:#ffffff;text-transform:uppercase" id="sl-title">
+              OFFICIAL START LIST
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:0.95rem;color:var(--green);letter-spacing:0.06em;text-transform:uppercase">
+              TRAIN HARD &amp; BE SOUND
+            </div>
+            <div style="font-size:0.74rem;font-weight:700;color:var(--muted)" id="sl-count-subtitle"></div>
+          </div>
+        </div>
+
+        <div id="start-list-groups-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:0.85rem"></div>
+      </div>
+    </div>
+  </div>
+
   <script>
     let currentEventId = {{ active_event_id or 'null' }};
     let currentState = null;
@@ -731,6 +780,9 @@
         `<option value="${ev.id}" ${ev.id === currentEventId ? 'selected' : ''}>${ev.name} (${ev.event_date}${ev.end_date && ev.end_date !== ev.event_date ? ' → ' + ev.end_date : ''}) · ${ev.entry_count} entries</option>`
       ).join('');
       if (currentEventId) await refreshEventState();
+      if (window.location.pathname.endsWith('/start-list') || new URLSearchParams(window.location.search).get('view') === 'startlist') {
+        openStartListModal();
+      }
     }
 
     async function switchEvent(evId) {
@@ -975,22 +1027,28 @@
             : '';
 
           rowsHtml.push(`
-            <tr>
+            <tr id="entry-row-${e.id}">
               <td>
-                <select class="cell-select" onchange="updateEntryMeta(${e.id}, {heat_id: this.value})" style="width:100%">
+                <select class="cell-select" id="row-heat-${e.id}" onchange="markRowDirty(${e.id})" style="width:100%">
                   ${heatOpts}
                 </select>
               </td>
-              <td style="font-weight:700;font-size:0.84rem;overflow:hidden;text-overflow:ellipsis">${escapeHtml(e.full_display_name)}</td>
               <td>
-                <select class="cell-select" onchange="updateEntryMeta(${e.id}, {division: this.value})"
+                <input type="text" class="cell-input" id="row-name-${e.id}" value="${escapeHtml(e.full_display_name)}"
+                  oninput="markRowDirty(${e.id})"
+                  onkeydown="if(event.key==='Enter'){event.preventDefault();saveInlineRow(${e.id});}"
+                  style="width:100%;font-weight:700;font-size:0.84rem" />
+              </td>
+              <td>
+                <select class="cell-select" id="row-div-${e.id}" onchange="onInlineDivisionChange(${e.id}, this.value)"
                   style="width:100%;font-weight:700;border-color:${e.division_color};color:${e.division_color}">
                   ${divOpts}
                 </select>
               </td>
               <td>
-                <input type="text" class="cell-input" value="${escapeHtml(e.volunteer_name || '')}" placeholder="Volunteer"
-                  onchange="updateEntryMeta(${e.id}, {volunteer_name: this.value})"
+                <input type="text" class="cell-input" id="row-vol-${e.id}" value="${escapeHtml(e.volunteer_name || '')}" placeholder="Volunteer"
+                  oninput="markRowDirty(${e.id})"
+                  onkeydown="if(event.key==='Enter'){event.preventDefault();saveInlineRow(${e.id});}"
                   style="width:100%" />
               </td>
               <td style="text-align:center">
@@ -1000,6 +1058,7 @@
               </td>
               <td style="text-align:right">
                 <div style="display:inline-flex;gap:0.3rem;align-items:center;justify-content:flex-end">
+                  <button type="button" class="btn-xs btn-green" id="row-save-${e.id}" onclick="saveInlineRow(${e.id})">Save</button>
                   <button type="button" class="btn-xs" onclick="openSplitsModal(${e.id})">Edit</button>
                   <button type="button" class="btn-xs btn-red" onclick="quickDeleteEntry(${e.id})">Delete</button>
                 </div>
@@ -1012,6 +1071,63 @@
       tbody.innerHTML = rowsHtml.join('');
     }
 
+    const SOLO_DIVISIONS = ['women_open', 'women_pro', 'men_open', 'men_pro'];
+
+    function markRowDirty(entryId) {
+      const btn = document.getElementById(`row-save-${entryId}`);
+      if (btn) {
+        btn.textContent = 'Save*';
+        btn.style.boxShadow = '0 0 0 2px rgba(61,255,79,0.45)';
+      }
+    }
+
+    function onInlineDivisionChange(entryId, newDiv) {
+      markRowDirty(entryId);
+      const nameInput = document.getElementById(`row-name-${entryId}`);
+      if (nameInput && SOLO_DIVISIONS.includes(newDiv) && nameInput.value.includes(' & ')) {
+        nameInput.value = nameInput.value.split(' & ')[0].trim();
+      }
+    }
+
+    async function saveInlineRow(entryId) {
+      const heatSel = document.getElementById(`row-heat-${entryId}`);
+      const nameInput = document.getElementById(`row-name-${entryId}`);
+      const divSel = document.getElementById(`row-div-${entryId}`);
+      const volInput = document.getElementById(`row-vol-${entryId}`);
+      const saveBtn = document.getElementById(`row-save-${entryId}`);
+
+      const divVal = divSel ? divSel.value : 'men_open';
+      const isSolo = SOLO_DIVISIONS.includes(divVal);
+      const rawName = (nameInput ? nameInput.value : '').trim();
+      let display_name = rawName;
+      let partner_name = '';
+      if (isSolo) {
+        if (rawName.includes(' & ')) {
+          display_name = rawName.split(' & ')[0].trim();
+        }
+        partner_name = '';
+      } else if (rawName.includes(' & ')) {
+        const parts = rawName.split(' & ');
+        display_name = parts[0].trim();
+        partner_name = parts.slice(1).join(' & ').trim();
+      }
+
+      const heatVal = heatSel ? heatSel.value : '';
+      const patch = {
+        heat_id: heatVal ? parseInt(heatVal, 10) : null,
+        display_name,
+        partner_name,
+        division: divVal,
+        volunteer_name: (volInput ? volInput.value : '').trim(),
+      };
+
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = '...';
+      }
+      await updateEntryMeta(entryId, patch);
+    }
+
     async function updateEntryMeta(entryId, patch) {
       const res = await fetch(`/api/hyrox/entries/${entryId}`, {
         method: 'PUT',
@@ -1019,7 +1135,9 @@
         body: JSON.stringify(patch),
       });
       const data = await res.json();
-      if (data.volunteer_warning) {
+      if (!res.ok) {
+        alert(data.error || 'Failed to save changes');
+      } else if (data.volunteer_warning) {
         alert(`⚠️ Same-Slot Volunteer Notice: ${data.volunteer_warning}`);
       }
       await refreshEventState();
@@ -1167,6 +1285,13 @@
       }
     }
 
+    function onModalDivisionChange(val) {
+      if (SOLO_DIVISIONS.includes(val)) {
+        const partnerInput = document.getElementById('modal-partner-name');
+        if (partnerInput) partnerInput.value = '';
+      }
+    }
+
     function openSplitsModal(entryId, focusPartner) {
       const entry = (currentState?.entries || []).find(x => x.id === entryId);
       if (!entry) return;
@@ -1235,12 +1360,15 @@
     }
 
     function collectModalEntryMetaPayload() {
+      const divVal = document.getElementById('modal-division').value;
+      const isSolo = SOLO_DIVISIONS.includes(divVal);
+      const heatVal = document.getElementById('modal-heat-id').value;
       const payload = {
         display_name: document.getElementById('modal-display-name').value.trim(),
-        partner_name: document.getElementById('modal-partner-name').value.trim(),
-        division: document.getElementById('modal-division').value,
+        partner_name: isSolo ? '' : document.getElementById('modal-partner-name').value.trim(),
+        division: divVal,
         age_category: (document.getElementById('modal-age-category')?.value || editingEntry?.age_category || '30-34'),
-        heat_id: document.getElementById('modal-heat-id').value || null,
+        heat_id: heatVal ? parseInt(heatVal, 10) : null,
         volunteer_name: document.getElementById('modal-volunteer').value.trim(),
         bib_number: document.getElementById('modal-bib').value.trim(),
         email: document.getElementById('modal-email').value.trim(),
@@ -1290,11 +1418,19 @@
     async function saveSplitCorrections() {
       if (!editingEntry) return;
       const metaPayload = collectModalEntryMetaPayload();
-      await fetch(`/api/hyrox/entries/${editingEntry.id}`, {
+      const metaRes = await fetch(`/api/hyrox/entries/${editingEntry.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(metaPayload),
       });
+      const metaData = await metaRes.json();
+      if (!metaRes.ok) {
+        alert(metaData.error || 'Failed to save athlete details');
+        return;
+      }
+      if (metaData.volunteer_warning) {
+        alert(`⚠️ Same-Slot Volunteer Notice: ${metaData.volunteer_warning}`);
+      }
 
       const splitsPayload = [];
       document.querySelectorAll('.split-dur-input').forEach(inp => {
@@ -1318,6 +1454,9 @@
       if (res.ok) {
         closeSplitsModal();
         await refreshEventState();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to save splits');
       }
     }
 
@@ -1456,6 +1595,327 @@
       } else {
         msgEl.innerHTML = `<span style="color:var(--red)">${data.error || 'Sync failed'}</span>`;
       }
+    }
+
+    // ── Shareable / Screenshot Start List View ──────────────────────────────
+    let startListDayFilter = 'all';
+
+    function getShortDivBadge(divKey) {
+      const found = ADMIN_DIVISIONS.find(d => d.key === divKey);
+      return found ? found.short : (divKey || '').toUpperCase();
+    }
+
+    function getGroupedStartListEntries() {
+      const entries = (currentState?.entries || []).filter(e => e.status !== 'dns');
+      const groups = [];
+      SIGNUP_GROUP_META.forEach(grp => {
+        if (startListDayFilter !== 'all' && String(grp.day) !== String(startListDayFilter)) return;
+        const grpEntries = entries
+          .filter(e => inferGroupKeyForEntry(e) === grp.key)
+          .slice()
+          .sort((a, b) => {
+            const ta = a.heat_start_time || '99:99';
+            const tb = b.heat_start_time || '99:99';
+            if (ta !== tb) return ta.localeCompare(tb);
+            return (a.id || 0) - (b.id || 0);
+          });
+        if (grpEntries.length > 0) {
+          groups.push({ meta: grp, entries: grpEntries });
+        }
+      });
+      return groups;
+    }
+
+    function openStartListModal() {
+      startListDayFilter = adminDayFilter || 'all';
+      document.querySelectorAll('[data-sl-day]').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-sl-day') === startListDayFilter);
+      });
+      toggleStartListCleanMode(false);
+      renderStartListView();
+      document.getElementById('start-list-modal').classList.add('open');
+    }
+
+    function closeStartListModal() {
+      document.getElementById('start-list-modal').classList.remove('open');
+    }
+
+    function setStartListDay(dayVal) {
+      startListDayFilter = dayVal;
+      document.querySelectorAll('[data-sl-day]').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-sl-day') === dayVal);
+      });
+      renderStartListView();
+    }
+
+    function toggleStartListCleanMode(cleanOn) {
+      const tb = document.getElementById('start-list-toolbar');
+      const banner = document.getElementById('start-list-clean-banner');
+      if (tb) tb.style.display = cleanOn ? 'none' : 'flex';
+      if (banner) banner.style.display = cleanOn ? 'block' : 'none';
+    }
+
+    function renderStartListView() {
+      const ev = currentState?.event || {};
+      const dayLabel = startListDayFilter === '1'
+        ? 'SATURDAY START LIST'
+        : (startListDayFilter === '2' ? 'SUNDAY START LIST' : 'OFFICIAL START LIST');
+      const titleEl = document.getElementById('sl-title');
+      if (titleEl) titleEl.textContent = dayLabel;
+
+      const datesEl = document.getElementById('sl-event-dates');
+      if (datesEl) {
+        const satD = ev.event_date || 'Sat';
+        const sunD = ev.end_date && ev.end_date !== ev.event_date ? ` · ${ev.end_date}` : '';
+        datesEl.textContent = `${ev.name || 'CS FITNESS HYROX SIM'} (${satD}${sunD})`;
+      }
+
+      const groups = getGroupedStartListEntries();
+      const totalEntries = groups.reduce((acc, g) => acc + g.entries.length, 0);
+      const countEl = document.getElementById('sl-count-subtitle');
+      if (countEl) {
+        countEl.textContent = `${totalEntries} Confirmed Slot${totalEntries === 1 ? '' : 's'}`;
+      }
+
+      const gridEl = document.getElementById('start-list-groups-grid');
+      if (!gridEl) return;
+      gridEl.style.gridTemplateColumns = groups.length === 1 ? '1fr' : 'repeat(auto-fit,minmax(360px,1fr))';
+
+      if (!groups.length) {
+        gridEl.innerHTML = `
+          <div style="padding:1.5rem;text-align:center;color:var(--muted);font-size:0.9rem;border:1px dashed rgba(255,255,255,0.15);border-radius:10px">
+            No athletes scheduled for this day yet.
+          </div>
+        `;
+        return;
+      }
+
+      gridEl.innerHTML = groups.map(({ meta, entries }) => {
+        const dayPrefix = meta.day === '2' ? 'SUNDAY' : 'SATURDAY';
+        const rowsHtml = entries.map((e, idx) => {
+          const timeStr = e.heat_start_time || 'TBC';
+          const shortDiv = getShortDivBadge(e.division);
+          const bgRow = idx % 2 === 0 ? 'rgba(255,255,255,0.025)' : 'transparent';
+          return `
+            <div style="display:grid;grid-template-columns:68px 1fr auto;align-items:center;gap:0.55rem;padding:0.42rem 0.65rem;background:${bgRow};border-bottom:1px solid rgba(255,255,255,0.06)">
+              <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.15rem;color:${meta.color};letter-spacing:0.03em">
+                ${escapeHtml(timeStr)}
+              </div>
+              <div style="font-weight:800;font-size:0.9rem;color:#f3f4f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                ${escapeHtml(e.full_display_name)}
+              </div>
+              <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:0.72rem;padding:0.12rem 0.42rem;border-radius:5px;border:1px solid ${e.division_color || meta.color};color:${e.division_color || meta.color};letter-spacing:0.04em">
+                ${escapeHtml(shortDiv)}
+              </span>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div style="background:#11151d;border:1px solid rgba(255,255,255,0.1);border-top:3px solid ${meta.color};border-radius:10px;overflow:hidden">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0.7rem;background:rgba(255,255,255,0.04);border-bottom:1px solid rgba(255,255,255,0.08)">
+              <div>
+                <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:1.02rem;color:${meta.color};letter-spacing:0.04em">
+                  ${escapeHtml( dayPrefix + ' — ' + meta.title )}
+                </div>
+                <div style="font-size:0.7rem;font-weight:700;color:var(--muted)">${escapeHtml(meta.window)}</div>
+              </div>
+              <span class="pill" style="background:rgba(255,255,255,0.08);color:${meta.color};font-weight:900">${entries.length}</span>
+            </div>
+            <div>${rowsHtml}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function buildStartListWhatsAppText() {
+      const ev = currentState?.event || {};
+      const groups = getGroupedStartListEntries();
+      const lines = [
+        `🏁 *CS FITNESS — HYROX SIM START LIST*`,
+        `_${ev.name || 'HYROX Simulation'} · Train Hard & Be Sound_`,
+        '',
+      ];
+      groups.forEach(({ meta, entries }) => {
+        const dayPrefix = meta.day === '2' ? 'SUNDAY' : 'SATURDAY';
+        lines.push(`*${dayPrefix} — ${meta.title}* (${meta.window})`);
+        entries.forEach(e => {
+          const t = e.heat_start_time || 'TBC';
+          const shortDiv = getShortDivBadge(e.division);
+          lines.push(`• *${t}* — ${e.full_display_name} _(${shortDiv})_`);
+        });
+        lines.push('');
+      });
+      return lines.join('\n').trim();
+    }
+
+    async function copyStartListWhatsApp() {
+      const text = buildStartListWhatsAppText();
+      const btn = document.getElementById('sl-copy-btn');
+      try {
+        await navigator.clipboard.writeText(text);
+        if (btn) {
+          const orig = btn.textContent;
+          btn.textContent = '✅ Copied!';
+          setTimeout(() => { btn.textContent = orig; }, 1800);
+        }
+      } catch (err) {
+        prompt('Copy WhatsApp Start List:', text);
+      }
+    }
+
+    function shareStartListWhatsApp() {
+      const text = buildStartListWhatsAppText();
+      const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+      window.open(url, '_blank', 'noopener');
+    }
+
+    async function downloadStartListPng() {
+      const groups = getGroupedStartListEntries();
+      if (!groups.length) return alert('No scheduled athletes to export.');
+
+      const scale = 2;
+      const width = 920;
+      const pad = 36;
+      const headerH = 96;
+      const groupGap = 22;
+      const groupHeadH = 48;
+      const rowH = 38;
+
+      let totalContentH = pad + headerH + 16;
+      groups.forEach(g => {
+        totalContentH += groupHeadH + (g.entries.length * rowH) + groupGap;
+      });
+      totalContentH += pad - groupGap;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width * scale;
+      canvas.height = totalContentH * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(scale, scale);
+
+      // Background
+      ctx.fillStyle = '#090b0f';
+      ctx.fillRect(0, 0, width, totalContentH);
+      ctx.strokeStyle = 'rgba(61,255,79,0.55)';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(10, 10, width - 20, totalContentH - 20);
+
+      // Header
+      ctx.fillStyle = '#3dff4f';
+      ctx.fillRect(pad, pad, 96, 22);
+      ctx.fillStyle = '#051b07';
+      ctx.font = '900 13px "Barlow Condensed", Arial, sans-serif';
+      ctx.fillText('CS FITNESS', pad + 10, pad + 16);
+
+      const ev = currentState?.event || {};
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '700 13px Inter, Arial, sans-serif';
+      ctx.fillText((ev.name || 'HYROX SIMULATION').toUpperCase(), pad + 108, pad + 16);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 34px "Barlow Condensed", Arial, sans-serif';
+      const titleStr = startListDayFilter === '1'
+        ? 'SATURDAY START LIST'
+        : (startListDayFilter === '2' ? 'SUNDAY START LIST' : 'OFFICIAL START LIST');
+      ctx.fillText(titleStr, pad, pad + 56);
+
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#3dff4f';
+      ctx.font = '900 18px "Barlow Condensed", Arial, sans-serif';
+      ctx.fillText('TRAIN HARD & BE SOUND', width - pad, pad + 34);
+      const totalEntries = groups.reduce((acc, g) => acc + g.entries.length, 0);
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '700 13px Inter, Arial, sans-serif';
+      ctx.fillText(`${totalEntries} Confirmed Slots`, width - pad, pad + 56);
+      ctx.textAlign = 'left';
+
+      // Divider
+      ctx.fillStyle = 'rgba(61,255,79,0.35)';
+      ctx.fillRect(pad, pad + 72, width - pad * 2, 2);
+
+      let y = pad + headerH;
+      groups.forEach(({ meta, entries }) => {
+        const boxH = groupHeadH + entries.length * rowH;
+        const dayPrefix = meta.day === '2' ? 'SUNDAY' : 'SATURDAY';
+
+        ctx.fillStyle = '#11151d';
+        ctx.fillRect(pad, y, width - pad * 2, boxH);
+        ctx.fillStyle = meta.color || '#3dff4f';
+        ctx.fillRect(pad, y, width - pad * 2, 4);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.04)';
+        ctx.fillRect(pad, y + 4, width - pad * 2, groupHeadH - 4);
+
+        ctx.fillStyle = meta.color || '#3dff4f';
+        ctx.font = '900 20px "Barlow Condensed", Arial, sans-serif';
+        ctx.fillText(`${dayPrefix} — ${meta.title}`, pad + 16, y + 26);
+
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '700 12px Inter, Arial, sans-serif';
+        ctx.fillText(meta.window, pad + 16, y + 42);
+
+        ctx.textAlign = 'right';
+        ctx.fillStyle = meta.color || '#3dff4f';
+        ctx.font = '900 15px "Barlow Condensed", Arial, sans-serif';
+        ctx.fillText(`${entries.length} SLOTS`, width - pad - 16, y + 30);
+        ctx.textAlign = 'left';
+
+        let rowY = y + groupHeadH;
+        entries.forEach((e, idx) => {
+          if (idx % 2 === 0) {
+            ctx.fillStyle = 'rgba(255,255,255,0.025)';
+            ctx.fillRect(pad, rowY, width - pad * 2, rowH);
+          }
+          ctx.fillStyle = 'rgba(255,255,255,0.06)';
+          ctx.fillRect(pad, rowY + rowH - 1, width - pad * 2, 1);
+
+          // Time
+          ctx.fillStyle = meta.color || '#3dff4f';
+          ctx.font = '900 20px "Barlow Condensed", Arial, sans-serif';
+          ctx.fillText(e.heat_start_time || 'TBC', pad + 16, rowY + 25);
+
+          // Athlete Name
+          ctx.fillStyle = '#f3f4f6';
+          ctx.font = '700 16px Inter, Arial, sans-serif';
+          ctx.fillText(e.full_display_name || e.display_name || '', pad + 100, rowY + 24);
+
+          // Category Badge
+          const shortDiv = getShortDivBadge(e.division);
+          ctx.textAlign = 'right';
+          ctx.fillStyle = e.division_color || meta.color || '#3dff4f';
+          ctx.font = '800 13px "Barlow Condensed", Arial, sans-serif';
+          ctx.fillText(shortDiv, width - pad - 16, rowY + 24);
+          ctx.textAlign = 'left';
+
+          rowY += rowH;
+        });
+
+        y += boxH + groupGap;
+      });
+
+      canvas.toBlob(async blob => {
+        if (!blob) return;
+        const fileName = `cs-fitness-hyrox-start-list-${startListDayFilter === 'all' ? 'weekend' : 'day' + startListDayFilter}.png`;
+        const file = new File([blob], fileName, { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              title: 'CS Fitness HYROX Sim Start List',
+              files: [file],
+            });
+            return;
+          } catch (err) {
+            // Fall through to download
+          }
+        }
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, 'image/png');
     }
 
     initWeekendSetupDates();
