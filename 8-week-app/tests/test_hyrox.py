@@ -1027,30 +1027,48 @@ def test_confirmed_13_road_to_glasgow_signups_enrichment(client):
         assert by_name[solo_male]["division"] == "men_open"
         assert by_name[solo_male]["partner_name"] == ""
         assert by_name[solo_male]["signup_group"] == "male_solo"
+    assert by_name["Lucas Kane"]["volunteer_name"] == "Danielle"
+    assert by_name["Lucas Kane"]["heat_start_time"] == "14:00"
+    assert by_name["Ross Martin"]["volunteer_name"] == "Connie"
+    assert by_name["Ross Martin"]["heat_start_time"] == "14:00"
+    assert by_name["Scott Firth"]["volunteer_name"] == "Hannah"
+    assert by_name["Scott Firth"]["heat_start_time"] == "14:00"
 
-    # 4-9: Group 2 — Male Doubles / Mixed Doubles (Saturday 28th)
+    # 4-9: Group 2 — Male Doubles / Mixed Doubles (Saturday 28th) + Joe Wardle Solo
     assert by_name["Eilidh Mcmanus"]["division"] == "mixed_doubles"
     assert by_name["Eilidh Mcmanus"]["partner_name"] == "Jax Stevenson"
+    assert by_name["Eilidh Mcmanus"]["volunteer_name"] == "Joely"
+    assert by_name["Eilidh Mcmanus"]["heat_start_time"] == "14:20"
     assert by_name["Eilidh Mcmanus"]["signup_group"] == "male_mixed_doubles"
 
     assert by_name["Ewan Stewart"]["division"] == "men_doubles"
     assert by_name["Ewan Stewart"]["partner_name"] == "Ewan Taylor"
+    assert by_name["Ewan Stewart"]["volunteer_name"] == "Ross Crombie"
+    assert by_name["Ewan Stewart"]["heat_start_time"] == "14:45"
     assert by_name["Ewan Stewart"]["signup_group"] == "male_mixed_doubles"
 
     assert by_name["Keiran Jackson"]["division"] == "men_doubles"
     assert by_name["Keiran Jackson"]["partner_name"] == "Ricky Simpson"
+    assert by_name["Keiran Jackson"]["volunteer_name"] == "Katie Sharkey"
+    assert by_name["Keiran Jackson"]["heat_start_time"] == "14:25"
     assert by_name["Keiran Jackson"]["signup_group"] == "male_mixed_doubles"
 
     assert by_name["Scott McDonald"]["division"] == "men_doubles"
     assert by_name["Scott McDonald"]["partner_name"] == "Liam Blair"
+    assert by_name["Scott McDonald"]["volunteer_name"] == "Robert Myler"
+    assert by_name["Scott McDonald"]["heat_start_time"] == "14:30"
     assert by_name["Scott McDonald"]["signup_group"] == "male_mixed_doubles"
 
     assert by_name["Steven Rosie"]["division"] == "mixed_doubles"
     assert by_name["Steven Rosie"]["partner_name"] == "Fiona Sharp"
+    assert by_name["Steven Rosie"]["volunteer_name"] == "Allen Gibson"
+    assert by_name["Steven Rosie"]["heat_start_time"] == "14:35"
     assert by_name["Steven Rosie"]["signup_group"] == "male_mixed_doubles"
 
     assert by_name["Joe Wardle"]["division"] == "men_open"
     assert by_name["Joe Wardle"]["partner_name"] == ""
+    assert by_name["Joe Wardle"]["volunteer_name"] == "Jamie"
+    assert by_name["Joe Wardle"]["heat_start_time"] == "14:40"
     assert by_name["Joe Wardle"]["notes"] == ""
     assert by_name["Joe Wardle"]["signup_group"] == "male_solo"
 
@@ -1130,6 +1148,33 @@ def test_confirmed_13_road_to_glasgow_signups_enrichment(client):
         assert by_name[solo_female]["partner_name"] == ""
         assert by_name[solo_female]["notes"] == ""
         assert by_name[solo_female]["signup_group"] == "female_solo"
+    assert by_name["Eve Cunningham"]["volunteer_name"] == "Sheryl"
+    assert by_name["Eve Cunningham"]["heat_start_time"] == "10:00"
+    assert by_name["Joanne Campbell"]["volunteer_name"] == "Eilidh"
+    assert by_name["Joanne Campbell"]["heat_start_time"] == "10:05"
+    assert by_name["Lesley Anne Cooper"]["volunteer_name"] == "Scott McDonald"
+    assert by_name["Lesley Anne Cooper"]["heat_start_time"] == "10:10"
+    assert by_name["Ava Stewart"]["volunteer_name"] == "Allen Gibson"
+    assert by_name["Ava Stewart"]["heat_start_time"] == "10:15"
+
+    # Also verify that _restore_screenshot_volunteers_and_slots (include_additional=True)
+    # seeds/restores the 14th entry from the screenshot: Louise Menealy & Louise (Sun 10:20, women_doubles, Volunteer Jamie)
+    restore_res = client.post(
+        f"/api/hyrox/events/{event_id}/apply-road-to-glasgow",
+        json={"include_additional": True},
+    )
+    assert restore_res.status_code == 200
+    state_restored = restore_res.get_json()
+    assert state_restored["seeded_count"] == 14
+    by_restored_name = {e["display_name"]: e for e in state_restored["entries"]}
+    assert "Louise Menealy" in by_restored_name
+    assert by_restored_name["Louise Menealy"]["partner_name"] == "Louise"
+    assert by_restored_name["Louise Menealy"]["division"] == "women_doubles"
+    assert by_restored_name["Louise Menealy"]["volunteer_name"] == "Jamie"
+    assert by_restored_name["Louise Menealy"]["heat_start_time"] == "10:20"
+
+
+
 
 
 

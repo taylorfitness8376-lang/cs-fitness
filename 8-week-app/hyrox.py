@@ -843,7 +843,7 @@ def _purge_legacy_sample_data(db):
                     ev_latest["id"],
                     sat_date=ev_latest["event_date"] or "2026-11-28",
                     sun_date=ev_latest["end_date"] or "2026-11-29",
-                    repack_entries=True,
+                    repack_entries=False,
                 )
             db.execute(
                 "INSERT INTO hyrox_settings (key, value, updated_at) VALUES ('five_min_slots_sat28_sun29_v1', '1', CURRENT_TIMESTAMP) "
@@ -861,28 +861,24 @@ def _purge_legacy_sample_data(db):
             ).fetchall()
             for jw in jw_rows:
                 if (jw["partner_name"] or "").strip().upper().startswith("TBC") or jw["division"] == "men_doubles":
-                    new_jw_heat_id = jw["heat_id"]
-                    if new_jw_heat_id:
-                        h_row = db.execute(
-                            "SELECT start_time FROM hyrox_heats WHERE id=?",
-                            (new_jw_heat_id,),
-                        ).fetchone()
-                        if h_row and (h_row["start_time"] or "") >= "15:30":
-                            slot_helper = {
-                                "display_name": "Joe Wardle",
-                                "email": "",
-                                "division": "men_open",
-                            }
-                            _assign_weekend_group_slot(db, jw["event_id"], slot_helper)
-                            if slot_helper.get("heat_id"):
-                                new_jw_heat_id = int(slot_helper["heat_id"])
                     db.execute(
                         "UPDATE hyrox_entries SET division='men_open', partner_name='', partner_athlete_id=NULL, "
-                        "heat_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                        (new_jw_heat_id, jw["id"]),
+                        "updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                        (jw["id"],),
                     )
             db.execute(
                 "INSERT INTO hyrox_settings (key, value, updated_at) VALUES ('joe_wardle_solo_fix_v1', '1', CURRENT_TIMESTAMP) "
+                "ON CONFLICT(key) DO UPDATE SET value='1', updated_at=CURRENT_TIMESTAMP"
+            )
+            changed = True
+
+        screenshot_restore_flag = db.execute(
+            "SELECT value FROM hyrox_settings WHERE key='confirmed_screenshot_volunteers_and_slots_v1'"
+        ).fetchone()
+        if not screenshot_restore_flag:
+            _restore_screenshot_volunteers_and_slots(db)
+            db.execute(
+                "INSERT INTO hyrox_settings (key, value, updated_at) VALUES ('confirmed_screenshot_volunteers_and_slots_v1', '1', CURRENT_TIMESTAMP) "
                 "ON CONFLICT(key) DO UPDATE SET value='1', updated_at=CURRENT_TIMESTAMP"
             )
             changed = True
@@ -3587,6 +3583,9 @@ CONFIRMED_SAT28_SUN29_SIGNUPS = [
         "aliases": ["lucas kane", "lucas"],
         "partner_name": "",
         "division": "men_open",
+        "volunteer_name": "Danielle",
+        "day_number": 1,
+        "slot_time": "14:00",
         "teamup_event_name": "Hyrox simulation solo",
         "road_to_glasgow_note": "Confirmed Men's Solo Open (Road to Glasgow)",
     },
@@ -3596,6 +3595,9 @@ CONFIRMED_SAT28_SUN29_SIGNUPS = [
         "aliases": ["ross martin", "riss martin", "riss marting"],
         "partner_name": "",
         "division": "men_open",
+        "volunteer_name": "Connie",
+        "day_number": 1,
+        "slot_time": "14:00",
         "teamup_event_name": "Hyrox simulation solo",
         "road_to_glasgow_note": "Confirmed Men's Solo Open (Road to Glasgow)",
     },
@@ -3605,6 +3607,9 @@ CONFIRMED_SAT28_SUN29_SIGNUPS = [
         "aliases": ["scott firth"],
         "partner_name": "",
         "division": "men_open",
+        "volunteer_name": "Hannah",
+        "day_number": 1,
+        "slot_time": "14:00",
         "teamup_event_name": "Hyrox simulation solo",
         "road_to_glasgow_note": "Confirmed Men's Solo Open (Road to Glasgow)",
     },
@@ -3615,6 +3620,9 @@ CONFIRMED_SAT28_SUN29_SIGNUPS = [
         "aliases": ["eilidh mcmanus", "eilidh"],
         "partner_name": "Jax Stevenson",
         "division": "mixed_doubles",
+        "volunteer_name": "Joely",
+        "day_number": 1,
+        "slot_time": "14:20",
         "teamup_event_name": "Hyrox simulation doubles male and mixed doubles",
         "road_to_glasgow_note": "Confirmed Mixed Doubles Open w/ Jax Stevenson (Road to Glasgow)",
     },
@@ -3624,6 +3632,9 @@ CONFIRMED_SAT28_SUN29_SIGNUPS = [
         "aliases": ["ewan stewart"],
         "partner_name": "Ewan Taylor",
         "division": "men_doubles",
+        "volunteer_name": "Ross Crombie",
+        "day_number": 1,
+        "slot_time": "14:45",
         "teamup_event_name": "Hyrox simulation doubles male and mixed doubles",
         "road_to_glasgow_note": "Confirmed Male Doubles Open w/ Ewan Taylor (Road to Glasgow)",
     },
@@ -3633,6 +3644,9 @@ CONFIRMED_SAT28_SUN29_SIGNUPS = [
         "aliases": ["keiran jackson", "kieran jackson"],
         "partner_name": "Ricky Simpson",
         "division": "men_doubles",
+        "volunteer_name": "Katie Sharkey",
+        "day_number": 1,
+        "slot_time": "14:25",
         "teamup_event_name": "Hyrox simulation doubles male and mixed doubles",
         "road_to_glasgow_note": "Confirmed Male Doubles Open w/ Ricky Simpson (Road to Glasgow)",
     },
@@ -3642,6 +3656,9 @@ CONFIRMED_SAT28_SUN29_SIGNUPS = [
         "aliases": ["scott mcdonald"],
         "partner_name": "Liam Blair",
         "division": "men_doubles",
+        "volunteer_name": "Robert Myler",
+        "day_number": 1,
+        "slot_time": "14:30",
         "teamup_event_name": "Hyrox simulation doubles male and mixed doubles",
         "road_to_glasgow_note": "Confirmed Male Doubles Open w/ Liam Blair (Road to Glasgow)",
     },
@@ -3651,6 +3668,9 @@ CONFIRMED_SAT28_SUN29_SIGNUPS = [
         "aliases": ["steven rosie"],
         "partner_name": "Fiona Sharp",
         "division": "mixed_doubles",
+        "volunteer_name": "Allen Gibson",
+        "day_number": 1,
+        "slot_time": "14:35",
         "teamup_event_name": "Hyrox simulation doubles male and mixed doubles",
         "road_to_glasgow_note": "Confirmed Mixed Doubles Open w/ Fiona Sharp (Road to Glasgow)",
     },
@@ -3660,6 +3680,9 @@ CONFIRMED_SAT28_SUN29_SIGNUPS = [
         "aliases": ["joe wardle"],
         "partner_name": "",
         "division": "men_open",
+        "volunteer_name": "Jamie",
+        "day_number": 1,
+        "slot_time": "14:40",
         "teamup_event_name": "Hyrox simulation solo",
         "road_to_glasgow_note": "Confirmed Men's Solo Open (Road to Glasgow)",
     },
@@ -3670,6 +3693,9 @@ CONFIRMED_SAT28_SUN29_SIGNUPS = [
         "aliases": ["eve cunningham"],
         "partner_name": "",
         "division": "women_open",
+        "volunteer_name": "Sheryl",
+        "day_number": 2,
+        "slot_time": "10:00",
         "teamup_event_name": "Hyrox simulations female open solo",
         "road_to_glasgow_note": "Confirmed Female Solo Open (Road to Glasgow)",
     },
@@ -3679,6 +3705,9 @@ CONFIRMED_SAT28_SUN29_SIGNUPS = [
         "aliases": ["joanne campbell"],
         "partner_name": "",
         "division": "women_open",
+        "volunteer_name": "Eilidh",
+        "day_number": 2,
+        "slot_time": "10:05",
         "teamup_event_name": "Hyrox simulations female open solo",
         "road_to_glasgow_note": "Confirmed Female Solo Open (Road to Glasgow)",
     },
@@ -3688,6 +3717,9 @@ CONFIRMED_SAT28_SUN29_SIGNUPS = [
         "aliases": ["lesley anne cooper", "lesley ann cooper"],
         "partner_name": "",
         "division": "women_open",
+        "volunteer_name": "Scott McDonald",
+        "day_number": 2,
+        "slot_time": "10:10",
         "teamup_event_name": "Hyrox simulations female open solo",
         "road_to_glasgow_note": "Confirmed Female Solo Open (Road to Glasgow)",
     },
@@ -3697,8 +3729,27 @@ CONFIRMED_SAT28_SUN29_SIGNUPS = [
         "aliases": ["ava stewart"],
         "partner_name": "",
         "division": "women_open",
+        "volunteer_name": "Allen Gibson",
+        "day_number": 2,
+        "slot_time": "10:15",
         "teamup_event_name": "Hyrox simulations female open solo",
         "road_to_glasgow_note": "Confirmed Female Solo Open (Road to Glasgow)",
+    },
+]
+
+CONFIRMED_ADDITIONAL_SCREENSHOT_SIGNUPS = [
+    # Group 4 — 4. Female Doubles (Sunday 29th, 10:00–14:00)
+    {
+        "order": 14,
+        "display_name": "Louise Menealy",
+        "aliases": ["louise menealy", "louise mcnealy"],
+        "partner_name": "Louise",
+        "division": "women_doubles",
+        "volunteer_name": "Jamie",
+        "day_number": 2,
+        "slot_time": "10:20",
+        "teamup_event_name": "Hyrox simulations female open doubles",
+        "road_to_glasgow_note": "Confirmed Female Doubles Open",
     },
 ]
 
@@ -3798,11 +3849,41 @@ def enrich_entry_from_road_to_glasgow(entry_dict):
     return entry_dict
 
 
+def _resolve_or_create_weekend_slot(db, event_id, day_number, slot_time, division="men_open"):
+    slot_time = _normalize_heat_time_str(slot_time)
+    day_number = int(day_number or 1)
+    if not slot_time:
+        return None
+    existing = db.execute(
+        "SELECT id FROM hyrox_heats WHERE event_id=? AND COALESCE(day_number, 1)=? AND start_time=? LIMIT 1",
+        (event_id, day_number, slot_time),
+    ).fetchone()
+    if existing:
+        return int(existing["id"])
+    ev_row = db.execute("SELECT event_date, end_date FROM hyrox_events WHERE id=?", (event_id,)).fetchone()
+    ev_d = dict(ev_row) if ev_row else {}
+    slot_date = (ev_d.get("end_date") if day_number == 2 else ev_d.get("event_date")) or ("2026-11-29" if day_number == 2 else "2026-11-28")
+    max_h = db.execute(
+        "SELECT COALESCE(MAX(heat_number), 0) as m FROM hyrox_heats WHERE event_id=?",
+        (event_id,),
+    ).fetchone()["m"]
+    h_num = int(max_h or 0) + 1
+    grp_key = division_to_signup_group_key(division)
+    grp_label = HYROX_SIGNUP_GROUPS.get(grp_key, {}).get("short_label", "Slot")
+    h_name = f"Day {day_number} · {slot_time} — {grp_label}"
+    cur_h = db.execute(
+        "INSERT INTO hyrox_heats (event_id, heat_number, day_number, slot_date, division_block, transition_buffer_mins, name, start_time, max_lanes, status) "
+        "VALUES (?, ?, ?, ?, ?, 0, ?, ?, 1, 'scheduled')",
+        (event_id, h_num, day_number, slot_date, division, h_name, slot_time),
+    )
+    return int(cur_h.lastrowid)
+
+
 def _apply_road_to_glasgow_enrichment_to_db(db, event_id=None):
     """
     Update any existing entries in `hyrox_entries` that match the confirmed Road to Glasgow
-    roster so their partner_name, partner_athlete_id, division, notes, and 1:1 group heat slot
-    are accurate.
+    roster so their partner_name, partner_athlete_id, division, volunteer_name, notes, and
+    heat slot are accurate.
     """
     sql = "SELECT * FROM hyrox_entries"
     params = []
@@ -3818,6 +3899,7 @@ def _apply_road_to_glasgow_enrichment_to_db(db, event_id=None):
             continue
         target_div = spec["division"]
         target_partner = spec["partner_name"]
+        target_vol = (r["volunteer_name"] or "").strip() or (spec.get("volunteer_name") or "").strip()
         cur_notes = (r["notes"] or "").strip()
         if "road to glasgow" in cur_notes.lower() or "tbc — confirm" in cur_notes.lower():
             new_notes = cur_notes.split("·")[0].strip() if "teamup #" in cur_notes.lower() else ""
@@ -3827,29 +3909,18 @@ def _apply_road_to_glasgow_enrichment_to_db(db, event_id=None):
         needs_update = (
             (r["division"] or "") != target_div
             or (r["partner_name"] or "") != target_partner
+            or (r["volunteer_name"] or "").strip() != target_vol
             or new_notes != cur_notes
         )
         new_heat_id = r["heat_id"]
-        target_group = division_to_signup_group_key(target_div)
-        target_meta = HYROX_SIGNUP_GROUPS[target_group]
-        if new_heat_id:
-            h_row = db.execute(
-                "SELECT start_time, COALESCE(day_number, 1) as day_number FROM hyrox_heats WHERE id=?",
-                (new_heat_id,),
-            ).fetchone()
-            if not h_row or int(h_row["day_number"]) != target_meta["day_number"] or not (
-                target_meta["default_start_time"] <= (h_row["start_time"] or "") <= target_meta["default_end_time"]
-            ):
-                slot_helper = {
-                    "display_name": r["display_name"],
-                    "email": r["email"] or "",
-                    "division": target_div,
-                }
-                _assign_weekend_group_slot(db, r["event_id"], slot_helper)
-                if slot_helper.get("heat_id"):
-                    new_heat_id = int(slot_helper["heat_id"])
-                    needs_update = True
-        else:
+        if spec.get("slot_time") and spec.get("day_number"):
+            resolved_hid = _resolve_or_create_weekend_slot(
+                db, r["event_id"], spec["day_number"], spec["slot_time"], target_div
+            )
+            if resolved_hid and new_heat_id != resolved_hid:
+                new_heat_id = resolved_hid
+                needs_update = True
+        elif not new_heat_id:
             slot_helper = {
                 "display_name": r["display_name"],
                 "email": r["email"] or "",
@@ -3867,18 +3938,19 @@ def _apply_road_to_glasgow_enrichment_to_db(db, event_id=None):
                 else None
             )
             db.execute(
-                "UPDATE hyrox_entries SET division=?, partner_name=?, partner_athlete_id=?, heat_id=?, notes=?, "
+                "UPDATE hyrox_entries SET division=?, partner_name=?, partner_athlete_id=?, volunteer_name=?, heat_id=?, notes=?, "
                 "updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                (target_div, target_partner, partner_aid, new_heat_id, new_notes, r["id"]),
+                (target_div, target_partner, partner_aid, target_vol, new_heat_id, new_notes, r["id"]),
             )
             updated += 1
     return updated
 
 
-def _seed_confirmed_sat28_sun29_signups(db, event_id=None):
+def _seed_confirmed_sat28_sun29_signups(db, event_id=None, include_additional=False):
     """
-    Ensure all 13 confirmed Saturday 28th & Sunday 29th HYROX Simulation sign-ups
-    (cross-referenced with Road to Glasgow) are present in the active weekend event.
+    Ensure all confirmed Saturday 28th & Sunday 29th HYROX Simulation sign-ups
+    (cross-referenced with Road to Glasgow + screenshot volunteers & start times)
+    are present in the active weekend event.
     """
     if event_id is None:
         ev = db.execute(
@@ -3888,28 +3960,69 @@ def _seed_confirmed_sat28_sun29_signups(db, event_id=None):
             return 0
         event_id = ev["id"]
 
+    roster = list(CONFIRMED_SAT28_SUN29_SIGNUPS)
+    if include_additional:
+        roster.extend(CONFIRMED_ADDITIONAL_SCREENSHOT_SIGNUPS)
+
     count = 0
-    for spec in CONFIRMED_SAT28_SUN29_SIGNUPS:
+    for spec in roster:
+        target_hid = None
+        if spec.get("slot_time") and spec.get("day_number"):
+            target_hid = _resolve_or_create_weekend_slot(
+                db, event_id, spec["day_number"], spec["slot_time"], spec["division"]
+            )
         payload = {
             "display_name": spec["display_name"],
             "partner_name": spec["partner_name"],
             "division": spec["division"],
+            "volunteer_name": spec.get("volunteer_name") or "",
+            "heat_id": target_hid,
+            "force_heat_time": bool(target_hid),
             "has_explicit_division": True,
             "notes": "",
             "replace_notes": True,
         }
-        _assign_weekend_group_slot(db, event_id, payload)
+        if not target_hid:
+            _assign_weekend_group_slot(db, event_id, payload)
         eid, _ = _create_entry_record(db, event_id, payload, upsert=True)
         if eid:
+            # Ensure volunteer_name and heat_id match the confirmed spec
+            if spec.get("volunteer_name") or target_hid:
+                db.execute(
+                    "UPDATE hyrox_entries SET volunteer_name=COALESCE(NULLIF(volunteer_name, ''), ?), "
+                    "heat_id=COALESCE(?, heat_id), division=?, partner_name=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    (
+                        spec.get("volunteer_name") or "",
+                        target_hid,
+                        spec["division"],
+                        spec["partner_name"],
+                        eid,
+                    ),
+                )
             count += 1
     _apply_road_to_glasgow_enrichment_to_db(db, event_id=event_id)
     return count
 
 
+def _restore_screenshot_volunteers_and_slots(db, event_id=None):
+    """
+    One-time restore of all 14 entries, start times, categories, and volunteer names
+    from the Race Director's confirmed screenshot (with Joe Wardle updated to Men's Open Solo).
+    """
+    if event_id is None:
+        ev = db.execute(
+            "SELECT id FROM hyrox_events ORDER BY event_date DESC, id DESC LIMIT 1"
+        ).fetchone()
+        if not ev:
+            return 0
+        event_id = ev["id"]
+    return _seed_confirmed_sat28_sun29_signups(db, event_id=event_id, include_additional=True)
+
+
 @hyrox_bp.route("/api/hyrox/events/<int:event_id>/apply-road-to-glasgow", methods=["POST"])
 def api_apply_road_to_glasgow(event_id):
     """
-    Seed/upsert and enrich the 13 confirmed Saturday 28th & Sunday 29th HYROX Sim
+    Seed/upsert and enrich the confirmed Saturday 28th & Sunday 29th HYROX Sim
     sign-ups from the CS Performance 'Road to Glasgow' sheet into the specified event.
     """
     db = get_db()
@@ -3917,7 +4030,11 @@ def api_apply_road_to_glasgow(event_id):
     ev = db.execute("SELECT * FROM hyrox_events WHERE id=?", (event_id,)).fetchone()
     if not ev:
         return jsonify({"error": "HYROX Event not found"}), 404
-    seeded_count = _seed_confirmed_sat28_sun29_signups(db, event_id=event_id)
+    body = request.get_json(silent=True) or {}
+    include_additional = bool(body.get("include_additional", False))
+    seeded_count = _seed_confirmed_sat28_sun29_signups(
+        db, event_id=event_id, include_additional=include_additional
+    )
     db.commit()
     entry_rows = db.execute("SELECT * FROM hyrox_entries WHERE event_id=? ORDER BY id ASC", (event_id,)).fetchall()
     entries_final = [serialize_entry(db, r, include_splits=False, include_history=False) for r in entry_rows]
