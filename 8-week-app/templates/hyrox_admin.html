@@ -562,7 +562,8 @@
             <option value="finished">Finished Only</option>
             <option value="active">Racing / Finished</option>
           </select>
-          <button type="button" class="btn btn-green" style="height:34px;padding:0 0.75rem" onclick="openStartListModal()">📋 Start List</button>
+          <button type="button" class="btn btn-green" id="btn-save-all-inline" style="height:34px;padding:0 0.75rem" onclick="saveAllInlineRows()">💾 Save Changes</button>
+          <button type="button" class="btn" style="height:34px;padding:0 0.75rem;border-color:rgba(61,255,79,0.45);color:var(--green)" onclick="openStartListModal()">📋 Start List</button>
           <button type="button" class="btn" style="height:34px;padding:0 0.7rem" onclick="refreshEventState()">🔄 Refresh</button>
         </div>
       </div>
@@ -571,12 +572,12 @@
         <table style="table-layout:fixed;width:100%">
           <thead>
             <tr>
-              <th style="width:110px">Slot</th>
+              <th style="width:115px">Slot</th>
               <th>Athlete(s)</th>
-              <th style="width:160px">Category</th>
-              <th style="width:150px">Volunteer</th>
+              <th style="width:170px">Category</th>
+              <th style="width:165px">Volunteer</th>
               <th style="width:140px;text-align:center">Status / Time</th>
-              <th style="width:165px;text-align:right">Actions</th>
+              <th style="width:85px;text-align:right">Actions</th>
             </tr>
           </thead>
           <tbody id="entries-tbody"></tbody>
@@ -795,8 +796,15 @@
       const res = await fetch(`/api/hyrox/events/${currentEventId}/state`);
       if (!res.ok) return;
       currentState = await res.json();
+      if (dirtyRowDrafts && dirtyRowDrafts.size > 0) {
+        dirtyRowDrafts.forEach((patch, eid) => applyPatchToLocalEntry(eid, patch));
+      }
       populateHeatDropdown();
       renderEntriesTable();
+      const slModal = document.getElementById('start-list-modal');
+      if (slModal && slModal.classList.contains('active')) {
+        renderStartListContent();
+      }
     }
 
     function initWeekendSetupDates() {
@@ -979,7 +987,18 @@
       SIGNUP_GROUP_META.forEach(grp => {
         if (filterGroup !== 'all' && filterGroup !== grp.key) return;
         if (adminDayFilter !== 'all' && adminDayFilter !== grp.day) return;
-        const grpEntries = entries.filter(e => inferGroupKeyForEntry(e) === grp.key);
+        const grpEntries = entries
+          .filter(e => inferGroupKeyForEntry(e) === grp.key)
+          .slice()
+          .sort((a, b) => {
+            const dA = Number(a.heat_day_number || 1);
+            const dB = Number(b.heat_day_number || 1);
+            if (dA !== dB) return dA - dB;
+            const tA = a.heat_start_time || '99:99';
+            const tB = b.heat_start_time || '99:99';
+            if (tA !== tB) return tA.localeCompare(tB);
+            return (a.id || 0) - (b.id || 0);
+          });
         if (!grpEntries.length && (filterDiv !== 'all' || filterStatus !== 'all' || searchQ)) return;
 
         rowsHtml.push(`
@@ -1025,18 +1044,20 @@
           const progressInlineHtml = e.status === 'racing'
             ? `<span style="font-size:0.68rem;color:var(--muted);margin-left:0.2rem">${e.completed_splits}/16</span>`
             : '';
+          const isDirty = dirtyRowDrafts.has(e.id);
 
           rowsHtml.push(`
-            <tr id="entry-row-${e.id}">
+            <tr id="entry-row-${e.id}" style="${isDirty ? 'background:rgba(61,255,79,0.05);' : ''}">
               <td>
-                <select class="cell-select" id="row-heat-${e.id}" onchange="markRowDirty(${e.id})" style="width:100%">
+                <select class="cell-select" id="row-heat-${e.id}" onchange="onInlineHeatChange(${e.id}, this.value)" style="width:100%">
                   ${heatOpts}
                 </select>
               </td>
               <td>
                 <input type="text" class="cell-input" id="row-name-${e.id}" value="${escapeHtml(e.full_display_name)}"
-                  oninput="markRowDirty(${e.id})"
-                  onkeydown="if(event.key==='Enter'){event.preventDefault();saveInlineRow(${e.id});}"
+                  oninput="onInlineTextInput(${e.id})"
+                  onchange="saveSingleRowQuietly(${e.id})"
+                  onkeydown="if(event.key==='Enter'){event.preventDefault();saveAllInlineRows();}"
                   style="width:100%;font-weight:700;font-size:0.84rem" />
               </td>
               <td>
@@ -1047,8 +1068,9 @@
               </td>
               <td>
                 <input type="text" class="cell-input" id="row-vol-${e.id}" value="${escapeHtml(e.volunteer_name || '')}" placeholder="Volunteer"
-                  oninput="markRowDirty(${e.id})"
-                  onkeydown="if(event.key==='Enter'){event.preventDefault();saveInlineRow(${e.id});}"
+                  oninput="onInlineTextInput(${e.id})"
+                  onchange="saveSingleRowQuietly(${e.id})"
+                  onkeydown="if(event.key==='Enter'){event.preventDefault();saveAllInlineRows();}"
                   style="width:100%" />
               </td>
               <td style="text-align:center">
@@ -1058,8 +1080,6 @@
               </td>
               <td style="text-align:right">
                 <div style="display:inline-flex;gap:0.3rem;align-items:center;justify-content:flex-end">
-                  <button type="button" class="btn-xs btn-green" id="row-save-${e.id}" onclick="saveInlineRow(${e.id})">Save</button>
-                  <button type="button" class="btn-xs" onclick="openSplitsModal(${e.id})">Edit</button>
                   <button type="button" class="btn-xs btn-red" onclick="quickDeleteEntry(${e.id})">Delete</button>
                 </div>
               </td>
@@ -1069,32 +1089,17 @@
       });
 
       tbody.innerHTML = rowsHtml.join('');
+      updateGlobalSaveButtonState();
     }
 
     const SOLO_DIVISIONS = ['women_open', 'women_pro', 'men_open', 'men_pro'];
+    const dirtyRowDrafts = new Map();
 
-    function markRowDirty(entryId) {
-      const btn = document.getElementById(`row-save-${entryId}`);
-      if (btn) {
-        btn.textContent = 'Save*';
-        btn.style.boxShadow = '0 0 0 2px rgba(61,255,79,0.45)';
-      }
-    }
-
-    function onInlineDivisionChange(entryId, newDiv) {
-      markRowDirty(entryId);
-      const nameInput = document.getElementById(`row-name-${entryId}`);
-      if (nameInput && SOLO_DIVISIONS.includes(newDiv) && nameInput.value.includes(' & ')) {
-        nameInput.value = nameInput.value.split(' & ')[0].trim();
-      }
-    }
-
-    async function saveInlineRow(entryId) {
+    function buildPatchFromRowDom(entryId) {
       const heatSel = document.getElementById(`row-heat-${entryId}`);
       const nameInput = document.getElementById(`row-name-${entryId}`);
       const divSel = document.getElementById(`row-div-${entryId}`);
       const volInput = document.getElementById(`row-vol-${entryId}`);
-      const saveBtn = document.getElementById(`row-save-${entryId}`);
 
       const divVal = divSel ? divSel.value : 'men_open';
       const isSolo = SOLO_DIVISIONS.includes(divVal);
@@ -1113,19 +1118,153 @@
       }
 
       const heatVal = heatSel ? heatSel.value : '';
-      const patch = {
+      return {
+        id: entryId,
         heat_id: heatVal ? parseInt(heatVal, 10) : null,
         display_name,
         partner_name,
         division: divVal,
         volunteer_name: (volInput ? volInput.value : '').trim(),
       };
+    }
 
-      if (saveBtn) {
-        saveBtn.disabled = true;
-        saveBtn.textContent = '...';
+    function applyPatchToLocalEntry(entryId, patch) {
+      if (!currentState || !Array.isArray(currentState.entries)) return;
+      const entry = currentState.entries.find(x => x.id === entryId);
+      if (!entry) return;
+      entry.heat_id = patch.heat_id;
+      const heatObj = (currentState.heats || []).find(h => h.id === patch.heat_id);
+      entry.heat_start_time = heatObj ? (heatObj.start_time || '') : '';
+      entry.heat_day_number = heatObj ? (heatObj.day_number || 1) : (entry.heat_day_number || 1);
+      entry.display_name = patch.display_name || entry.display_name;
+      entry.partner_name = patch.partner_name || '';
+      entry.full_display_name = entry.partner_name
+        ? `${entry.display_name} & ${entry.partner_name}`
+        : entry.display_name;
+      entry.division = patch.division;
+      entry.volunteer_name = patch.volunteer_name;
+      delete entry.signup_group;
+      entry.signup_group = inferGroupKeyForEntry(entry);
+    }
+
+    function updateGlobalSaveButtonState(savedFlash = false) {
+      const btn = document.getElementById('btn-save-all-inline');
+      if (!btn) return;
+      const count = dirtyRowDrafts.size;
+      if (savedFlash) {
+        btn.textContent = '✅ Saved!';
+        btn.style.boxShadow = '0 0 0 2px rgba(61,255,79,0.55)';
+        setTimeout(() => updateGlobalSaveButtonState(false), 1600);
+        return;
       }
-      await updateEntryMeta(entryId, patch);
+      if (count > 0) {
+        btn.textContent = `💾 Save Changes (${count})`;
+        btn.style.boxShadow = '0 0 0 2px rgba(61,255,79,0.55)';
+      } else {
+        btn.textContent = '💾 Save Changes';
+        btn.style.boxShadow = 'none';
+      }
+    }
+
+    function markRowDirty(entryId) {
+      const patch = buildPatchFromRowDom(entryId);
+      dirtyRowDrafts.set(entryId, patch);
+      applyPatchToLocalEntry(entryId, patch);
+      const rowEl = document.getElementById(`entry-row-${entryId}`);
+      if (rowEl) rowEl.style.background = 'rgba(61,255,79,0.05)';
+      updateGlobalSaveButtonState();
+    }
+
+    function onInlineTextInput(entryId) {
+      markRowDirty(entryId);
+    }
+
+    async function onInlineHeatChange(entryId, newHeatVal) {
+      markRowDirty(entryId);
+      renderEntriesTable();
+      const slModal = document.getElementById('start-list-modal');
+      if (slModal && slModal.classList.contains('active')) {
+        renderStartListContent();
+      }
+      await saveSingleRowQuietly(entryId);
+    }
+
+    async function onInlineDivisionChange(entryId, newDiv) {
+      const nameInput = document.getElementById(`row-name-${entryId}`);
+      if (nameInput && SOLO_DIVISIONS.includes(newDiv) && nameInput.value.includes(' & ')) {
+        nameInput.value = nameInput.value.split(' & ')[0].trim();
+      }
+      markRowDirty(entryId);
+      renderEntriesTable();
+      const slModal = document.getElementById('start-list-modal');
+      if (slModal && slModal.classList.contains('active')) {
+        renderStartListContent();
+      }
+      await saveSingleRowQuietly(entryId);
+    }
+
+    async function saveSingleRowQuietly(entryId) {
+      const patch = dirtyRowDrafts.get(entryId) || buildPatchFromRowDom(entryId);
+      applyPatchToLocalEntry(entryId, patch);
+      try {
+        const res = await fetch(`/api/hyrox/entries/${entryId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        });
+        if (res.ok) {
+          dirtyRowDrafts.delete(entryId);
+          const rowEl = document.getElementById(`entry-row-${entryId}`);
+          if (rowEl) rowEl.style.background = '';
+          updateGlobalSaveButtonState(dirtyRowDrafts.size === 0);
+        }
+      } catch (err) {
+        console.error('Background inline save error:', err);
+      }
+    }
+
+    async function saveInlineRow(entryId) {
+      markRowDirty(entryId);
+      await saveAllInlineRows();
+    }
+
+    async function saveAllInlineRows() {
+      const btn = document.getElementById('btn-save-all-inline');
+      if (dirtyRowDrafts.size === 0) {
+        // Also snapshot all visible rows in case user clicked Save Changes directly
+        document.querySelectorAll('#entries-tbody tr[id^="entry-row-"]').forEach(tr => {
+          const eid = parseInt(tr.id.replace('entry-row-', ''), 10);
+          if (eid) {
+            const p = buildPatchFromRowDom(eid);
+            dirtyRowDrafts.set(eid, p);
+            applyPatchToLocalEntry(eid, p);
+          }
+        });
+      }
+      const updates = Array.from(dirtyRowDrafts.values());
+      if (!updates.length) return;
+
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Saving...';
+      }
+      try {
+        const res = await fetch('/api/hyrox/entries/batch-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ updates }),
+        });
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          dirtyRowDrafts.clear();
+          await refreshEventState();
+          updateGlobalSaveButtonState(true);
+        } else {
+          alert(data.error || 'Failed to save changes');
+        }
+      } finally {
+        if (btn) btn.disabled = false;
+      }
     }
 
     async function updateEntryMeta(entryId, patch) {

@@ -679,9 +679,10 @@ def test_teamup_api_v2_sync_and_webhooks(client):
     assert "btn-theme-green" in judge_html
 
     admin_html = client.get("/hyrox/admin").get_data(as_text=True)
-    assert "saveInlineRow" in admin_html
+    assert "saveAllInlineRows" in admin_html
+    assert "onInlineHeatChange" in admin_html
     assert "onInlineDivisionChange" in admin_html
-    assert "onModalDivisionChange" in admin_html
+    assert "btn-save-all-inline" in admin_html
     assert "openStartListModal" in admin_html
     assert "downloadStartListPng" in admin_html
     assert "copyStartListWhatsApp" in admin_html
@@ -1088,6 +1089,40 @@ def test_confirmed_13_road_to_glasgow_signups_enrichment(client):
     assert keiran_after["full_display_name"] == "Keiran Jackson"
     assert keiran_after["heat_id"] == target_heat["id"]
     assert keiran_after["heat_start_time"] == "14:25"
+
+    # Verify batch-update endpoint saves multiple inline row edits in one transaction
+    lucas_entry = by_name["Lucas Kane"]
+    ross_entry = by_name["Ross Martin"]
+    batch_res = client.post(
+        "/api/hyrox/entries/batch-update",
+        json={
+            "updates": [
+                {
+                    "id": lucas_entry["id"],
+                    "heat_id": lucas_entry["heat_id"],
+                    "display_name": "Lucas Kane",
+                    "partner_name": "",
+                    "division": "men_open",
+                    "volunteer_name": "Volunteer Alpha",
+                },
+                {
+                    "id": ross_entry["id"],
+                    "heat_id": ross_entry["heat_id"],
+                    "display_name": "Ross Martin",
+                    "partner_name": "",
+                    "division": "men_open",
+                    "volunteer_name": "Volunteer Beta",
+                },
+            ]
+        },
+    )
+    assert batch_res.status_code == 200
+    assert batch_res.get_json()["updated_count"] == 2
+    state_batch = client.get(f"/api/hyrox/events/{event_id}/state").get_json()
+    lucas_after = next(e for e in state_batch["entries"] if e["id"] == lucas_entry["id"])
+    ross_after = next(e for e in state_batch["entries"] if e["id"] == ross_entry["id"])
+    assert lucas_after["volunteer_name"] == "Volunteer Alpha"
+    assert ross_after["volunteer_name"] == "Volunteer Beta"
 
     # 10-13: Group 3 — Female Solo Open (Sunday 29th)
     for solo_female in ("Eve Cunningham", "Joanne Campbell", "Lesley Anne Cooper", "Ava Stewart"):

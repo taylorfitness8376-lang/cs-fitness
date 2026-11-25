@@ -2472,26 +2472,8 @@ def api_import_csv(event_id):
     })
 
 
-@hyrox_bp.route("/api/hyrox/entries/<int:entry_id>", methods=["GET", "PUT", "DELETE"])
-def api_entry_detail(entry_id):
-    db = get_db()
-    ensure_hyrox_tables(db)
-    row = db.execute("SELECT * FROM hyrox_entries WHERE id=?", (entry_id,)).fetchone()
-    if not row:
-        return jsonify({"error": "Entry not found"}), 404
-
-    if request.method == "GET":
-        return jsonify({
-            "server_time_ms": int(time.time() * 1000),
-            "entry": serialize_entry(db, row, include_splits=True, include_history=True),
-        })
-
-    if request.method == "DELETE":
-        db.execute("DELETE FROM hyrox_entries WHERE id=?", (entry_id,))
-        db.commit()
-        return jsonify({"ok": True})
-
-    data = request.get_json(force=True) or {}
+def _apply_entry_patch(db, row, data):
+    entry_id = row["id"]
     new_division = normalize_division(data.get("division", row["division"]))
     is_doubles_div = bool(HYROX_DIVISIONS.get(new_division, {}).get("is_doubles"))
     new_age_cat = normalize_age_category(data.get("age_category", row["age_category"]))
@@ -2607,6 +2589,64 @@ def api_entry_detail(entry_id):
         ),
     )
     recalculate_entry_totals(db, entry_id)
+    return same_heat_volunteer_warning
+
+
+@hyrox_bp.route("/api/hyrox/entries/batch-update", methods=["POST", "PUT"])
+def api_entries_batch_update():
+    db = get_db()
+    ensure_hyrox_tables(db)
+    body = request.get_json(force=True) or {}
+    updates = body.get("updates") or []
+    if not isinstance(updates, list):
+        return jsonify({"error": "updates must be a list"}), 400
+
+    updated_ids = []
+    warnings = []
+    for item in updates:
+        if not isinstance(item, dict):
+            continue
+        eid = item.get("id") or item.get("entry_id")
+        if not eid:
+            continue
+        row = db.execute("SELECT * FROM hyrox_entries WHERE id=?", (int(eid),)).fetchone()
+        if not row:
+            continue
+        warn = _apply_entry_patch(db, row, item)
+        if warn:
+            warnings.append(warn)
+        updated_ids.append(int(eid))
+
+    db.commit()
+    return jsonify({
+        "ok": True,
+        "updated_count": len(updated_ids),
+        "updated_ids": updated_ids,
+        "warnings": warnings,
+    })
+
+
+@hyrox_bp.route("/api/hyrox/entries/<int:entry_id>", methods=["GET", "PUT", "DELETE"])
+def api_entry_detail(entry_id):
+    db = get_db()
+    ensure_hyrox_tables(db)
+    row = db.execute("SELECT * FROM hyrox_entries WHERE id=?", (entry_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "Entry not found"}), 404
+
+    if request.method == "GET":
+        return jsonify({
+            "server_time_ms": int(time.time() * 1000),
+            "entry": serialize_entry(db, row, include_splits=True, include_history=True),
+        })
+
+    if request.method == "DELETE":
+        db.execute("DELETE FROM hyrox_entries WHERE id=?", (entry_id,))
+        db.commit()
+        return jsonify({"ok": True})
+
+    data = request.get_json(force=True) or {}
+    same_heat_volunteer_warning = _apply_entry_patch(db, row, data)
     db.commit()
 
     updated = db.execute("SELECT * FROM hyrox_entries WHERE id=?", (entry_id,)).fetchone()
