@@ -1548,6 +1548,243 @@ def hyrox_pwa_manifest():
     })
 
 
+@hyrox_bp.route("/hyrox/sim-test")
+def hyrox_sim_test_page():
+    """
+    4-Athlete Simultaneous Sim Test Lab:
+    Runs 4 interactive Judge Timing Apps side-by-side + live TV Broadcast preview
+    with 1-click view toggles and mock race controls (Start All 4, Mock Mid-Race,
+    Advance All +1 Split, Reset All 4 to Scheduled).
+    """
+    db = get_db()
+    ensure_hyrox_tables(db)
+    event_id = get_active_event_id(db, request.args.get("event_id", type=int))
+
+    entries = []
+    default_entry_ids = []
+    if event_id:
+        erows = db.execute("SELECT * FROM hyrox_entries WHERE event_id=? ORDER BY id ASC", (event_id,)).fetchall()
+        entries = [serialize_entry(db, r, include_splits=True, include_history=False) for r in erows]
+        entries.sort(
+            key=lambda x: (
+                int(x.get("heat_day_number") or 1),
+                x.get("heat_start_time") or "99:99",
+                x.get("bib_number") or "999",
+                x["id"],
+            )
+        )
+        # Prefer Saturday Men's Solo entries first, then any solo entries, then any entries
+        sat_solo = [
+            e["id"]
+            for e in entries
+            if e.get("division") in ("men_open", "men_pro") and not (e.get("partner_name") or "").strip()
+        ]
+        any_solo = [
+            e["id"]
+            for e in entries
+            if e.get("division") in ("men_open", "men_pro", "women_open", "women_pro")
+            and not (e.get("partner_name") or "").strip()
+            and e["id"] not in sat_solo
+        ]
+        other_ids = [e["id"] for e in entries if e["id"] not in sat_solo and e["id"] not in any_solo]
+        default_entry_ids = (sat_solo + any_solo + other_ids)[:4]
+
+    return render_template(
+        "hyrox_sim_test.html",
+        active_event_id=event_id,
+        entries=entries,
+        default_entry_ids=default_entry_ids,
+        divisions=HYROX_DIVISIONS,
+    )
+
+
+@hyrox_bp.route("/api/hyrox/events/<int:event_id>/sim-test", methods=["POST"])
+def api_sim_test_control(event_id):
+    """
+    Batch mock controller for testing multiple athletes racing simultaneously:
+      - action='start_all': Reset splits & start all selected entries on Run 1 simultaneously
+      - action='staggered_stages': Place the selected entries at different realistic stages of the race
+      - action='advance_all': Advance each selected entry by +1 split with realistic split durations
+      - action='reset_all': Reset selected entries back to 'scheduled' (00:00) for clean race day state
+    """
+    db = get_db()
+    ensure_hyrox_tables(db)
+    ev = db.execute("SELECT * FROM hyrox_events WHERE id=?", (event_id,)).fetchone()
+    if not ev:
+        return jsonify({"error": "Event not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    action = (data.get("action") or "start_all").strip().lower()
+    raw_ids = data.get("entry_ids") or []
+    entry_ids = [int(x) for x in raw_ids if str(x).isdigit()]
+
+    if not entry_ids:
+        erows = db.execute("SELECT * FROM hyrox_entries WHERE event_id=? ORDER BY id ASC", (event_id,)).fetchall()
+        all_entries = [serialize_entry(db, r, include_splits=False, include_history=False) for r in erows]
+        all_entries.sort(
+            key=lambda x: (
+                int(x.get("heat_day_number") or 1),
+                x.get("heat_start_time") or "99:99",
+                x["id"],
+            )
+        )
+        sat_solo = [
+            e["id"]
+            for e in all_entries
+            if e.get("division") in ("men_open", "men_pro") and not (e.get("partner_name") or "").strip()
+        ]
+        any_solo = [
+            e["id"]
+            for e in all_entries
+            if e.get("division") in ("men_open", "men_pro", "women_open", "women_pro")
+            and not (e.get("partner_name") or "").strip()
+            and e["id"] not in sat_solo
+        ]
+        other_ids = [e["id"] for e in all_entries if e["id"] not in sat_solo and e["id"] not in any_solo]
+        entry_ids = (sat_solo + any_solo + other_ids)[:4]
+
+    now_ms = int(time.time() * 1000)
+
+    # Realistic split durations (ms) for 16 splits (1.2km runs ~4:45-5:10, stations ~2:20-4:15)
+    mock_split_durations = {
+        1: 285000,   # Run 1 (04:45)
+        2: 248000,   # 1. SkiErg (04:08)
+        3: 294000,   # Run 2 (04:54)
+        4: 172000,   # 2. Sled Push (02:52)
+        5: 302000,   # Run 3 (05:02)
+        6: 215000,   # 3. Sled Pull (03:35)
+        7: 308000,   # Run 4 (05:08)
+        8: 252000,   # 4. Burpee Broad Jumps (04:12)
+        9: 305000,   # Run 5 (05:05)
+        10: 256000,  # 5. Row (04:16)
+        11: 298000,  # Run 6 (04:58)
+        12: 138000,  # 6. Farmers Carry (02:18)
+        13: 304000,  # Run 7 (05:04)
+        14: 244000,  # 7. Sandbag Lunges (04:04)
+        15: 296000,  # Run 8 (04:56)
+        16: 265000,  # 8. Wall Balls (04:25)
+    }
+
+    updated_entries = []
+    for slot_idx, eid in enumerate(entry_ids):
+        row = db.execute("SELECT * FROM hyrox_entries WHERE id=? AND event_id=?", (eid, event_id)).fetchone()
+        if not row:
+            continue
+        ensure_entry_splits(db, eid)
+
+        if action == "reset_all":
+            db.execute(
+                "UPDATE hyrox_splits SET duration_ms=NULL, completed_at_ms=NULL, edited_by='', notes='' WHERE entry_id=?",
+                (eid,),
+            )
+            db.execute(
+                "UPDATE hyrox_entries SET status='scheduled', started_at_ms=NULL, finished_at_ms=NULL, "
+                "total_ms=NULL, run_total_ms=NULL, station_total_ms=NULL, penalty_ms=0, wall_ball_reps=0, "
+                "wall_ball_unbroken=0, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (eid,),
+            )
+
+        elif action == "start_all":
+            # Reset splits and start all 4 on Run 1 right now (with tiny 2s offset per lane so clocks look natural)
+            start_ms = now_ms - (slot_idx * 2000)
+            db.execute(
+                "UPDATE hyrox_splits SET duration_ms=NULL, completed_at_ms=NULL, edited_by='', notes='' WHERE entry_id=?",
+                (eid,),
+            )
+            db.execute(
+                "UPDATE hyrox_entries SET status='racing', started_at_ms=?, finished_at_ms=NULL, "
+                "total_ms=NULL, run_total_ms=NULL, station_total_ms=NULL, penalty_ms=0, wall_ball_reps=0, "
+                "wall_ball_unbroken=0, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (start_ms, eid),
+            )
+
+        elif action in ("staggered_stages", "mock_mid_race"):
+            # Put Athlete 1..4 on different stages:
+            # Slot 0 -> Active on Split 4 (2. Sled Push) -> splits 1..3 completed
+            # Slot 1 -> Active on Split 7 (Run 4) -> splits 1..6 completed
+            # Slot 2 -> Active on Split 10 (5. Row) -> splits 1..9 completed
+            # Slot 3 -> Active on Split 16 (8. Wall Balls, 45 reps) -> splits 1..15 completed
+            completed_counts = [3, 6, 9, 15]
+            done_n = completed_counts[slot_idx % len(completed_counts)]
+            active_stage_elapsed_ms = 42000 + (slot_idx * 17000)
+            jitter = (slot_idx - 1) * 4000
+
+            durations = []
+            for s_i in range(1, done_n + 1):
+                dur = max(60000, mock_split_durations.get(s_i, 240000) + jitter)
+                durations.append((s_i, dur))
+
+            total_done_ms = sum(d for _, d in durations)
+            start_ms = now_ms - total_done_ms - active_stage_elapsed_ms
+
+            db.execute(
+                "UPDATE hyrox_splits SET duration_ms=NULL, completed_at_ms=NULL, edited_by='', notes='' WHERE entry_id=?",
+                (eid,),
+            )
+            cursor_ms = start_ms
+            for s_i, dur in durations:
+                cursor_ms += dur
+                db.execute(
+                    "UPDATE hyrox_splits SET duration_ms=?, completed_at_ms=?, edited_by='sim-test' "
+                    "WHERE entry_id=? AND split_index=?",
+                    (dur, cursor_ms, eid, s_i),
+                )
+            wb_reps = 45 if done_n == 15 else 0
+            db.execute(
+                "UPDATE hyrox_entries SET status='racing', started_at_ms=?, finished_at_ms=NULL, "
+                "wall_ball_reps=?, wall_ball_unbroken=0, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (start_ms, wb_reps, eid),
+            )
+            recalculate_entry_totals(db, eid)
+
+        elif action == "advance_all":
+            # If scheduled, start them; if racing, complete their current split with a realistic time
+            if not row["started_at_ms"] or row["status"] == "scheduled":
+                start_ms = now_ms - (slot_idx * 2000)
+                db.execute(
+                    "UPDATE hyrox_entries SET status='racing', started_at_ms=?, finished_at_ms=NULL, "
+                    "updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    (start_ms, eid),
+                )
+            else:
+                next_sp = db.execute(
+                    "SELECT * FROM hyrox_splits WHERE entry_id=? AND duration_ms IS NULL ORDER BY split_index ASC LIMIT 1",
+                    (eid,),
+                ).fetchone()
+                if next_sp:
+                    s_idx = int(next_sp["split_index"])
+                    jitter = (slot_idx - 1) * 3000
+                    dur = max(45000, mock_split_durations.get(s_idx, 240000) + jitter)
+                    # Shift started_at_ms back by `dur` so elapsed clocks stay continuous with `now_ms`
+                    prev_done = db.execute(
+                        "SELECT COALESCE(SUM(duration_ms), 0) as s FROM hyrox_splits WHERE entry_id=? AND duration_ms IS NOT NULL",
+                        (eid,),
+                    ).fetchone()["s"]
+                    new_start_ms = now_ms - int(prev_done) - dur
+                    db.execute(
+                        "UPDATE hyrox_entries SET started_at_ms=? WHERE id=?",
+                        (new_start_ms, eid),
+                    )
+                    db.execute(
+                        "UPDATE hyrox_splits SET duration_ms=?, completed_at_ms=?, edited_by='sim-test' "
+                        "WHERE entry_id=? AND split_index=?",
+                        (dur, now_ms, eid, s_idx),
+                    )
+                    recalculate_entry_totals(db, eid)
+
+        refreshed = db.execute("SELECT * FROM hyrox_entries WHERE id=?", (eid,)).fetchone()
+        updated_entries.append(serialize_entry(db, refreshed, include_splits=True, include_history=False))
+
+    db.commit()
+    return jsonify({
+        "ok": True,
+        "action": action,
+        "entry_ids": entry_ids,
+        "entries": updated_entries,
+        "server_time_ms": int(time.time() * 1000),
+    })
+
+
 @hyrox_bp.route("/hyrox/judge")
 def hyrox_judge_page():
     db = get_db()

@@ -200,6 +200,19 @@
       justify-content: flex-start;
       overflow: hidden;
     }
+    #live-racers-container.grid-4up {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(2, minmax(0, 1fr));
+      gap: 0.65rem;
+    }
+    @media (max-width: 1100px) {
+      #live-racers-container.grid-4up {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        overflow-y: auto;
+      }
+    }
 
     /* Live Floor Athlete Broadcast Card (Fits 2 Stacked Cards in 100vh) */
     .racer-card {
@@ -214,6 +227,26 @@
       flex: 1;
       min-height: 0;
       max-height: 49%;
+    }
+    #live-racers-container.grid-4up .racer-card {
+      max-height: 100%;
+      padding: 0.62rem 0.75rem;
+    }
+    #live-racers-container.grid-4up .racer-name {
+      font-size: 1.65rem;
+    }
+    #live-racers-container.grid-4up .stage-clock-val,
+    #live-racers-container.grid-4up .racer-clock {
+      font-size: 1.45rem;
+    }
+    #live-racers-container.grid-4up .station-callout-main {
+      font-size: 1.02rem;
+    }
+    #live-racers-container.grid-4up .stat-pill-val {
+      font-size: 1.15rem;
+    }
+    #live-racers-container.grid-4up .split-cell-time {
+      font-size: 0.95rem;
     }
     .racer-card.single-spotlight {
       max-height: 100%;
@@ -655,6 +688,13 @@
       </div>
     </div>
     <div class="tv-header-controls">
+      <select id="tv-layout-select" class="tv-select" onchange="setRacersPerPage(this.value)" title="Athletes Per TV Screen">
+        <option value="2">📺 2-Up Cycling</option>
+        <option value="4">📺 4-Up Grid (All 4)</option>
+      </select>
+      <button type="button" class="tv-btn" onclick="stepTvSlide(-1)" title="Previous Slide">◀</button>
+      <button type="button" class="tv-btn" id="tv-pause-btn" onclick="toggleTvPause()" title="Pause / Resume Auto-Roll">⏸</button>
+      <button type="button" class="tv-btn" onclick="stepTvSlide(1)" title="Next Slide">▶</button>
       <select id="tv-day-select" class="tv-select" onchange="setDayFilter(this.value)" title="Select Event Day">
         <option value="auto">📅 Auto (Today)</option>
         <option value="1">📅 Saturday (Day 1)</option>
@@ -697,6 +737,8 @@
     const urlParams = new URLSearchParams(window.location.search);
     let selectedDayFilter = urlParams.get('day') || 'auto';
     let spotlightEntryId = urlParams.get('entry') || 'auto';
+    let racersPerPage = parseInt(urlParams.get('per_page') || '2', 10) === 4 ? 4 : 2;
+    let tvPaused = urlParams.get('paused') === '1';
     const SHORT_STATION_NAMES = {
       2: '1. SKI',
       4: '2. PUSH',
@@ -753,6 +795,34 @@
       renderOnDeck(false);
     }
 
+    function setRacersPerPage(val) {
+      racersPerPage = parseInt(val, 10) === 4 ? 4 : 2;
+      racerPageIndex = 0;
+      const sel = document.getElementById('tv-layout-select');
+      if (sel) sel.value = String(racersPerPage);
+      renderLiveRacers(true);
+    }
+
+    function stepTvSlide(delta) {
+      const total = Math.max(1, currentRacerTotalPages);
+      racerPageIndex = (racerPageIndex + delta + total * 10) % total;
+      renderLiveRacers(true);
+    }
+
+    function toggleTvPause(forceVal) {
+      if (typeof forceVal === 'boolean') {
+        tvPaused = forceVal;
+      } else {
+        tvPaused = !tvPaused;
+      }
+      const btn = document.getElementById('tv-pause-btn');
+      if (btn) {
+        btn.classList.toggle('paused', tvPaused);
+        btn.textContent = tvPaused ? '▶' : '⏸';
+        btn.title = tvPaused ? 'Resume Auto-Roll' : 'Pause Auto-Roll';
+      }
+    }
+
     function syncDaySelectLabel() {
       const activeDay = getEffectiveDayNumber();
       const daySel = document.getElementById('tv-day-select');
@@ -761,6 +831,15 @@
           ? '📅 Auto (Sunday · Day 2)'
           : '📅 Auto (Saturday · Day 1)';
         daySel.value = selectedDayFilter;
+      }
+      const layoutSel = document.getElementById('tv-layout-select');
+      if (layoutSel) {
+        layoutSel.value = String(racersPerPage);
+      }
+      const pauseBtn = document.getElementById('tv-pause-btn');
+      if (pauseBtn) {
+        pauseBtn.classList.toggle('paused', tvPaused);
+        pauseBtn.textContent = tvPaused ? '▶' : '⏸';
       }
     }
 
@@ -840,7 +919,7 @@
         }
       } else {
         if (racers.length > 0) {
-          const racerPageSize = racers.length === 1 ? 1 : 2;
+          const racerPageSize = racers.length === 1 ? 1 : racersPerPage;
           const rPages = Math.ceil(racers.length / racerPageSize);
           for (let p = 0; p < rPages; p++) {
             slides.push({
@@ -884,6 +963,7 @@
       }
 
       if (activeSlide.kind === 'start_list') {
+        container.classList.remove('grid-4up');
         if (panelTitleEl) panelTitleEl.textContent = 'LIVE TIMINGS';
         if (pageBadge) {
           pageBadge.textContent = activeSlide.totalPages > 1
@@ -903,6 +983,7 @@
 
       const targetEntries = activeSlide.entries;
       const isSingleCard = targetEntries.length === 1;
+      container.classList.toggle('grid-4up', racersPerPage === 4 && targetEntries.length > 2);
 
       if (panelTitleEl) panelTitleEl.textContent = 'LIVE TIMINGS';
       if (pageBadge) {
@@ -1167,11 +1248,25 @@
       });
     }
 
+    window.addEventListener('message', (ev) => {
+      const msg = ev.data || {};
+      if (msg.type === 'hyrox_tv_refresh') {
+        fetchTvState();
+      } else if (msg.type === 'hyrox_tv_set_per_page') {
+        setRacersPerPage(msg.perPage);
+      } else if (msg.type === 'hyrox_tv_step_slide') {
+        stepTvSlide(Number(msg.delta || 1));
+      } else if (msg.type === 'hyrox_tv_pause') {
+        toggleTvPause(Boolean(msg.paused));
+      }
+    });
+
     fetchTvState();
     setInterval(tickLiveClocks, 500);
     setInterval(fetchTvState, 4000);
-    // Only auto-roll pages if there are more athletes on course or on deck than fit on one screen
+    // Only auto-roll pages if not paused and there are multiple slides
     setInterval(() => {
+      if (tvPaused) return;
       if (currentRacerTotalPages > 1) {
         racerPageIndex++;
         renderLiveRacers(true);

@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CS Performance HYROX — 4-Athlete Sim Test Lab</title>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;1,800&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #050906;
+      --surface: #0c140e;
+      --surface-2: #121f15;
+      --border: rgba(61, 255, 79, 0.25);
+      --green: #3DFF4F;
+      --yellow: #facc15;
+      --blue: #38bdf8;
+      --red: #f43f5e;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .topbar {
+      background: rgba(8, 14, 10, 0.96);
+      border-bottom: 1px solid var(--border);
+      padding: 0.65rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      position: sticky;
+      top: 0;
+      z-index: 40;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+    .brand-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      object-fit: cover;
+      border: 1.5px solid var(--green);
+    }
+    .brand-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 1.45rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      line-height: 1;
+    }
+    .brand-title span { color: var(--green); }
+    .brand-sub {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.92rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-top: 0.1rem;
+    }
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+    }
+    .btn {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 9px;
+      padding: 0.45rem 0.8rem;
+      font-size: 0.8rem;
+      font-weight: 800;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      white-space: nowrap;
+      transition: all 0.14s ease;
+    }
+    .btn:hover {
+      border-color: var(--green);
+    }
+    .btn-primary {
+      background: var(--green);
+      color: #041206;
+      border-color: var(--green);
+    }
+    .btn-blue {
+      background: rgba(56, 189, 248, 0.16);
+      color: var(--blue);
+      border-color: rgba(56, 189, 248, 0.5);
+    }
+    .btn-yellow {
+      background: rgba(250, 204, 21, 0.16);
+      color: var(--yellow);
+      border-color: rgba(250, 204, 21, 0.5);
+    }
+    .btn-red {
+      background: rgba(244, 63, 94, 0.15);
+      color: #fda4af;
+      border-color: rgba(244, 63, 94, 0.45);
+    }
+    .view-pill-group {
+      display: inline-flex;
+      background: #060b07;
+      border: 1px solid rgba(61, 255, 79, 0.32);
+      border-radius: 10px;
+      padding: 0.2rem;
+      gap: 0.2rem;
+    }
+    .view-pill {
+      background: transparent;
+      color: var(--muted);
+      border: none;
+      border-radius: 7px;
+      padding: 0.42rem 0.78rem;
+      font-size: 0.78rem;
+      font-weight: 800;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .view-pill.active {
+      background: var(--green);
+      color: #041206;
+    }
+
+    /* Sim Test Control Strip */
+    .control-strip {
+      background: var(--surface);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 0.6rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+    }
+    .control-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: 0.92rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-right: 0.2rem;
+    }
+    .status-toast {
+      font-size: 0.76rem;
+      font-weight: 800;
+      color: var(--green);
+      background: rgba(61, 255, 79, 0.12);
+      border: 1px solid rgba(61, 255, 79, 0.35);
+      padding: 0.3rem 0.65rem;
+      border-radius: 999px;
+    }
+
+    /* Main Workspace Layout Modes */
+    .sim-workspace {
+      flex: 1;
+      padding: 0.85rem 1.1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+    .sim-workspace.mode-judges #tv-section {
+      display: none !important;
+    }
+    .sim-workspace.mode-tv #judges-section {
+      display: none !important;
+    }
+    .sim-workspace.mode-tv #tv-frame-wrap {
+      height: calc(100vh - 155px);
+      min-height: 620px;
+    }
+
+    /* 4 Phone Judge Grid */
+    .phones-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(270px, 1fr));
+      gap: 0.75rem;
+      overflow-x: auto;
+    }
+    @media (max-width: 1280px) {
+      .phones-grid {
+        grid-template-columns: repeat(2, minmax(280px, 1fr));
+      }
+    }
+    @media (max-width: 680px) {
+      .phones-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .phone-card {
+      background: var(--surface);
+      border: 1.5px solid rgba(61, 255, 79, 0.32);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+    }
+    .phone-header {
+      background: var(--surface-2);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 0.5rem 0.65rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .phone-header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.4rem;
+    }
+    .phone-badge {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 800;
+      font-size: 0.88rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--green);
+    }
+    .phone-vol-pill {
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: var(--blue);
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.32);
+      padding: 0.14rem 0.45rem;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .phone-select {
+      width: 100%;
+      background: #060b07;
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      padding: 0.36rem 0.5rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+    .phone-iframe {
+      width: 100%;
+      height: 670px;
+      border: none;
+      background: #040805;
+    }
+    .sim-workspace.mode-split .phone-iframe {
+      height: 590px;
+    }
+
+    /* TV Preview Section */
+    .tv-section-card {
+      background: var(--surface);
+      border: 1.5px solid rgba(56, 189, 248, 0.4);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+    }
+    .tv-section-bar {
+      background: var(--surface-2);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 0.55rem 0.9rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .tv-section-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 1.2rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--blue);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    #tv-frame-wrap {
+      width: 100%;
+      height: 620px;
+      background: #030604;
+    }
+    .tv-iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="/static/logo.jpg" alt="CS Fitness" class="brand-logo" />
+      <div>
+        <div class="brand-title">CS <span>FITNESS</span> · 4-ATHLETE SIM TEST LAB</div>
+        <div class="brand-sub">4 Simultaneous Judge Timing Apps + Live Gym TV Display</div>
+      </div>
+    </div>
+
+    <div class="view-pill-group" role="tablist" aria-label="View Mode">
+      <button type="button" class="view-pill active" id="mode-btn-split" onclick="setWorkspaceMode('split')">
+        📱+📺 Split View (4 Phones + TV)
+      </button>
+      <button type="button" class="view-pill" id="mode-btn-judges" onclick="setWorkspaceMode('judges')">
+        📱📱📱📱 4 Judge Timing Apps
+      </button>
+      <button type="button" class="view-pill" id="mode-btn-tv" onclick="setWorkspaceMode('tv')">
+        📺 Full Live TV Display
+      </button>
+    </div>
+
+    <div class="nav-actions">
+      <a href="/hyrox/admin" class="btn">🎛️ Race Director</a>
+      <a href="/hyrox/tv" target="_blank" class="btn">📺 Open TV Tab</a>
+      <a href="/" class="btn" style="border-color:rgba(61,255,79,0.45);color:var(--green)">🏠 CS Hub</a>
+    </div>
+  </header>
+
+  <section class="control-strip">
+    <div class="control-group">
+      <span class="control-label">⚡ Quick Mock Actions:</span>
+      <button type="button" class="btn btn-primary" onclick="runSimBatchAction('start_all')">
+        🚀 Start All 4 Together (Run 1)
+      </button>
+      <button type="button" class="btn btn-yellow" onclick="runSimBatchAction('staggered_stages')">
+        🎲 Mock Mid-Race (4 Different Stations)
+      </button>
+      <button type="button" class="btn btn-blue" onclick="runSimBatchAction('advance_all')">
+        ⏭️ Advance All 4 (+1 Split)
+      </button>
+      <button type="button" class="btn btn-red" onclick="runSimBatchAction('reset_all')">
+        🔄 Reset All 4 to Scheduled (00:00)
+      </button>
+    </div>
+
+    <div class="control-group">
+      <span class="status-toast" id="sim-test-status">Ready · 4 Saturday Solo Athletes Loaded</span>
+    </div>
+  </section>
+
+  <main class="sim-workspace mode-split" id="sim-workspace">
+    <!-- 4 SIDE-BY-SIDE JUDGE TIMING APPS -->
+    <section id="judges-section">
+      <div class="phones-grid">
+        {% for slot_idx in range(4) %}
+        <div class="phone-card" id="phone-card-{{ slot_idx }}">
+          <div class="phone-header">
+            <div class="phone-header-top">
+              <span class="phone-badge">📱 Judge Timer {{ slot_idx + 1 }}</span>
+              <span class="phone-vol-pill" id="phone-vol-{{ slot_idx }}">Vol: —</span>
+            </div>
+            <select class="phone-select" id="phone-select-{{ slot_idx }}" onchange="onSlotAthleteChange({{ slot_idx }}, this.value)">
+              {% for e in entries %}
+              <option value="{{ e.id }}">
+                {{ e.heat_start_time or '—' }} · #{{ e.bib_number }} {{ e.full_display_name }} ({{ e.division_short_label }})
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <iframe
+            class="phone-iframe"
+            id="judge-frame-{{ slot_idx }}"
+            title="Judge App {{ slot_idx + 1 }}"
+            src="about:blank"
+          ></iframe>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- LIVE GYM TV DISPLAY PREVIEW -->
+    <section class="tv-section-card" id="tv-section">
+      <div class="tv-section-bar">
+        <div class="tv-section-title">
+          <span>📺 LIVE GYM TV DISPLAY PREVIEW</span>
+          <span style="font-size:0.78rem;font-style:normal;font-family:'Inter',sans-serif;color:var(--muted)">
+            Updates automatically as you slide splits on any of the 4 phones above
+          </span>
+        </div>
+        <div class="control-group">
+          <button type="button" class="btn btn-primary" id="tv-mode-4up-btn" onclick="setTvPreviewPerPage(4)">
+            📺 Show All 4 Athletes (4-Up Grid)
+          </button>
+          <button type="button" class="btn" id="tv-mode-2up-btn" onclick="setTvPreviewPerPage(2)">
+            📺 2-Up Cycling (Pages 1/2 &amp; 2/2)
+          </button>
+          <button type="button" class="btn" onclick="stepEmbeddedTvSlide(-1)">◀ Prev TV Slide</button>
+          <button type="button" class="btn" onclick="stepEmbeddedTvSlide(1)">Next TV Slide ▶</button>
+          <button type="button" class="btn btn-blue" onclick="refreshEmbeddedTv()">🔄 Refresh TV</button>
+        </div>
+      </div>
+      <div id="tv-frame-wrap">
+        <iframe
+          class="tv-iframe"
+          id="tv-preview-frame"
+          title="Live HYROX TV Display"
+          src="/hyrox/tv?day=1&per_page=4"
+        ></iframe>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const activeEventId = {{ active_event_id or 'null' }};
+    const allEntries = {{ entries | tojson }};
+    let slotEntryIds = {{ default_entry_ids | tojson }};
+    let currentWorkspaceMode = 'split';
+    let currentTvPerPage = 4;
+
+    function getEntryById(entryId) {
+      return allEntries.find(e => Number(e.id) === Number(entryId)) || null;
+    }
+
+    function setWorkspaceMode(mode) {
+      currentWorkspaceMode = mode;
+      const ws = document.getElementById('sim-workspace');
+      ws.classList.remove('mode-split', 'mode-judges', 'mode-tv');
+      ws.classList.add(`mode-${mode}`);
+      ['split', 'judges', 'tv'].forEach(m => {
+        const btn = document.getElementById(`mode-btn-${m}`);
+        if (btn) btn.classList.toggle('active', m === mode);
+      });
+      refreshEmbeddedTv();
+    }
+
+    function updateSlotHeaderMeta(slotIdx) {
+      const eid = slotEntryIds[slotIdx];
+      const entry = getEntryById(eid);
+      const volEl = document.getElementById(`phone-vol-${slotIdx}`);
+      const selEl = document.getElementById(`phone-select-${slotIdx}`);
+      if (selEl && eid) {
+        selEl.value = String(eid);
+      }
+      if (volEl) {
+        volEl.textContent = entry && entry.volunteer_name
+          ? `Vol: ${entry.volunteer_name}`
+          : 'Vol: Unassigned';
+      }
+    }
+
+    function loadSlotIframe(slotIdx) {
+      const eid = slotEntryIds[slotIdx];
+      updateSlotHeaderMeta(slotIdx);
+      const frame = document.getElementById(`judge-frame-${slotIdx}`);
+      if (!frame || !eid) return;
+      frame.src = `/hyrox/judge?entry=${eid}&embed=1`;
+    }
+
+    function onSlotAthleteChange(slotIdx, newEntryId) {
+      slotEntryIds[slotIdx] = parseInt(newEntryId, 10);
+      try {
+        localStorage.removeItem(`hyrox_judge_entry_${slotEntryIds[slotIdx]}`);
+      } catch (e) {}
+      loadSlotIframe(slotIdx);
+    }
+
+    function refreshEmbeddedTv() {
+      const tvFrame = document.getElementById('tv-preview-frame');
+      if (tvFrame && tvFrame.contentWindow) {
+        tvFrame.contentWindow.postMessage({ type: 'hyrox_tv_refresh' }, '*');
+      }
+    }
+
+    function setTvPreviewPerPage(perPage) {
+      currentTvPerPage = perPage === 4 ? 4 : 2;
+      const btn4 = document.getElementById('tv-mode-4up-btn');
+      const btn2 = document.getElementById('tv-mode-2up-btn');
+      if (btn4) btn4.classList.toggle('btn-primary', currentTvPerPage === 4);
+      if (btn2) btn2.classList.toggle('btn-primary', currentTvPerPage === 2);
+      const tvFrame = document.getElementById('tv-preview-frame');
+      if (tvFrame && tvFrame.contentWindow) {
+        tvFrame.contentWindow.postMessage({ type: 'hyrox_tv_set_per_page', perPage: currentTvPerPage }, '*');
+      }
+    }
+
+    function stepEmbeddedTvSlide(delta) {
+      const tvFrame = document.getElementById('tv-preview-frame');
+      if (tvFrame && tvFrame.contentWindow) {
+        tvFrame.contentWindow.postMessage({ type: 'hyrox_tv_step_slide', delta }, '*');
+      }
+    }
+
+    async function runSimBatchAction(action) {
+      if (!activeEventId) return;
+      const statusEl = document.getElementById('sim-test-status');
+      const labels = {
+        start_all: '🚀 Starting all 4 athletes on Run 1...',
+        staggered_stages: '🎲 Setting 4 athletes to mid-race stations...',
+        advance_all: '⏭️ Advancing all 4 athletes by +1 split...',
+        reset_all: '🔄 Resetting all 4 athletes back to Scheduled (00:00)...'
+      };
+      if (statusEl) {
+        statusEl.textContent = labels[action] || 'Updating...';
+      }
+
+      // Clear local judge cache for these 4 entries first so server state is authoritative
+      slotEntryIds.forEach(eid => {
+        try {
+          localStorage.removeItem(`hyrox_judge_entry_${eid}`);
+        } catch (e) {}
+      });
+
+      const res = await fetch(`/api/hyrox/events/${activeEventId}/sim-test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: action,
+          entry_ids: slotEntryIds
+        })
+      });
+      if (!res.ok) {
+        if (statusEl) statusEl.textContent = '⚠️ Could not update sim test state';
+        return;
+      }
+      const data = await res.json();
+      const updatedMap = {};
+      (data.entries || []).forEach(e => {
+        updatedMap[e.id] = e;
+      });
+
+      // Notify all 4 embedded judge iframes to reload immediately with the updated entry
+      for (let i = 0; i < 4; i++) {
+        const eid = slotEntryIds[i];
+        const frame = document.getElementById(`judge-frame-${i}`);
+        if (frame && frame.contentWindow && eid) {
+          frame.contentWindow.postMessage({
+            type: 'hyrox_judge_reload_entry',
+            entryId: eid,
+            entry: updatedMap[eid] || null
+          }, '*');
+        }
+      }
+
+      // Immediately refresh the embedded TV broadcast display
+      refreshEmbeddedTv();
+
+      const doneLabels = {
+        start_all: '✅ All 4 Athletes Racing Live on Run 1',
+        staggered_stages: '✅ All 4 Athletes Racing Across Different Stations',
+        advance_all: '✅ Advanced All 4 Athletes by +1 Split',
+        reset_all: '✅ All 4 Athletes Reset to Scheduled (00:00)'
+      };
+      if (statusEl) {
+        statusEl.textContent = doneLabels[action] || '✅ Updated';
+      }
+    }
+
+    // Listen for live split updates from any of the 4 embedded judge apps
+    window.addEventListener('message', (ev) => {
+      const msg = ev.data || {};
+      if (msg.type === 'hyrox_judge_updated') {
+        setTimeout(refreshEmbeddedTv, 80);
+      }
+    });
+
+    function initSimTestLab() {
+      // Ensure 4 slots are populated
+      while (slotEntryIds.length < 4 && allEntries.length > slotEntryIds.length) {
+        const nextEntry = allEntries.find(e => !slotEntryIds.includes(e.id));
+        if (!nextEntry) break;
+        slotEntryIds.push(nextEntry.id);
+      }
+      for (let i = 0; i < 4; i++) {
+        loadSlotIframe(i);
+      }
+    }
+
+    initSimTestLab();
+  </script>
+</body>
+</html>

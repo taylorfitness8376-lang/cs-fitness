@@ -1181,6 +1181,62 @@ def test_confirmed_13_road_to_glasgow_signups_enrichment(client):
     assert by_restored_name["Louise Menealy"]["volunteer_name"] == "Jamie"
     assert by_restored_name["Louise Menealy"]["heat_start_time"] == "10:20"
 
+    # Verify the 4-Athlete Sim Test Lab UI and batch mock API
+    sim_page = client.get(f"/hyrox/sim-test?event_id={event_id}")
+    assert sim_page.status_code == 200
+    sim_html = sim_page.get_data(as_text=True)
+    assert "4-ATHLETE SIM TEST LAB" in sim_html
+    assert "judge-frame-0" in sim_html
+    assert "judge-frame-3" in sim_html
+    assert "tv-preview-frame" in sim_html
+    assert "runSimBatchAction" in sim_html
+
+    four_solo_ids = [
+        by_restored_name["Lucas Kane"]["id"],
+        by_restored_name["Ross Martin"]["id"],
+        by_restored_name["Scott Firth"]["id"],
+        by_restored_name["Joe Wardle"]["id"],
+    ]
+
+    # 1. Start all 4 solo athletes simultaneously
+    res_start = client.post(
+        f"/api/hyrox/events/{event_id}/sim-test",
+        json={"action": "start_all", "entry_ids": four_solo_ids},
+    )
+    assert res_start.status_code == 200
+    started_entries = res_start.get_json()["entries"]
+    assert len(started_entries) == 4
+    assert all(e["status"] == "racing" and e["completed_splits"] == 0 for e in started_entries)
+
+    # 2. Advance all 4 by +1 split
+    res_adv = client.post(
+        f"/api/hyrox/events/{event_id}/sim-test",
+        json={"action": "advance_all", "entry_ids": four_solo_ids},
+    )
+    assert res_adv.status_code == 200
+    adv_entries = res_adv.get_json()["entries"]
+    assert all(e["status"] == "racing" and e["completed_splits"] == 1 for e in adv_entries)
+
+    # 3. Mock mid-race staggered stages (3, 6, 9, 15 completed splits)
+    res_mid = client.post(
+        f"/api/hyrox/events/{event_id}/sim-test",
+        json={"action": "staggered_stages", "entry_ids": four_solo_ids},
+    )
+    assert res_mid.status_code == 200
+    mid_entries = res_mid.get_json()["entries"]
+    assert [e["completed_splits"] for e in mid_entries] == [3, 6, 9, 15]
+    assert mid_entries[3]["wall_ball_reps"] == 45
+
+    # 4. Reset all 4 back to clean scheduled state (00:00)
+    res_rst = client.post(
+        f"/api/hyrox/events/{event_id}/sim-test",
+        json={"action": "reset_all", "entry_ids": four_solo_ids},
+    )
+    assert res_rst.status_code == 200
+    rst_entries = res_rst.get_json()["entries"]
+    assert all(e["status"] == "scheduled" and e["completed_splits"] == 0 and e["wall_ball_reps"] == 0 for e in rst_entries)
+
+
 
 
 

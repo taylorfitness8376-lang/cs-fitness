@@ -456,6 +456,12 @@
     body.focus-locked .splits-list {
       display: none !important;
     }
+    body.embed-mode .app-header {
+      display: none !important;
+    }
+    body.embed-mode .app-container {
+      padding: 0.45rem 0.5rem 0.9rem;
+    }
     body.focus-locked #timer-view {
       flex: 1;
       display: flex !important;
@@ -1243,6 +1249,16 @@
           eventEntries[idx] = JSON.parse(JSON.stringify(entry));
         }
       } catch (e) {}
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({
+            type: 'hyrox_judge_updated',
+            entryId: entry.id,
+            status: entry.status,
+            total_ms: entry.total_ms
+          }, '*');
+        }
+      } catch (e) {}
     }
 
     function loadLocalBackup(entryId) {
@@ -1256,7 +1272,29 @@
       }
     }
 
+    window.addEventListener('message', async (ev) => {
+      const msg = ev.data || {};
+      if (msg.type === 'hyrox_judge_reload_entry') {
+        const targetId = msg.entryId || (currentEntry && currentEntry.id) || initialEntryId;
+        if (!targetId) return;
+        try {
+          localStorage.removeItem(`hyrox_judge_entry_${targetId}`);
+        } catch (e) {}
+        cancelStartCountdown();
+        if (msg.entry && Number(msg.entry.id) === Number(targetId)) {
+          currentEntry = msg.entry;
+          saveLocalBackup(currentEntry);
+          renderJudgeScreen();
+          return;
+        }
+        await loadEntryForJudging(targetId);
+      }
+    });
+
     async function initJudgeApp() {
+      if (new URLSearchParams(window.location.search).get('embed') === '1') {
+        document.body.classList.add('embed-mode');
+      }
       // 1. Render immediately in 0ms from server-injected data or localStorage
       if (eventHeats.length || eventEntries.length) {
         renderWaveFilter();
