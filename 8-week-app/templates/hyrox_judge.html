@@ -472,7 +472,148 @@
       font-size: 0.92rem;
     }
 
-    /* Recessed Bezel Socket + Giant 3D Contoured Physical Stopwatch Button */
+    /* Scroll-Safe & Error-Proof Slide-to-Start & Slide-to-Split Control */
+    .start-slider-card {
+      --slider-accent: var(--green);
+      --slider-glow: rgba(61, 255, 79, 0.48);
+      --slider-fill-grad: linear-gradient(90deg, rgba(61, 255, 79, 0.22), rgba(61, 255, 79, 0.62));
+      --slider-thumb-grad: linear-gradient(180deg, #9effa7 0%, #3DFF4F 38%, #1ed632 82%, #139e22 100%);
+      --slider-thumb-edge: #0a6914;
+      background: linear-gradient(180deg, #0c160e 0%, #050a06 100%);
+      border: 2px solid var(--slider-glow);
+      border-radius: 32px;
+      padding: 0.65rem 0.75rem;
+      margin-bottom: 0.7rem;
+      user-select: none;
+      touch-action: pan-y;
+      box-shadow: 0 10px 26px rgba(0, 0, 0, 0.68), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+    .start-slider-card.slider-theme-blue {
+      --slider-accent: var(--blue);
+      --slider-glow: rgba(56, 189, 248, 0.52);
+      --slider-fill-grad: linear-gradient(90deg, rgba(56, 189, 248, 0.24), rgba(56, 189, 248, 0.62));
+      --slider-thumb-grad: linear-gradient(180deg, #bae6fd 0%, #38bdf8 36%, #0284c7 80%, #0369a1 100%);
+      --slider-thumb-edge: #075985;
+    }
+    .start-slider-card.slider-theme-yellow {
+      --slider-accent: var(--yellow);
+      --slider-glow: rgba(250, 204, 21, 0.55);
+      --slider-fill-grad: linear-gradient(90deg, rgba(250, 204, 21, 0.24), rgba(250, 204, 21, 0.62));
+      --slider-thumb-grad: linear-gradient(180deg, #fef08a 0%, #facc15 36%, #eab308 80%, #ca8a04 100%);
+      --slider-thumb-edge: #854d0e;
+    }
+    .slider-track {
+      position: relative;
+      width: 100%;
+      height: 108px;
+      background: linear-gradient(180deg, #020503 0%, #0a140c 100%);
+      border: 2px solid var(--slider-glow);
+      border-radius: 26px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 6px 14px rgba(0, 0, 0, 0.94), 0 2px 6px rgba(0, 0, 0, 0.6);
+    }
+    body.focus-locked .start-slider-card {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 138px;
+      max-height: 210px;
+    }
+    body.focus-locked .slider-track {
+      flex: 1;
+      height: 100%;
+      min-height: 120px;
+    }
+    body.focus-locked.wb-open .start-slider-card {
+      min-height: 104px;
+      max-height: 132px;
+    }
+    body.focus-locked.wb-open .slider-track {
+      min-height: 88px;
+    }
+    .slider-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 0%;
+      background: var(--slider-fill-grad);
+      pointer-events: none;
+    }
+    .slider-label {
+      position: relative;
+      z-index: 1;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-style: italic;
+      font-weight: 800;
+      font-size: 1.68rem;
+      line-height: 1.05;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--slider-accent);
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.72);
+      pointer-events: none;
+      padding-left: 88px;
+      padding-right: 16px;
+      text-align: center;
+    }
+    body.focus-locked .slider-label {
+      font-size: 1.9rem;
+    }
+    .slider-thumb {
+      position: absolute;
+      left: 7px;
+      top: 7px;
+      bottom: 12px;
+      width: 78px;
+      border-radius: 20px;
+      background: var(--slider-thumb-grad);
+      color: #031205;
+      font-weight: 900;
+      font-size: 1.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid rgba(255, 255, 255, 0.7);
+      box-shadow:
+        0 5px 0 var(--slider-thumb-edge),
+        0 8px 18px var(--slider-glow),
+        inset 0 2px 4px rgba(255, 255, 255, 0.82),
+        inset 0 -3px 5px rgba(0, 0, 0, 0.28);
+      z-index: 2;
+      pointer-events: none;
+    }
+    .slider-range-input {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 3;
+      margin: 0;
+      touch-action: pan-y;
+    }
+    .countdown-cancel-btn {
+      width: 100%;
+      background: linear-gradient(180deg, rgba(244, 63, 94, 0.24), rgba(159, 18, 57, 0.28));
+      border: 1px solid rgba(244, 63, 94, 0.55);
+      color: #fecdd3;
+      padding: 0.65rem;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 0.82rem;
+      cursor: pointer;
+      margin-bottom: 0.65rem;
+      display: none;
+      box-shadow: 0 3px 0 rgba(136, 19, 55, 0.8);
+    }
+
+    /* Recessed Bezel Socket + Giant 3D Contoured Physical Stopwatch Button (Countdown & Completed States) */
     .tap-btn-well {
       background: linear-gradient(180deg, #020503 0%, #0c170f 100%);
       border: 2px solid rgba(255, 255, 255, 0.16);
@@ -736,8 +877,30 @@
       </div>
     </div>
 
-    <!-- Big Primary Timing Button -->
-    <div class="tap-btn-well" id="primary-btn-well">
+    <!-- Scroll-Safe & Error-Proof Slide-to-Start & Slide-to-Split Control -->
+    <div class="start-slider-card" id="start-slider-wrap">
+      <div class="slider-track" id="start-slider-track">
+        <div class="slider-fill" id="start-slider-fill"></div>
+        <div class="slider-thumb" id="start-slider-thumb">»»</div>
+        <span class="slider-label" id="start-slider-label">SLIDE TO START RACE</span>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value="0"
+          class="slider-range-input"
+          id="start-slider-input"
+          aria-label="Slide right to start race or record split"
+          oninput="handleStartSliderInput(this.value)"
+          onchange="handleStartSliderRelease(this.value)"
+          onpointerup="handleStartSliderRelease(this.value)"
+          ontouchend="handleStartSliderRelease(this.value)"
+        />
+      </div>
+    </div>
+
+    <!-- 3-Second Countdown Display & Completed Status Button -->
+    <div class="tap-btn-well" id="primary-btn-well" style="display:none">
       <button
         type="button"
         class="giant-tap-btn btn-theme-green"
@@ -745,9 +908,10 @@
         onpointerdown="recordBtnPointerDown(event)"
         onclick="handleGuardedTap(event)"
       >
-        <span id="primary-btn-main">START RACE</span>
+        <span id="primary-btn-main">STARTING IN 3...</span>
       </button>
     </div>
+    <button type="button" class="countdown-cancel-btn" id="countdown-cancel-btn" onclick="cancelStartCountdown()">✕ Cancel Countdown / Re-Lock Start</button>
 
     <!-- Station 8 Wall Ball Counter (ONLY visible while actively doing Station 8 Wall Balls) -->
     <div class="wallball-card" id="wallball-card">
@@ -832,7 +996,7 @@
       const lbl = document.getElementById('start-slider-label');
       if (input) input.value = 0;
       if (fill) fill.style.width = '0%';
-      if (thumb) thumb.style.left = '6px';
+      if (thumb) thumb.style.left = '7px';
       if (lbl) lbl.style.opacity = '1';
     }
 
@@ -847,7 +1011,7 @@
     }
 
     function triggerSliderAction() {
-      if (!currentEntry || sliderTriggeredLatch) return;
+      if (!currentEntry || sliderTriggeredLatch || Date.now() < tapCooldownUntil) return;
       sliderTriggeredLatch = true;
       if (!currentEntry.started_at_ms && currentEntry.status === 'scheduled') {
         triggerStartCountdown();
@@ -855,11 +1019,15 @@
         handlePrimaryTap(true);
         setTimeout(() => {
           resetStartSliderVisual();
-        }, 180);
+        }, 260);
       }
     }
 
     function handleStartSliderInput(val) {
+      if (Date.now() < tapCooldownUntil) {
+        resetStartSliderVisual();
+        return;
+      }
       const num = Math.max(0, Math.min(100, parseInt(val || '0', 10)));
       const track = document.getElementById('start-slider-track');
       const fill = document.getElementById('start-slider-fill');
@@ -867,8 +1035,9 @@
       const lbl = document.getElementById('start-slider-label');
       if (fill) fill.style.width = `${num}%`;
       if (track && thumb) {
-        const maxLeft = Math.max(6, track.clientWidth - 62);
-        const leftPx = 6 + Math.round((num / 100) * (maxLeft - 6));
+        const thumbW = thumb.offsetWidth || 78;
+        const maxLeft = Math.max(7, track.clientWidth - thumbW - 7);
+        const leftPx = 7 + Math.round((num / 100) * (maxLeft - 7));
         thumb.style.left = `${leftPx}px`;
       }
       if (lbl) {
@@ -999,7 +1168,7 @@
           return;
         }
       }
-      handlePrimaryTap(true);
+      handlePrimaryTap(false);
     }
 
     function toggleFocusLock() {
@@ -1322,33 +1491,60 @@
         wbCard.classList.remove('visible');
       }
 
-      // Configure Big Primary Timing Button
+      // Configure Scroll-Safe Slide-to-Start (with 3s Countdown) & Slide-to-Split Control
+      const sliderWrap = document.getElementById('start-slider-wrap');
+      const sliderLbl = document.getElementById('start-slider-label');
+      const cancelBtn = document.getElementById('countdown-cancel-btn');
       const btnWell = document.getElementById('primary-btn-well');
       const btn = document.getElementById('primary-action-btn');
       const mainTxt = document.getElementById('primary-btn-main');
-      if (btnWell) btnWell.style.display = 'flex';
-      if (btn) btn.style.display = 'flex';
 
       if (!currentEntry.started_at_ms && currentEntry.status === 'scheduled') {
-        btn.disabled = false;
-        btn.className = 'giant-tap-btn btn-theme-green';
-        mainTxt.textContent = 'START RACE';
+        if (startCountdownSec > 0) {
+          if (sliderWrap) sliderWrap.style.display = 'none';
+          if (cancelBtn) cancelBtn.style.display = 'block';
+          if (btnWell) btnWell.style.display = 'flex';
+          btn.style.display = 'flex';
+          btn.disabled = false;
+          btn.className = 'giant-tap-btn btn-theme-yellow';
+          mainTxt.textContent = `STARTING IN ${startCountdownSec}...`;
+        } else {
+          if (sliderWrap) {
+            sliderWrap.style.display = 'flex';
+            sliderWrap.className = 'start-slider-card';
+          }
+          if (sliderLbl) sliderLbl.textContent = 'SLIDE TO START RACE';
+          if (cancelBtn) cancelBtn.style.display = 'none';
+          if (btnWell) btnWell.style.display = 'none';
+          btn.style.display = 'none';
+          resetStartSliderVisual();
+        }
       } else if (currentEntry.status === 'finished') {
+        if (sliderWrap) sliderWrap.style.display = 'none';
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (btnWell) btnWell.style.display = 'flex';
+        btn.style.display = 'flex';
         btn.disabled = true;
         btn.className = 'giant-tap-btn btn-theme-done';
         mainTxt.textContent = '✅ SIM COMPLETED';
       } else if (curInfo) {
-        btn.disabled = false;
-        if (curInfo.split_index === 16) {
-          btn.className = 'giant-tap-btn btn-theme-yellow';
-          mainTxt.textContent = 'FINISH WALL BALLS';
-        } else if (curInfo.split_type === 'run') {
-          btn.className = 'giant-tap-btn btn-theme-blue';
-          mainTxt.textContent = cleanStageName(curInfo.label).toUpperCase();
-        } else {
-          btn.className = 'giant-tap-btn btn-theme-green';
-          mainTxt.textContent = cleanStageName(curInfo.label).toUpperCase();
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (btnWell) btnWell.style.display = 'none';
+        btn.style.display = 'none';
+        if (sliderWrap) {
+          sliderWrap.style.display = 'flex';
+          if (curInfo.split_index === 16) {
+            sliderWrap.className = 'start-slider-card slider-theme-yellow';
+            if (sliderLbl) sliderLbl.textContent = 'SLIDE TO FINISH WALL BALLS';
+          } else if (curInfo.split_type === 'run') {
+            sliderWrap.className = 'start-slider-card slider-theme-blue';
+            if (sliderLbl) sliderLbl.textContent = `SLIDE TO COMPLETE ${cleanStageName(curInfo.label).toUpperCase()}`;
+          } else {
+            sliderWrap.className = 'start-slider-card';
+            if (sliderLbl) sliderLbl.textContent = `SLIDE TO COMPLETE ${cleanStageName(curInfo.label).toUpperCase()}`;
+          }
         }
+        resetStartSliderVisual();
       }
 
       updateRunTelemetryBar();
@@ -1646,13 +1842,13 @@
       btn.classList.add('tap-flash');
       setTimeout(() => btn.classList.remove('tap-flash'), 120);
 
-      // 280ms micro-bounce guard against accidental touch jitter (never disables/grays out button)
-      tapCooldownUntil = now + 280;
+      // 750ms slide/bounce guard so releasing the slider can never double-advance the next split
+      tapCooldownUntil = now + 750;
       if (cooldownTimerId) clearTimeout(cooldownTimerId);
       cooldownTimerId = setTimeout(() => {
         tapCooldownUntil = 0;
         if (currentEntry) renderJudgeScreen();
-      }, 280);
+      }, 750);
 
       // Optimistically update UI immediately before network round-trip
       const entryId = currentEntry.id;

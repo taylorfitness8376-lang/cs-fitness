@@ -672,9 +672,17 @@ def test_teamup_api_v2_sync_and_webhooks(client):
     assert "toggleFocusLock" in judge_html
     assert "handleFastTap" in judge_html
     idx_clocks = judge_html.index('class="clocks-grid"')
+    idx_slider = judge_html.index('id="start-slider-wrap"')
     idx_btn = judge_html.index('id="primary-action-btn"')
     idx_presc = judge_html.index('id="presc-card"')
-    assert idx_clocks < idx_btn < idx_presc
+    assert idx_clocks < idx_slider < idx_btn < idx_presc
+    assert 'id="start-slider-input"' in judge_html
+    assert 'id="countdown-cancel-btn"' in judge_html
+    assert "SLIDE TO START RACE" in judge_html
+    assert "SLIDE TO COMPLETE" in judge_html
+    assert "SLIDE TO FINISH WALL BALLS" in judge_html
+    assert "triggerStartCountdown" in judge_html
+    assert "triggerSliderAction" in judge_html
     assert "tap-btn-well" in judge_html
     assert "btn-theme-green" in judge_html
 
