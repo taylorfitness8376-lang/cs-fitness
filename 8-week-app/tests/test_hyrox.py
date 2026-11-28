@@ -1181,6 +1181,20 @@ def test_confirmed_13_road_to_glasgow_signups_enrichment(client):
     assert by_restored_name["Louise Menealy"]["volunteer_name"] == "Jamie"
     assert by_restored_name["Louise Menealy"]["heat_start_time"] == "10:20"
 
+    # Verify Sunday (Day 2) includes 09:30..09:55 5-min slots without moving any scheduled Sunday athletes
+    sun_heats = [
+        h["start_time"]
+        for h in state_after["heats"]
+        if int(h.get("day_number") or 1) == 2
+    ]
+    for early_slot in ("09:30", "09:35", "09:40", "09:45", "09:50", "09:55"):
+        assert early_slot in sun_heats
+    assert by_restored_name["Eve Cunningham"]["heat_start_time"] == "10:00"
+    assert by_restored_name["Joanne Campbell"]["heat_start_time"] == "10:05"
+    assert by_restored_name["Lesley Anne Cooper"]["heat_start_time"] == "10:10"
+    assert by_restored_name["Ava Stewart"]["heat_start_time"] == "10:15"
+    assert by_restored_name["Louise Menealy"]["heat_start_time"] == "10:20"
+
     # Verify the 4-Athlete Sim Test Lab UI and batch mock API
     sim_page = client.get(f"/hyrox/sim-test?event_id={event_id}")
     assert sim_page.status_code == 200

@@ -346,7 +346,7 @@
             <input type="date" id="wk-sat-date" value="2026-11-28" />
           </div>
           <div>
-            <label>Sunday (10:00–14:00)</label>
+            <label>Sunday (09:30–14:00)</label>
             <input type="date" id="wk-sun-date" value="2026-11-29" />
           </div>
           <div>
@@ -843,7 +843,7 @@
       const customName = document.getElementById('wk-ev-name').value.trim();
       const statusEl = document.getElementById('wk-setup-status');
       statusEl.style.display = 'block';
-      statusEl.innerHTML = `<span style="color:var(--yellow)">⏳ Setting up Saturday (${satDate} 14:00–17:00) &amp; Sunday (${sunDate} 10:00–14:00) slots...</span>`;
+      statusEl.innerHTML = `<span style="color:var(--yellow)">⏳ Setting up Saturday (${satDate} 14:00–17:00) &amp; Sunday (${sunDate} 09:30–14:00) slots...</span>`;
 
       const payload = {
         saturday_date: satDate,
@@ -865,7 +865,7 @@
         const syncNote = data.synced_count
           ? ` · Synced <strong>${data.synced_count}</strong> TeamUp sign-ups!`
           : (data.teamup_sync_error ? ` · TeamUp note: ${escapeHtml(data.teamup_sync_error)}` : '');
-        statusEl.innerHTML = `<span style="color:var(--green);font-weight:700">✅ Ready: ${escapeHtml(data.event.name)} (${data.heats_total_count} slots across Sat 14:00–17:00 &amp; Sun 10:00–14:00)${syncNote}</span>`;
+        statusEl.innerHTML = `<span style="color:var(--green);font-weight:700">✅ Ready: ${escapeHtml(data.event.name)} (${data.heats_total_count} slots across Sat 14:00–17:00 &amp; Sun 09:30–14:00)${syncNote}</span>`;
         await loadEventsList();
       } else {
         statusEl.innerHTML = `<span style="color:var(--red)">❌ ${escapeHtml(data.error || 'Could not set up weekend event')}</span>`;
@@ -928,8 +928,8 @@
     const SIGNUP_GROUP_META = [
       { key: 'male_solo', title: 'MALE SOLO', day: '1', window: 'Sat 14:00–17:00', color: '#38bdf8' },
       { key: 'male_mixed_doubles', title: 'MALE / MIXED DOUBLES', day: '1', window: 'Sat 14:00–17:00', color: '#3dff4f' },
-      { key: 'female_solo', title: 'FEMALE SOLO', day: '2', window: 'Sun 10:00–14:00', color: '#f472b6' },
-      { key: 'female_doubles', title: 'FEMALE DOUBLES', day: '2', window: 'Sun 10:00–14:00', color: '#c084fc' },
+      { key: 'female_solo', title: 'FEMALE SOLO', day: '2', window: 'Sun 09:30–14:00', color: '#f472b6' },
+      { key: 'female_doubles', title: 'FEMALE DOUBLES', day: '2', window: 'Sun 09:30–14:00', color: '#c084fc' },
     ];
 
     function escapeHtml(str) {
